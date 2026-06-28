@@ -1,6 +1,6 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.5.0b refines the branded Home page into a compact image launcher.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.5.0c refreshes the transparent branding assets and centered Home layout.
 
 ## Build 1 Features
 
@@ -118,7 +118,7 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 - Home page uses a wide Clipboard Coach Studio banner as the branded header.
 - Home navigation uses image cards for Teams, Video Viewer, Clips, and Settings.
 - Settings has a simple local-first placeholder page for future Appearance, Playback, and Storage options.
-- Uploaded Home page assets are organized in `assets/home/`.
+- Home page assets are organized in `assets/branding/`.
 
 ## Build 1.5.0b Fixes
 
@@ -126,6 +126,14 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 - Extra text labels under the Home images were removed because the images already contain section names.
 - Home icon buttons use minimal dark containers with subtle green hover styling.
 - The uploaded PNGs have baked-in checkerboard backgrounds, so the layout reduces their visual weight without distorting them.
+
+## Build 1.5.0c Fixes
+
+- New transparent branding images are organized in `assets/branding/`.
+- The Home page uses the refreshed banner and centered transparent launcher graphics.
+- The small logo is used in the app UI and as the Electron window/shortcut icon source.
+- Teams, Clips, Settings, and Video Viewer received subtle page identity artwork.
+- Older `assets/home/` branding files were removed after references moved to `assets/branding/`.
 
 ## Build 1.3.2 Fixes
 
@@ -156,7 +164,7 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 
 ## Not Included Yet
 
-Build 1.5.0b intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, real MP4 export, or external tag import.
+Build 1.5.0c intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, real MP4 export, or external tag import.
 
 ## Technical Setup
 

@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import appIconUrl from "../assets/app-icon.png";
-import homeBannerUrl from "../assets/home/banner.png";
-import homeClipsUrl from "../assets/home/clips.png";
-import homeSettingsUrl from "../assets/home/settings.png";
-import homeTeamsUrl from "../assets/home/teams.png";
-import homeVideoViewerUrl from "../assets/home/video-viewer.png";
+import homeBannerUrl from "../assets/branding/banner.png";
+import homeClipsUrl from "../assets/branding/clips.png";
+import appIconUrl from "../assets/branding/logo.png";
+import homeSettingsUrl from "../assets/branding/settings.png";
+import homeTeamsUrl from "../assets/branding/teams.png";
+import homeVideoViewerUrl from "../assets/branding/video-viewer.png";
 
 const playableExtensions = new Set([".mp4", ".m4v", ".mov", ".webm", ".ogg"]);
 const tagColors = ["#68d51b", "#3aa7ff", "#ffb020", "#d66bff", "#ff6b6b", "#4dd8c8", "#f07db1"];
@@ -1753,7 +1753,12 @@ function App() {
 
     return (
       <main className="sectionShell">
-        <Header title="Teams" subtitle="Simple local team and player lists." onBack={() => setScreen("home")} />
+        <Header
+          title="Teams"
+          subtitle="Simple local team and player lists."
+          onBack={() => setScreen("home")}
+          visualSrc={homeTeamsUrl}
+        />
 
         <section className="teamsLayout">
           <aside className="teamsListPanel">
@@ -2018,7 +2023,7 @@ function App() {
   function renderClips() {
     return (
       <main className="sectionShell">
-        <Header title="Clips" subtitle="" onBack={() => setScreen("home")} />
+        <Header title="Clips" subtitle="" onBack={() => setScreen("home")} visualSrc={homeClipsUrl} />
         <section className="clipGrid">
           {store.clips.length === 0 ? (
             <div className="emptyPanel">No clip records yet. Use Make Clip in the Video Viewer to prepare one.</div>
@@ -2041,7 +2046,12 @@ function App() {
   function renderSettings() {
     return (
       <main className="sectionShell">
-        <Header title="Settings" subtitle="Local-first settings placeholder." onBack={() => setScreen("home")} />
+        <Header
+          title="Settings"
+          subtitle="Local-first settings placeholder."
+          onBack={() => setScreen("home")}
+          visualSrc={homeSettingsUrl}
+        />
         <section className="settingsGrid" aria-label="Settings sections">
           <article className="settingsPanel">
             <h2>Appearance</h2>
@@ -2071,6 +2081,7 @@ function App() {
               <p>Build 1.3</p>
             </div>
           </div>
+          <img className="controlPanelArtwork" src={homeVideoViewerUrl} alt="" />
 
           <button type="button" onClick={() => setScreen("home")}>
             Home
@@ -2801,9 +2812,10 @@ type HeaderProps = {
   title: string;
   subtitle: string;
   onBack: () => void;
+  visualSrc?: string;
 };
 
-function Header({ title, subtitle, onBack }: HeaderProps) {
+function Header({ title, subtitle, onBack, visualSrc }: HeaderProps) {
   return (
     <header className="sectionHeader">
       <button type="button" onClick={onBack}>
@@ -2813,6 +2825,7 @@ function Header({ title, subtitle, onBack }: HeaderProps) {
         <h1>{title}</h1>
         {subtitle ? <p>{subtitle}</p> : null}
       </div>
+      {visualSrc ? <img className="sectionHeaderArtwork" src={visualSrc} alt="" /> : null}
     </header>
   );
 }

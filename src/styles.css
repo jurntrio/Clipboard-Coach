@@ -68,8 +68,8 @@ select:focus {
 
 .homeShell {
   display: grid;
-  align-content: start;
-  gap: 18px;
+  align-content: center;
+  gap: 26px;
   height: 100vh;
   max-width: 1180px;
   margin: 0 auto;
@@ -79,18 +79,15 @@ select:focus {
 .homeBanner {
   display: grid;
   justify-items: center;
-  border: 1px solid #323a35;
-  border-radius: 8px;
-  background: #101311;
-  padding: 14px;
+  padding: 0 8px;
   overflow: hidden;
 }
 
 .homeBanner img {
   display: block;
-  width: min(100%, 980px);
+  width: min(100%, 1080px);
   height: auto;
-  max-height: 180px;
+  max-height: 250px;
   object-fit: contain;
 }
 
@@ -105,37 +102,35 @@ select:focus {
 
 .homeCards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 220px));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 240px));
   justify-content: center;
   align-items: center;
-  gap: 18px;
+  gap: 20px;
 }
 
 .homeCard {
   display: grid;
   place-items: center;
-  width: min(220px, 100%);
+  width: min(240px, 100%);
   min-height: 0;
   aspect-ratio: 1;
   border-color: transparent;
-  background: rgba(28, 33, 30, 0.35);
-  padding: 10px;
-  overflow: hidden;
+  background: transparent;
+  padding: 6px;
 }
 
 .homeCard:hover:not(:disabled) {
   border-color: #71d52b;
-  background: rgba(32, 39, 32, 0.72);
+  background: rgba(32, 39, 32, 0.36);
   box-shadow: 0 0 24px rgba(113, 213, 43, 0.16);
 }
 
 .homeCard img {
   width: 100%;
-  max-width: 210px;
+  max-width: 230px;
   height: auto;
-  max-height: 210px;
+  max-height: 230px;
   object-fit: contain;
-  border-radius: 6px;
 }
 
 .sectionShell {
@@ -148,6 +143,13 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.sectionHeaderArtwork {
+  width: clamp(88px, 12vw, 132px);
+  height: 72px;
+  margin-left: auto;
+  object-fit: contain;
 }
 
 .settingsGrid {
@@ -555,7 +557,14 @@ select:focus {
   width: 48px;
   height: 48px;
   border-radius: 8px;
-  object-fit: cover;
+  object-fit: contain;
+}
+
+.controlPanelArtwork {
+  align-self: center;
+  width: min(150px, 78%);
+  height: auto;
+  object-fit: contain;
 }
 
 .brandBlock h1 {

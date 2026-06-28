@@ -146,6 +146,14 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Keep accessible labels and title text on each Home navigation button.
 - Use minimal dark button styling and subtle hover treatment without changing app workflows.
 
+## Build 1.5.0c: Transparent Branding Refresh
+
+- Replace older branding files with six refreshed transparent assets in `assets/branding/`.
+- Use the small logo in the app UI and as the Electron window/shortcut icon source.
+- Center the Home page around the refreshed banner and transparent section launcher graphics.
+- Add tasteful Teams, Clips, Settings, and Video Viewer page identity artwork without moving core workflows.
+- Remove old `assets/home/` branding files after references are migrated.
+
 ## Build 1.3.2: Video Tagging Usability Fixes
 
 - Add a Video Viewer team selector and active-player selector in the left rail.
