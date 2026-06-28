@@ -458,14 +458,15 @@ function App() {
 
   useEffect(() => {
     const player = clipPreviewRef.current;
+    const firstSegment = selectedClipSegments[0];
 
-    if (!player || !currentClipSegment) {
+    if (!player || !firstSegment) {
       return;
     }
 
-    player.currentTime = currentClipSegment.startTime;
-    setClipPreviewProgress(currentSegmentOffset);
-  }, [clipPreviewVideo?.url, currentClipSegment?.id, currentSegmentOffset]);
+    player.currentTime = firstSegment.startTime;
+    setClipPreviewProgress(0);
+  }, [clipPreviewVideo?.url, selectedClipSegments]);
 
   useEffect(() => {
     if (selectedTeamId && store.teams.some((team) => team.id === selectedTeamId)) {
@@ -1464,6 +1465,92 @@ function App() {
     await openPreviousVideo(clip.sourceVideoPath);
   }
 
+  function openClipsLibrary() {
+    setSelectedClipId(null);
+    setClipPreviewVideo(null);
+    setClipPreviewError("");
+    setClipPreviewProgress(0);
+    setIsClipPreviewFinished(false);
+    setIsClipPreviewPlaying(false);
+    setScreen("clips");
+  }
+
+  function getSourceTimeForClipProgress(progress: number) {
+    const safeProgress = Math.min(Math.max(progress, 0), selectedClipDuration);
+    let elapsedBeforeSegment = 0;
+
+    for (let index = 0; index < selectedClipSegments.length; index += 1) {
+      const segment = selectedClipSegments[index];
+      const segmentDuration = getClipSegmentDuration(segment);
+
+      if (safeProgress <= elapsedBeforeSegment + segmentDuration || index === selectedClipSegments.length - 1) {
+        return {
+          segmentIndex: index,
+          sourceTime: segment.startTime + Math.min(segmentDuration, Math.max(0, safeProgress - elapsedBeforeSegment))
+        };
+      }
+
+      elapsedBeforeSegment += segmentDuration;
+    }
+
+    return null;
+  }
+
+  async function seekClipPreviewToProgress(progress: number, shouldPlay = isClipPreviewPlaying) {
+    const player = clipPreviewRef.current;
+    const mappedTime = getSourceTimeForClipProgress(progress);
+
+    if (!player || !mappedTime) {
+      return;
+    }
+
+    setClipPreviewSegmentIndex(mappedTime.segmentIndex);
+    setClipPreviewProgress(Math.min(Math.max(progress, 0), selectedClipDuration));
+    setIsClipPreviewFinished(false);
+    player.currentTime = mappedTime.sourceTime;
+
+    if (shouldPlay) {
+      try {
+        await player.play();
+        setIsClipPreviewPlaying(true);
+      } catch (error) {
+        console.error("Clip preview playback failed:", error);
+        setClipPreviewError("Clip preview could not start.");
+      }
+    }
+  }
+
+  async function toggleClipPreviewPlayback() {
+    const player = clipPreviewRef.current;
+
+    if (!player) {
+      return;
+    }
+
+    if (isClipPreviewPlaying) {
+      player.pause();
+      setIsClipPreviewPlaying(false);
+      return;
+    }
+
+    if (isClipPreviewFinished || selectedClipSegments.length === 0) {
+      await playClipSegment(0);
+      return;
+    }
+
+    await seekClipPreviewToProgress(clipPreviewProgress, true);
+  }
+
+  async function openClipPreviewFullscreen() {
+    const player = clipPreviewRef.current;
+
+    if (!player?.requestFullscreen) {
+      return;
+    }
+
+    await player.requestFullscreen();
+  }
+
   function renderHome() {
     return (
       <main className="homeShell">
@@ -1484,7 +1571,7 @@ function App() {
             <strong>Video Viewer</strong>
             <span>Open a new video or review saved videos.</span>
           </button>
-          <button type="button" className="homeCard" onClick={() => setScreen("clips")}>
+          <button type="button" className="homeCard" onClick={openClipsLibrary}>
             <strong>Clips</strong>
             <span>View prepared clip records when they exist.</span>
           </button>
@@ -1637,7 +1724,7 @@ function App() {
   function renderClips() {
     return (
       <main className="sectionShell">
-        <Header title="Clips" subtitle="Prepared local clip library. Export comes later." onBack={() => setScreen("home")} />
+        <Header title="Clips" subtitle="" onBack={() => setScreen("home")} />
         <section className="clipGrid">
           {store.clips.length === 0 ? (
             <div className="emptyPanel">No clip records yet. Use Make Clip in the Video Viewer to prepare one.</div>
@@ -1647,13 +1734,6 @@ function App() {
               <button type="button" className="clipCardButton" onClick={() => setSelectedClipId(clip.id)}>
                 <h2>{clip.name}</h2>
                 <p>{getClipMatchTitle(clip, store.videos)}</p>
-                <span>{clip.tagSnapshots?.length ?? clip.selectedTagIds?.length ?? 0} segments</span>
-                <span>{getClipAudienceLabel(clip)}</span>
-                <strong>Preview only - no video exported yet</strong>
-                <small>{new Date(clip.createdAt).toLocaleString()}</small>
-              </button>
-              <button className="smallDangerButton" type="button" onClick={() => deleteClipRecord(clip.id)}>
-                Delete
               </button>
             </article>
           ))}
@@ -1666,7 +1746,6 @@ function App() {
                 <div>
                   <h2>{selectedClip.name}</h2>
                   <p>{getClipMatchTitle(selectedClip, store.videos)}</p>
-                  <small>{selectedClip.sourceVideoName ?? selectedClip.sourceVideoPath ?? "No source video saved"}</small>
                 </div>
                 <button type="button" onClick={() => setSelectedClipId(null)}>
                   Close
@@ -1678,15 +1757,8 @@ function App() {
                   onChange={(event) => setClipRenameText(event.target.value)}
                   aria-label="Clip name"
                 />
-                <button type="submit">Rename</button>
-              </form>
-              <div className="clipMetaList">
-                <span>Sharing target: {getClipAudienceLabel(selectedClip)}</span>
-                <span>Export status: Preview only - no video file exported yet</span>
-                <span>Upload status: {selectedClip.uploadStatus ?? "not_uploaded"}</span>
-                <span>Share URL: {selectedClip.shareUrl ?? "Not created"}</span>
-                <span>Created: {new Date(selectedClip.createdAt).toLocaleString()}</span>
-              </div>
+                  <button type="submit">Rename</button>
+                </form>
               <section className="clipPreviewPanel">
                 <h3>Preview</h3>
                 {clipPreviewError || selectedClip.missingSourceVideo ? (
@@ -1694,28 +1766,53 @@ function App() {
                 ) : null}
                 {clipPreviewVideo && !clipPreviewError && !selectedClip.missingSourceVideo ? (
                   <>
-                    <video
-                      key={clipPreviewVideo.url}
-                      ref={clipPreviewRef}
-                      className="clipPreviewVideo"
-                      src={clipPreviewVideo.url}
-                      preload="metadata"
-                      onLoadedMetadata={() => {
-                        if (currentClipSegment && clipPreviewRef.current) {
-                          clipPreviewRef.current.currentTime = currentClipSegment.startTime;
-                        }
-                      }}
-                      onTimeUpdate={handleClipPreviewTimeUpdate}
-                      onPause={() => setIsClipPreviewPlaying(false)}
-                      onPlay={() => setIsClipPreviewPlaying(true)}
-                    />
+                    <div className="clipPreviewStage">
+                      <video
+                        key={clipPreviewVideo.url}
+                        ref={clipPreviewRef}
+                        className="clipPreviewVideo"
+                        src={clipPreviewVideo.url}
+                        preload="metadata"
+                        onLoadedMetadata={() => {
+                          if (currentClipSegment && clipPreviewRef.current) {
+                            clipPreviewRef.current.currentTime = currentClipSegment.startTime;
+                          }
+                        }}
+                        onTimeUpdate={handleClipPreviewTimeUpdate}
+                        onPause={() => setIsClipPreviewPlaying(false)}
+                        onPlay={() => setIsClipPreviewPlaying(true)}
+                      />
+                      {!isClipPreviewPlaying ? (
+                        <button
+                          className="clipPlayOverlay"
+                          type="button"
+                          onClick={toggleClipPreviewPlayback}
+                          aria-label={isClipPreviewFinished ? "Replay clip preview" : "Play clip preview"}
+                        >
+                          ▶
+                        </button>
+                      ) : null}
+                    </div>
                     <div className="clipPreviewControls">
-                      <button type="button" onClick={() => playClipSegment(0)} disabled={selectedClipSegments.length === 0}>
-                        {isClipPreviewFinished ? "Replay Preview" : isClipPreviewPlaying ? "Restart Preview" : "Play Preview"}
+                      <button type="button" onClick={toggleClipPreviewPlayback} disabled={selectedClipSegments.length === 0}>
+                        {isClipPreviewFinished ? "Replay Preview" : isClipPreviewPlaying ? "Pause Preview" : "Play Preview"}
                       </button>
                       <span>
                         {formatClockTime(clipPreviewProgress)} / {formatClockTime(selectedClipDuration)}
                       </span>
+                      <input
+                        type="range"
+                        min="0"
+                        max={selectedClipDuration || 0}
+                        step="0.01"
+                        value={Math.min(clipPreviewProgress, selectedClipDuration || 0)}
+                        disabled={selectedClipSegments.length === 0}
+                        onChange={(event) => seekClipPreviewToProgress(Number(event.currentTarget.value), false)}
+                        aria-label="Clip preview timeline"
+                      />
+                      <button type="button" onClick={openClipPreviewFullscreen} disabled={!clipPreviewVideo}>
+                        Fullscreen
+                      </button>
                       {isClipPreviewFinished ? <strong>Preview finished</strong> : null}
                       {currentClipSegment ? (
                         <small>
@@ -1752,6 +1849,13 @@ function App() {
                 <button type="button" onClick={() => deleteClipRecord(selectedClip.id)}>
                   Delete Clip
                 </button>
+              </div>
+              <div className="clipMetaList">
+                <span>Sharing target: {getClipAudienceLabel(selectedClip)}</span>
+                <span>Export status: Preview only - no video file exported yet</span>
+                <span>Upload status: {selectedClip.uploadStatus ?? "not_uploaded"}</span>
+                <span>Share URL: {selectedClip.shareUrl ?? "Not created"}</span>
+                <span>Created: {new Date(selectedClip.createdAt).toLocaleString()}</span>
               </div>
             </section>
           </div>
@@ -2453,7 +2557,7 @@ function Header({ title, subtitle, onBack }: HeaderProps) {
       </button>
       <div>
         <h1>{title}</h1>
-        <p>{subtitle}</p>
+        {subtitle ? <p>{subtitle}</p> : null}
       </div>
     </header>
   );

@@ -77,6 +77,17 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Use compact responsive clip cards that wrap cleanly for larger clip libraries.
 - Open clip details and preview in a modal from the Clips library.
 
+## Build 1.4.3: Clean Clips Library and Preview Modal
+
+- Remove technical subtitle text from the Clips screen.
+- Keep clip cards compact with only clip title and match title/info.
+- Move delete and technical metadata into the clip detail modal.
+- Reset selected clip state when opening Clips from Home.
+- Add a central play overlay to the clip preview.
+- Add a clip-time scrub bar that maps to the correct source segment/time.
+- Add fullscreen support through the native fullscreen API.
+- Keep preview-only behavior without real MP4 export.
+
 ## Build 1.3.2: Video Tagging Usability Fixes
 
 - Add a Video Viewer team selector and active-player selector in the left rail.
