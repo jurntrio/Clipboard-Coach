@@ -203,8 +203,9 @@ select:focus {
 
 .clipGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  align-content: start;
+  gap: 12px;
   overflow: auto;
 }
 
@@ -264,13 +265,16 @@ select:focus {
 
 .clipCard {
   display: grid;
-  gap: 10px;
+  align-content: start;
+  gap: 8px;
+  padding: 12px;
 }
 
 .clipCardButton {
   display: grid;
   height: auto;
-  gap: 6px;
+  min-height: 0;
+  gap: 5px;
   border: 0;
   background: transparent;
   padding: 0;
@@ -285,7 +289,12 @@ select:focus {
   border-color: #71d52b;
 }
 
-.clipDetailsPanel {
+.missingSourceClip {
+  opacity: 0.72;
+}
+
+.clipDetailsPanel,
+.clipDetailsModal {
   display: grid;
   align-content: start;
   gap: 14px;
@@ -295,6 +304,13 @@ select:focus {
   border-radius: 8px;
   background: #1c211e;
   padding: 16px;
+}
+
+.clipDetailsModal {
+  width: min(980px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.35);
 }
 
 .clipMetaList,
@@ -350,12 +366,25 @@ select:focus {
 }
 
 .clipPreviewControls {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
-.clipPreviewControls span {
+.clipPreviewControls span,
+.clipPreviewControls small {
   color: #aeb8ad;
+}
+
+.clipPreviewControls strong {
+  color: #9be36a;
+}
+
+.smallDangerButton {
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 10px;
 }
 
 .playerClipLinks {
@@ -445,7 +474,8 @@ select:focus {
 }
 
 .matchPanel,
-.standardTagPanel {
+.standardTagPanel,
+.matchInfoPanel {
   display: grid;
   gap: 10px;
   border: 1px solid #323a35;
@@ -456,12 +486,14 @@ select:focus {
 
 .matchPanel h2,
 .standardTagPanel h2,
+.matchInfoPanel h2,
 .activePlayerList h3 {
   margin: 0;
   font-size: 15px;
 }
 
-.matchPanel label {
+.matchPanel label,
+.matchInfoPanel label {
   display: grid;
   gap: 6px;
   color: #c9d3c6;

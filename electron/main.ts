@@ -46,7 +46,15 @@ type StoredVideo = {
   lastOpenedAt: string;
   tags: VideoTag[];
   matchState?: MatchState;
+  matchInfo?: MatchInfo;
   missing?: boolean;
+};
+
+type MatchInfo = {
+  title?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  date?: string;
 };
 
 type MatchState = {
@@ -73,6 +81,7 @@ type ClipRecord = {
   filePath: string;
   sourceVideoPath?: string;
   sourceVideoName?: string;
+  matchTitle?: string;
   startTime?: number;
   endTime?: number;
   selectedTagIds?: string[];
@@ -189,7 +198,8 @@ function normalizeStore(store: TagStore): AppStore {
         extension: path.extname(videoPath).toLowerCase(),
         lastOpenedAt: new Date().toISOString(),
         tags: normalizeTags(value),
-        matchState: undefined
+        matchState: undefined,
+        matchInfo: undefined
       };
     } else {
       videos[videoPath] = {
@@ -204,7 +214,8 @@ function normalizeStore(store: TagStore): AppStore {
               teamName: value.matchState.teamName,
               players: value.matchState.players ?? []
             }
-          : undefined
+          : undefined,
+        matchInfo: value.matchInfo
       };
     }
   }
@@ -377,7 +388,8 @@ app.whenReady().then(() => {
       extension: fileExtension,
       lastOpenedAt: new Date().toISOString(),
       tags: existingVideo?.tags ?? [],
-      matchState: existingVideo?.matchState
+      matchState: existingVideo?.matchState,
+      matchInfo: existingVideo?.matchInfo
     };
     await writeStore(store);
 
@@ -458,7 +470,8 @@ app.whenReady().then(() => {
       extension: existingVideo?.extension ?? path.extname(videoPath).toLowerCase(),
       lastOpenedAt: new Date().toISOString(),
       tags: normalizeTags(tags),
-      matchState: existingVideo?.matchState
+      matchState: existingVideo?.matchState,
+      matchInfo: existingVideo?.matchInfo
     };
     await writeStore(store);
     return store.videos[videoPath].tags;

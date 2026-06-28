@@ -66,6 +66,17 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Use automatic numbering to avoid duplicate clip names.
 - Allow renaming a clip record safely from clip details.
 
+## Build 1.4.2: Clips Library UI and Match Info
+
+- Keep clip name and rename inputs editable while retaining unique-name numbering.
+- Stop clip preview cleanly at the end and show a finished state.
+- Restart preview from the first segment after it finishes.
+- Show clip preview progress as elapsed clip time over total segment duration.
+- Save simple match info on each video record.
+- Show match info on clip cards and clip detail modals with source filename fallback.
+- Use compact responsive clip cards that wrap cleanly for larger clip libraries.
+- Open clip details and preview in a modal from the Clips library.
+
 ## Build 1.3.2: Video Tagging Usability Fixes
 
 - Add a Video Viewer team selector and active-player selector in the left rail.

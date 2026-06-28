@@ -42,7 +42,15 @@ type StoredVideo = {
   lastOpenedAt: string;
   tags: VideoTag[];
   matchState?: MatchState;
+  matchInfo?: MatchInfo;
   missing?: boolean;
+};
+
+type MatchInfo = {
+  title?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  date?: string;
 };
 
 type MatchState = {
@@ -69,6 +77,7 @@ type ClipRecord = {
   filePath: string;
   sourceVideoPath?: string;
   sourceVideoName?: string;
+  matchTitle?: string;
   startTime?: number;
   endTime?: number;
   selectedTagIds?: string[];

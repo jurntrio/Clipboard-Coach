@@ -1,6 +1,6 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4.1 adds source-video clip preview, stronger player links, and unique clip names.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4.2 improves the Clips library grid, preview progress, clip renaming, and saved match info.
 
 ## Build 1 Features
 
@@ -56,6 +56,15 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 - Clip names are suggested from tag/player context and duplicate names are automatically numbered.
 - Clip details can rename an existing clip record without duplicating it.
 
+## Build 1.4.2 Fixes
+
+- Clips library uses compact responsive cards and opens clip details in a modal.
+- Clip preview shows clip-time progress across all selected segments and a finished state.
+- Replaying after preview end restarts from the first segment.
+- Clip rename and Clip Builder name fields remain editable while keeping automatic duplicate numbering.
+- Videos can store simple match info: title, home team, away team, and date.
+- Clip cards and details show match info, falling back to the source filename when missing.
+
 ## Build 1.3.2 Fixes
 
 - Video Viewer left rail can select a team and active players for the current video.
@@ -85,7 +94,7 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 
 ## Not Included Yet
 
-Build 1.4.1 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, or external tag import.
+Build 1.4.2 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, or external tag import.
 
 ## Technical Setup
 
