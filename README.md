@@ -1,6 +1,6 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.3.4 adds active tag visibility and saves match team/player selections per video.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4 adds local prepared clip records, intended-audience metadata, and player clip links.
 
 ## Build 1 Features
 
@@ -38,13 +38,13 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 
 ## Build 1.4 Features
 
-- Single-click tag selection and double-click navigation to tag start time.
-- Multi-select checkboxes for tags.
-- HH:MM:SS tag start/end editing with validation.
-- Add Tag popup opened by the Add Tag button or Space key.
-- Timeline tag duration blocks with stacked lanes for overlapping tags.
-- Vertical Teams layout with selected-team player details.
-- Player first name, last name, optional email, alphabetical sorting, and prepared clip empty states.
+- Make Clip workflow in the Video Viewer for creating local prepared clip records from saved tags.
+- Manual tag selection and quick selection by existing tag name.
+- Intended audience choices: full team, selected match players, or specific players.
+- Clip records save source video, selected tag snapshots, audience metadata, export status, upload status, and future sharing fields.
+- Clips library shows real prepared clip records and details.
+- Clip records can be deleted without deleting source videos, tags, teams, or players.
+- Teams screen shows clip links under players and full-team clip links for the selected team.
 
 ## Build 1.3.2 Fixes
 
@@ -75,7 +75,7 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 
 ## Not Included Yet
 
-Build 1.3.4 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, clip export, paid APIs, or external tag import.
+Build 1.4 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, or external tag import.
 
 ## Technical Setup
 

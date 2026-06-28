@@ -32,4 +32,4 @@ When adding features or documentation, favor workflows that help users:
 
 ## Current Stage
 
-The project is at Build 1.3.4 active tag indicator and match state saving, with the Build 1.4 planning notes retained in the build plan. Keep the app local-first and stable before adding advanced workflows such as reporting, AI analysis, clip export, cloud sync, advanced player stats, heatmaps, distance covered, periods, paid APIs, or imports.
+The project is at Build 1.4 local clip builder and player links. Keep the app local-first and stable before adding advanced workflows such as real clip export, online sharing, parent/player accounts, reporting, AI analysis, cloud sync, advanced player stats, heatmaps, distance covered, periods, paid APIs, or imports.

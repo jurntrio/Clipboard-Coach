@@ -208,6 +208,13 @@ select:focus {
   overflow: auto;
 }
 
+.clipsLayout {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 420px);
+  gap: 14px;
+  min-height: 0;
+}
+
 .teamCard,
 .clipCard,
 .emptyPanel {
@@ -253,6 +260,82 @@ select:focus {
 .clipCard p {
   color: #aeb8ad;
   overflow-wrap: anywhere;
+}
+
+.clipCard {
+  display: grid;
+  gap: 10px;
+}
+
+.clipCardButton {
+  display: grid;
+  height: auto;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+}
+
+.clipCardButton strong {
+  color: #9be36a;
+}
+
+.selectedClipCard {
+  border-color: #71d52b;
+}
+
+.clipDetailsPanel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid #323a35;
+  border-radius: 8px;
+  background: #1c211e;
+  padding: 16px;
+}
+
+.clipMetaList,
+.clipTagList,
+.playerClipLinks,
+.teamClipLinks {
+  display: grid;
+  gap: 8px;
+}
+
+.clipMetaList span,
+.clipTagList p,
+.playerClipLinks span,
+.teamClipLinks p {
+  color: #aeb8ad;
+}
+
+.clipTagList h3,
+.teamClipLinks h3 {
+  margin: 0;
+}
+
+.clipTagList div {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #323a35;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.playerClipLinks {
+  margin-top: 8px;
+}
+
+.playerClipLinks button,
+.teamClipLinks button {
+  justify-self: start;
+  width: min(260px, 100%);
+  height: auto;
+  min-height: 34px;
+  text-align: left;
 }
 
 .missingClip {
@@ -634,6 +717,17 @@ select:focus {
   font-variant-numeric: tabular-nums;
 }
 
+.tagPanelActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tagPanelActions button {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
 .tagList {
   display: grid;
   gap: 10px;
@@ -879,6 +973,12 @@ select:focus {
   width: min(560px, calc(100vw - 32px));
 }
 
+.clipBuilderModal {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+
 .tagModal h2,
 .tagModal p {
   margin: 0;
@@ -901,6 +1001,69 @@ select:focus {
   gap: 8px;
   max-height: 260px;
   overflow: auto;
+}
+
+.clipBuilderSource {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 8px;
+  color: #aeb8ad;
+}
+
+.clipBuilderSource strong {
+  color: #eef4ea;
+  overflow-wrap: anywhere;
+}
+
+.clipBuilderSection {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #323a35;
+  padding-top: 12px;
+}
+
+.clipBuilderSection h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.clipBuilderSection label,
+.clipBuilderPlayers label,
+.clipBuilderTagList label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #c9d3c6;
+}
+
+.clipBuilderSection input,
+.clipBuilderPlayers input,
+.clipBuilderTagList input {
+  min-height: 0;
+}
+
+.clipBuilderTagList,
+.clipBuilderPlayers {
+  display: grid;
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.clipBuilderTagList label {
+  border: 1px solid #323a35;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.clipBuilderTagList label > span {
+  display: grid;
+  gap: 3px;
+}
+
+.clipBuilderTagList small,
+.clipBuilderPlayers span {
+  color: #aeb8ad;
 }
 
 .standardTagManager div {
@@ -946,6 +1109,7 @@ select:focus {
   .homeCards,
   .appShell,
   .teamsLayout,
+  .clipsLayout,
   .playerForm {
     grid-template-columns: 1fr;
   }

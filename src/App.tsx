@@ -151,6 +151,43 @@ function getTagLanes(tags: VideoTag[]) {
   });
 }
 
+function getClipAudienceLabel(clip: ClipRecord) {
+  const audience = clip.intendedAudience;
+
+  if (!audience) {
+    return "No audience selected";
+  }
+
+  if (audience.type === "full_team") {
+    return audience.teamName ? `Full team: ${audience.teamName}` : "Full team";
+  }
+
+  if (audience.type === "selected_match_players") {
+    return audience.players.length > 0
+      ? `Selected match players: ${audience.players.map((player) => player.name).join(", ")}`
+      : "Selected match players";
+  }
+
+  return audience.players.length > 0
+    ? `Specific players: ${audience.players.map((player) => player.name).join(", ")}`
+    : "Specific players";
+}
+
+function isClipLinkedToPlayer(clip: ClipRecord, team: Team, player: Player) {
+  const audience = clip.intendedAudience;
+
+  if (!audience) {
+    return false;
+  }
+
+  if (audience.type === "full_team") {
+    return audience.teamId === team.id || (!audience.teamId && audience.teamName === team.name);
+  }
+
+  const playerName = getPlayerDisplayName(player);
+  return audience.players.some((audiencePlayer) => audiencePlayer.id === player.id || audiencePlayer.name === playerName);
+}
+
 function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [screen, setScreen] = useState<Screen>("home");
@@ -167,6 +204,14 @@ function App() {
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [isStandardTagsModalOpen, setIsStandardTagsModalOpen] = useState(false);
   const [isPreviousVideosModalOpen, setIsPreviousVideosModalOpen] = useState(false);
+  const [isClipBuilderOpen, setIsClipBuilderOpen] = useState(false);
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [clipDraft, setClipDraft] = useState<{
+    name: string;
+    selectedTagIds: string[];
+    audienceType: ClipAudience["type"];
+    specificPlayerIds: string[];
+  }>({ name: "", selectedTagIds: [], audienceType: "full_team", specificPlayerIds: [] });
   const [newTagText, setNewTagText] = useState("");
   const [videoTeamId, setVideoTeamId] = useState("");
   const [activePlayerIds, setActivePlayerIds] = useState<string[]>([]);
@@ -207,6 +252,8 @@ function App() {
   const timelineLaneCount = Math.max(1, ...timelineTags.map((tag) => tag.laneIndex + 1));
   const activeTagNames = useMemo(() => getActiveTagsAtTime(sortedTags, currentTime), [currentTime, sortedTags]);
   const currentVideoRecord = video ? store.videos[video.path] : null;
+  const selectedClip = store.clips.find((clip) => clip.id === selectedClipId) ?? null;
+  const currentVideoTagNames = useMemo(() => [...new Set(sortedTags.map((tag) => tag.label))], [sortedTags]);
   const selectedTeam = store.teams.find((team) => team.id === selectedTeamId) ?? store.teams[0] ?? null;
   const videoTeam = store.teams.find((team) => team.id === videoTeamId) ?? null;
   const videoTeamPlayers = useMemo(() => getSortedPlayers(videoTeam?.players ?? []), [videoTeam]);
@@ -907,6 +954,137 @@ function App() {
     await persistSettings({ standardTags: nextStandardTags });
   }
 
+  function openClipBuilder() {
+    if (!video) {
+      return;
+    }
+
+    const initiallySelectedTags = selectedTagIds.filter((tagId) => sortedTags.some((tag) => tag.id === tagId));
+    setClipDraft({
+      name: `${video.name} clip`,
+      selectedTagIds: initiallySelectedTags,
+      audienceType: "full_team",
+      specificPlayerIds: []
+    });
+    setIsClipBuilderOpen(true);
+  }
+
+  function toggleClipDraftTag(tagId: string) {
+    setClipDraft((current) => ({
+      ...current,
+      selectedTagIds: current.selectedTagIds.includes(tagId)
+        ? current.selectedTagIds.filter((selectedTagId) => selectedTagId !== tagId)
+        : [...current.selectedTagIds, tagId]
+    }));
+  }
+
+  function selectClipTagsByName(tagName: string) {
+    const matchingTagIds = sortedTags.filter((tag) => tag.label === tagName).map((tag) => tag.id);
+    setClipDraft((current) => ({
+      ...current,
+      selectedTagIds: [...new Set([...current.selectedTagIds, ...matchingTagIds])]
+    }));
+  }
+
+  function toggleSpecificClipPlayer(playerId: string) {
+    setClipDraft((current) => ({
+      ...current,
+      specificPlayerIds: current.specificPlayerIds.includes(playerId)
+        ? current.specificPlayerIds.filter((selectedPlayerId) => selectedPlayerId !== playerId)
+        : [...current.specificPlayerIds, playerId]
+    }));
+  }
+
+  function getClipAudienceForDraft(): ClipAudience {
+    if (clipDraft.audienceType === "full_team") {
+      return {
+        type: "full_team",
+        teamId: videoTeam?.id,
+        teamName: videoTeam?.name,
+        players: []
+      };
+    }
+
+    const sourcePlayers =
+      clipDraft.audienceType === "selected_match_players"
+        ? activePlayers
+        : activePlayers.filter((player) => clipDraft.specificPlayerIds.includes(player.id));
+
+    return {
+      type: clipDraft.audienceType,
+      teamId: videoTeam?.id,
+      teamName: videoTeam?.name,
+      players: sourcePlayers.map((player) => ({ id: player.id, name: getPlayerDisplayName(player) }))
+    };
+  }
+
+  async function createClipRecord(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!video || clipDraft.selectedTagIds.length === 0) {
+      return;
+    }
+
+    const selectedClipTags = sortedTags.filter((tag) => clipDraft.selectedTagIds.includes(tag.id));
+    const clipName = clipDraft.name.trim() || `${video.name} clip`;
+    const newClip: ClipRecord = {
+      id: crypto.randomUUID(),
+      name: clipName,
+      filePath: "",
+      sourceVideoPath: video.path,
+      sourceVideoName: video.name,
+      startTime: Math.min(...selectedClipTags.map((tag) => tag.startTime ?? tag.time)),
+      endTime: Math.max(...selectedClipTags.map((tag) => tag.endTime ?? (tag.startTime ?? tag.time) + 5)),
+      selectedTagIds: selectedClipTags.map((tag) => tag.id),
+      tagNames: [...new Set(selectedClipTags.map((tag) => tag.label))],
+      tagSnapshots: selectedClipTags.map((tag) => ({
+        id: tag.id,
+        label: tag.label,
+        startTime: tag.startTime ?? tag.time,
+        endTime: tag.endTime ?? (tag.startTime ?? tag.time) + 5,
+        playerIds: tag.playerIds ?? []
+      })),
+      intendedAudience: getClipAudienceForDraft(),
+      exportStatus: "prepared_only",
+      localClipPath: null,
+      shareUrl: null,
+      uploadStatus: "not_uploaded",
+      missingExportFile: true,
+      createdAt: new Date().toISOString(),
+      missing: true
+    };
+    const nextStore = { ...store, clips: [newClip, ...store.clips] };
+
+    setIsClipBuilderOpen(false);
+    setSelectedClipId(newClip.id);
+    setScreen("clips");
+    await persistStore(nextStore);
+  }
+
+  async function deleteClipRecord(clipId: string) {
+    if (!window.confirm("Delete this clip record? Source video and tags will stay saved.")) {
+      return;
+    }
+
+    const nextStore = { ...store, clips: store.clips.filter((clip) => clip.id !== clipId) };
+    setSelectedClipId((current) => (current === clipId ? null : current));
+    await persistStore(nextStore);
+  }
+
+  function openClipDetails(clipId: string) {
+    setSelectedClipId(clipId);
+    setScreen("clips");
+  }
+
+  async function openClipSourceVideo(clip: ClipRecord) {
+    if (!clip.sourceVideoPath) {
+      return;
+    }
+
+    setScreen("video");
+    await openPreviousVideo(clip.sourceVideoPath);
+  }
+
   function renderHome() {
     return (
       <main className="homeShell">
@@ -941,6 +1119,13 @@ function App() {
     const selectedPlayerDraft = selectedTeam
       ? playerDraftByTeam[selectedTeam.id] ?? { firstName: "", lastName: "", email: "" }
       : { firstName: "", lastName: "", email: "" };
+    const selectedTeamClips = selectedTeam
+      ? store.clips.filter(
+          (clip) =>
+            clip.intendedAudience?.type === "full_team" &&
+            (clip.intendedAudience.teamId === selectedTeam.id || clip.intendedAudience.teamName === selectedTeam.name)
+        )
+      : [];
 
     return (
       <main className="sectionShell">
@@ -1030,7 +1215,19 @@ function App() {
                       <div>
                         <strong>{getPlayerDisplayName(player)}</strong>
                         {player.email ? <span>{player.email}</span> : null}
-                        <small>No clips linked to this player yet.</small>
+                        <div className="playerClipLinks">
+                          <small>Clips</small>
+                          {store.clips.filter((clip) => isClipLinkedToPlayer(clip, selectedTeam, player)).length === 0 ? (
+                            <span>No clips linked to this player yet.</span>
+                          ) : null}
+                          {store.clips
+                            .filter((clip) => isClipLinkedToPlayer(clip, selectedTeam, player))
+                            .map((clip) => (
+                              <button type="button" key={clip.id} onClick={() => openClipDetails(clip.id)}>
+                                {clip.name}
+                              </button>
+                            ))}
+                        </div>
                       </div>
                       <button type="button" onClick={() => deletePlayer(selectedTeam.id, player.id)}>
                         Delete
@@ -1038,6 +1235,16 @@ function App() {
                     </li>
                   ))}
                 </ol>
+
+                <section className="teamClipLinks" aria-label="Team clips">
+                  <h3>Team Clips</h3>
+                  {selectedTeamClips.length === 0 ? <p>No full team clips linked yet.</p> : null}
+                  {selectedTeamClips.map((clip) => (
+                    <button type="button" key={clip.id} onClick={() => openClipDetails(clip.id)}>
+                      {clip.name}
+                    </button>
+                  ))}
+                </section>
               </>
             ) : (
               <div className="emptyPanel">Select or create a team to manage players.</div>
@@ -1052,17 +1259,69 @@ function App() {
     return (
       <main className="sectionShell">
         <Header title="Clips" subtitle="Prepared local clip library. Export comes later." onBack={() => setScreen("home")} />
-        <section className="clipGrid">
-          {store.clips.length === 0 ? (
-            <div className="emptyPanel">No clip records yet. Build 1.3 prepares the library screen only.</div>
-          ) : null}
-          {store.clips.map((clip) => (
-            <article className={clip.missing ? "clipCard missingClip" : "clipCard"} key={clip.id}>
-              <h2>{clip.name}</h2>
-              <p>{shortenPath(clip.filePath)}</p>
-              <span>{clip.missing ? "File missing" : "Available"}</span>
-            </article>
-          ))}
+        <section className="clipsLayout">
+          <div className="clipGrid">
+            {store.clips.length === 0 ? (
+              <div className="emptyPanel">No clip records yet. Use Make Clip in the Video Viewer to prepare one.</div>
+            ) : null}
+            {store.clips.map((clip) => (
+              <article
+                className={clip.id === selectedClipId ? "clipCard selectedClipCard" : "clipCard"}
+                key={clip.id}
+              >
+                <button type="button" className="clipCardButton" onClick={() => setSelectedClipId(clip.id)}>
+                  <h2>{clip.name}</h2>
+                  <p>{clip.sourceVideoName ?? clip.sourceVideoPath ?? "Source video not saved"}</p>
+                  <span>{clip.tagSnapshots?.length ?? clip.selectedTagIds?.length ?? 0} tags included</span>
+                  <span>{getClipAudienceLabel(clip)}</span>
+                  <small>{new Date(clip.createdAt).toLocaleString()}</small>
+                  <strong>Prepared only - no video exported yet</strong>
+                </button>
+                <button type="button" onClick={() => deleteClipRecord(clip.id)}>
+                  Delete
+                </button>
+              </article>
+            ))}
+          </div>
+
+          <aside className="clipDetailsPanel">
+            {!selectedClip ? <div className="emptyPanel">Select a clip to see details.</div> : null}
+            {selectedClip ? (
+              <>
+                <div className="cardHeader">
+                  <div>
+                    <h2>{selectedClip.name}</h2>
+                    <p>{selectedClip.sourceVideoName ?? selectedClip.sourceVideoPath ?? "No source video saved"}</p>
+                  </div>
+                  <button type="button" onClick={() => deleteClipRecord(selectedClip.id)}>
+                    Delete
+                  </button>
+                </div>
+                <div className="clipMetaList">
+                  <span>Sharing target: {getClipAudienceLabel(selectedClip)}</span>
+                  <span>Export status: Prepared only - no video exported yet</span>
+                  <span>Upload status: {selectedClip.uploadStatus ?? "not_uploaded"}</span>
+                  <span>Share URL: {selectedClip.shareUrl ?? "Not created"}</span>
+                  <span>Created: {new Date(selectedClip.createdAt).toLocaleString()}</span>
+                </div>
+                <section className="clipTagList">
+                  <h3>Tags Included</h3>
+                  {(selectedClip.tagSnapshots ?? []).length === 0 ? <p>No tag snapshots saved.</p> : null}
+                  {(selectedClip.tagSnapshots ?? []).map((tag) => (
+                    <div key={tag.id}>
+                      <strong>{tag.label}</strong>
+                      <span>
+                        {formatClockTime(tag.startTime)} - {formatClockTime(tag.endTime)}
+                      </span>
+                    </div>
+                  ))}
+                </section>
+                <button type="button" onClick={() => openClipSourceVideo(selectedClip)} disabled={!selectedClip.sourceVideoPath}>
+                  Open Source Video
+                </button>
+              </>
+            ) : null}
+          </aside>
         </section>
       </main>
     );
@@ -1238,7 +1497,12 @@ function App() {
         <aside className="tagPanel" aria-label="Timestamped tags">
           <div className="panelHeader">
             <h2>Tags</h2>
-            <span>{tags.length}</span>
+            <div className="tagPanelActions">
+              <button type="button" onClick={openClipBuilder} disabled={!video || sortedTags.length === 0}>
+                Make Clip
+              </button>
+              <span>{tags.length}</span>
+            </div>
           </div>
 
           {sortedTags.length > 0 ? (
@@ -1548,6 +1812,118 @@ function App() {
                 Close
               </button>
             </div>
+          </div>
+        ) : null}
+
+        {isClipBuilderOpen ? (
+          <div className="modalBackdrop" role="presentation">
+            <form className="tagModal clipBuilderModal" onSubmit={createClipRecord} role="dialog" aria-modal="true" aria-label="Make clip">
+              <h2>Make Clip</h2>
+              <p>Create a local prepared clip record. No video file will be exported yet.</p>
+              <label>
+                Clip name
+                <input
+                  value={clipDraft.name}
+                  onChange={(event) => setClipDraft((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="Clip name"
+                  aria-label="Clip name"
+                />
+              </label>
+              <div className="clipBuilderSource">
+                <span>Current video</span>
+                <strong>{video?.name ?? "No video open"}</strong>
+              </div>
+              <section className="clipBuilderSection">
+                <h3>Quick Select by Tag Name</h3>
+                <div className="quickTagButtons">
+                  {currentVideoTagNames.map((tagName) => (
+                    <button type="button" key={tagName} onClick={() => selectClipTagsByName(tagName)}>
+                      {tagName}
+                    </button>
+                  ))}
+                </div>
+              </section>
+              <section className="clipBuilderSection">
+                <h3>Tags</h3>
+                <div className="clipBuilderTagList">
+                  {sortedTags.map((tag) => (
+                    <label key={tag.id}>
+                      <input
+                        type="checkbox"
+                        checked={clipDraft.selectedTagIds.includes(tag.id)}
+                        onChange={() => toggleClipDraftTag(tag.id)}
+                      />
+                      <span>
+                        <strong>{tag.label}</strong>
+                        <small>
+                          {formatClockTime(tag.startTime ?? tag.time)} -{" "}
+                          {formatClockTime(tag.endTime ?? (tag.startTime ?? tag.time) + 5)}
+                        </small>
+                        {tag.playerIds && tag.playerIds.length > 0 ? (
+                          <small>
+                            Players:{" "}
+                            {activePlayers
+                              .filter((player) => tag.playerIds?.includes(player.id))
+                              .map(getPlayerDisplayName)
+                              .join(", ") || "Linked players saved on tag"}
+                          </small>
+                        ) : null}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </section>
+              <section className="clipBuilderSection">
+                <h3>Intended Audience</h3>
+                <label>
+                  <input
+                    type="radio"
+                    checked={clipDraft.audienceType === "full_team"}
+                    onChange={() => setClipDraft((current) => ({ ...current, audienceType: "full_team" }))}
+                  />
+                  Full team
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    checked={clipDraft.audienceType === "selected_match_players"}
+                    onChange={() => setClipDraft((current) => ({ ...current, audienceType: "selected_match_players" }))}
+                  />
+                  Selected match players
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    checked={clipDraft.audienceType === "specific_players"}
+                    onChange={() => setClipDraft((current) => ({ ...current, audienceType: "specific_players" }))}
+                  />
+                  Specific players
+                </label>
+                {clipDraft.audienceType === "specific_players" ? (
+                  <div className="clipBuilderPlayers">
+                    {activePlayers.length === 0 ? <span>No active match players selected.</span> : null}
+                    {activePlayers.map((player) => (
+                      <label key={player.id}>
+                        <input
+                          type="checkbox"
+                          checked={clipDraft.specificPlayerIds.includes(player.id)}
+                          onChange={() => toggleSpecificClipPlayer(player.id)}
+                        />
+                        {getPlayerDisplayName(player)}
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+              <div className="modalActions">
+                <button type="button" onClick={() => setIsClipBuilderOpen(false)}>
+                  Cancel
+                </button>
+                <button className="primaryButton" type="submit" disabled={!video || clipDraft.selectedTagIds.length === 0}>
+                  Save Clip Record
+                </button>
+              </div>
+            </form>
           </div>
         ) : null}
 

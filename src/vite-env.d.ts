@@ -60,10 +60,35 @@ type ClipRecord = {
   name: string;
   filePath: string;
   sourceVideoPath?: string;
+  sourceVideoName?: string;
   startTime?: number;
   endTime?: number;
+  selectedTagIds?: string[];
+  tagNames?: string[];
+  tagSnapshots?: ClipTagSnapshot[];
+  intendedAudience?: ClipAudience;
+  exportStatus?: "prepared_only" | "not_exported";
+  localClipPath?: string | null;
+  shareUrl?: string | null;
+  uploadStatus?: "not_uploaded";
+  missingExportFile?: boolean;
   createdAt: string;
   missing?: boolean;
+};
+
+type ClipTagSnapshot = {
+  id: string;
+  label: string;
+  startTime: number;
+  endTime: number;
+  playerIds?: string[];
+};
+
+type ClipAudience = {
+  type: "full_team" | "selected_match_players" | "specific_players";
+  teamId?: string;
+  teamName?: string;
+  players: MatchPlayerState[];
 };
 
 type AppStore = {

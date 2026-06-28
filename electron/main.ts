@@ -64,10 +64,35 @@ type ClipRecord = {
   name: string;
   filePath: string;
   sourceVideoPath?: string;
+  sourceVideoName?: string;
   startTime?: number;
   endTime?: number;
+  selectedTagIds?: string[];
+  tagNames?: string[];
+  tagSnapshots?: ClipTagSnapshot[];
+  intendedAudience?: ClipAudience;
+  exportStatus?: "prepared_only" | "not_exported";
+  localClipPath?: string | null;
+  shareUrl?: string | null;
+  uploadStatus?: "not_uploaded";
+  missingExportFile?: boolean;
   createdAt: string;
   missing?: boolean;
+};
+
+type ClipTagSnapshot = {
+  id: string;
+  label: string;
+  startTime: number;
+  endTime: number;
+  playerIds?: string[];
+};
+
+type ClipAudience = {
+  type: "full_team" | "selected_match_players" | "specific_players";
+  teamId?: string;
+  teamName?: string;
+  players: MatchPlayerState[];
 };
 
 type AppStore = {
@@ -177,7 +202,18 @@ function normalizeStore(store: TagStore): AppStore {
   return {
     teams: normalizeTeams(store.teams ?? []),
     videos,
-    clips: store.clips ?? [],
+    clips: (store.clips ?? []).map((clip) => ({
+      ...clip,
+      selectedTagIds: clip.selectedTagIds ?? [],
+      tagNames: clip.tagNames ?? [],
+      tagSnapshots: clip.tagSnapshots ?? [],
+      intendedAudience: clip.intendedAudience,
+      exportStatus: clip.exportStatus ?? "prepared_only",
+      localClipPath: clip.localClipPath ?? null,
+      shareUrl: clip.shareUrl ?? null,
+      uploadStatus: clip.uploadStatus ?? "not_uploaded",
+      missingExportFile: clip.missingExportFile ?? true
+    })),
     settings: {
       standardTags: store.settings?.standardTags?.length ? store.settings.standardTags : ["Start", "Goal"],
       activeMatchTeamId: store.settings?.activeMatchTeamId,
@@ -366,7 +402,11 @@ app.whenReady().then(() => {
     const clips = await Promise.all(
       store.clips.map(async (clip) => {
         try {
-          await fs.access(clip.filePath);
+          if (!clip.filePath && !clip.localClipPath) {
+            return { ...clip, missing: true, missingExportFile: true };
+          }
+
+          await fs.access(clip.localClipPath ?? clip.filePath);
           return { ...clip, missing: false };
         } catch {
           return { ...clip, missing: true };
