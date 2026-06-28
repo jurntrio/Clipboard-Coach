@@ -243,7 +243,11 @@ function segmentLinksPlayer(segment: ClipTagSnapshot, player: Player) {
   );
 }
 
-function isClipLinkedToPlayer(clip: ClipRecord, player: Player) {
+function clipAudienceMatchesTeam(audience: ClipAudience, team: Team) {
+  return audience.teamId === team.id || (!audience.teamId && playerNamesMatch(audience.teamName ?? "", team.name));
+}
+
+function isClipLinkedToPlayer(clip: ClipRecord, team: Team, player: Player) {
   const audience = clip.intendedAudience;
 
   if (!audience) {
@@ -251,7 +255,7 @@ function isClipLinkedToPlayer(clip: ClipRecord, player: Player) {
   }
 
   if (audience.type === "full_team") {
-    return false;
+    return clipAudienceMatchesTeam(audience, team);
   }
 
   if (audience.players.length > 0) {
@@ -317,6 +321,7 @@ function App() {
   const [isClipPreviewPlaying, setIsClipPreviewPlaying] = useState(false);
   const [clipPreviewProgress, setClipPreviewProgress] = useState(0);
   const [isClipPreviewFinished, setIsClipPreviewFinished] = useState(false);
+  const [lastSavedClipId, setLastSavedClipId] = useState<string | null>(null);
   const [pendingSourceOpen, setPendingSourceOpen] = useState<{
     videoPath: string;
     time: number;
@@ -1448,9 +1453,9 @@ function App() {
     const nextStore = { ...store, clips: [newClip, ...store.clips] };
 
     setIsClipBuilderOpen(false);
-    setSelectedClipId(newClip.id);
-    setScreen("clips");
     await persistStore(nextStore);
+    setLastSavedClipId(newClip.id);
+    setStatus(`Clip record saved: ${newClip.name}.`);
   }
 
   async function deleteClipRecord(clipId: string) {
@@ -1575,6 +1580,15 @@ function App() {
     setIsClipPreviewFinished(false);
     setIsClipPreviewPlaying(false);
     setScreen("clips");
+  }
+
+  function viewLastSavedClip() {
+    if (!lastSavedClipId) {
+      return;
+    }
+
+    openClipsLibrary();
+    setSelectedClipId(lastSavedClipId);
   }
 
   function getSourceTimeForClipProgress(progress: number) {
@@ -1785,11 +1799,11 @@ function App() {
                         {player.email ? <span>{player.email}</span> : null}
                         <div className="playerClipLinks">
                           <small>Clips</small>
-                          {store.clips.filter((clip) => isClipLinkedToPlayer(clip, player)).length === 0 ? (
+                          {store.clips.filter((clip) => isClipLinkedToPlayer(clip, selectedTeam, player)).length === 0 ? (
                             <span>No clips linked to this player yet.</span>
                           ) : null}
                           {store.clips
-                            .filter((clip) => isClipLinkedToPlayer(clip, player))
+                            .filter((clip) => isClipLinkedToPlayer(clip, selectedTeam, player))
                             .map((clip) => (
                               <button type="button" key={clip.id} onClick={() => openClipDetails(clip.id)}>
                                 {clip.name}
@@ -2145,6 +2159,11 @@ function App() {
           <p className="statusLine" role="status">
             {status}
           </p>
+          {lastSavedClipId ? (
+            <button type="button" onClick={viewLastSavedClip}>
+              View saved clip
+            </button>
+          ) : null}
         </aside>
 
         <section className="videoPanel" aria-label="Video player">

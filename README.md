@@ -1,6 +1,6 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4.6 fixes player-specific clip visibility and lightly polishes clip UI.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4.7 fixes full-team clip visibility and keeps clip saving inside the Video Viewer.
 
 ## Build 1 Features
 
@@ -97,6 +97,14 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 - Older clips without audience players can still fall back to saved tag player links.
 - Clip cards and Teams clip buttons have slightly cleaner spacing and hover styling.
 
+## Build 1.4.7 Fixes
+
+- Full-team clips show under every saved player on the matching team while keeping one shared clip record.
+- Full-team clips still remain visible in the team-level Team Clips section.
+- Specific-player and selected-player clips remain limited to their saved target players.
+- Saving a clip record from the Video Viewer now keeps the current video, tags, match players, and playback position in place.
+- A small View saved clip button lets users open the new clip manually after saving.
+
 ## Build 1.3.2 Fixes
 
 - Video Viewer left rail can select a team and active players for the current video.
@@ -126,7 +134,7 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 
 ## Not Included Yet
 
-Build 1.4.6 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, or external tag import.
+Build 1.4.7 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, or external tag import.
 
 ## Technical Setup
 

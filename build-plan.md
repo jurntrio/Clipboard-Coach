@@ -114,6 +114,14 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Keep clip rename/delete propagation working through the shared local clip record.
 - Lightly polish Clips cards and Teams clip link buttons without changing app structure.
 
+## Build 1.4.7: Full Team Clips and Save Workflow
+
+- Show full-team clips under every saved player on the matching team, not only active match players.
+- Keep full-team clips in the team-level Team Clips section while storing only one clip record.
+- Keep specific-player and selected-player clip visibility limited to the players saved on the clip audience.
+- Leave full-team clips without a known team out of individual player rows to avoid false links.
+- Keep users in the Video Viewer after saving a clip record, with status feedback and optional manual navigation to the saved clip.
+
 ## Build 1.3.2: Video Tagging Usability Fixes
 
 - Add a Video Viewer team selector and active-player selector in the left rail.
