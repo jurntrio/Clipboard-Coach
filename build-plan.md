@@ -138,6 +138,14 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Add a simple local-first Settings placeholder page for future Appearance, Playback, and Storage options.
 - Preserve existing video, teams, tags, clips, preview, and navigation workflows.
 
+## Build 1.5.0b: Home Launcher Sizing
+
+- Keep the branded top banner while reducing vertical weight.
+- Show Teams, Video Viewer, Clips, and Settings images as smaller launcher icons in a centered row.
+- Remove extra visible text labels from Home cards because the images already include the section names.
+- Keep accessible labels and title text on each Home navigation button.
+- Use minimal dark button styling and subtle hover treatment without changing app workflows.
+
 ## Build 1.3.2: Video Tagging Usability Fixes
 
 - Add a Video Viewer team selector and active-player selector in the left rail.

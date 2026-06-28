@@ -1697,33 +1697,41 @@ function App() {
         </section>
 
         <section className="homeCards" aria-label="Start page navigation">
-          <button type="button" className="homeCard" onClick={() => setScreen("teams")}>
+          <button
+            type="button"
+            className="homeCard"
+            onClick={() => setScreen("teams")}
+            aria-label="Open Teams"
+            title="Teams"
+          >
             <img src={homeTeamsUrl} alt="" />
-            <span>
-              <strong>Teams</strong>
-              <small>Create teams and player lists.</small>
-            </span>
           </button>
-          <button type="button" className="homeCard" onClick={() => setScreen("video")}>
+          <button
+            type="button"
+            className="homeCard"
+            onClick={() => setScreen("video")}
+            aria-label="Open Video Viewer"
+            title="Video Viewer"
+          >
             <img src={homeVideoViewerUrl} alt="" />
-            <span>
-              <strong>Video Viewer</strong>
-              <small>Review video and add tags.</small>
-            </span>
           </button>
-          <button type="button" className="homeCard" onClick={openClipsLibrary}>
+          <button
+            type="button"
+            className="homeCard"
+            onClick={openClipsLibrary}
+            aria-label="Open Clips"
+            title="Clips"
+          >
             <img src={homeClipsUrl} alt="" />
-            <span>
-              <strong>Clips</strong>
-              <small>Preview saved clip records.</small>
-            </span>
           </button>
-          <button type="button" className="homeCard" onClick={() => setScreen("settings")}>
+          <button
+            type="button"
+            className="homeCard"
+            onClick={() => setScreen("settings")}
+            aria-label="Open Settings"
+            title="Settings"
+          >
             <img src={homeSettingsUrl} alt="" />
-            <span>
-              <strong>Settings</strong>
-              <small>Local app preferences.</small>
-            </span>
           </button>
         </section>
       </main>

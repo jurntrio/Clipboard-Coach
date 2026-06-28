@@ -1,6 +1,6 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.5.0 adds a branded Home page with image navigation cards and a top banner.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.5.0b refines the branded Home page into a compact image launcher.
 
 ## Build 1 Features
 
@@ -120,6 +120,13 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 - Settings has a simple local-first placeholder page for future Appearance, Playback, and Storage options.
 - Uploaded Home page assets are organized in `assets/home/`.
 
+## Build 1.5.0b Fixes
+
+- Home navigation images are smaller launcher icons in a centered row that wraps on narrow windows.
+- Extra text labels under the Home images were removed because the images already contain section names.
+- Home icon buttons use minimal dark containers with subtle green hover styling.
+- The uploaded PNGs have baked-in checkerboard backgrounds, so the layout reduces their visual weight without distorting them.
+
 ## Build 1.3.2 Fixes
 
 - Video Viewer left rail can select a team and active players for the current video.
@@ -149,7 +156,7 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 
 ## Not Included Yet
 
-Build 1.5.0 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, real MP4 export, or external tag import.
+Build 1.5.0b intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, real MP4 export, or external tag import.
 
 ## Technical Setup
 
