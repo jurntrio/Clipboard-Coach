@@ -1,28 +1,42 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a workspace for building a practical coaching tool around clipboard-driven writing, editing, and productivity workflows.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video and saving timestamped notes. Build 1 focuses only on basic video tagging.
 
-## Project Goals
+## Build 1 Features
 
-- Help users turn copied text into clearer, more useful drafts.
-- Support coaching workflows such as rewriting, summarizing, critiquing, and next-step suggestions.
-- Keep the product lightweight, understandable, and easy to iterate on.
-- Build with a calm, focused user experience suitable for repeated daily use.
+- Open a local video file.
+- Play and pause the video.
+- Add a text tag at the current timestamp.
+- Show saved tags in a timestamped list.
+- Save tags locally as JSON.
+- Reload saved tags when the same video is opened again.
 
-## Initial Scope
+## Not Included Yet
 
-- Define the core Clipboard Coach experience.
-- Capture product requirements and UX flows.
-- Establish the repository structure before implementation begins.
-- Add implementation plans, design notes, and technical decisions as the project evolves.
+Build 1 intentionally does not include extra players, heatmaps, reports, cloud sync, login, AI tracking, clip export, or external tag import.
 
-## Working Principles
+## Technical Setup
 
-- Prefer simple, maintainable solutions over premature complexity.
-- Keep user-facing flows direct and fast.
-- Document meaningful product and technical decisions.
-- Make small, testable changes.
+- Electron for the Windows desktop shell.
+- React for the app interface.
+- TypeScript for application code.
+- Vite for local development.
+- JSON file storage in Electron's local app data folder.
 
-## Repository Status
+## Run on Windows
 
-This repository is in initial setup. The first milestone is to define the product shape and build plan before adding application code.
+Install Node.js first if it is not already installed. Then run these commands in this folder:
+
+```powershell
+npm install
+npm run dev
+```
+
+The app window opens after Vite starts and Electron launches.
+
+## Build Check
+
+```powershell
+npm run typecheck
+npm run build
+```

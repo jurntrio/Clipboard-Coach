@@ -2,44 +2,32 @@
 
 ## Vision
 
-Clipboard Coach Studio should help users transform clipboard content into polished, useful text with minimal friction. The product should feel like a focused workspace rather than a generic chat surface.
+Clipboard Coach Studio should help users review local videos and add timestamped coaching tags without setup friction or cloud requirements.
 
-## Phase 1: Foundation
+## Build 1: Basic Video Tagging
 
-- Create the initial repository documentation.
-- Define the primary user journey.
-- Choose the application stack.
-- Sketch the first screen and core interaction model.
-- Identify the first set of coaching actions.
+- Use Electron, React, and TypeScript for a simple Windows desktop app.
+- Open one local video file at a time.
+- Play and pause the selected video.
+- Add text tags at the video's current timestamp.
+- Show timestamped tags in a list.
+- Save and reload tags locally with JSON storage.
 
-## Phase 2: First Usable Prototype
+## Build 1 Boundaries
 
-- Build an input area for pasted clipboard content.
-- Add coaching actions such as summarize, rewrite, clarify, and critique.
-- Show generated output in a structured result area.
-- Allow users to copy, revise, and compare results.
-- Keep the interface quiet, fast, and easy to scan.
+Do not add extra players, heatmaps, reports, cloud sync, login, AI tracking, clip export, or external tag import in Build 1.
 
-## Phase 3: Product Depth
+## Later Builds
 
-- Add tone and format controls.
-- Support saved prompt presets or coaching modes.
-- Add history for recent clipboard sessions.
-- Improve accessibility and keyboard-driven workflows.
-- Add tests around core transformation logic.
-
-## Phase 4: Release Readiness
-
-- Document setup and deployment.
-- Add error handling and empty-state polish.
-- Review privacy expectations for clipboard content.
-- Prepare a short product README for users.
-- Tag the first release candidate.
+- Add editing and deleting tags.
+- Add better review navigation and keyboard shortcuts.
+- Add richer local storage when the data model needs it.
+- Add reports only after the basic tagging workflow is reliable.
+- Consider AI-assisted review only after local video tagging is stable.
 
 ## Open Decisions
 
-- Application framework and runtime.
-- AI provider and model integration approach.
-- Local-only versus cloud-backed session history.
-- Authentication requirements, if any.
-- Deployment target.
+- Packaging approach for a Windows installer.
+- Future storage format, such as SQLite.
+- Naming and structure for tag categories.
+- Whether multiple videos can be grouped into projects later.

@@ -4,7 +4,7 @@ These instructions apply to contributors and coding agents working in this repos
 
 ## Project Context
 
-Clipboard Coach Studio is intended to become a focused product for improving and coaching clipboard-based text workflows. Treat this repository as the source of truth for product direction, implementation plans, and future application code.
+Clipboard Coach Studio is a focused Windows desktop app for local video review and timestamped tagging. Treat this repository as the source of truth for product direction, implementation plans, and application code.
 
 ## Collaboration Rules
 
@@ -18,10 +18,10 @@ Clipboard Coach Studio is intended to become a focused product for improving and
 
 When adding features or documentation, favor workflows that help users:
 
-- Improve pasted or copied text.
-- Understand what changed and why.
-- Move quickly from raw clipboard content to useful output.
-- Keep control over tone, format, and intent.
+- Open and review local video files.
+- Add useful timestamped tags quickly.
+- Understand which tags belong to which video.
+- Keep their review data local and easy to reason about.
 
 ## Engineering Direction
 
@@ -32,4 +32,4 @@ When adding features or documentation, favor workflows that help users:
 
 ## Current Stage
 
-The project is at initial setup. Before adding major code, clarify the core user journey, technical stack, and first usable milestone in `build-plan.md`.
+The project is at Build 1. Keep the app small and stable before adding advanced workflows such as reporting, AI analysis, clip export, cloud sync, or imports.
