@@ -1,6 +1,6 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a local Windows desktop app for reviewing video and saving timestamped notes. Build 1.2 focuses on a larger review layout, a video timeline, and a simple Windows launcher.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.3 adds a start page and basic app navigation.
 
 ## Build 1 Features
 
@@ -19,9 +19,19 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video and sa
 - Tag markers on the timeline.
 - Desktop-friendly launcher files for Windows.
 
+## Build 1.3 Features
+
+- Start page with large navigation cards for Teams, Video Viewer, and Clips.
+- Simple local teams with player names.
+- Video Viewer entry point for opening a new video or reviewing previous videos.
+- Previous videos list with filenames and saved tag counts.
+- Selectable tags with editable start and end times.
+- Stable tag colors based on tag name.
+- Clips library screen prepared for future clip records.
+
 ## Not Included Yet
 
-Build 1 intentionally does not include extra players, heatmaps, reports, cloud sync, login, AI tracking, clip export, or external tag import.
+Build 1.3 intentionally does not include advanced player stats, heatmaps, reports, cloud sync, login, AI tracking, clip export, paid APIs, or external tag import.
 
 ## Technical Setup
 
@@ -30,6 +40,7 @@ Build 1 intentionally does not include extra players, heatmaps, reports, cloud s
 - TypeScript for application code.
 - Vite for local development.
 - JSON file storage in Electron's local app data folder.
+- App icon assets in `assets/`.
 
 ## Run on Windows
 

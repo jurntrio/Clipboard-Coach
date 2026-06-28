@@ -32,4 +32,4 @@ When adding features or documentation, favor workflows that help users:
 
 ## Current Stage
 
-The project is at Build 1.2. Keep the app small and stable before adding advanced workflows such as reporting, AI analysis, clip export, cloud sync, categories, periods, or imports.
+The project is at Build 1.3. Keep the app local-first and stable before adding advanced workflows such as reporting, AI analysis, clip export, cloud sync, advanced player stats, heatmaps, periods, paid APIs, or imports.

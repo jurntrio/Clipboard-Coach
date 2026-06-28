@@ -22,9 +22,19 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Add a timeline scrubber with current time, duration, and tag markers.
 - Keep tag saving and reloading unchanged.
 
+## Build 1.3: Start Page and Navigation
+
+- Add a desktop-style start page with Teams, Video Viewer, and Clips navigation.
+- Store simple teams and player names locally in JSON.
+- Let users open a new video or choose from previous locally stored video records.
+- Keep the existing video viewer, timeline, tags, saving, and reloading working.
+- Add selectable tags with editable start and end times.
+- Give tags stable colors based on their names.
+- Prepare a clips library screen without implementing real clip export.
+
 ## Build 1 Boundaries
 
-Do not add extra players, tag categories, periods, heatmaps, reports, cloud sync, login, AI tracking, clip export, or external tag import in Build 1 or Build 1.2.
+Do not add advanced player stats, tag categories, periods, heatmaps, reports, cloud sync, login, AI tracking, paid APIs, real clip export, or external tag import in Build 1 through Build 1.3.
 
 ## Later Builds
 

@@ -7,12 +7,55 @@ import { Readable } from "node:stream";
 type VideoTag = {
   id: string;
   time: number;
+  startTime?: number;
+  endTime?: number;
   label: string;
+  color?: string;
   createdAt: string;
 };
 
 type TagStore = {
-  videos: Record<string, VideoTag[]>;
+  teams?: Team[];
+  videos: Record<string, StoredVideo | VideoTag[]>;
+  clips?: ClipRecord[];
+};
+
+type Team = {
+  id: string;
+  name: string;
+  players: Player[];
+  createdAt: string;
+};
+
+type Player = {
+  id: string;
+  name: string;
+  createdAt: string;
+};
+
+type StoredVideo = {
+  path: string;
+  name: string;
+  extension: string;
+  lastOpenedAt: string;
+  tags: VideoTag[];
+};
+
+type ClipRecord = {
+  id: string;
+  name: string;
+  filePath: string;
+  sourceVideoPath?: string;
+  startTime?: number;
+  endTime?: number;
+  createdAt: string;
+  missing?: boolean;
+};
+
+type AppStore = {
+  teams: Team[];
+  videos: Record<string, StoredVideo>;
+  clips: ClipRecord[];
 };
 
 const isDev = !app.isPackaged;
@@ -44,7 +87,49 @@ async function readStore(): Promise<TagStore> {
   }
 }
 
-async function writeStore(store: TagStore) {
+function normalizeTags(tags: VideoTag[]) {
+  return tags.map((tag) => ({
+    ...tag,
+    startTime: tag.startTime ?? tag.time,
+    endTime: tag.endTime ?? tag.time
+  }));
+}
+
+function normalizeStore(store: TagStore): AppStore {
+  const videos: Record<string, StoredVideo> = {};
+
+  for (const [videoPath, value] of Object.entries(store.videos ?? {})) {
+    if (Array.isArray(value)) {
+      videos[videoPath] = {
+        path: videoPath,
+        name: path.basename(videoPath),
+        extension: path.extname(videoPath).toLowerCase(),
+        lastOpenedAt: new Date().toISOString(),
+        tags: normalizeTags(value)
+      };
+    } else {
+      videos[videoPath] = {
+        path: value.path ?? videoPath,
+        name: value.name ?? path.basename(videoPath),
+        extension: value.extension ?? path.extname(videoPath).toLowerCase(),
+        lastOpenedAt: value.lastOpenedAt ?? new Date().toISOString(),
+        tags: normalizeTags(value.tags ?? [])
+      };
+    }
+  }
+
+  return {
+    teams: store.teams ?? [],
+    videos,
+    clips: store.clips ?? []
+  };
+}
+
+async function readAppStore(): Promise<AppStore> {
+  return normalizeStore(await readStore());
+}
+
+async function writeStore(store: AppStore) {
   await fs.mkdir(path.dirname(getStorePath()), { recursive: true });
   await fs.writeFile(getStorePath(), JSON.stringify(store, null, 2), "utf-8");
 }
@@ -169,7 +254,31 @@ app.whenReady().then(() => {
 
     const filePath = result.filePaths[0];
     const fileExtension = path.extname(filePath).toLowerCase();
+    const videoFile = {
+      path: filePath,
+      name: path.basename(filePath),
+      extension: fileExtension,
+      url: getMediaUrl(filePath)
+    };
+    const store = await readAppStore();
+    const existingVideo = store.videos[filePath];
 
+    store.videos[filePath] = {
+      path: filePath,
+      name: videoFile.name,
+      extension: fileExtension,
+      lastOpenedAt: new Date().toISOString(),
+      tags: existingVideo?.tags ?? []
+    };
+    await writeStore(store);
+
+    return videoFile;
+  });
+
+  ipcMain.handle("video:fromPath", async (_event, filePath: string) => {
+    const fileExtension = path.extname(filePath).toLowerCase();
+
+    await fs.access(filePath);
     return {
       path: filePath,
       name: path.basename(filePath),
@@ -178,16 +287,45 @@ app.whenReady().then(() => {
     };
   });
 
+  ipcMain.handle("store:load", async () => {
+    const store = await readAppStore();
+    const clips = await Promise.all(
+      store.clips.map(async (clip) => {
+        try {
+          await fs.access(clip.filePath);
+          return { ...clip, missing: false };
+        } catch {
+          return { ...clip, missing: true };
+        }
+      })
+    );
+
+    return { ...store, clips };
+  });
+
+  ipcMain.handle("store:save", async (_event, store: AppStore) => {
+    await writeStore(normalizeStore(store));
+    return readAppStore();
+  });
+
   ipcMain.handle("tags:load", async (_event, videoPath: string) => {
-    const store = await readStore();
-    return store.videos[videoPath] ?? [];
+    const store = await readAppStore();
+    return store.videos[videoPath]?.tags ?? [];
   });
 
   ipcMain.handle("tags:save", async (_event, videoPath: string, tags: VideoTag[]) => {
-    const store = await readStore();
-    store.videos[videoPath] = tags;
+    const store = await readAppStore();
+    const existingVideo = store.videos[videoPath];
+
+    store.videos[videoPath] = {
+      path: videoPath,
+      name: existingVideo?.name ?? path.basename(videoPath),
+      extension: existingVideo?.extension ?? path.extname(videoPath).toLowerCase(),
+      lastOpenedAt: new Date().toISOString(),
+      tags: normalizeTags(tags)
+    };
     await writeStore(store);
-    return tags;
+    return store.videos[videoPath].tags;
   });
 
   createWindow();
