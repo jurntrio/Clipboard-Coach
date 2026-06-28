@@ -11,6 +11,7 @@ type VideoTag = {
   endTime?: number;
   label: string;
   color?: string;
+  playerIds?: string[];
   createdAt: string;
 };
 

@@ -19,7 +19,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -42,7 +43,8 @@ button:disabled {
   cursor: not-allowed;
 }
 
-input {
+input,
+select {
   min-height: 42px;
   border: 1px solid #3a423d;
   border-radius: 6px;
@@ -51,7 +53,8 @@ input {
   padding: 0 12px;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: #71d52b;
   outline: 2px solid rgba(113, 213, 43, 0.18);
 }
@@ -325,6 +328,70 @@ input:focus {
   gap: 8px;
 }
 
+.matchPanel,
+.standardTagPanel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #323a35;
+  border-radius: 8px;
+  background: #141815;
+  padding: 12px;
+}
+
+.matchPanel h2,
+.standardTagPanel h2,
+.activePlayerList h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.matchPanel label {
+  display: grid;
+  gap: 6px;
+  color: #c9d3c6;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.matchPanel p,
+.activePlayerList p {
+  margin: 0;
+  color: #aeb8ad;
+  font-size: 13px;
+}
+
+.playerPickList,
+.activePlayerList,
+.standardTagButtons {
+  display: grid;
+  gap: 8px;
+}
+
+.playerPickList {
+  max-height: 130px;
+  overflow: auto;
+}
+
+.playerPickList label,
+.editPlayerList label {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.playerPickList input,
+.editPlayerList input {
+  min-height: 0;
+}
+
+.quickPlayerForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
 .previousBlock h2 {
   margin: 0;
   font-size: 15px;
@@ -570,6 +637,10 @@ input:focus {
   font-size: 13px;
 }
 
+.inlineTagDetails > button {
+  justify-self: start;
+}
+
 .tagList i {
   width: 10px;
   height: 30px;
@@ -604,6 +675,20 @@ input:focus {
   gap: 10px;
   border-top: 1px solid #323a35;
   padding-top: 12px;
+}
+
+.inlineEditor {
+  grid-column: 1 / -1;
+  border-top: 0;
+  border-left: 3px solid #71d52b;
+  padding: 10px 0 0 10px;
+}
+
+.editPlayerList {
+  display: grid;
+  gap: 7px;
+  color: #aeb8ad;
+  font-size: 13px;
 }
 
 .mutedEditor {

@@ -46,6 +46,14 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 - Vertical Teams layout with selected-team player details.
 - Player first name, last name, optional email, alphabetical sorting, and prepared clip empty states.
 
+## Build 1.3.2 Fixes
+
+- Video Viewer left rail can select a team and active players for the current video.
+- Active players can be clicked to create player tags.
+- Standard tags include `Start` and `Goal`, with a simple way to add more standard tags.
+- Tag editing now opens only from a tag's `Details` area using the `Edit` button.
+- Tag edit panels can link active players to the tag.
+
 ## Not Included Yet
 
 Build 1.4 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, clip export, paid APIs, or external tag import.

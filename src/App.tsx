@@ -146,10 +146,16 @@ function App() {
   const [tags, setTags] = useState<VideoTag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [expandedTagIds, setExpandedTagIds] = useState<string[]>([]);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState({ label: "", startTime: "00:00:00", endTime: "00:00:05" });
   const [tagDraftError, setTagDraftError] = useState("");
   const [isAddTagOpen, setIsAddTagOpen] = useState(false);
   const [newTagText, setNewTagText] = useState("");
+  const [videoTeamId, setVideoTeamId] = useState("");
+  const [activePlayerIds, setActivePlayerIds] = useState<string[]>([]);
+  const [quickPlayerName, setQuickPlayerName] = useState("");
+  const [standardTags, setStandardTags] = useState(["Start", "Goal"]);
+  const [newStandardTagText, setNewStandardTagText] = useState("");
   const [teamText, setTeamText] = useState("");
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [playerDraftByTeam, setPlayerDraftByTeam] = useState<
@@ -176,10 +182,16 @@ function App() {
       ),
     [store.videos]
   );
-  const selectedTag = sortedTags.find((tag) => tag.id === selectedTagIds[0]) ?? null;
+  const editingTag = sortedTags.find((tag) => tag.id === editingTagId) ?? null;
   const timelineTags = useMemo(() => getTagLanes(sortedTags), [sortedTags]);
   const timelineLaneCount = Math.max(1, ...timelineTags.map((tag) => tag.laneIndex + 1));
   const selectedTeam = store.teams.find((team) => team.id === selectedTeamId) ?? store.teams[0] ?? null;
+  const videoTeam = store.teams.find((team) => team.id === videoTeamId) ?? null;
+  const videoTeamPlayers = useMemo(() => getSortedPlayers(videoTeam?.players ?? []), [videoTeam]);
+  const activePlayers = useMemo(
+    () => videoTeamPlayers.filter((player) => activePlayerIds.includes(player.id)),
+    [activePlayerIds, videoTeamPlayers]
+  );
 
   useEffect(() => {
     window.clipboardCoach.loadStore().then((loadedStore) => setStore(loadedStore));
@@ -192,19 +204,19 @@ function App() {
   }, [playbackRate, video]);
 
   useEffect(() => {
-    if (!selectedTag) {
+    if (!editingTag) {
       setTagDraft({ label: "", startTime: "00:00:00", endTime: "00:00:05" });
       setTagDraftError("");
       return;
     }
 
     setTagDraft({
-      label: selectedTag.label,
-      startTime: formatClockTime(selectedTag.startTime ?? selectedTag.time),
-      endTime: formatClockTime(selectedTag.endTime ?? (selectedTag.startTime ?? selectedTag.time) + 5)
+      label: editingTag.label,
+      startTime: formatClockTime(editingTag.startTime ?? editingTag.time),
+      endTime: formatClockTime(editingTag.endTime ?? (editingTag.startTime ?? editingTag.time) + 5)
     });
     setTagDraftError("");
-  }, [selectedTag?.id]);
+  }, [editingTag?.id]);
 
   useEffect(() => {
     if (selectedTeamId && store.teams.some((team) => team.id === selectedTeamId)) {
@@ -213,6 +225,18 @@ function App() {
 
     setSelectedTeamId(store.teams[0]?.id ?? null);
   }, [selectedTeamId, store.teams]);
+
+  useEffect(() => {
+    if (videoTeamId && store.teams.some((team) => team.id === videoTeamId)) {
+      return;
+    }
+
+    setVideoTeamId(store.teams[0]?.id ?? "");
+  }, [videoTeamId, store.teams]);
+
+  useEffect(() => {
+    setActivePlayerIds((current) => current.filter((playerId) => videoTeamPlayers.some((player) => player.id === playerId)));
+  }, [videoTeamPlayers]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -356,6 +380,31 @@ function App() {
     await refreshStore();
   }
 
+  async function createTagAtCurrentTime(label: string, playerIds: string[] = []) {
+    if (!video || !videoRef.current || label.trim().length === 0) {
+      return;
+    }
+
+    const currentVideoTime = videoRef.current.currentTime;
+    const trimmedLabel = label.trim();
+    const nextTag: VideoTag = {
+      id: crypto.randomUUID(),
+      time: currentVideoTime,
+      startTime: currentVideoTime,
+      endTime: Math.min(duration || currentVideoTime + 5, currentVideoTime + 5),
+      label: trimmedLabel,
+      color: getTagColor(trimmedLabel),
+      playerIds,
+      createdAt: new Date().toISOString()
+    };
+    const nextTags = [...tags, nextTag];
+
+    setSelectedTagIds([nextTag.id]);
+    setExpandedTagIds([nextTag.id]);
+    setEditingTagId(null);
+    await saveTags(nextTags);
+  }
+
   function openAddTagModal() {
     if (!video || !videoRef.current) {
       return;
@@ -369,28 +418,13 @@ function App() {
   async function confirmAddTag(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!video || !videoRef.current || newTagText.trim().length === 0) {
+    if (newTagText.trim().length === 0) {
       return;
     }
 
-    const label = newTagText.trim();
-    const currentVideoTime = videoRef.current.currentTime;
-    const nextTag: VideoTag = {
-      id: crypto.randomUUID(),
-      time: currentVideoTime,
-      startTime: currentVideoTime,
-      endTime: Math.min(duration || currentVideoTime + 5, currentVideoTime + 5),
-      label,
-      color: getTagColor(label),
-      createdAt: new Date().toISOString()
-    };
-    const nextTags = [...tags, nextTag];
-
-    setSelectedTagIds([nextTag.id]);
-    setExpandedTagIds([nextTag.id]);
+    await createTagAtCurrentTime(newTagText, activePlayerIds);
     setNewTagText("");
     setIsAddTagOpen(false);
-    await saveTags(nextTags);
   }
 
   function selectTag(tagId: string) {
@@ -409,11 +443,11 @@ function App() {
   }
 
   async function saveSelectedTagDraft() {
-    if (!selectedTag) {
+    if (!editingTag) {
       return;
     }
 
-    const label = tagDraft.label.trim() || selectedTag.label;
+    const label = tagDraft.label.trim() || editingTag.label;
     const parsedStart = parseClockTime(tagDraft.startTime);
     const parsedEnd = parseClockTime(tagDraft.endTime);
 
@@ -436,7 +470,7 @@ function App() {
     }
 
     const nextTags = tags.map((tag) =>
-      tag.id === selectedTag.id
+      tag.id === editingTag.id
         ? {
             ...normalizeTag(tag),
             label,
@@ -450,6 +484,20 @@ function App() {
 
     await saveTags(nextTags);
     setTagDraftError("");
+  }
+
+  async function updateEditingTagPlayers(playerId: string) {
+    if (!editingTag) {
+      return;
+    }
+
+    const currentPlayerIds = editingTag.playerIds ?? [];
+    const nextPlayerIds = currentPlayerIds.includes(playerId)
+      ? currentPlayerIds.filter((id) => id !== playerId)
+      : [...currentPlayerIds, playerId];
+    const nextTags = tags.map((tag) => (tag.id === editingTag.id ? { ...tag, playerIds: nextPlayerIds } : tag));
+
+    await saveTags(nextTags);
   }
 
   function seekTo(time: number) {
@@ -561,6 +609,54 @@ function App() {
     };
     setStore(nextStore);
     await persistStore(nextStore);
+  }
+
+  async function addQuickPlayerToVideoTeam(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!videoTeam || quickPlayerName.trim().length === 0) {
+      return;
+    }
+
+    const nameParts = quickPlayerName.trim().split(/\s+/);
+    const firstName = nameParts[0] ?? "";
+    const lastName = nameParts.slice(1).join(" ");
+    const newPlayer: Player = {
+      id: crypto.randomUUID(),
+      firstName,
+      lastName,
+      name: quickPlayerName.trim(),
+      createdAt: new Date().toISOString()
+    };
+    const nextStore = {
+      ...store,
+      teams: store.teams.map((team) =>
+        team.id === videoTeam.id ? { ...team, players: [...team.players, newPlayer] } : team
+      )
+    };
+
+    setQuickPlayerName("");
+    setActivePlayerIds((current) => [...current, newPlayer.id]);
+    setStore(nextStore);
+    await persistStore(nextStore);
+  }
+
+  function toggleActivePlayer(playerId: string) {
+    setActivePlayerIds((current) =>
+      current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
+    );
+  }
+
+  function addStandardTag(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const tagName = newStandardTagText.trim();
+
+    if (tagName.length === 0 || standardTags.some((tag) => tag.toLowerCase() === tagName.toLowerCase())) {
+      return;
+    }
+
+    setStandardTags((current) => [...current, tagName]);
+    setNewStandardTagText("");
   }
 
   function renderHome() {
@@ -743,6 +839,85 @@ function App() {
             Open New Video
           </button>
 
+          <section className="matchPanel" aria-label="Match team and players">
+            <h2>Add Team</h2>
+            <label>
+              Team
+              <select value={videoTeamId} onChange={(event) => setVideoTeamId(event.target.value)}>
+                <option value="">No team selected</option>
+                {store.teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {videoTeam ? (
+              <>
+                <div className="playerPickList" aria-label="Players on selected team">
+                  {videoTeamPlayers.map((player) => (
+                    <label key={player.id}>
+                      <input
+                        type="checkbox"
+                        checked={activePlayerIds.includes(player.id)}
+                        onChange={() => toggleActivePlayer(player.id)}
+                      />
+                      {getPlayerDisplayName(player)}
+                    </label>
+                  ))}
+                </div>
+
+                <form className="quickPlayerForm" onSubmit={addQuickPlayerToVideoTeam}>
+                  <input
+                    value={quickPlayerName}
+                    onChange={(event) => setQuickPlayerName(event.target.value)}
+                    placeholder="Test player name"
+                    aria-label="Quick player name"
+                  />
+                  <button type="submit">Add Player</button>
+                </form>
+              </>
+            ) : (
+              <p>Create a team first, then select it here.</p>
+            )}
+
+            <div className="activePlayerList">
+              <h3>Players Added</h3>
+              {activePlayers.length === 0 ? <p>No players selected for this video.</p> : null}
+              {activePlayers.map((player) => (
+                <button
+                  type="button"
+                  key={player.id}
+                  disabled={!video}
+                  onClick={() => createTagAtCurrentTime(getPlayerDisplayName(player), [player.id])}
+                >
+                  {getPlayerDisplayName(player)}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="standardTagPanel" aria-label="Standard tags">
+            <h2>Standard Tags</h2>
+            <div className="standardTagButtons">
+              {standardTags.map((tagName) => (
+                <button type="button" key={tagName} disabled={!video} onClick={() => createTagAtCurrentTime(tagName)}>
+                  {tagName}
+                </button>
+              ))}
+            </div>
+            <form className="quickPlayerForm" onSubmit={addStandardTag}>
+              <input
+                value={newStandardTagText}
+                onChange={(event) => setNewStandardTagText(event.target.value)}
+                placeholder="Other tag"
+                aria-label="Other standard tag"
+              />
+              <button type="submit">Add</button>
+            </form>
+          </section>
+
           <section className="previousBlock" aria-label="Previous videos">
             <h2>Previous Videos</h2>
             {previousVideos.length === 0 ? <p>No previous videos yet.</p> : null}
@@ -887,6 +1062,65 @@ function App() {
                           {formatClockTime(tag.startTime ?? tag.time)} -{" "}
                           {formatClockTime(tag.endTime ?? (tag.startTime ?? tag.time) + 5)}
                         </span>
+                        {tag.playerIds && tag.playerIds.length > 0 ? (
+                          <span>
+                            Players:{" "}
+                            {activePlayers
+                              .filter((player) => tag.playerIds?.includes(player.id))
+                              .map(getPlayerDisplayName)
+                              .join(", ") || "Linked players not in the active list"}
+                          </span>
+                        ) : null}
+                        <button type="button" onClick={() => setEditingTagId(editingTagId === tag.id ? null : tag.id)}>
+                          {editingTagId === tag.id ? "Close Edit" : "Edit"}
+                        </button>
+                        {editingTagId === tag.id ? (
+                          <div className="tagEditor inlineEditor">
+                            <label>
+                              Name
+                              <input
+                                value={tagDraft.label}
+                                onChange={(event) => setTagDraft((current) => ({ ...current, label: event.target.value }))}
+                              />
+                            </label>
+                            <label>
+                              Start
+                              <input
+                                value={tagDraft.startTime}
+                                onChange={(event) =>
+                                  setTagDraft((current) => ({ ...current, startTime: event.target.value }))
+                                }
+                              />
+                            </label>
+                            <label>
+                              End
+                              <input
+                                value={tagDraft.endTime}
+                                onChange={(event) =>
+                                  setTagDraft((current) => ({ ...current, endTime: event.target.value }))
+                                }
+                              />
+                            </label>
+                            <div className="editPlayerList">
+                              <strong>Add Players</strong>
+                              {activePlayers.length === 0 ? <span>No active players selected on the left.</span> : null}
+                              {activePlayers.map((player) => (
+                                <label key={player.id}>
+                                  <input
+                                    type="checkbox"
+                                    checked={(editingTag?.playerIds ?? []).includes(player.id)}
+                                    onChange={() => updateEditingTagPlayers(player.id)}
+                                  />
+                                  {getPlayerDisplayName(player)}
+                                </label>
+                              ))}
+                            </div>
+                            <button type="button" onClick={saveSelectedTagDraft}>
+                              Save Tag
+                            </button>
+                            {tagDraftError ? <p className="fieldError">{tagDraftError}</p> : null}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -897,44 +1131,6 @@ function App() {
             <div className="emptyTags">Tags you add will appear here and reload for this video.</div>
           )}
 
-          {selectedTagIds.length > 1 ? (
-            <div className="tagEditor mutedEditor">Select only one tag to edit.</div>
-          ) : selectedTag ? (
-            <div className="tagEditor">
-              <h3>Selected Tag</h3>
-              <label>
-                Name
-                <input
-                  value={tagDraft.label}
-                  onChange={(event) => setTagDraft((current) => ({ ...current, label: event.target.value }))}
-                />
-              </label>
-              <label>
-                Start
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={tagDraft.startTime}
-                  onChange={(event) => setTagDraft((current) => ({ ...current, startTime: event.target.value }))}
-                />
-              </label>
-              <label>
-                End
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={tagDraft.endTime}
-                  onChange={(event) => setTagDraft((current) => ({ ...current, endTime: event.target.value }))}
-                />
-              </label>
-              <button type="button" onClick={saveSelectedTagDraft}>
-                Save Tag Times
-              </button>
-              {tagDraftError ? <p className="fieldError">{tagDraftError}</p> : null}
-            </div>
-          ) : null}
         </aside>
 
         <section className="timelinePanel" aria-label="Video timeline">

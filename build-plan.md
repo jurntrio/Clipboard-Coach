@@ -54,6 +54,14 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Store player first name, last name, optional email, and sort players alphabetically.
 - Prepare per-player clips empty states without implementing clip automation.
 
+## Build 1.3.2: Video Tagging Usability Fixes
+
+- Add a Video Viewer team selector and active-player selector in the left rail.
+- Allow selected active players to create tags at the current video time.
+- Keep `Start` and `Goal` as standard quick tags and allow more local quick tags.
+- Move tag editing into each tag details area behind an explicit `Edit` button.
+- Allow active players to be linked to a tag from that tag's edit panel.
+
 ## Build 1 Boundaries
 
 Do not add advanced player stats, tag categories, periods, heatmaps, distance covered, reports, cloud sync, login, AI tracking, paid APIs, real clip export, or external tag import in Build 1 through Build 1.4.
