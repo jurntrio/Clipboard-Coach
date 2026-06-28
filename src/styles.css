@@ -519,10 +519,16 @@ select:focus {
 
 .transportDock {
   display: grid;
-  grid-template-columns: repeat(4, 1fr) auto;
+  grid-template-columns: repeat(3, 1fr) auto;
   gap: 6px;
   align-items: center;
-  margin-top: auto;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  border: 1px solid #323a35;
+  border-radius: 8px;
+  background: #1c211e;
+  padding: 8px;
 }
 
 .transportDock button {
@@ -584,7 +590,7 @@ select:focus {
 .tagRow {
   display: grid;
   width: 100%;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
   min-height: 50px;
@@ -620,6 +626,18 @@ select:focus {
   padding: 0;
   background: transparent;
   text-align: left;
+}
+
+.tagRowActions {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tagRowActions button {
+  min-height: 32px;
+  padding: 0 10px;
 }
 
 .tagExpandButton {
@@ -800,6 +818,10 @@ select:focus {
   box-shadow: 0 20px 80px rgba(0, 0, 0, 0.35);
 }
 
+.wideModal {
+  width: min(560px, calc(100vw - 32px));
+}
+
 .tagModal h2,
 .tagModal p {
   margin: 0;
@@ -813,6 +835,50 @@ select:focus {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.modalPickList,
+.previousVideoList,
+.standardTagManager {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.standardTagManager div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #323a35;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.standardTagManager small {
+  color: #aeb8ad;
+}
+
+.sectionTitleButton {
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.panelTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.missingPrevious {
+  opacity: 0.5;
 }
 
 @media (max-width: 1050px) {

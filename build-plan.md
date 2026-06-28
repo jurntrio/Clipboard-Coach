@@ -62,6 +62,17 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Move tag editing into each tag details area behind an explicit `Edit` button.
 - Allow active players to be linked to a tag from that tag's edit panel.
 
+## Build 1.3.3: Video Viewer UI Polish
+
+- Keep video controls visible in the left menu.
+- Move tag Details, Edit, and Delete actions into each tag row.
+- Confirm before deleting a tag.
+- Use popups for selecting the current match team, active match players, and quick player creation.
+- Show only the most recent previous video in the left menu and use Browse for the full list.
+- Show missing previous video files as disabled grey items.
+- Manage saved standard tags from a popup while keeping `Start` and `Goal` protected.
+- Save standard tags, active match players, tag player links, and previous video records in JSON.
+
 ## Build 1 Boundaries
 
 Do not add advanced player stats, tag categories, periods, heatmaps, distance covered, reports, cloud sync, login, AI tracking, paid APIs, real clip export, or external tag import in Build 1 through Build 1.4.

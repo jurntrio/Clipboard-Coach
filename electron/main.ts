@@ -19,6 +19,7 @@ type TagStore = {
   teams?: Team[];
   videos?: Record<string, StoredVideo | VideoTag[]>;
   clips?: ClipRecord[];
+  settings?: AppSettings;
 };
 
 type Team = {
@@ -43,6 +44,7 @@ type StoredVideo = {
   extension: string;
   lastOpenedAt: string;
   tags: VideoTag[];
+  missing?: boolean;
 };
 
 type ClipRecord = {
@@ -60,6 +62,13 @@ type AppStore = {
   teams: Team[];
   videos: Record<string, StoredVideo>;
   clips: ClipRecord[];
+  settings: AppSettings;
+};
+
+type AppSettings = {
+  standardTags: string[];
+  activeMatchTeamId?: string;
+  activeMatchPlayerIds: string[];
 };
 
 const isDev = !app.isPackaged;
@@ -88,10 +97,11 @@ async function readStore(): Promise<TagStore> {
     return {
       teams: parsed.teams ?? [],
       videos: parsed.videos ?? {},
-      clips: parsed.clips ?? []
+      clips: parsed.clips ?? [],
+      settings: parsed.settings
     };
   } catch {
-    return { teams: [], videos: {}, clips: [] };
+    return { teams: [], videos: {}, clips: [], settings: undefined };
   }
 }
 
@@ -147,7 +157,12 @@ function normalizeStore(store: TagStore): AppStore {
   return {
     teams: normalizeTeams(store.teams ?? []),
     videos,
-    clips: store.clips ?? []
+    clips: store.clips ?? [],
+    settings: {
+      standardTags: store.settings?.standardTags?.length ? store.settings.standardTags : ["Start", "Goal"],
+      activeMatchTeamId: store.settings?.activeMatchTeamId,
+      activeMatchPlayerIds: store.settings?.activeMatchPlayerIds ?? []
+    }
   };
 }
 
@@ -315,6 +330,18 @@ app.whenReady().then(() => {
 
   ipcMain.handle("store:load", async () => {
     const store = await readAppStore();
+    const videos = Object.fromEntries(
+      await Promise.all(
+        Object.entries(store.videos).map(async ([videoPath, storedVideo]) => {
+          try {
+            await fs.access(videoPath);
+            return [videoPath, { ...storedVideo, missing: false }];
+          } catch {
+            return [videoPath, { ...storedVideo, missing: true }];
+          }
+        })
+      )
+    );
     const clips = await Promise.all(
       store.clips.map(async (clip) => {
         try {
@@ -326,7 +353,7 @@ app.whenReady().then(() => {
       })
     );
 
-    return { ...store, clips };
+    return { ...store, videos, clips };
   });
 
   ipcMain.handle("store:save", async (_event, store: AppStore) => {

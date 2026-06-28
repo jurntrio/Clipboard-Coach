@@ -1,6 +1,6 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4 improves tag interaction, timeline duration display, and the Teams layout.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.3.3 polishes the Video Viewer layout while keeping the app local and simple.
 
 ## Build 1 Features
 
@@ -54,9 +54,19 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 - Tag editing now opens only from a tag's `Details` area using the `Edit` button.
 - Tag edit panels can link active players to the tag.
 
+## Build 1.3.3 Fixes
+
+- Tag rows show Details, Edit, and Delete actions on the right side of each tag.
+- Delete asks for confirmation before removing a tag.
+- Add Team opens a confirm/cancel popup for choosing a saved team and active match players.
+- Add Player opens a popup for first name, last name, and optional email.
+- Previous Video shows the most recent saved video, with Browse opening the full previous-video list.
+- Standard Tags opens a popup for saved quick tags while protecting `Start` and `Goal`.
+- Standard tags, active match players, tag player links, and previous video records are saved in local JSON.
+
 ## Not Included Yet
 
-Build 1.4 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, clip export, paid APIs, or external tag import.
+Build 1.3.3 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, clip export, paid APIs, or external tag import.
 
 ## Technical Setup
 

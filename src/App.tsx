@@ -7,7 +7,7 @@ const tagColors = ["#68d51b", "#3aa7ff", "#ffb020", "#d66bff", "#ff6b6b", "#4dd8
 type Screen = "home" | "teams" | "video" | "clips";
 
 function emptyStore(): AppStore {
-  return { teams: [], videos: {}, clips: [] };
+  return { teams: [], videos: {}, clips: [], settings: { standardTags: ["Start", "Goal"], activeMatchPlayerIds: [] } };
 }
 
 function formatTime(totalSeconds: number) {
@@ -150,10 +150,16 @@ function App() {
   const [tagDraft, setTagDraft] = useState({ label: "", startTime: "00:00:00", endTime: "00:00:05" });
   const [tagDraftError, setTagDraftError] = useState("");
   const [isAddTagOpen, setIsAddTagOpen] = useState(false);
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
+  const [isStandardTagsModalOpen, setIsStandardTagsModalOpen] = useState(false);
+  const [isPreviousVideosModalOpen, setIsPreviousVideosModalOpen] = useState(false);
   const [newTagText, setNewTagText] = useState("");
   const [videoTeamId, setVideoTeamId] = useState("");
   const [activePlayerIds, setActivePlayerIds] = useState<string[]>([]);
-  const [quickPlayerName, setQuickPlayerName] = useState("");
+  const [matchTeamDraftId, setMatchTeamDraftId] = useState("");
+  const [matchPlayerDraftIds, setMatchPlayerDraftIds] = useState<string[]>([]);
+  const [quickPlayerDraft, setQuickPlayerDraft] = useState({ firstName: "", lastName: "", email: "" });
   const [standardTags, setStandardTags] = useState(["Start", "Goal"]);
   const [newStandardTagText, setNewStandardTagText] = useState("");
   const [teamText, setTeamText] = useState("");
@@ -182,19 +188,27 @@ function App() {
       ),
     [store.videos]
   );
+  const latestPreviousVideo = previousVideos[0] ?? null;
   const editingTag = sortedTags.find((tag) => tag.id === editingTagId) ?? null;
   const timelineTags = useMemo(() => getTagLanes(sortedTags), [sortedTags]);
   const timelineLaneCount = Math.max(1, ...timelineTags.map((tag) => tag.laneIndex + 1));
   const selectedTeam = store.teams.find((team) => team.id === selectedTeamId) ?? store.teams[0] ?? null;
   const videoTeam = store.teams.find((team) => team.id === videoTeamId) ?? null;
   const videoTeamPlayers = useMemo(() => getSortedPlayers(videoTeam?.players ?? []), [videoTeam]);
+  const matchDraftTeam = store.teams.find((team) => team.id === matchTeamDraftId) ?? null;
+  const matchDraftPlayers = useMemo(() => getSortedPlayers(matchDraftTeam?.players ?? []), [matchDraftTeam]);
   const activePlayers = useMemo(
     () => videoTeamPlayers.filter((player) => activePlayerIds.includes(player.id)),
     [activePlayerIds, videoTeamPlayers]
   );
 
   useEffect(() => {
-    window.clipboardCoach.loadStore().then((loadedStore) => setStore(loadedStore));
+    window.clipboardCoach.loadStore().then((loadedStore) => {
+      setStore(loadedStore);
+      setStandardTags(loadedStore.settings.standardTags.length ? loadedStore.settings.standardTags : ["Start", "Goal"]);
+      setVideoTeamId(loadedStore.settings.activeMatchTeamId ?? loadedStore.teams[0]?.id ?? "");
+      setActivePlayerIds(loadedStore.settings.activeMatchPlayerIds ?? []);
+    });
   }, []);
 
   useEffect(() => {
@@ -282,6 +296,19 @@ function App() {
   async function persistStore(nextStore: AppStore) {
     const savedStore = await window.clipboardCoach.saveStore(nextStore);
     setStore(savedStore);
+  }
+
+  async function persistSettings(nextSettings: Partial<AppSettings>) {
+    const nextStore = {
+      ...store,
+      settings: {
+        ...store.settings,
+        ...nextSettings
+      }
+    };
+
+    setStore(nextStore);
+    await persistStore(nextStore);
   }
 
   async function openVideo() {
@@ -500,6 +527,18 @@ function App() {
     await saveTags(nextTags);
   }
 
+  async function deleteTag(tagId: string) {
+    if (!window.confirm("Are you sure you want to delete this tag?")) {
+      return;
+    }
+
+    const nextTags = tags.filter((tag) => tag.id !== tagId);
+    setSelectedTagIds((current) => current.filter((id) => id !== tagId));
+    setExpandedTagIds((current) => current.filter((id) => id !== tagId));
+    setEditingTagId((current) => (current === tagId ? null : current));
+    await saveTags(nextTags);
+  }
+
   function seekTo(time: number) {
     const nextTime = Math.min(Math.max(time, 0), duration || 0);
 
@@ -614,40 +653,76 @@ function App() {
   async function addQuickPlayerToVideoTeam(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!videoTeam || quickPlayerName.trim().length === 0) {
+    const firstName = quickPlayerDraft.firstName.trim();
+    const lastName = quickPlayerDraft.lastName.trim();
+    const email = quickPlayerDraft.email.trim();
+
+    if (!videoTeam || (firstName.length === 0 && lastName.length === 0)) {
       return;
     }
 
-    const nameParts = quickPlayerName.trim().split(/\s+/);
-    const firstName = nameParts[0] ?? "";
-    const lastName = nameParts.slice(1).join(" ");
     const newPlayer: Player = {
       id: crypto.randomUUID(),
       firstName,
       lastName,
-      name: quickPlayerName.trim(),
+      email,
+      name: `${firstName} ${lastName}`.trim(),
       createdAt: new Date().toISOString()
     };
+    const nextActivePlayerIds = [...activePlayerIds, newPlayer.id];
     const nextStore = {
       ...store,
       teams: store.teams.map((team) =>
         team.id === videoTeam.id ? { ...team, players: [...team.players, newPlayer] } : team
-      )
+      ),
+      settings: {
+        ...store.settings,
+        activeMatchTeamId: videoTeam.id,
+        activeMatchPlayerIds: nextActivePlayerIds
+      }
     };
 
-    setQuickPlayerName("");
-    setActivePlayerIds((current) => [...current, newPlayer.id]);
+    setQuickPlayerDraft({ firstName: "", lastName: "", email: "" });
+    setActivePlayerIds(nextActivePlayerIds);
+    setIsPlayerModalOpen(false);
     setStore(nextStore);
     await persistStore(nextStore);
   }
 
-  function toggleActivePlayer(playerId: string) {
-    setActivePlayerIds((current) =>
+  function openTeamModal() {
+    setMatchTeamDraftId(videoTeamId);
+    setMatchPlayerDraftIds(activePlayerIds);
+    setIsTeamModalOpen(true);
+  }
+
+  function cancelTeamModal() {
+    setIsTeamModalOpen(false);
+    setMatchTeamDraftId(videoTeamId);
+    setMatchPlayerDraftIds(activePlayerIds);
+  }
+
+  function chooseMatchDraftTeam(teamId: string) {
+    setMatchTeamDraftId(teamId);
+    setMatchPlayerDraftIds([]);
+  }
+
+  function toggleMatchDraftPlayer(playerId: string) {
+    setMatchPlayerDraftIds((current) =>
       current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
     );
   }
 
-  function addStandardTag(event: FormEvent<HTMLFormElement>) {
+  async function confirmTeamModal() {
+    setVideoTeamId(matchTeamDraftId);
+    setActivePlayerIds(matchPlayerDraftIds);
+    setIsTeamModalOpen(false);
+    await persistSettings({
+      activeMatchTeamId: matchTeamDraftId || undefined,
+      activeMatchPlayerIds: matchPlayerDraftIds
+    });
+  }
+
+  async function addStandardTag(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const tagName = newStandardTagText.trim();
 
@@ -655,8 +730,20 @@ function App() {
       return;
     }
 
-    setStandardTags((current) => [...current, tagName]);
+    const nextStandardTags = [...standardTags, tagName];
+    setStandardTags(nextStandardTags);
     setNewStandardTagText("");
+    await persistSettings({ standardTags: nextStandardTags });
+  }
+
+  async function removeStandardTag(tagName: string) {
+    if (tagName === "Start" || tagName === "Goal") {
+      return;
+    }
+
+    const nextStandardTags = standardTags.filter((tag) => tag !== tagName);
+    setStandardTags(nextStandardTags);
+    await persistSettings({ standardTags: nextStandardTags });
   }
 
   function renderHome() {
@@ -839,111 +926,91 @@ function App() {
             Open New Video
           </button>
 
+          <div className="transportDock" aria-label="Playback controls">
+            <button type="button" onClick={() => seekBy(-5)} disabled={!video}>
+              &lt;
+            </button>
+            <button type="button" onClick={isPlaying ? pauseVideo : playVideo} disabled={!video || !!videoError}>
+              {isPlaying ? "⏸" : "▶"}
+            </button>
+            <button type="button" onClick={speedUp} disabled={!video}>
+              &gt; &gt;
+            </button>
+            <span>{playbackRate}x</span>
+          </div>
+
           <section className="matchPanel" aria-label="Match team and players">
-            <h2>Add Team</h2>
-            <label>
-              Team
-              <select value={videoTeamId} onChange={(event) => setVideoTeamId(event.target.value)}>
-                <option value="">No team selected</option>
-                {store.teams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="panelTitleRow">
+              <h2>Match Team</h2>
+              <button type="button" onClick={openTeamModal}>
+                Add Team
+              </button>
+            </div>
 
-            {videoTeam ? (
-              <>
-                <div className="playerPickList" aria-label="Players on selected team">
-                  {videoTeamPlayers.map((player) => (
-                    <label key={player.id}>
-                      <input
-                        type="checkbox"
-                        checked={activePlayerIds.includes(player.id)}
-                        onChange={() => toggleActivePlayer(player.id)}
-                      />
-                      {getPlayerDisplayName(player)}
-                    </label>
-                  ))}
-                </div>
-
-                <form className="quickPlayerForm" onSubmit={addQuickPlayerToVideoTeam}>
-                  <input
-                    value={quickPlayerName}
-                    onChange={(event) => setQuickPlayerName(event.target.value)}
-                    placeholder="Test player name"
-                    aria-label="Quick player name"
-                  />
-                  <button type="submit">Add Player</button>
-                </form>
-              </>
-            ) : (
-              <p>Create a team first, then select it here.</p>
-            )}
+            <p>{videoTeam ? videoTeam.name : "No team selected"}</p>
+            <button type="button" onClick={() => setIsPlayerModalOpen(true)} disabled={!videoTeam}>
+              Add Player
+            </button>
 
             <div className="activePlayerList">
               <h3>Players Added</h3>
               {activePlayers.length === 0 ? <p>No players selected for this video.</p> : null}
-              {activePlayers.map((player) => (
-                <button
-                  type="button"
-                  key={player.id}
-                  disabled={!video}
-                  onClick={() => createTagAtCurrentTime(getPlayerDisplayName(player), [player.id])}
-                >
-                  {getPlayerDisplayName(player)}
-                </button>
-              ))}
+              <div className="quickTagButtons">
+                {activePlayers.map((player) => (
+                  <button
+                    type="button"
+                    key={player.id}
+                    disabled={!video}
+                    onClick={() => createTagAtCurrentTime(getPlayerDisplayName(player), [player.id])}
+                  >
+                    {getPlayerDisplayName(player)}
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
 
           <section className="standardTagPanel" aria-label="Standard tags">
-            <h2>Standard Tags</h2>
-            <div className="standardTagButtons">
+            <div className="panelTitleRow">
+              <button className="sectionTitleButton" type="button" onClick={() => setIsStandardTagsModalOpen(true)}>
+                Standard Tags
+              </button>
+              <button type="button" onClick={openAddTagModal} disabled={!video}>
+                Add Tag
+              </button>
+            </div>
+            <div className="standardTagButtons quickTagButtons">
               {standardTags.map((tagName) => (
                 <button type="button" key={tagName} disabled={!video} onClick={() => createTagAtCurrentTime(tagName)}>
                   {tagName}
                 </button>
               ))}
             </div>
-            <form className="quickPlayerForm" onSubmit={addStandardTag}>
-              <input
-                value={newStandardTagText}
-                onChange={(event) => setNewStandardTagText(event.target.value)}
-                placeholder="Other tag"
-                aria-label="Other standard tag"
-              />
-              <button type="submit">Add</button>
-            </form>
           </section>
 
           <section className="previousBlock" aria-label="Previous videos">
-            <h2>Previous Videos</h2>
-            {previousVideos.length === 0 ? <p>No previous videos yet.</p> : null}
-            {previousVideos.map((previousVideo) => (
+            <div className="panelTitleRow">
+              <h2>Previous Video</h2>
+              <button type="button" onClick={() => setIsPreviousVideosModalOpen(true)} disabled={previousVideos.length === 0}>
+                Browse
+              </button>
+            </div>
+            {!latestPreviousVideo ? <p>No previous videos yet.</p> : null}
+            {latestPreviousVideo ? (
               <button
-                className="previousVideoButton"
+                className={latestPreviousVideo.missing ? "previousVideoButton missingPrevious" : "previousVideoButton"}
                 type="button"
-                key={previousVideo.path}
-                onClick={() => openPreviousVideo(previousVideo.path)}
+                disabled={latestPreviousVideo.missing}
+                onClick={() => openPreviousVideo(latestPreviousVideo.path)}
               >
-                <strong>{previousVideo.name}</strong>
-                <span>{previousVideo.tags.length} saved tags</span>
-                {previousVideo.tags.length > 0 ? (
-                  <small>{previousVideo.tags.slice(0, 4).map((tag) => tag.label).join(", ")}</small>
+                <strong>{latestPreviousVideo.name}</strong>
+                <span>{latestPreviousVideo.missing ? "File missing" : `${latestPreviousVideo.tags.length} saved tags`}</span>
+                {latestPreviousVideo.tags.length > 0 ? (
+                  <small>{latestPreviousVideo.tags.slice(0, 4).map((tag) => tag.label).join(", ")}</small>
                 ) : null}
               </button>
-            ))}
+            ) : null}
           </section>
-
-          <div className="tagForm">
-            <label>Add a tag at the current video time</label>
-            <button type="button" onClick={openAddTagModal} disabled={!video}>
-              Add Tag
-            </button>
-            <small>Space pauses the video and opens this popup.</small>
-          </div>
 
           {video ? (
             <div className="videoDetails" aria-label="Selected video details">
@@ -960,22 +1027,6 @@ function App() {
 
           {supportWarning ? <div className="warningMessage">{supportWarning}</div> : null}
           {videoError ? <div className="errorMessage">{videoError}</div> : null}
-
-          <div className="transportDock" aria-label="Playback controls">
-            <button type="button" onClick={() => seekBy(-5)} disabled={!video}>
-              &lt;
-            </button>
-            <button type="button" onClick={playVideo} disabled={!video || !!videoError}>
-              &#9654;
-            </button>
-            <button type="button" onClick={pauseVideo} disabled={!video}>
-              ||
-            </button>
-            <button type="button" onClick={speedUp} disabled={!video}>
-              &gt;&gt;
-            </button>
-            <span>{playbackRate}x</span>
-          </div>
 
           <p className="statusLine" role="status">
             {status}
@@ -1042,19 +1093,27 @@ function App() {
                       <time>{formatClockTime(tag.startTime ?? tag.time)}</time>
                       <span>{tag.label}</span>
                     </button>
-                    <button
-                      className="tagExpandButton"
-                      type="button"
-                      onClick={() =>
-                        setExpandedTagIds((current) =>
-                          current.includes(tag.id)
-                            ? current.filter((expandedTagId) => expandedTagId !== tag.id)
-                            : [...current, tag.id]
-                        )
-                      }
-                    >
-                      {expandedTagIds.includes(tag.id) ? "Hide" : "Details"}
-                    </button>
+                    <div className="tagRowActions">
+                      <button
+                        className="tagExpandButton"
+                        type="button"
+                        onClick={() =>
+                          setExpandedTagIds((current) =>
+                            current.includes(tag.id)
+                              ? current.filter((expandedTagId) => expandedTagId !== tag.id)
+                              : [...current, tag.id]
+                          )
+                        }
+                      >
+                        {expandedTagIds.includes(tag.id) ? "Hide" : "Details"}
+                      </button>
+                      <button type="button" onClick={() => setEditingTagId(editingTagId === tag.id ? null : tag.id)}>
+                        {editingTagId === tag.id ? "Close" : "Edit"}
+                      </button>
+                      <button type="button" onClick={() => deleteTag(tag.id)}>
+                        Delete
+                      </button>
+                    </div>
                     {expandedTagIds.includes(tag.id) ? (
                       <div className="inlineTagDetails">
                         <span>{tag.label}</span>
@@ -1071,9 +1130,6 @@ function App() {
                               .join(", ") || "Linked players not in the active list"}
                           </span>
                         ) : null}
-                        <button type="button" onClick={() => setEditingTagId(editingTagId === tag.id ? null : tag.id)}>
-                          {editingTagId === tag.id ? "Close Edit" : "Edit"}
-                        </button>
                         {editingTagId === tag.id ? (
                           <div className="tagEditor inlineEditor">
                             <label>
@@ -1173,6 +1229,146 @@ function App() {
             />
           </div>
         </section>
+
+        {isTeamModalOpen ? (
+          <div className="modalBackdrop" role="presentation">
+            <div className="tagModal wideModal" role="dialog" aria-modal="true" aria-label="Select team">
+              <h2>Add Team</h2>
+              <p>Select a saved team, then choose players for this match/video.</p>
+              <select value={matchTeamDraftId} onChange={(event) => chooseMatchDraftTeam(event.target.value)}>
+                <option value="">No team selected</option>
+                {store.teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+              <div className="playerPickList modalPickList">
+                {matchDraftPlayers.map((player) => (
+                  <label key={player.id}>
+                    <input
+                      type="checkbox"
+                      checked={matchPlayerDraftIds.includes(player.id)}
+                      onChange={() => toggleMatchDraftPlayer(player.id)}
+                    />
+                    {getPlayerDisplayName(player)}
+                  </label>
+                ))}
+              </div>
+              <div className="modalActions">
+                <button type="button" onClick={cancelTeamModal}>
+                  Cancel
+                </button>
+                <button className="primaryButton" type="button" onClick={confirmTeamModal}>
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {isPlayerModalOpen ? (
+          <div className="modalBackdrop" role="presentation">
+            <form className="tagModal wideModal" onSubmit={addQuickPlayerToVideoTeam} role="dialog" aria-modal="true" aria-label="Add player">
+              <h2>Add Player</h2>
+              <p>Add a player to {videoTeam?.name ?? "the selected team"} and this match/video.</p>
+              <input
+                value={quickPlayerDraft.firstName}
+                onChange={(event) => setQuickPlayerDraft((current) => ({ ...current, firstName: event.target.value }))}
+                placeholder="First name"
+                aria-label="First name"
+              />
+              <input
+                value={quickPlayerDraft.lastName}
+                onChange={(event) => setQuickPlayerDraft((current) => ({ ...current, lastName: event.target.value }))}
+                placeholder="Last name"
+                aria-label="Last name"
+              />
+              <input
+                value={quickPlayerDraft.email}
+                onChange={(event) => setQuickPlayerDraft((current) => ({ ...current, email: event.target.value }))}
+                placeholder="Email optional"
+                aria-label="Email"
+              />
+              <div className="modalActions">
+                <button type="button" onClick={() => setIsPlayerModalOpen(false)}>
+                  Cancel
+                </button>
+                <button className="primaryButton" type="submit" disabled={!videoTeam}>
+                  Confirm
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
+
+        {isStandardTagsModalOpen ? (
+          <div className="modalBackdrop" role="presentation">
+            <form className="tagModal wideModal" onSubmit={addStandardTag} role="dialog" aria-modal="true" aria-label="Standard tags">
+              <h2>Standard Tags</h2>
+              <p>Start and Goal are protected defaults. Custom tags are saved locally.</p>
+              <div className="standardTagManager">
+                {standardTags.map((tagName) => (
+                  <div key={tagName}>
+                    <span>{tagName}</span>
+                    {tagName === "Start" || tagName === "Goal" ? (
+                      <small>Default</small>
+                    ) : (
+                      <button type="button" onClick={() => removeStandardTag(tagName)}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="quickPlayerForm">
+                <input
+                  value={newStandardTagText}
+                  onChange={(event) => setNewStandardTagText(event.target.value)}
+                  placeholder="New standard tag"
+                  aria-label="New standard tag"
+                />
+                <button type="submit">Add</button>
+              </div>
+              <div className="modalActions">
+                <button type="button" onClick={() => setIsStandardTagsModalOpen(false)}>
+                  Close
+                </button>
+                <button className="primaryButton" type="button" onClick={() => setIsStandardTagsModalOpen(false)}>
+                  Done
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
+
+        {isPreviousVideosModalOpen ? (
+          <div className="modalBackdrop" role="presentation">
+            <div className="tagModal wideModal" role="dialog" aria-modal="true" aria-label="Browse previous videos">
+              <h2>Browse Previous Videos</h2>
+              <div className="previousVideoList">
+                {previousVideos.map((previousVideo) => (
+                  <button
+                    className={previousVideo.missing ? "previousVideoButton missingPrevious" : "previousVideoButton"}
+                    type="button"
+                    key={previousVideo.path}
+                    disabled={previousVideo.missing}
+                    onClick={() => {
+                      setIsPreviousVideosModalOpen(false);
+                      openPreviousVideo(previousVideo.path);
+                    }}
+                  >
+                    <strong>{previousVideo.name}</strong>
+                    <span>{previousVideo.missing ? "File missing" : `${previousVideo.tags.length} saved tags`}</span>
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => setIsPreviousVideosModalOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {isAddTagOpen ? (
           <div className="modalBackdrop" role="presentation">

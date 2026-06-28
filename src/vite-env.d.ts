@@ -40,6 +40,7 @@ type StoredVideo = {
   extension: string;
   lastOpenedAt: string;
   tags: VideoTag[];
+  missing?: boolean;
 };
 
 type ClipRecord = {
@@ -57,6 +58,13 @@ type AppStore = {
   teams: Team[];
   videos: Record<string, StoredVideo>;
   clips: ClipRecord[];
+  settings: AppSettings;
+};
+
+type AppSettings = {
+  standardTags: string[];
+  activeMatchTeamId?: string;
+  activeMatchPlayerIds: string[];
 };
 
 interface Window {
