@@ -40,7 +40,19 @@ type StoredVideo = {
   extension: string;
   lastOpenedAt: string;
   tags: VideoTag[];
+  matchState?: MatchState;
   missing?: boolean;
+};
+
+type MatchState = {
+  teamId?: string;
+  teamName?: string;
+  players: MatchPlayerState[];
+};
+
+type MatchPlayerState = {
+  id: string;
+  name: string;
 };
 
 type ClipRecord = {

@@ -73,6 +73,17 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Manage saved standard tags from a popup while keeping `Start` and `Goal` protected.
 - Save standard tags, active match players, tag player links, and previous video records in JSON.
 
+## Build 1.3.4: Active Tag Indicator and Match State
+
+- Show a compact overlay when playback is currently inside one or more tag durations.
+- Hide the overlay automatically after playback passes the active tag end time.
+- Keep video playback running normally when tag durations end.
+- Make Edit open the tag editor directly under the clicked tag row.
+- Keep Details as a separate read-only expand/collapse action.
+- Make active player tag buttons visually match the standard quick tag buttons.
+- Save selected match team and active match players on each video record.
+- Restore saved match team and players when reopening previous videos.
+
 ## Build 1 Boundaries
 
 Do not add advanced player stats, tag categories, periods, heatmaps, distance covered, reports, cloud sync, login, AI tracking, paid APIs, real clip export, or external tag import in Build 1 through Build 1.4.

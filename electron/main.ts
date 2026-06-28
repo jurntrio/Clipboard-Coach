@@ -44,7 +44,19 @@ type StoredVideo = {
   extension: string;
   lastOpenedAt: string;
   tags: VideoTag[];
+  matchState?: MatchState;
   missing?: boolean;
+};
+
+type MatchState = {
+  teamId?: string;
+  teamName?: string;
+  players: MatchPlayerState[];
+};
+
+type MatchPlayerState = {
+  id: string;
+  name: string;
 };
 
 type ClipRecord = {
@@ -141,7 +153,8 @@ function normalizeStore(store: TagStore): AppStore {
         name: path.basename(videoPath),
         extension: path.extname(videoPath).toLowerCase(),
         lastOpenedAt: new Date().toISOString(),
-        tags: normalizeTags(value)
+        tags: normalizeTags(value),
+        matchState: undefined
       };
     } else {
       videos[videoPath] = {
@@ -149,7 +162,14 @@ function normalizeStore(store: TagStore): AppStore {
         name: value.name ?? path.basename(videoPath),
         extension: value.extension ?? path.extname(videoPath).toLowerCase(),
         lastOpenedAt: value.lastOpenedAt ?? new Date().toISOString(),
-        tags: normalizeTags(value.tags ?? [])
+        tags: normalizeTags(value.tags ?? []),
+        matchState: value.matchState
+          ? {
+              teamId: value.matchState.teamId,
+              teamName: value.matchState.teamName,
+              players: value.matchState.players ?? []
+            }
+          : undefined
       };
     }
   }
@@ -309,7 +329,8 @@ app.whenReady().then(() => {
       name: videoFile.name,
       extension: fileExtension,
       lastOpenedAt: new Date().toISOString(),
-      tags: existingVideo?.tags ?? []
+      tags: existingVideo?.tags ?? [],
+      matchState: existingVideo?.matchState
     };
     await writeStore(store);
 
@@ -375,7 +396,8 @@ app.whenReady().then(() => {
       name: existingVideo?.name ?? path.basename(videoPath),
       extension: existingVideo?.extension ?? path.extname(videoPath).toLowerCase(),
       lastOpenedAt: new Date().toISOString(),
-      tags: normalizeTags(tags)
+      tags: normalizeTags(tags),
+      matchState: existingVideo?.matchState
     };
     await writeStore(store);
     return store.videos[videoPath].tags;

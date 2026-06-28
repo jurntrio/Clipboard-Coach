@@ -99,6 +99,19 @@ function normalizeTag(tag: VideoTag): VideoTag {
   };
 }
 
+function getActiveTagsAtTime(tags: VideoTag[], currentTime: number) {
+  const activeNames = tags
+    .map(normalizeTag)
+    .filter((tag) => {
+      const startTime = tag.startTime ?? tag.time;
+      const endTime = tag.endTime ?? startTime + 5;
+      return currentTime >= startTime && currentTime < endTime;
+    })
+    .map((tag) => tag.label);
+
+  return [...new Set(activeNames)];
+}
+
 function getPlayerDisplayName(player: Player) {
   const fullName = `${player.firstName ?? ""} ${player.lastName ?? ""}`.trim();
   return fullName || player.name || "Unnamed player";
@@ -192,22 +205,46 @@ function App() {
   const editingTag = sortedTags.find((tag) => tag.id === editingTagId) ?? null;
   const timelineTags = useMemo(() => getTagLanes(sortedTags), [sortedTags]);
   const timelineLaneCount = Math.max(1, ...timelineTags.map((tag) => tag.laneIndex + 1));
+  const activeTagNames = useMemo(() => getActiveTagsAtTime(sortedTags, currentTime), [currentTime, sortedTags]);
+  const currentVideoRecord = video ? store.videos[video.path] : null;
   const selectedTeam = store.teams.find((team) => team.id === selectedTeamId) ?? store.teams[0] ?? null;
   const videoTeam = store.teams.find((team) => team.id === videoTeamId) ?? null;
   const videoTeamPlayers = useMemo(() => getSortedPlayers(videoTeam?.players ?? []), [videoTeam]);
   const matchDraftTeam = store.teams.find((team) => team.id === matchTeamDraftId) ?? null;
   const matchDraftPlayers = useMemo(() => getSortedPlayers(matchDraftTeam?.players ?? []), [matchDraftTeam]);
   const activePlayers = useMemo(
-    () => videoTeamPlayers.filter((player) => activePlayerIds.includes(player.id)),
-    [activePlayerIds, videoTeamPlayers]
+    () =>
+      activePlayerIds
+        .map((playerId) => {
+          const teamPlayer = videoTeamPlayers.find((player) => player.id === playerId);
+          const savedPlayer = currentVideoRecord?.matchState?.players.find((player) => player.id === playerId);
+
+          if (teamPlayer) {
+            return teamPlayer;
+          }
+
+          if (savedPlayer) {
+            return {
+              id: savedPlayer.id,
+              name: savedPlayer.name,
+              firstName: savedPlayer.name,
+              lastName: "",
+              createdAt: ""
+            };
+          }
+
+          return null;
+        })
+        .filter((player): player is Player => player !== null),
+    [activePlayerIds, currentVideoRecord?.matchState?.players, videoTeamPlayers]
   );
 
   useEffect(() => {
     window.clipboardCoach.loadStore().then((loadedStore) => {
       setStore(loadedStore);
       setStandardTags(loadedStore.settings.standardTags.length ? loadedStore.settings.standardTags : ["Start", "Goal"]);
-      setVideoTeamId(loadedStore.settings.activeMatchTeamId ?? loadedStore.teams[0]?.id ?? "");
-      setActivePlayerIds(loadedStore.settings.activeMatchPlayerIds ?? []);
+      setVideoTeamId("");
+      setActivePlayerIds([]);
     });
   }, []);
 
@@ -241,16 +278,21 @@ function App() {
   }, [selectedTeamId, store.teams]);
 
   useEffect(() => {
-    if (videoTeamId && store.teams.some((team) => team.id === videoTeamId)) {
+    if (!videoTeamId || store.teams.some((team) => team.id === videoTeamId)) {
       return;
     }
 
-    setVideoTeamId(store.teams[0]?.id ?? "");
+    setVideoTeamId("");
   }, [videoTeamId, store.teams]);
 
   useEffect(() => {
-    setActivePlayerIds((current) => current.filter((playerId) => videoTeamPlayers.some((player) => player.id === playerId)));
-  }, [videoTeamPlayers]);
+    const savedPlayerIds = currentVideoRecord?.matchState?.players.map((player) => player.id) ?? [];
+    setActivePlayerIds((current) =>
+      current.filter(
+        (playerId) => videoTeamPlayers.some((player) => player.id === playerId) || savedPlayerIds.includes(playerId)
+      )
+    );
+  }, [currentVideoRecord?.matchState?.players, videoTeamPlayers]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -278,12 +320,13 @@ function App() {
       return;
     }
 
-    window.clipboardCoach.loadTags(video.path).then((savedTags) => {
+    window.clipboardCoach.loadTags(video.path).then(async (savedTags) => {
       const normalizedTags = savedTags.map(normalizeTag);
       setTags(normalizedTags);
       setSelectedTagIds(normalizedTags[0] ? [normalizedTags[0].id] : []);
       setStatus(normalizedTags.length > 0 ? "Saved tags loaded for this video." : "No saved tags yet.");
-      refreshStore();
+      const nextStore = await refreshStore();
+      restoreVideoMatchState(video.path, nextStore);
     });
   }, [video]);
 
@@ -309,6 +352,63 @@ function App() {
 
     setStore(nextStore);
     await persistStore(nextStore);
+  }
+
+  function buildMatchState(teamId: string, playerIds: string[], sourceStore = store): MatchState | undefined {
+    if (!teamId && playerIds.length === 0) {
+      return undefined;
+    }
+
+    const team = sourceStore.teams.find((storedTeam) => storedTeam.id === teamId);
+    const players = playerIds.map((playerId) => {
+      const player = team?.players.find((storedPlayer) => storedPlayer.id === playerId);
+      const savedPlayer = currentVideoRecord?.matchState?.players.find((storedPlayer) => storedPlayer.id === playerId);
+
+      return {
+        id: playerId,
+        name: player ? getPlayerDisplayName(player) : savedPlayer?.name ?? "Saved player"
+      };
+    });
+
+    return {
+      teamId: teamId || undefined,
+      teamName: team?.name ?? currentVideoRecord?.matchState?.teamName,
+      players
+    };
+  }
+
+  async function persistVideoMatchState(teamId: string, playerIds: string[], sourceStore = store) {
+    if (!video) {
+      return;
+    }
+
+    const existingVideo = sourceStore.videos[video.path] ?? {
+      path: video.path,
+      name: video.name,
+      extension: video.extension,
+      lastOpenedAt: new Date().toISOString(),
+      tags
+    };
+    const nextStore = {
+      ...sourceStore,
+      videos: {
+        ...sourceStore.videos,
+        [video.path]: {
+          ...existingVideo,
+          matchState: buildMatchState(teamId, playerIds, sourceStore)
+        }
+      }
+    };
+
+    setStore(nextStore);
+    await persistStore(nextStore);
+  }
+
+  function restoreVideoMatchState(videoPath: string, sourceStore: AppStore) {
+    const matchState = sourceStore.videos[videoPath]?.matchState;
+
+    setVideoTeamId(matchState?.teamId ?? "");
+    setActivePlayerIds(matchState?.players.map((player) => player.id) ?? []);
   }
 
   async function openVideo() {
@@ -338,6 +438,8 @@ function App() {
     setVideo(selectedVideo);
     setTags([]);
     setSelectedTagIds([]);
+    setEditingTagId(null);
+    setExpandedTagIds([]);
     setNewTagText("");
     setIsAddTagOpen(false);
     setCurrentTime(0);
@@ -595,6 +697,25 @@ function App() {
   async function deleteTeam(teamId: string) {
     const nextStore = { ...store, teams: store.teams.filter((team) => team.id !== teamId) };
     setSelectedTeamId(nextStore.teams[0]?.id ?? null);
+    if (videoTeamId === teamId) {
+      setVideoTeamId("");
+      setActivePlayerIds([]);
+      if (video) {
+        nextStore.videos = {
+          ...nextStore.videos,
+          [video.path]: {
+            ...(nextStore.videos[video.path] ?? {
+              path: video.path,
+              name: video.name,
+              extension: video.extension,
+              lastOpenedAt: new Date().toISOString(),
+              tags
+            }),
+            matchState: undefined
+          }
+        };
+      }
+    }
     setStore(nextStore);
     await persistStore(nextStore);
   }
@@ -638,14 +759,33 @@ function App() {
   }
 
   async function deletePlayer(teamId: string, playerId: string) {
+    const nextActivePlayerIds =
+      teamId === videoTeamId ? activePlayerIds.filter((activePlayerId) => activePlayerId !== playerId) : activePlayerIds;
     const nextStore = {
       ...store,
       teams: store.teams.map((team) =>
         team.id === teamId
           ? { ...team, players: team.players.filter((player) => player.id !== playerId) }
           : team
-      )
+      ),
+      videos:
+        video && teamId === videoTeamId
+          ? {
+              ...store.videos,
+              [video.path]: {
+                ...(store.videos[video.path] ?? {
+                  path: video.path,
+                  name: video.name,
+                  extension: video.extension,
+                  lastOpenedAt: new Date().toISOString(),
+                  tags
+                }),
+                matchState: buildMatchState(videoTeamId, nextActivePlayerIds, store)
+              }
+            }
+          : store.videos
     };
+    setActivePlayerIds(nextActivePlayerIds);
     setStore(nextStore);
     await persistStore(nextStore);
   }
@@ -675,10 +815,34 @@ function App() {
       teams: store.teams.map((team) =>
         team.id === videoTeam.id ? { ...team, players: [...team.players, newPlayer] } : team
       ),
+      videos: video
+        ? {
+            ...store.videos,
+            [video.path]: {
+              ...(store.videos[video.path] ?? {
+                path: video.path,
+                name: video.name,
+                extension: video.extension,
+                lastOpenedAt: new Date().toISOString(),
+                tags
+              }),
+              matchState: {
+                teamId: videoTeam.id,
+                teamName: videoTeam.name,
+                players: nextActivePlayerIds.map((playerId) => {
+                  if (playerId === newPlayer.id) {
+                    return { id: newPlayer.id, name: getPlayerDisplayName(newPlayer) };
+                  }
+
+                  const player = videoTeam.players.find((storedPlayer) => storedPlayer.id === playerId);
+                  return { id: playerId, name: player ? getPlayerDisplayName(player) : "Saved player" };
+                })
+              }
+            }
+          }
+        : store.videos,
       settings: {
-        ...store.settings,
-        activeMatchTeamId: videoTeam.id,
-        activeMatchPlayerIds: nextActivePlayerIds
+        ...store.settings
       }
     };
 
@@ -716,10 +880,7 @@ function App() {
     setVideoTeamId(matchTeamDraftId);
     setActivePlayerIds(matchPlayerDraftIds);
     setIsTeamModalOpen(false);
-    await persistSettings({
-      activeMatchTeamId: matchTeamDraftId || undefined,
-      activeMatchPlayerIds: matchPlayerDraftIds
-    });
+    await persistVideoMatchState(matchTeamDraftId, matchPlayerDraftIds);
   }
 
   async function addStandardTag(event: FormEvent<HTMLFormElement>) {
@@ -955,9 +1116,10 @@ function App() {
             <div className="activePlayerList">
               <h3>Players Added</h3>
               {activePlayers.length === 0 ? <p>No players selected for this video.</p> : null}
-              <div className="quickTagButtons">
+              <div className="quickTagButtons playerTagButtons">
                 {activePlayers.map((player) => (
                   <button
+                    className="playerTagButton"
                     type="button"
                     key={player.id}
                     disabled={!video}
@@ -1035,28 +1197,36 @@ function App() {
 
         <section className="videoPanel" aria-label="Video player">
           {video ? (
-            <video
-              key={video.url}
-              ref={videoRef}
-              className="videoPlayer"
-              src={video.url}
-              preload="metadata"
-              onCanPlay={() => {
-                setVideoReady(true);
-                setVideoError("");
-              }}
-              onLoadedMetadata={(event) => {
-                setCurrentTime(event.currentTarget.currentTime);
-                setDuration(event.currentTarget.duration || 0);
-                setStatus(`Video loaded: ${video.name}.`);
-              }}
-              onError={handleVideoError}
-              onPause={() => setIsPlaying(false)}
-              onPlay={() => setIsPlaying(true)}
-              onRateChange={(event) => setPlaybackRate(event.currentTarget.playbackRate)}
-              onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
-              controls={false}
-            />
+            <div className="videoStage">
+              <video
+                key={video.url}
+                ref={videoRef}
+                className="videoPlayer"
+                src={video.url}
+                preload="metadata"
+                onCanPlay={() => {
+                  setVideoReady(true);
+                  setVideoError("");
+                }}
+                onLoadedMetadata={(event) => {
+                  setCurrentTime(event.currentTarget.currentTime);
+                  setDuration(event.currentTarget.duration || 0);
+                  setStatus(`Video loaded: ${video.name}.`);
+                }}
+                onError={handleVideoError}
+                onPause={() => setIsPlaying(false)}
+                onPlay={() => setIsPlaying(true)}
+                onRateChange={(event) => setPlaybackRate(event.currentTarget.playbackRate)}
+                onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+                controls={false}
+              />
+              {activeTagNames.length > 0 ? (
+                <div className="activeTagWatermark" aria-live="polite">
+                  <span>Active</span>
+                  <strong>{activeTagNames.join(", ")}</strong>
+                </div>
+              ) : null}
+            </div>
           ) : (
             <div className="emptyVideo">
               <strong>No video open</strong>
@@ -1107,31 +1277,42 @@ function App() {
                       >
                         {expandedTagIds.includes(tag.id) ? "Hide" : "Details"}
                       </button>
-                      <button type="button" onClick={() => setEditingTagId(editingTagId === tag.id ? null : tag.id)}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingTagId(editingTagId === tag.id ? null : tag.id);
+                          setSelectedTagIds((current) => (current.includes(tag.id) ? current : [tag.id, ...current]));
+                        }}
+                      >
                         {editingTagId === tag.id ? "Close" : "Edit"}
                       </button>
                       <button type="button" onClick={() => deleteTag(tag.id)}>
                         Delete
                       </button>
                     </div>
-                    {expandedTagIds.includes(tag.id) ? (
+                    {expandedTagIds.includes(tag.id) || editingTagId === tag.id ? (
                       <div className="inlineTagDetails">
-                        <span>{tag.label}</span>
-                        <span>
-                          {formatClockTime(tag.startTime ?? tag.time)} -{" "}
-                          {formatClockTime(tag.endTime ?? (tag.startTime ?? tag.time) + 5)}
-                        </span>
-                        {tag.playerIds && tag.playerIds.length > 0 ? (
-                          <span>
-                            Players:{" "}
-                            {activePlayers
-                              .filter((player) => tag.playerIds?.includes(player.id))
-                              .map(getPlayerDisplayName)
-                              .join(", ") || "Linked players not in the active list"}
-                          </span>
+                        {expandedTagIds.includes(tag.id) ? (
+                          <>
+                            <span>{tag.label}</span>
+                            <span>
+                              {formatClockTime(tag.startTime ?? tag.time)} -{" "}
+                              {formatClockTime(tag.endTime ?? (tag.startTime ?? tag.time) + 5)}
+                            </span>
+                            {tag.playerIds && tag.playerIds.length > 0 ? (
+                              <span>
+                                Players:{" "}
+                                {activePlayers
+                                  .filter((player) => tag.playerIds?.includes(player.id))
+                                  .map(getPlayerDisplayName)
+                                  .join(", ") || "Linked players not in the active list"}
+                              </span>
+                            ) : null}
+                          </>
                         ) : null}
                         {editingTagId === tag.id ? (
                           <div className="tagEditor inlineEditor">
+                            <h3>Editing {tag.label}</h3>
                             <label>
                               Name
                               <input
