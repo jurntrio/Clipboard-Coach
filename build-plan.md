@@ -122,6 +122,14 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Leave full-team clips without a known team out of individual player rows to avoid false links.
 - Keep users in the Video Viewer after saving a clip record, with status feedback and optional manual navigation to the saved clip.
 
+## Build 1.4.8: Add Tag Input Focus
+
+- Focus the Add Tag input when the modal opens from the Add Tag button or Space shortcut.
+- Keep Add Tag text input editable and prevent modal/global keyboard handling from stealing text entry.
+- Let Space type spaces inside the Add Tag input while preserving the Space shortcut outside form fields.
+- Show a small validation message when confirming Add Tag with an empty name.
+- Keep saving and canceling Add Tag inside the existing Video Viewer flow.
+
 ## Build 1.3.2: Video Tagging Usability Fixes
 
 - Add a Video Viewer team selector and active-player selector in the left rail.

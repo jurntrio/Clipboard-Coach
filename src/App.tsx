@@ -291,6 +291,7 @@ function getUniqueName(baseName: string, existingNames: string[], ignoreName?: s
 function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const clipPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const addTagInputRef = useRef<HTMLInputElement | null>(null);
   const [screen, setScreen] = useState<Screen>("home");
   const [store, setStore] = useState<AppStore>(emptyStore);
   const [video, setVideo] = useState<VideoFile | null>(null);
@@ -331,6 +332,7 @@ function App() {
     didSelect?: boolean;
   } | null>(null);
   const [newTagText, setNewTagText] = useState("");
+  const [addTagError, setAddTagError] = useState("");
   const [videoTeamId, setVideoTeamId] = useState("");
   const [activePlayerIds, setActivePlayerIds] = useState<string[]>([]);
   const [matchTeamDraftId, setMatchTeamDraftId] = useState("");
@@ -554,6 +556,17 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [screen, video, currentTime]);
+
+  useEffect(() => {
+    if (!isAddTagOpen) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      addTagInputRef.current?.focus();
+      addTagInputRef.current?.select();
+    }, 0);
+  }, [isAddTagOpen]);
 
   useEffect(() => {
     if (!video) {
@@ -869,6 +882,7 @@ function App() {
 
     pauseVideo();
     setNewTagText("");
+    setAddTagError("");
     setIsAddTagOpen(true);
   }
 
@@ -876,11 +890,14 @@ function App() {
     event.preventDefault();
 
     if (newTagText.trim().length === 0) {
+      setAddTagError("Enter a tag name");
+      addTagInputRef.current?.focus();
       return;
     }
 
     await createTagAtCurrentTime(newTagText, activePlayerIds);
     setNewTagText("");
+    setAddTagError("");
     setIsAddTagOpen(false);
   }
 
@@ -2667,21 +2684,43 @@ function App() {
 
         {isAddTagOpen ? (
           <div className="modalBackdrop" role="presentation">
-            <form className="tagModal" onSubmit={confirmAddTag} role="dialog" aria-modal="true" aria-label="Add tag">
+            <form
+              className="tagModal"
+              onSubmit={confirmAddTag}
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Add tag"
+            >
               <h2>Add Tag</h2>
               <p>Create a tag at {formatClockTime(currentTime)}.</p>
               <input
+                ref={addTagInputRef}
                 value={newTagText}
-                onChange={(event) => setNewTagText(event.target.value)}
+                onChange={(event) => {
+                  setNewTagText(event.target.value);
+                  if (event.target.value.trim().length > 0) {
+                    setAddTagError("");
+                  }
+                }}
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
                 autoFocus
                 placeholder="Tag name"
                 aria-label="Tag name"
               />
+              {addTagError ? <p className="fieldError">{addTagError}</p> : null}
               <div className="modalActions">
-                <button type="button" onClick={() => setIsAddTagOpen(false)}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddTagError("");
+                    setIsAddTagOpen(false);
+                  }}
+                >
                   Cancel
                 </button>
-                <button className="primaryButton" type="submit" disabled={newTagText.trim().length === 0}>
+                <button className="primaryButton" type="submit">
                   Confirm
                 </button>
               </div>
