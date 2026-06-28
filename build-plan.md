@@ -130,6 +130,14 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Show a small validation message when confirming Add Tag with an empty name.
 - Keep saving and canceling Add Tag inside the existing Video Viewer flow.
 
+## Build 1.5.0: Branded Home Page
+
+- Add uploaded Clipboard Coach Studio banner and section card images as bundled app assets.
+- Replace the text-heavy Home page with a branded top banner and balanced image navigation cards.
+- Keep Home navigation wired to Teams, Video Viewer, Clips, and Settings.
+- Add a simple local-first Settings placeholder page for future Appearance, Playback, and Storage options.
+- Preserve existing video, teams, tags, clips, preview, and navigation workflows.
+
 ## Build 1.3.2: Video Tagging Usability Fixes
 
 - Add a Video Viewer team selector and active-player selector in the left rail.

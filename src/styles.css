@@ -68,56 +68,84 @@ select:focus {
 
 .homeShell {
   display: grid;
-  align-content: center;
-  gap: 30px;
-  max-width: 1120px;
+  align-content: start;
+  gap: 24px;
+  height: 100vh;
+  max-width: 1180px;
   margin: 0 auto;
+  overflow: auto;
 }
 
-.homeHero {
+.homeBanner {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 20px;
-  align-items: center;
+  justify-items: center;
+  border: 1px solid #323a35;
+  border-radius: 8px;
+  background: #101311;
+  padding: 14px;
+  overflow: hidden;
 }
 
-.homeHero img {
-  width: 96px;
-  height: 96px;
-  border-radius: 16px;
-  object-fit: cover;
+.homeBanner img {
+  display: block;
+  width: min(100%, 1060px);
+  height: auto;
+  max-height: 220px;
+  object-fit: contain;
 }
 
-.homeHero h1,
 .sectionHeader h1 {
   margin: 0;
   color: #ffffff;
 }
 
-.homeHero p,
 .sectionHeader p,
-.homeCard span {
+.homeCard small {
   color: #aeb8ad;
 }
 
 .homeCards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 18px;
 }
 
 .homeCard {
   display: grid;
-  gap: 10px;
-  min-height: 170px;
-  align-content: start;
-  padding: 22px;
+  grid-template-rows: minmax(170px, 1fr) auto;
+  gap: 14px;
+  min-height: 260px;
+  align-content: stretch;
+  border-color: #323a35;
+  background: #1c211e;
+  padding: 16px;
   text-align: left;
+  overflow: hidden;
+}
+
+.homeCard:hover:not(:disabled) {
+  background: #202720;
+}
+
+.homeCard img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+}
+
+.homeCard span {
+  display: grid;
+  gap: 4px;
 }
 
 .homeCard strong {
   color: #ffffff;
-  font-size: 24px;
+  font-size: 23px;
+}
+
+.homeCard small {
+  font-size: 14px;
 }
 
 .sectionShell {
@@ -130,6 +158,33 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: 14px;
+}
+
+.settingsPanel {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 150px;
+  border: 1px solid #323a35;
+  border-radius: 8px;
+  background: #1c211e;
+  padding: 18px;
+}
+
+.settingsPanel h2,
+.settingsPanel p {
+  margin: 0;
+}
+
+.settingsPanel p {
+  color: #aeb8ad;
 }
 
 .sectionForm {
@@ -1231,6 +1286,7 @@ select:focus {
   }
 
   .homeCards,
+  .settingsGrid,
   .appShell,
   .teamsLayout,
   .clipsLayout,

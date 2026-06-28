@@ -1,10 +1,15 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import appIconUrl from "../assets/app-icon.png";
+import homeBannerUrl from "../assets/home/banner.png";
+import homeClipsUrl from "../assets/home/clips.png";
+import homeSettingsUrl from "../assets/home/settings.png";
+import homeTeamsUrl from "../assets/home/teams.png";
+import homeVideoViewerUrl from "../assets/home/video-viewer.png";
 
 const playableExtensions = new Set([".mp4", ".m4v", ".mov", ".webm", ".ogg"]);
 const tagColors = ["#68d51b", "#3aa7ff", "#ffb020", "#d66bff", "#ff6b6b", "#4dd8c8", "#f07db1"];
 
-type Screen = "home" | "teams" | "video" | "clips";
+type Screen = "home" | "teams" | "video" | "clips" | "settings";
 
 function emptyStore(): AppStore {
   return { teams: [], videos: {}, clips: [], settings: { standardTags: ["Start", "Goal"], activeMatchPlayerIds: [] } };
@@ -1687,26 +1692,38 @@ function App() {
   function renderHome() {
     return (
       <main className="homeShell">
-        <section className="homeHero">
-          <img src={appIconUrl} alt="" />
-          <div>
-            <h1>Clipboard Coach Studio</h1>
-            <p>Local video review, teams, and clips library.</p>
-          </div>
+        <section className="homeBanner" aria-label="Clipboard Coach Studio">
+          <img src={homeBannerUrl} alt="Clipboard Coach Studio" />
         </section>
 
         <section className="homeCards" aria-label="Start page navigation">
           <button type="button" className="homeCard" onClick={() => setScreen("teams")}>
-            <strong>Teams</strong>
-            <span>Create teams and simple player lists.</span>
+            <img src={homeTeamsUrl} alt="" />
+            <span>
+              <strong>Teams</strong>
+              <small>Create teams and player lists.</small>
+            </span>
           </button>
           <button type="button" className="homeCard" onClick={() => setScreen("video")}>
-            <strong>Video Viewer</strong>
-            <span>Open a new video or review saved videos.</span>
+            <img src={homeVideoViewerUrl} alt="" />
+            <span>
+              <strong>Video Viewer</strong>
+              <small>Review video and add tags.</small>
+            </span>
           </button>
           <button type="button" className="homeCard" onClick={openClipsLibrary}>
-            <strong>Clips</strong>
-            <span>View prepared clip records when they exist.</span>
+            <img src={homeClipsUrl} alt="" />
+            <span>
+              <strong>Clips</strong>
+              <small>Preview saved clip records.</small>
+            </span>
+          </button>
+          <button type="button" className="homeCard" onClick={() => setScreen("settings")}>
+            <img src={homeSettingsUrl} alt="" />
+            <span>
+              <strong>Settings</strong>
+              <small>Local app preferences.</small>
+            </span>
           </button>
         </section>
       </main>
@@ -2009,6 +2026,28 @@ function App() {
         </section>
 
         {renderClipDetailsModal()}
+      </main>
+    );
+  }
+
+  function renderSettings() {
+    return (
+      <main className="sectionShell">
+        <Header title="Settings" subtitle="Local-first settings placeholder." onBack={() => setScreen("home")} />
+        <section className="settingsGrid" aria-label="Settings sections">
+          <article className="settingsPanel">
+            <h2>Appearance</h2>
+            <p>Dark Clipboard Coach Studio theme is active.</p>
+          </article>
+          <article className="settingsPanel">
+            <h2>Playback</h2>
+            <p>Video review uses local files and the built-in desktop player.</p>
+          </article>
+          <article className="settingsPanel">
+            <h2>Storage Info</h2>
+            <p>Teams, videos, tags, and clip records are saved locally as JSON for now.</p>
+          </article>
+        </section>
       </main>
     );
   }
@@ -2741,6 +2780,10 @@ function App() {
 
   if (screen === "clips") {
     return renderClips();
+  }
+
+  if (screen === "settings") {
+    return renderSettings();
   }
 
   return renderHome();
