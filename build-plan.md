@@ -88,6 +88,14 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Add fullscreen support through the native fullscreen API.
 - Keep preview-only behavior without real MP4 export.
 
+## Build 1.4.4: Clip Context Navigation
+
+- Open source videos from a clip at the selected clip segment start time.
+- Select and expand the related source tag after the source video loads.
+- Disable source-video navigation when the original file is missing.
+- Open clip detail modals from Teams without navigating away from Teams.
+- Keep selected team context when closing a Teams-opened clip modal.
+
 ## Build 1.3.2: Video Tagging Usability Fixes
 
 - Add a Video Viewer team selector and active-player selector in the left rail.

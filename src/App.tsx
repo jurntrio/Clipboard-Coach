@@ -289,6 +289,7 @@ function App() {
   const [isClipPreviewPlaying, setIsClipPreviewPlaying] = useState(false);
   const [clipPreviewProgress, setClipPreviewProgress] = useState(0);
   const [isClipPreviewFinished, setIsClipPreviewFinished] = useState(false);
+  const [pendingSourceOpen, setPendingSourceOpen] = useState<{ videoPath: string; time: number; tagId?: string } | null>(null);
   const [newTagText, setNewTagText] = useState("");
   const [videoTeamId, setVideoTeamId] = useState("");
   const [activePlayerIds, setActivePlayerIds] = useState<string[]>([]);
@@ -522,7 +523,16 @@ function App() {
     window.clipboardCoach.loadTags(video.path).then(async (savedTags) => {
       const normalizedTags = savedTags.map(normalizeTag);
       setTags(normalizedTags);
-      setSelectedTagIds(normalizedTags[0] ? [normalizedTags[0].id] : []);
+      const pendingTag = pendingSourceOpen?.videoPath === video.path
+        ? normalizedTags.find((tag) => tag.id === pendingSourceOpen.tagId) ??
+          normalizedTags.find((tag) => {
+            const startTime = tag.startTime ?? tag.time;
+            const endTime = tag.endTime ?? startTime + 5;
+            return pendingSourceOpen.time >= startTime && pendingSourceOpen.time <= endTime;
+          })
+        : null;
+      setSelectedTagIds(pendingTag ? [pendingTag.id] : normalizedTags[0] ? [normalizedTags[0].id] : []);
+      setExpandedTagIds(pendingTag ? [pendingTag.id] : []);
       setStatus(normalizedTags.length > 0 ? "Saved tags loaded for this video." : "No saved tags yet.");
       const nextStore = await refreshStore();
       restoreVideoMatchState(video.path, nextStore);
@@ -1399,7 +1409,6 @@ function App() {
 
   function openClipDetails(clipId: string) {
     setSelectedClipId(clipId);
-    setScreen("clips");
   }
 
   async function playClipSegment(segmentIndex: number) {
@@ -1457,10 +1466,15 @@ function App() {
   }
 
   async function openClipSourceVideo(clip: ClipRecord) {
-    if (!clip.sourceVideoPath) {
+    const segment = currentClipSegment ?? selectedClipSegments[0] ?? null;
+
+    if (!clip.sourceVideoPath || clip.missingSourceVideo || !segment) {
+      setClipPreviewError("Source video missing - cannot open.");
       return;
     }
 
+    setPendingSourceOpen({ videoPath: clip.sourceVideoPath, time: segment.startTime, tagId: segment.id });
+    setSelectedClipId(null);
     setScreen("video");
     await openPreviousVideo(clip.sourceVideoPath);
   }
@@ -1843,8 +1857,12 @@ function App() {
                 ))}
               </section>
               <div className="modalActions">
-                <button type="button" onClick={() => openClipSourceVideo(selectedClip)} disabled={!selectedClip.sourceVideoPath}>
-                  Open Source Video
+                <button
+                  type="button"
+                  onClick={() => openClipSourceVideo(selectedClip)}
+                  disabled={!selectedClip.sourceVideoPath || !!selectedClip.missingSourceVideo || selectedClipSegments.length === 0}
+                >
+                  {selectedClip.missingSourceVideo ? "Source video missing - cannot open" : "Open Source Video"}
                 </button>
                 <button type="button" onClick={() => deleteClipRecord(selectedClip.id)}>
                   Delete Clip
@@ -2042,11 +2060,24 @@ function App() {
                   setVideoReady(true);
                   setVideoError("");
                 }}
-                onLoadedMetadata={(event) => {
+              onLoadedMetadata={(event) => {
+                const nextDuration = event.currentTarget.duration || 0;
+                const pendingTime =
+                  pendingSourceOpen && video?.path === pendingSourceOpen.videoPath
+                    ? Math.min(Math.max(pendingSourceOpen.time, 0), nextDuration || pendingSourceOpen.time)
+                    : null;
+
+                if (pendingTime !== null) {
+                  event.currentTarget.currentTime = pendingTime;
+                  setCurrentTime(pendingTime);
+                  setPendingSourceOpen(null);
+                } else {
                   setCurrentTime(event.currentTarget.currentTime);
-                  setDuration(event.currentTarget.duration || 0);
-                  setStatus(`Video loaded: ${video.name}.`);
-                }}
+                }
+
+                setDuration(nextDuration);
+                setStatus(`Video loaded: ${video.name}.`);
+              }}
                 onError={handleVideoError}
                 onPause={() => setIsPlaying(false)}
                 onPlay={() => setIsPlaying(true)}

@@ -1,6 +1,6 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4.3 cleans up clip cards and improves the clip preview modal.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4.4 fixes clip source navigation and Teams clip modal context.
 
 ## Build 1 Features
 
@@ -73,6 +73,14 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 - Clip preview has a central play overlay, clip-time scrub bar, replay behavior, and fullscreen control.
 - Technical sharing/export/upload metadata appears at the bottom of the modal.
 
+## Build 1.4.4 Fixes
+
+- Open Source Video opens the source match at the current clip segment start time.
+- The matching source tag is selected and expanded in the Video Viewer when possible.
+- Missing source videos disable the Open Source Video action.
+- Clicking player/team clip links in Teams opens the clip modal without leaving Teams.
+- Closing a clip modal from Teams keeps the selected team context.
+
 ## Build 1.3.2 Fixes
 
 - Video Viewer left rail can select a team and active players for the current video.
@@ -102,7 +110,7 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 
 ## Not Included Yet
 
-Build 1.4.3 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, or external tag import.
+Build 1.4.4 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, or external tag import.
 
 ## Technical Setup
 

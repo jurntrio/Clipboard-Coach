@@ -32,4 +32,4 @@ When adding features or documentation, favor workflows that help users:
 
 ## Current Stage
 
-The project is at Build 1.4.3 clean Clips library cards and improved clip preview modal. Keep the app local-first and stable before adding advanced workflows such as real clip export, online sharing, parent/player accounts, reporting, AI analysis, cloud sync, advanced player stats, heatmaps, distance covered, periods, paid APIs, or imports.
+The project is at Build 1.4.4 clip context navigation fixes. Keep the app local-first and stable before adding advanced workflows such as real clip export, online sharing, parent/player accounts, reporting, AI analysis, cloud sync, advanced player stats, heatmaps, distance covered, periods, paid APIs, or imports.
