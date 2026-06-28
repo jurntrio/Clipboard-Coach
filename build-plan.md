@@ -96,6 +96,15 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Open clip detail modals from Teams without navigating away from Teams.
 - Keep selected team context when closing a Teams-opened clip modal.
 
+## Build 1.4.5: Clip Modal and Source Time Fixes
+
+- Keep Clip Builder and rename inputs fully editable while preserving safe duplicate-name numbering.
+- Reuse one clip detail/preview modal from both Clips and Teams contexts.
+- Keep the Teams screen, selected team, and player details in place when opening and closing a player clip modal.
+- Open the source video at the current preview source time when available, otherwise the selected or first segment start.
+- Keep related source tags selected/expanded after opening the source video when saved tags are available.
+- Keep missing source-video actions disabled or clearly unavailable.
+
 ## Build 1.3.2: Video Tagging Usability Fixes
 
 - Add a Video Viewer team selector and active-player selector in the left rail.

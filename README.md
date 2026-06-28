@@ -1,6 +1,6 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4.4 fixes clip source navigation and Teams clip modal context.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4.5 fixes clip naming, Teams clip modals, and source-video time navigation.
 
 ## Build 1 Features
 
@@ -81,6 +81,14 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 - Clicking player/team clip links in Teams opens the clip modal without leaving Teams.
 - Closing a clip modal from Teams keeps the selected team context.
 
+## Build 1.4.5 Fixes
+
+- Clip Builder and clip rename inputs stay editable while preserving automatic duplicate-name numbering.
+- Teams player and team clip links reuse the same clip detail/preview modal without navigating away from Teams.
+- Open Source Video prefers the current preview source time, then the selected segment start, then the first segment start.
+- Source-video navigation keeps the related tag selected/expanded when saved tags are available.
+- Missing source videos remain blocked with a clear unavailable message.
+
 ## Build 1.3.2 Fixes
 
 - Video Viewer left rail can select a team and active players for the current video.
@@ -110,7 +118,7 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 
 ## Not Included Yet
 
-Build 1.4.4 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, or external tag import.
+Build 1.4.5 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, or external tag import.
 
 ## Technical Setup
 

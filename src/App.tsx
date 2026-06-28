@@ -289,7 +289,14 @@ function App() {
   const [isClipPreviewPlaying, setIsClipPreviewPlaying] = useState(false);
   const [clipPreviewProgress, setClipPreviewProgress] = useState(0);
   const [isClipPreviewFinished, setIsClipPreviewFinished] = useState(false);
-  const [pendingSourceOpen, setPendingSourceOpen] = useState<{ videoPath: string; time: number; tagId?: string } | null>(null);
+  const [pendingSourceOpen, setPendingSourceOpen] = useState<{
+    videoPath: string;
+    time: number;
+    tagId?: string;
+    shouldPlay?: boolean;
+    didSeek?: boolean;
+    didSelect?: boolean;
+  } | null>(null);
   const [newTagText, setNewTagText] = useState("");
   const [videoTeamId, setVideoTeamId] = useState("");
   const [activePlayerIds, setActivePlayerIds] = useState<string[]>([]);
@@ -533,11 +540,53 @@ function App() {
         : null;
       setSelectedTagIds(pendingTag ? [pendingTag.id] : normalizedTags[0] ? [normalizedTags[0].id] : []);
       setExpandedTagIds(pendingTag ? [pendingTag.id] : []);
+      if (pendingSourceOpen?.videoPath === video.path) {
+        setPendingSourceOpen((current) =>
+          current?.videoPath === video.path ? { ...current, didSelect: true } : current
+        );
+      }
       setStatus(normalizedTags.length > 0 ? "Saved tags loaded for this video." : "No saved tags yet.");
       const nextStore = await refreshStore();
       restoreVideoMatchState(video.path, nextStore);
     });
   }, [video]);
+
+  useEffect(() => {
+    if (pendingSourceOpen?.didSeek && pendingSourceOpen.didSelect) {
+      setPendingSourceOpen(null);
+    }
+  }, [pendingSourceOpen]);
+
+  useEffect(() => {
+    if (!pendingSourceOpen || pendingSourceOpen.didSeek || !video || video.path !== pendingSourceOpen.videoPath) {
+      return;
+    }
+
+    const player = videoRef.current;
+
+    if (!player || player.readyState === 0) {
+      return;
+    }
+
+    const targetTime = Math.min(
+      Math.max(pendingSourceOpen.time, 0),
+      Number.isFinite(player.duration) && player.duration > 0 ? player.duration : pendingSourceOpen.time
+    );
+
+    player.currentTime = targetTime;
+    setCurrentTime(targetTime);
+    setPendingSourceOpen((current) => (current?.videoPath === video.path ? { ...current, didSeek: true } : current));
+
+    if (pendingSourceOpen.shouldPlay) {
+      player
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch((error) => {
+          console.error("Source video playback could not resume:", error);
+          setIsPlaying(false);
+        });
+    }
+  }, [pendingSourceOpen, video]);
 
   async function refreshStore() {
     const nextStore = await window.clipboardCoach.loadStore();
@@ -1473,7 +1522,18 @@ function App() {
       return;
     }
 
-    setPendingSourceOpen({ videoPath: clip.sourceVideoPath, time: segment.startTime, tagId: segment.id });
+    const previewPlayer = clipPreviewRef.current;
+    const previewTime = previewPlayer?.currentTime;
+    const canUsePreviewTime =
+      typeof previewTime === "number" && previewTime >= segment.startTime && previewTime <= segment.endTime;
+    const targetTime = canUsePreviewTime ? previewTime : segment.startTime;
+
+    setPendingSourceOpen({
+      videoPath: clip.sourceVideoPath,
+      time: targetTime,
+      tagId: segment.id,
+      shouldPlay: isClipPreviewPlaying
+    });
     setSelectedClipId(null);
     setScreen("video");
     await openPreviousVideo(clip.sourceVideoPath);
@@ -1731,30 +1791,18 @@ function App() {
             )}
           </section>
         </section>
+        {renderClipDetailsModal()}
       </main>
     );
   }
 
-  function renderClips() {
-    return (
-      <main className="sectionShell">
-        <Header title="Clips" subtitle="" onBack={() => setScreen("home")} />
-        <section className="clipGrid">
-          {store.clips.length === 0 ? (
-            <div className="emptyPanel">No clip records yet. Use Make Clip in the Video Viewer to prepare one.</div>
-          ) : null}
-          {store.clips.map((clip) => (
-            <article className={clip.missingSourceVideo ? "clipCard missingSourceClip" : "clipCard"} key={clip.id}>
-              <button type="button" className="clipCardButton" onClick={() => setSelectedClipId(clip.id)}>
-                <h2>{clip.name}</h2>
-                <p>{getClipMatchTitle(clip, store.videos)}</p>
-              </button>
-            </article>
-          ))}
-        </section>
+  function renderClipDetailsModal() {
+    if (!selectedClip) {
+      return null;
+    }
 
-        {selectedClip ? (
-          <div className="modalBackdrop" role="presentation">
+    return (
+      <div className="modalBackdrop" role="presentation">
             <section className="clipDetailsModal" role="dialog" aria-modal="true" aria-label="Clip details">
               <div className="cardHeader">
                 <div>
@@ -1769,10 +1817,13 @@ function App() {
                 <input
                   value={clipRenameText}
                   onChange={(event) => setClipRenameText(event.target.value)}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
                   aria-label="Clip name"
+                  autoFocus
                 />
-                  <button type="submit">Rename</button>
-                </form>
+                <button type="submit">Rename</button>
+              </form>
               <section className="clipPreviewPanel">
                 <h3>Preview</h3>
                 {clipPreviewError || selectedClip.missingSourceVideo ? (
@@ -1877,7 +1928,28 @@ function App() {
               </div>
             </section>
           </div>
-        ) : null}
+    );
+  }
+
+  function renderClips() {
+    return (
+      <main className="sectionShell">
+        <Header title="Clips" subtitle="" onBack={() => setScreen("home")} />
+        <section className="clipGrid">
+          {store.clips.length === 0 ? (
+            <div className="emptyPanel">No clip records yet. Use Make Clip in the Video Viewer to prepare one.</div>
+          ) : null}
+          {store.clips.map((clip) => (
+            <article className={clip.missingSourceVideo ? "clipCard missingSourceClip" : "clipCard"} key={clip.id}>
+              <button type="button" className="clipCardButton" onClick={() => setSelectedClipId(clip.id)}>
+                <h2>{clip.name}</h2>
+                <p>{getClipMatchTitle(clip, store.videos)}</p>
+              </button>
+            </article>
+          ))}
+        </section>
+
+        {renderClipDetailsModal()}
       </main>
     );
   }
@@ -2060,24 +2132,36 @@ function App() {
                   setVideoReady(true);
                   setVideoError("");
                 }}
-              onLoadedMetadata={(event) => {
-                const nextDuration = event.currentTarget.duration || 0;
-                const pendingTime =
-                  pendingSourceOpen && video?.path === pendingSourceOpen.videoPath
-                    ? Math.min(Math.max(pendingSourceOpen.time, 0), nextDuration || pendingSourceOpen.time)
-                    : null;
+                onLoadedMetadata={(event) => {
+                  const nextDuration = event.currentTarget.duration || 0;
+                  const pendingTime =
+                    pendingSourceOpen && video?.path === pendingSourceOpen.videoPath
+                      ? Math.min(Math.max(pendingSourceOpen.time, 0), nextDuration || pendingSourceOpen.time)
+                      : null;
 
-                if (pendingTime !== null) {
-                  event.currentTarget.currentTime = pendingTime;
-                  setCurrentTime(pendingTime);
-                  setPendingSourceOpen(null);
-                } else {
-                  setCurrentTime(event.currentTarget.currentTime);
-                }
+                  if (pendingTime !== null) {
+                    event.currentTarget.currentTime = pendingTime;
+                    setCurrentTime(pendingTime);
+                    setPendingSourceOpen((current) =>
+                      current?.videoPath === video?.path ? { ...current, didSeek: true } : current
+                    );
 
-                setDuration(nextDuration);
-                setStatus(`Video loaded: ${video.name}.`);
-              }}
+                    if (pendingSourceOpen?.shouldPlay) {
+                      event.currentTarget
+                        .play()
+                        .then(() => setIsPlaying(true))
+                        .catch((error) => {
+                          console.error("Source video playback could not resume:", error);
+                          setIsPlaying(false);
+                        });
+                    }
+                  } else {
+                    setCurrentTime(event.currentTarget.currentTime);
+                  }
+
+                  setDuration(nextDuration);
+                  setStatus(`Video loaded: ${video.name}.`);
+                }}
                 onError={handleVideoError}
                 onPause={() => setIsPlaying(false)}
                 onPlay={() => setIsPlaying(true)}
@@ -2436,6 +2520,8 @@ function App() {
                     setIsClipNameTouched(true);
                     setClipDraft((current) => ({ ...current, name: event.target.value }));
                   }}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
                   placeholder="Clip name"
                   aria-label="Clip name"
                 />
