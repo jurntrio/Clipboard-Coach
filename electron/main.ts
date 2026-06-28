@@ -29,7 +29,10 @@ type Team = {
 
 type Player = {
   id: string;
-  name: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
   createdAt: string;
 };
 
@@ -95,7 +98,25 @@ function normalizeTags(tags: VideoTag[]) {
   return tags.map((tag) => ({
     ...tag,
     startTime: tag.startTime ?? tag.time,
-    endTime: tag.endTime ?? tag.time
+    endTime: tag.endTime ?? (tag.startTime ?? tag.time) + 5
+  }));
+}
+
+function normalizeTeams(teams: Team[] = []) {
+  return teams.map((team) => ({
+    ...team,
+    players: (team.players ?? []).map((player) => {
+      if (player.firstName || player.lastName) {
+        return player;
+      }
+
+      const nameParts = (player.name ?? "").trim().split(/\s+/).filter(Boolean);
+      return {
+        ...player,
+        firstName: nameParts[0] ?? "",
+        lastName: nameParts.slice(1).join(" ")
+      };
+    })
   }));
 }
 
@@ -123,7 +144,7 @@ function normalizeStore(store: TagStore): AppStore {
   }
 
   return {
-    teams: store.teams ?? [],
+    teams: normalizeTeams(store.teams ?? []),
     videos,
     clips: store.clips ?? []
   };

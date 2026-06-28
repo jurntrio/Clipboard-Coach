@@ -19,7 +19,10 @@ type VideoTag = {
 
 type Player = {
   id: string;
-  name: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
   createdAt: string;
 };
 

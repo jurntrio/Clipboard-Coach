@@ -42,9 +42,21 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Require explicit Save before changing selected tag timing.
 - Add multi-select circles for tags as preparation for later clip workflows.
 
+## Build 1.4: Tag Interaction and Teams Layout
+
+- Make single-click select tags and double-click jump to tag start time.
+- Add multi-select checkboxes and prevent editing when multiple tags are selected.
+- Use HH:MM:SS fields for tag start and end times with validation.
+- Open a paused Add Tag popup from the button or Space key.
+- Show tag duration blocks on the timeline instead of only point markers.
+- Stack overlapping timeline tag blocks into separate lanes.
+- Show teams vertically with a selected-team player details section.
+- Store player first name, last name, optional email, and sort players alphabetically.
+- Prepare per-player clips empty states without implementing clip automation.
+
 ## Build 1 Boundaries
 
-Do not add advanced player stats, tag categories, periods, heatmaps, reports, cloud sync, login, AI tracking, paid APIs, real clip export, or external tag import in Build 1 through Build 1.3.
+Do not add advanced player stats, tag categories, periods, heatmaps, distance covered, reports, cloud sync, login, AI tracking, paid APIs, real clip export, or external tag import in Build 1 through Build 1.4.
 
 ## Later Builds
 
