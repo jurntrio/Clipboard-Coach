@@ -203,9 +203,9 @@ select:focus {
 
 .clipGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   align-content: start;
-  gap: 12px;
+  gap: 14px;
   overflow: auto;
 }
 
@@ -266,9 +266,19 @@ select:focus {
 .clipCard {
   display: grid;
   align-content: start;
-  gap: 6px;
-  min-height: 112px;
-  padding: 12px;
+  gap: 8px;
+  min-height: 116px;
+  padding: 14px;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+.clipCard:hover {
+  border-color: #4c5b50;
+  background: #202720;
+  transform: translateY(-1px);
 }
 
 .clipCardButton {
@@ -428,16 +438,25 @@ select:focus {
 }
 
 .playerClipLinks {
-  margin-top: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #2b332e;
 }
 
 .playerClipLinks button,
 .teamClipLinks button {
   justify-self: start;
-  width: min(260px, 100%);
+  width: min(300px, 100%);
   height: auto;
-  min-height: 34px;
+  min-height: 36px;
+  border-color: #3b463e;
+  background: #202720;
   text-align: left;
+}
+
+.playerClipLinks button:hover,
+.teamClipLinks button:hover {
+  border-color: #68d51b;
 }
 
 .missingClip {

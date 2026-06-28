@@ -209,28 +209,56 @@ function getClipSegmentDuration(segment: ClipTagSnapshot) {
   return Math.max(0, segment.endTime - segment.startTime);
 }
 
-function isClipLinkedToPlayer(clip: ClipRecord, team: Team, player: Player) {
-  const audience = clip.intendedAudience;
-  const playerName = getPlayerDisplayName(player);
-  const linkedBySegment = (clip.tagSnapshots ?? []).some(
-    (tag) =>
-      tag.playerIds?.includes(player.id) ||
-      tag.playerRefs?.some((playerRef) => playerRef.id === player.id || getPlayerReferenceName(playerRef) === playerName)
-  );
+function normalizePlayerName(value?: string) {
+  return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
 
-  if (linkedBySegment) {
-    return true;
-  }
+function playerNamesMatch(firstName: string, secondName: string) {
+  const normalizedFirstName = normalizePlayerName(firstName);
+  const normalizedSecondName = normalizePlayerName(secondName);
+
+  return normalizedFirstName.length > 0 && normalizedFirstName === normalizedSecondName;
+}
+
+function audiencePlayerMatchesPlayer(audiencePlayer: MatchPlayerState, player: Player) {
+  return (
+    audiencePlayer.id === player.id ||
+    playerNamesMatch(audiencePlayer.name, getPlayerDisplayName(player)) ||
+    playerNamesMatch(audiencePlayer.name, `${player.firstName ?? ""} ${player.lastName ?? ""}`)
+  );
+}
+
+function segmentLinksPlayer(segment: ClipTagSnapshot, player: Player) {
+  const playerName = getPlayerDisplayName(player);
+
+  return (
+    segment.playerIds?.includes(player.id) ||
+    segment.playerRefs?.some(
+      (playerRef) =>
+        playerRef.id === player.id ||
+        playerNamesMatch(getPlayerReferenceName(playerRef), playerName) ||
+        playerNamesMatch(`${playerRef.firstName ?? ""} ${playerRef.lastName ?? ""}`, playerName)
+    ) ||
+    false
+  );
+}
+
+function isClipLinkedToPlayer(clip: ClipRecord, player: Player) {
+  const audience = clip.intendedAudience;
 
   if (!audience) {
-    return false;
+    return (clip.tagSnapshots ?? []).some((tag) => segmentLinksPlayer(tag, player));
   }
 
   if (audience.type === "full_team") {
-    return audience.teamId === team.id || (!audience.teamId && audience.teamName === team.name);
+    return false;
   }
 
-  return audience.players.some((audiencePlayer) => audiencePlayer.id === player.id || audiencePlayer.name === playerName);
+  if (audience.players.length > 0) {
+    return audience.players.some((audiencePlayer) => audiencePlayerMatchesPlayer(audiencePlayer, player));
+  }
+
+  return (clip.tagSnapshots ?? []).some((tag) => segmentLinksPlayer(tag, player));
 }
 
 function getUniqueName(baseName: string, existingNames: string[], ignoreName?: string) {
@@ -1757,11 +1785,11 @@ function App() {
                         {player.email ? <span>{player.email}</span> : null}
                         <div className="playerClipLinks">
                           <small>Clips</small>
-                          {store.clips.filter((clip) => isClipLinkedToPlayer(clip, selectedTeam, player)).length === 0 ? (
+                          {store.clips.filter((clip) => isClipLinkedToPlayer(clip, player)).length === 0 ? (
                             <span>No clips linked to this player yet.</span>
                           ) : null}
                           {store.clips
-                            .filter((clip) => isClipLinkedToPlayer(clip, selectedTeam, player))
+                            .filter((clip) => isClipLinkedToPlayer(clip, player))
                             .map((clip) => (
                               <button type="button" key={clip.id} onClick={() => openClipDetails(clip.id)}>
                                 {clip.name}

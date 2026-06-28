@@ -105,6 +105,15 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Keep related source tags selected/expanded after opening the source video when saved tags are available.
 - Keep missing source-video actions disabled or clearly unavailable.
 
+## Build 1.4.6: Player Clip Visibility
+
+- Filter Teams player clip links by each clip record's intended audience before falling back to old tag player links.
+- Show specific-player clips only under the saved target players.
+- Show selected-match-player clips only under the selected players saved in the clip record.
+- Show full-team clips in the selected team's Team Clips section instead of every player row.
+- Keep clip rename/delete propagation working through the shared local clip record.
+- Lightly polish Clips cards and Teams clip link buttons without changing app structure.
+
 ## Build 1.3.2: Video Tagging Usability Fixes
 
 - Add a Video Viewer team selector and active-player selector in the left rail.
