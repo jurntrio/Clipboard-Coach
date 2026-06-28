@@ -72,7 +72,8 @@ function App() {
   const [store, setStore] = useState<AppStore>(emptyStore);
   const [video, setVideo] = useState<VideoFile | null>(null);
   const [tags, setTags] = useState<VideoTag[]>([]);
-  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagDraft, setTagDraft] = useState({ label: "", startTime: "0.0", endTime: "0.0" });
   const [tagText, setTagText] = useState("");
   const [teamText, setTeamText] = useState("");
   const [playerTextByTeam, setPlayerTextByTeam] = useState<Record<string, string>>({});
@@ -97,7 +98,7 @@ function App() {
       ),
     [store.videos]
   );
-  const selectedTag = sortedTags.find((tag) => tag.id === selectedTagId) ?? null;
+  const selectedTag = sortedTags.find((tag) => tag.id === selectedTagIds[0]) ?? null;
 
   useEffect(() => {
     window.clipboardCoach.loadStore().then((loadedStore) => setStore(loadedStore));
@@ -110,6 +111,19 @@ function App() {
   }, [playbackRate, video]);
 
   useEffect(() => {
+    if (!selectedTag) {
+      setTagDraft({ label: "", startTime: "0.0", endTime: "0.0" });
+      return;
+    }
+
+    setTagDraft({
+      label: selectedTag.label,
+      startTime: (selectedTag.startTime ?? selectedTag.time).toFixed(1),
+      endTime: (selectedTag.endTime ?? selectedTag.time).toFixed(1)
+    });
+  }, [selectedTag?.id]);
+
+  useEffect(() => {
     if (!video) {
       return;
     }
@@ -117,7 +131,7 @@ function App() {
     window.clipboardCoach.loadTags(video.path).then((savedTags) => {
       const normalizedTags = savedTags.map(normalizeTag);
       setTags(normalizedTags);
-      setSelectedTagId(normalizedTags[0]?.id ?? null);
+      setSelectedTagIds(normalizedTags[0] ? [normalizedTags[0].id] : []);
       setStatus(normalizedTags.length > 0 ? "Saved tags loaded for this video." : "No saved tags yet.");
       refreshStore();
     });
@@ -160,7 +174,7 @@ function App() {
     setScreen("video");
     setVideo(selectedVideo);
     setTags([]);
-    setSelectedTagId(null);
+    setSelectedTagIds([]);
     setTagText("");
     setCurrentTime(0);
     setDuration(0);
@@ -191,6 +205,8 @@ function App() {
     }
 
     try {
+      player.playbackRate = 1;
+      setPlaybackRate(1);
       await player.play();
       setIsPlaying(true);
     } catch (error) {
@@ -247,30 +263,43 @@ function App() {
     };
     const nextTags = [...tags, nextTag];
 
-    setSelectedTagId(nextTag.id);
+    setSelectedTagIds([nextTag.id]);
     setTagText("");
     await saveTags(nextTags);
   }
 
-  async function updateTag(tagId: string, changes: Partial<VideoTag>) {
-    const nextTags = tags.map((tag) => {
-      if (tag.id !== tagId) {
-        return tag;
-      }
-
-      const nextTag = { ...normalizeTag(tag), ...changes };
-      return {
-        ...nextTag,
-        color: changes.label ? getTagColor(changes.label) : nextTag.color
-      };
-    });
-
-    await saveTags(nextTags);
+  function jumpToTag(tag: VideoTag) {
+    setSelectedTagIds((current) => (current.includes(tag.id) ? current : [tag.id, ...current]));
+    seekTo(tag.time);
   }
 
-  function jumpToTag(tag: VideoTag) {
-    setSelectedTagId(tag.id);
-    seekTo(tag.time);
+  function toggleTagSelection(tagId: string) {
+    setSelectedTagIds((current) =>
+      current.includes(tagId) ? current.filter((id) => id !== tagId) : [tagId, ...current]
+    );
+  }
+
+  async function saveSelectedTagDraft() {
+    if (!selectedTag) {
+      return;
+    }
+
+    const label = tagDraft.label.trim() || selectedTag.label;
+    const startTime = Math.max(0, Number(tagDraft.startTime));
+    const endTime = Math.max(startTime, Number(tagDraft.endTime));
+    const nextTags = tags.map((tag) =>
+      tag.id === selectedTag.id
+        ? {
+            ...normalizeTag(tag),
+            label,
+            startTime,
+            endTime,
+            color: getTagColor(label)
+          }
+        : tag
+    );
+
+    await saveTags(nextTags);
   }
 
   function seekTo(time: number) {
@@ -321,11 +350,14 @@ function App() {
     };
 
     setTeamText("");
+    setStore(nextStore);
     await persistStore(nextStore);
   }
 
   async function deleteTeam(teamId: string) {
-    await persistStore({ ...store, teams: store.teams.filter((team) => team.id !== teamId) });
+    const nextStore = { ...store, teams: store.teams.filter((team) => team.id !== teamId) };
+    setStore(nextStore);
+    await persistStore(nextStore);
   }
 
   async function addPlayer(event: FormEvent<HTMLFormElement>, teamId: string) {
@@ -352,18 +384,21 @@ function App() {
     };
 
     setPlayerTextByTeam((current) => ({ ...current, [teamId]: "" }));
+    setStore(nextStore);
     await persistStore(nextStore);
   }
 
   async function deletePlayer(teamId: string, playerId: string) {
-    await persistStore({
+    const nextStore = {
       ...store,
       teams: store.teams.map((team) =>
         team.id === teamId
           ? { ...team, players: team.players.filter((player) => player.id !== playerId) }
           : team
       )
-    });
+    };
+    setStore(nextStore);
+    await persistStore(nextStore);
   }
 
   function renderHome() {
@@ -542,7 +577,7 @@ function App() {
               &lt;
             </button>
             <button type="button" onClick={playVideo} disabled={!video || !!videoError}>
-              &gt;
+              &#9654;
             </button>
             <button type="button" onClick={pauseVideo} disabled={!video}>
               ||
@@ -600,15 +635,20 @@ function App() {
             <ol className="tagList">
               {sortedTags.map((tag) => (
                 <li key={tag.id}>
-                  <button
-                    type="button"
-                    className={tag.id === selectedTagId ? "selectedTag" : ""}
-                    onClick={() => jumpToTag(tag)}
-                  >
-                    <i style={{ background: tag.color }} />
-                    <time>{formatTime(tag.time)}</time>
-                    <span>{tag.label}</span>
-                  </button>
+                  <div className={selectedTagIds.includes(tag.id) ? "tagRow selectedTag" : "tagRow"}>
+                    <button
+                      className="selectCircle"
+                      type="button"
+                      aria-label={`Select ${tag.label}`}
+                      aria-pressed={selectedTagIds.includes(tag.id)}
+                      onClick={() => toggleTagSelection(tag.id)}
+                    />
+                    <button className="tagJumpButton" type="button" onClick={() => jumpToTag(tag)}>
+                      <i style={{ background: tag.color }} />
+                      <time>{formatTime(tag.time)}</time>
+                      <span>{tag.label}</span>
+                    </button>
+                  </div>
                 </li>
               ))}
             </ol>
@@ -622,8 +662,8 @@ function App() {
               <label>
                 Name
                 <input
-                  value={selectedTag.label}
-                  onChange={(event) => updateTag(selectedTag.id, { label: event.target.value })}
+                  value={tagDraft.label}
+                  onChange={(event) => setTagDraft((current) => ({ ...current, label: event.target.value }))}
                 />
               </label>
               <label>
@@ -632,10 +672,8 @@ function App() {
                   type="number"
                   min="0"
                   step="0.1"
-                  value={(selectedTag.startTime ?? selectedTag.time).toFixed(1)}
-                  onChange={(event) =>
-                    updateTag(selectedTag.id, { startTime: Math.max(0, Number(event.target.value)) })
-                  }
+                  value={tagDraft.startTime}
+                  onChange={(event) => setTagDraft((current) => ({ ...current, startTime: event.target.value }))}
                 />
               </label>
               <label>
@@ -644,12 +682,13 @@ function App() {
                   type="number"
                   min="0"
                   step="0.1"
-                  value={(selectedTag.endTime ?? selectedTag.time).toFixed(1)}
-                  onChange={(event) =>
-                    updateTag(selectedTag.id, { endTime: Math.max(0, Number(event.target.value)) })
-                  }
+                  value={tagDraft.endTime}
+                  onChange={(event) => setTagDraft((current) => ({ ...current, endTime: event.target.value }))}
                 />
               </label>
+              <button type="button" onClick={saveSelectedTagDraft}>
+                Save Tag Times
+              </button>
             </div>
           ) : null}
         </aside>
@@ -665,7 +704,7 @@ function App() {
               ? sortedTags.map((tag) => (
                   <button
                     key={tag.id}
-                    className={tag.id === selectedTagId ? "tagMarker activeMarker" : "tagMarker"}
+                    className={selectedTagIds.includes(tag.id) ? "tagMarker activeMarker" : "tagMarker"}
                     type="button"
                     style={{
                       left: `${Math.min(100, Math.max(0, (tag.time / duration) * 100))}%`,

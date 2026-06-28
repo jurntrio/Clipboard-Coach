@@ -32,6 +32,16 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Give tags stable colors based on their names.
 - Prepare a clips library screen without implementing real clip export.
 
+## Build 1.3.1: Stability Fixes
+
+- Fix Teams persistence in the current JSON app store.
+- Keep teams visible immediately after create/delete actions.
+- Keep player add/delete actions local and simple.
+- Improve the Windows desktop shortcut with a hidden launcher wrapper.
+- Keep the existing development launch command working.
+- Require explicit Save before changing selected tag timing.
+- Add multi-select circles for tags as preparation for later clip workflows.
+
 ## Build 1 Boundaries
 
 Do not add advanced player stats, tag categories, periods, heatmaps, reports, cloud sync, login, AI tracking, paid APIs, real clip export, or external tag import in Build 1 through Build 1.3.

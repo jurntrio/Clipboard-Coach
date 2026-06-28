@@ -451,15 +451,44 @@ input:focus {
   list-style: none;
 }
 
-.tagList button {
+.tagRow {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 50px;
+  border: 1px solid #3a423d;
+  border-radius: 6px;
+  padding: 10px;
+  background: #222825;
+}
+
+.selectCircle {
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 0;
+}
+
+.selectCircle[aria-pressed="true"] {
+  border-color: #71d52b;
+  background: #71d52b;
+  box-shadow: inset 0 0 0 5px #222825;
+}
+
+.tagJumpButton {
   display: grid;
   width: 100%;
   grid-template-columns: 10px 62px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
   height: auto;
-  min-height: 50px;
-  padding: 10px;
+  min-height: 38px;
+  border: 0;
+  padding: 0;
+  background: transparent;
   text-align: left;
 }
 

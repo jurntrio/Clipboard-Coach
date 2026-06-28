@@ -16,7 +16,7 @@ type VideoTag = {
 
 type TagStore = {
   teams?: Team[];
-  videos: Record<string, StoredVideo | VideoTag[]>;
+  videos?: Record<string, StoredVideo | VideoTag[]>;
   clips?: ClipRecord[];
 };
 
@@ -81,9 +81,13 @@ async function readStore(): Promise<TagStore> {
   try {
     const raw = await fs.readFile(getStorePath(), "utf-8");
     const parsed = JSON.parse(raw) as TagStore;
-    return { videos: parsed.videos ?? {} };
+    return {
+      teams: parsed.teams ?? [],
+      videos: parsed.videos ?? {},
+      clips: parsed.clips ?? []
+    };
   } catch {
-    return { videos: {} };
+    return { teams: [], videos: {}, clips: [] };
   }
 }
 

@@ -1,6 +1,6 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.3 adds a start page and basic app navigation.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.3.1 stabilizes the start page, Teams storage, and Windows launcher behavior.
 
 ## Build 1 Features
 
@@ -29,6 +29,13 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 - Stable tag colors based on tag name.
 - Clips library screen prepared for future clip records.
 
+## Build 1.3.1 Fixes
+
+- Team creation, player creation, player deletion, and team deletion persist correctly.
+- Tag time editing uses a Save button.
+- Tags can be multi-selected with round selectors.
+- The desktop shortcut helper now creates a hidden launcher shortcut through Windows Script Host.
+
 ## Not Included Yet
 
 Build 1.3 intentionally does not include advanced player stats, heatmaps, reports, cloud sync, login, AI tracking, clip export, paid APIs, or external tag import.
@@ -55,13 +62,15 @@ The app window opens after Vite starts and Electron launches.
 
 ## Beginner Launcher
 
-You can also double-click `Launch Clipboard Coach.cmd` in this folder. It starts the app without manually typing PowerShell commands.
+You can also double-click `Launch Clipboard Coach.cmd` in this folder. It starts the app without manually typing PowerShell commands, but it may show a command window because this is still a development launcher.
 
-To create a Desktop shortcut:
+To create a Desktop shortcut that avoids showing a command window:
 
 1. Double-click `Create Desktop Shortcut.cmd`.
 2. Wait for the message that the shortcut was created.
-3. Use the new `Clipboard Coach` shortcut on your Desktop.
+3. Use the new or replaced `Clipboard Coach` shortcut on your Desktop.
+
+A real packaged Windows `.exe` is still the proper next step for a production launcher.
 
 ## Build Check
 
