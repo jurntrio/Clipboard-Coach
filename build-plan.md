@@ -55,6 +55,17 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Show full-team clips as team links and as references under players on that team.
 - Do not create real video files, upload online, or create parent/player accounts.
 
+## Build 1.4.1: Clip Preview and Player Link Fixes
+
+- Preview prepared clips inside the Clips library using the original source video.
+- Play selected tag ranges as sequential preview segments without exporting an MP4.
+- Show the currently playing segment and allow clicking a segment to jump to it.
+- Show a clear warning when the source video is missing.
+- Preserve player references on tags and clip segments beyond the active match-player list.
+- Let tag editing link active players, selected-team players, and players already saved on the tag.
+- Use automatic numbering to avoid duplicate clip names.
+- Allow renaming a clip record safely from clip details.
+
 ## Build 1.3.2: Video Tagging Usability Fixes
 
 - Add a Video Viewer team selector and active-player selector in the left rail.

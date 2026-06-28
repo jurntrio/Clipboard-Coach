@@ -1,6 +1,6 @@
 # Clipboard Coach Studio
 
-Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4 adds local prepared clip records, intended-audience metadata, and player clip links.
+Clipboard Coach Studio is a local Windows desktop app for reviewing video, saving timestamped notes, managing simple teams, and preparing a clips library. Build 1.4.1 adds source-video clip preview, stronger player links, and unique clip names.
 
 ## Build 1 Features
 
@@ -46,6 +46,16 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 - Clip records can be deleted without deleting source videos, tags, teams, or players.
 - Teams screen shows clip links under players and full-team clip links for the selected team.
 
+## Build 1.4.1 Fixes
+
+- Clips can be previewed from the original source video using saved tag start/end ranges.
+- Multi-segment clips automatically jump through each selected tag segment and stop after the last one.
+- Missing source videos show a clear preview unavailable warning.
+- Tags and clip segments save player references so links survive active match-player changes.
+- Tag editing can link players from the active match, selected team, or existing saved tag references.
+- Clip names are suggested from tag/player context and duplicate names are automatically numbered.
+- Clip details can rename an existing clip record without duplicating it.
+
 ## Build 1.3.2 Fixes
 
 - Video Viewer left rail can select a team and active players for the current video.
@@ -75,7 +85,7 @@ Clipboard Coach Studio is a local Windows desktop app for reviewing video, savin
 
 ## Not Included Yet
 
-Build 1.4 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, or external tag import.
+Build 1.4.1 intentionally does not include advanced player stats, heatmaps, distance covered, reports, cloud sync, login, AI tracking, real clip export, online sharing, parent/player accounts, paid APIs, or external tag import.
 
 ## Technical Setup
 

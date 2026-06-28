@@ -15,6 +15,7 @@ type VideoTag = {
   label: string;
   color?: string;
   playerIds?: string[];
+  playerRefs?: PlayerReference[];
   createdAt: string;
 };
 
@@ -55,6 +56,13 @@ type MatchPlayerState = {
   name: string;
 };
 
+type PlayerReference = {
+  id: string;
+  name: string;
+  firstName?: string;
+  lastName?: string;
+};
+
 type ClipRecord = {
   id: string;
   name: string;
@@ -72,6 +80,7 @@ type ClipRecord = {
   shareUrl?: string | null;
   uploadStatus?: "not_uploaded";
   missingExportFile?: boolean;
+  missingSourceVideo?: boolean;
   createdAt: string;
   missing?: boolean;
 };
@@ -82,6 +91,7 @@ type ClipTagSnapshot = {
   startTime: number;
   endTime: number;
   playerIds?: string[];
+  playerRefs?: PlayerReference[];
 };
 
 type ClipAudience = {

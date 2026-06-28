@@ -12,6 +12,7 @@ type VideoTag = {
   label: string;
   color?: string;
   playerIds?: string[];
+  playerRefs?: PlayerReference[];
   createdAt: string;
 };
 
@@ -59,6 +60,13 @@ type MatchPlayerState = {
   name: string;
 };
 
+type PlayerReference = {
+  id: string;
+  name: string;
+  firstName?: string;
+  lastName?: string;
+};
+
 type ClipRecord = {
   id: string;
   name: string;
@@ -76,6 +84,7 @@ type ClipRecord = {
   shareUrl?: string | null;
   uploadStatus?: "not_uploaded";
   missingExportFile?: boolean;
+  missingSourceVideo?: boolean;
   createdAt: string;
   missing?: boolean;
 };
@@ -86,6 +95,7 @@ type ClipTagSnapshot = {
   startTime: number;
   endTime: number;
   playerIds?: string[];
+  playerRefs?: PlayerReference[];
 };
 
 type ClipAudience = {
@@ -212,7 +222,8 @@ function normalizeStore(store: TagStore): AppStore {
       localClipPath: clip.localClipPath ?? null,
       shareUrl: clip.shareUrl ?? null,
       uploadStatus: clip.uploadStatus ?? "not_uploaded",
-      missingExportFile: clip.missingExportFile ?? true
+      missingExportFile: clip.missingExportFile ?? true,
+      missingSourceVideo: clip.missingSourceVideo ?? false
     })),
     settings: {
       standardTags: store.settings?.standardTags?.length ? store.settings.standardTags : ["Start", "Goal"],
@@ -401,15 +412,25 @@ app.whenReady().then(() => {
     );
     const clips = await Promise.all(
       store.clips.map(async (clip) => {
+        let missingSourceVideo = false;
+
+        if (clip.sourceVideoPath) {
+          try {
+            await fs.access(clip.sourceVideoPath);
+          } catch {
+            missingSourceVideo = true;
+          }
+        }
+
         try {
           if (!clip.filePath && !clip.localClipPath) {
-            return { ...clip, missing: true, missingExportFile: true };
+            return { ...clip, missing: true, missingExportFile: true, missingSourceVideo };
           }
 
           await fs.access(clip.localClipPath ?? clip.filePath);
-          return { ...clip, missing: false };
+          return { ...clip, missing: false, missingSourceVideo };
         } catch {
-          return { ...clip, missing: true };
+          return { ...clip, missing: true, missingSourceVideo };
         }
       })
     );

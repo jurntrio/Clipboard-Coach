@@ -299,6 +299,7 @@ select:focus {
 
 .clipMetaList,
 .clipTagList,
+.clipPreviewPanel,
 .playerClipLinks,
 .teamClipLinks {
   display: grid;
@@ -317,12 +318,44 @@ select:focus {
   margin: 0;
 }
 
-.clipTagList div {
+.clipTagList div,
+.clipSegmentButton {
   display: grid;
   gap: 3px;
   border: 1px solid #323a35;
   border-radius: 6px;
   padding: 8px 10px;
+}
+
+.clipSegmentButton {
+  height: auto;
+  text-align: left;
+}
+
+.activeClipSegment {
+  border-color: #71d52b;
+}
+
+.clipRenameForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.clipPreviewVideo {
+  width: 100%;
+  max-height: 260px;
+  border-radius: 6px;
+  background: #090b0a;
+}
+
+.clipPreviewControls {
+  display: grid;
+  gap: 8px;
+}
+
+.clipPreviewControls span {
+  color: #aeb8ad;
 }
 
 .playerClipLinks {
