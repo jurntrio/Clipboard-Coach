@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import appIconUrl from "../assets/app-icon.png";
 
 const playableExtensions = new Set([".mp4", ".m4v", ".mov", ".webm", ".ogg"]);
 
@@ -45,6 +46,7 @@ function App() {
   const [tagText, setTagText] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const [status, setStatus] = useState("Open a local video file to begin.");
   const [videoError, setVideoError] = useState("");
   const [supportWarning, setSupportWarning] = useState("");
@@ -78,6 +80,7 @@ function App() {
     setTags([]);
     setTagText("");
     setCurrentTime(0);
+    setDuration(0);
     setIsPlaying(false);
     setVideoError("");
     setVideoReady(false);
@@ -160,6 +163,16 @@ function App() {
     setCurrentTime(tag.time);
   }
 
+  function seekTo(time: number) {
+    const nextTime = Math.min(Math.max(time, 0), duration || 0);
+
+    if (videoRef.current) {
+      videoRef.current.currentTime = nextTime;
+    }
+
+    setCurrentTime(nextTime);
+  }
+
   function handleVideoError() {
     const player = videoRef.current;
     const message = getVideoErrorMessage(player?.error ?? null);
@@ -179,116 +192,149 @@ function App() {
 
   return (
     <main className="appShell">
-      <section className="workspace">
-        <div className="topBar">
+      <aside className="controlPanel" aria-label="Basic controls">
+        <div className="brandBlock">
+          <img src={appIconUrl} alt="" />
           <div>
-            <h1>Clipboard Coach Studio</h1>
-            <p>{video ? video.name : "Build 1 video tagging"}</p>
+            <h1>Clipboard Coach</h1>
+            <p>Build 1.2</p>
           </div>
-          <button className="primaryButton" type="button" onClick={openVideo}>
-            Open Video
-          </button>
         </div>
 
-        <div className="contentGrid">
-          <section className="videoPanel" aria-label="Video player">
-            {video ? (
-              <video
-                key={video.url}
-                ref={videoRef}
-                className="videoPlayer"
-                src={video.url}
-                preload="metadata"
-                onCanPlay={() => {
-                  setVideoReady(true);
-                  setVideoError("");
-                }}
-                onLoadedMetadata={(event) => {
-                  setCurrentTime(event.currentTarget.currentTime);
-                  setStatus(`Video loaded: ${video.name}.`);
-                }}
-                onError={handleVideoError}
-                onPause={() => setIsPlaying(false)}
-                onPlay={() => setIsPlaying(true)}
-                onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
-                controls={false}
-              />
-            ) : (
-              <div className="emptyVideo">
-                <strong>No video open</strong>
-                <span>Choose a local video file from your computer.</span>
-              </div>
-            )}
+        <button className="primaryButton" type="button" onClick={openVideo}>
+          Open Video
+        </button>
 
-            {video ? (
-              <div className="videoDetails" aria-label="Selected video details">
-                <div>
-                  <span>File</span>
-                  <strong>{video.name}</strong>
-                </div>
-                <div>
-                  <span>Path</span>
-                  <code title={video.path}>{shortenPath(video.path)}</code>
-                </div>
-                <div>
-                  <span>Source</span>
-                  <code title={video.url}>{shortenPath(video.url)}</code>
-                </div>
-              </div>
-            ) : null}
+        <div className="controlBar">
+          <button type="button" onClick={togglePlayback} disabled={!video || !!videoError}>
+            {isPlaying ? "Pause" : "Play"}
+          </button>
+          <span className="loadState">{video ? (videoReady ? "Ready" : videoError ? "Not loaded" : "Loading") : "Idle"}</span>
+        </div>
 
-            {supportWarning ? <div className="warningMessage">{supportWarning}</div> : null}
-            {videoError ? <div className="errorMessage">{videoError}</div> : null}
+        <form className="tagForm" onSubmit={addTag}>
+          <label htmlFor="tagText">Tag current moment</label>
+          <input
+            id="tagText"
+            value={tagText}
+            onChange={(event) => setTagText(event.target.value)}
+            disabled={!video}
+            placeholder="Example: good pass"
+            aria-label="Tag text"
+          />
+          <button type="submit" disabled={!video || tagText.trim().length === 0}>
+            Add Tag
+          </button>
+        </form>
 
-            <div className="controlBar">
-              <button type="button" onClick={togglePlayback} disabled={!video || !!videoError}>
-                {isPlaying ? "Pause" : "Play"}
-              </button>
-              <span className="timeReadout">{formatTime(currentTime)}</span>
-              {video ? (
-                <span className="loadState">{videoReady ? "Ready" : videoError ? "Not loaded" : "Loading"}</span>
-              ) : null}
+        {video ? (
+          <div className="videoDetails" aria-label="Selected video details">
+            <div>
+              <span>File</span>
+              <strong>{video.name}</strong>
             </div>
-
-            <form className="tagForm" onSubmit={addTag}>
-              <input
-                value={tagText}
-                onChange={(event) => setTagText(event.target.value)}
-                disabled={!video}
-                placeholder="Tag this moment"
-                aria-label="Tag text"
-              />
-              <button type="submit" disabled={!video || tagText.trim().length === 0}>
-                Add Tag
-              </button>
-            </form>
-
-            <p className="statusLine" role="status">
-              {status}
-            </p>
-          </section>
-
-          <aside className="tagPanel" aria-label="Timestamped tags">
-            <div className="panelHeader">
-              <h2>Tags</h2>
-              <span>{tags.length}</span>
+            <div>
+              <span>Path</span>
+              <code title={video.path}>{shortenPath(video.path)}</code>
             </div>
+            <div>
+              <span>Source</span>
+              <code title={video.url}>{shortenPath(video.url)}</code>
+            </div>
+          </div>
+        ) : null}
 
-            {sortedTags.length > 0 ? (
-              <ol className="tagList">
-                {sortedTags.map((tag) => (
-                  <li key={tag.id}>
-                    <button type="button" onClick={() => jumpToTag(tag)}>
-                      <time>{formatTime(tag.time)}</time>
-                      <span>{tag.label}</span>
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <div className="emptyTags">Tags you add will appear here and reload for this video.</div>
-            )}
-          </aside>
+        {supportWarning ? <div className="warningMessage">{supportWarning}</div> : null}
+        {videoError ? <div className="errorMessage">{videoError}</div> : null}
+
+        <p className="statusLine" role="status">
+          {status}
+        </p>
+      </aside>
+
+      <section className="videoPanel" aria-label="Video player">
+        {video ? (
+          <video
+            key={video.url}
+            ref={videoRef}
+            className="videoPlayer"
+            src={video.url}
+            preload="metadata"
+            onCanPlay={() => {
+              setVideoReady(true);
+              setVideoError("");
+            }}
+            onLoadedMetadata={(event) => {
+              setCurrentTime(event.currentTarget.currentTime);
+              setDuration(event.currentTarget.duration || 0);
+              setStatus(`Video loaded: ${video.name}.`);
+            }}
+            onError={handleVideoError}
+            onPause={() => setIsPlaying(false)}
+            onPlay={() => setIsPlaying(true)}
+            onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+            controls={false}
+          />
+        ) : (
+          <div className="emptyVideo">
+            <strong>No video open</strong>
+            <span>Choose a local video file from the left controls.</span>
+          </div>
+        )}
+      </section>
+
+      <aside className="tagPanel" aria-label="Timestamped tags">
+        <div className="panelHeader">
+          <h2>Tags</h2>
+          <span>{tags.length}</span>
+        </div>
+
+        {sortedTags.length > 0 ? (
+          <ol className="tagList">
+            {sortedTags.map((tag) => (
+              <li key={tag.id}>
+                <button type="button" onClick={() => jumpToTag(tag)}>
+                  <time>{formatTime(tag.time)}</time>
+                  <span>{tag.label}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <div className="emptyTags">Tags you add will appear here and reload for this video.</div>
+        )}
+      </aside>
+
+      <section className="timelinePanel" aria-label="Video timeline">
+        <div className="timelineTimes">
+          <span>{formatTime(currentTime)}</span>
+          <strong>{video ? video.name : "No video selected"}</strong>
+          <span>{formatTime(duration)}</span>
+        </div>
+        <div className="timelineTrack">
+          {duration > 0
+            ? sortedTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  className="tagMarker"
+                  type="button"
+                  style={{ left: `${Math.min(100, Math.max(0, (tag.time / duration) * 100))}%` }}
+                  title={`${formatTime(tag.time)} - ${tag.label}`}
+                  aria-label={`Jump to ${tag.label} at ${formatTime(tag.time)}`}
+                  onClick={() => jumpToTag(tag)}
+                />
+              ))
+            : null}
+          <input
+            type="range"
+            min="0"
+            max={duration || 0}
+            step="0.01"
+            value={Math.min(currentTime, duration || 0)}
+            disabled={!video || duration <= 0}
+            onChange={(event) => seekTo(Number(event.currentTarget.value))}
+            aria-label="Video timeline"
+          />
         </div>
       </section>
     </main>

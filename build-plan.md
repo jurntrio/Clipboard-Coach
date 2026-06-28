@@ -13,9 +13,18 @@ Clipboard Coach Studio should help users review local videos and add timestamped
 - Show timestamped tags in a list.
 - Save and reload tags locally with JSON storage.
 
+## Build 1.2: Review Layout and Launcher
+
+- Add a simple Windows launcher and Desktop shortcut helper.
+- Use the current pictogram for the app window and shortcut icon.
+- Make the video viewer the largest part of the interface.
+- Move controls to the left, tags to the right, and timeline to the bottom.
+- Add a timeline scrubber with current time, duration, and tag markers.
+- Keep tag saving and reloading unchanged.
+
 ## Build 1 Boundaries
 
-Do not add extra players, heatmaps, reports, cloud sync, login, AI tracking, clip export, or external tag import in Build 1.
+Do not add extra players, tag categories, periods, heatmaps, reports, cloud sync, login, AI tracking, clip export, or external tag import in Build 1 or Build 1.2.
 
 ## Later Builds
 

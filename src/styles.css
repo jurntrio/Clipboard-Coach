@@ -15,6 +15,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 button,
@@ -42,64 +43,85 @@ button:disabled {
 }
 
 .appShell {
-  min-height: 100vh;
-  padding: 28px;
+  display: grid;
+  grid-template-columns: 260px minmax(420px, 1fr) 320px;
+  grid-template-rows: minmax(0, 1fr) 108px;
+  gap: 12px;
+  height: 100vh;
+  padding: 12px;
 }
 
-.workspace {
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
-.topBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 22px;
-}
-
-.topBar h1 {
-  margin: 0;
-  font-size: 28px;
-  line-height: 1.15;
-}
-
-.topBar p {
-  margin: 6px 0 0;
-  color: #636a61;
+.controlPanel,
+.videoPanel,
+.tagPanel,
+.timelinePanel {
+  min-width: 0;
+  min-height: 0;
+  background: #ffffff;
+  border: 1px solid #d7d9d2;
+  border-radius: 8px;
 }
 
 .primaryButton {
   background: #244f8f;
   border-color: #244f8f;
   color: #ffffff;
+  width: 100%;
 }
 
-.contentGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+.controlPanel {
+  display: flex;
+  flex-direction: column;
   gap: 20px;
+  padding: 14px;
+  overflow: auto;
 }
 
-.videoPanel,
-.tagPanel {
-  background: #ffffff;
-  border: 1px solid #d7d9d2;
+.brandBlock {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.brandBlock img {
+  width: 48px;
+  height: 48px;
   border-radius: 8px;
-  padding: 18px;
+  object-fit: cover;
+}
+
+.brandBlock h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.brandBlock p {
+  margin: 4px 0 0;
+  color: #636a61;
+  font-size: 13px;
+}
+
+.videoPanel {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+  background: #111417;
 }
 
 .videoPlayer,
 .emptyVideo {
   width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 6px;
+  height: 100%;
+  min-height: 0;
   background: #191c1f;
 }
 
 .videoPlayer {
   display: block;
+  object-fit: contain;
 }
 
 .emptyVideo {
@@ -116,10 +138,10 @@ button:disabled {
 }
 
 .controlBar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
   align-items: center;
-  gap: 12px;
-  margin-top: 16px;
 }
 
 .timeReadout {
@@ -136,7 +158,6 @@ button:disabled {
 .videoDetails {
   display: grid;
   gap: 8px;
-  margin-top: 14px;
   padding: 12px;
   border: 1px solid #d7d9d2;
   border-radius: 6px;
@@ -145,7 +166,7 @@ button:disabled {
 
 .videoDetails div {
   display: grid;
-  grid-template-columns: 68px minmax(0, 1fr);
+  grid-template-columns: 50px minmax(0, 1fr);
   gap: 8px;
   align-items: baseline;
 }
@@ -189,9 +210,14 @@ button:disabled {
 
 .tagForm {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
-  margin-top: 14px;
+}
+
+.tagForm label {
+  color: #4c554a;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .tagForm input {
@@ -207,9 +233,16 @@ button:disabled {
 }
 
 .statusLine {
-  min-height: 22px;
-  margin: 14px 0 0;
+  margin: auto 0 0;
   color: #596057;
+  line-height: 1.4;
+}
+
+.tagPanel {
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  overflow: hidden;
 }
 
 .panelHeader {
@@ -242,6 +275,7 @@ button:disabled {
   list-style: none;
   margin: 0;
   padding: 0;
+  overflow: auto;
 }
 
 .tagList button {
@@ -276,18 +310,82 @@ button:disabled {
   text-align: center;
 }
 
+.timelinePanel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.timelineTimes {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 90px;
+  gap: 12px;
+  align-items: center;
+  color: #4c554a;
+  font-variant-numeric: tabular-nums;
+}
+
+.timelineTimes strong {
+  overflow: hidden;
+  color: #222522;
+  font-weight: 700;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timelineTimes span:last-child {
+  text-align: right;
+}
+
+.timelineTrack {
+  position: relative;
+  display: grid;
+  align-items: center;
+  min-height: 44px;
+  padding-top: 12px;
+}
+
+.timelineTrack input {
+  width: 100%;
+  accent-color: #244f8f;
+  cursor: pointer;
+}
+
+.timelineTrack input:disabled {
+  cursor: not-allowed;
+}
+
+.tagMarker {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  width: 12px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #68d51b;
+  box-shadow: 0 1px 4px rgba(25, 28, 31, 0.28);
+  transform: translateX(-50%);
+}
+
 @media (max-width: 980px) {
+  body {
+    overflow: auto;
+  }
+
   .appShell {
-    padding: 18px;
-  }
-
-  .topBar,
-  .contentGrid {
-    display: grid;
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(360px, 60vh) auto 112px;
+    height: auto;
+    min-height: 100vh;
   }
 
-  .tagPanel {
-    min-height: 260px;
+  .timelinePanel {
+    grid-column: auto;
   }
 }
