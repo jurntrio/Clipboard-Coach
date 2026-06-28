@@ -3,6 +3,7 @@
 type VideoFile = {
   path: string;
   name: string;
+  extension: string;
   url: string;
 };
 

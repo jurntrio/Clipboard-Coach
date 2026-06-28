@@ -1,7 +1,8 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, protocol } from "electron";
+import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { Readable } from "node:stream";
 
 type VideoTag = {
   id: string;
@@ -15,6 +16,19 @@ type TagStore = {
 };
 
 const isDev = !app.isPackaged;
+const mediaScheme = "clipboard-coach-video";
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: mediaScheme,
+    privileges: {
+      standard: true,
+      secure: true,
+      stream: true,
+      supportFetchAPI: true
+    }
+  }
+]);
 
 function getStorePath() {
   return path.join(app.getPath("userData"), "tags.json");
@@ -41,6 +55,7 @@ function createWindow() {
     height: 760,
     minWidth: 900,
     minHeight: 620,
+    icon: path.join(__dirname, "../assets/app-icon.png"),
     backgroundColor: "#f7f7f4",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -56,7 +71,86 @@ function createWindow() {
   }
 }
 
+function getMediaUrl(filePath: string) {
+  const encodedPath = Buffer.from(filePath, "utf-8").toString("base64url");
+  return `${mediaScheme}://local/${encodedPath}`;
+}
+
+function getVideoContentType(filePath: string) {
+  switch (path.extname(filePath).toLowerCase()) {
+    case ".mp4":
+    case ".m4v":
+      return "video/mp4";
+    case ".mov":
+      return "video/quicktime";
+    case ".webm":
+      return "video/webm";
+    case ".ogg":
+    case ".ogv":
+      return "video/ogg";
+    default:
+      return "application/octet-stream";
+  }
+}
+
 app.whenReady().then(() => {
+  protocol.handle(mediaScheme, async (request) => {
+    const requestUrl = new URL(request.url);
+    const encodedPath = requestUrl.pathname.slice(1);
+    const filePath = Buffer.from(encodedPath, "base64url").toString("utf-8");
+
+    try {
+      const stats = await fs.stat(filePath);
+      const rangeHeader = request.headers.get("range");
+      const contentType = getVideoContentType(filePath);
+
+      if (rangeHeader) {
+        const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+        const start = match?.[1] ? Number.parseInt(match[1], 10) : 0;
+        const end = match?.[2] ? Number.parseInt(match[2], 10) : stats.size - 1;
+        const safeEnd = Math.min(end, stats.size - 1);
+        const chunkSize = safeEnd - start + 1;
+
+        if (start >= stats.size || safeEnd < start) {
+          return new Response(null, {
+            status: 416,
+            headers: {
+              "content-range": `bytes */${stats.size}`
+            }
+          });
+        }
+
+        return new Response(
+          Readable.toWeb(createReadStream(filePath, { start, end: safeEnd })) as ReadableStream,
+          {
+            status: 206,
+            headers: {
+              "accept-ranges": "bytes",
+              "content-length": String(chunkSize),
+              "content-range": `bytes ${start}-${safeEnd}/${stats.size}`,
+              "content-type": contentType
+            }
+          }
+        );
+      }
+
+      return new Response(Readable.toWeb(createReadStream(filePath)) as ReadableStream, {
+        status: 200,
+        headers: {
+          "accept-ranges": "bytes",
+          "content-length": String(stats.size),
+          "content-type": contentType
+        }
+      });
+    } catch (error) {
+      console.error("Unable to load selected video file:", filePath, error);
+      return new Response("Video file could not be loaded.", {
+        status: 404,
+        headers: { "content-type": "text/plain" }
+      });
+    }
+  });
+
   ipcMain.handle("video:open", async () => {
     const result = await dialog.showOpenDialog({
       title: "Open a video file",
@@ -74,10 +168,13 @@ app.whenReady().then(() => {
     }
 
     const filePath = result.filePaths[0];
+    const fileExtension = path.extname(filePath).toLowerCase();
+
     return {
       path: filePath,
       name: path.basename(filePath),
-      url: pathToFileURL(filePath).toString()
+      extension: fileExtension,
+      url: getMediaUrl(filePath)
     };
   });
 
