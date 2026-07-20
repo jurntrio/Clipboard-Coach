@@ -38,14 +38,25 @@ export function VideoUploader({ teamId, onUploaded }: { teamId: string | null; o
 
         if (!putRes.ok) throw new Error("Upload to storage failed");
 
-        await supabase.from("videos").insert({
-          coach_id: user!.id,
-          team_id: teamId,
-          video_url: publicUrl,
-          video_key: key,
-          file_size: file.size,
-          title: file.name.replace(/\.[^/.]+$/, "")
-        });
+        const { data: video, error: insertError } = await supabase
+          .from("videos")
+          .insert({
+            coach_id: user!.id,
+            team_id: teamId,
+            video_url: publicUrl,
+            video_key: key,
+            file_size: file.size,
+            title: file.name.replace(/\.[^/.]+$/, "")
+          })
+          .select("id")
+          .single();
+
+        if (insertError) throw insertError;
+
+        // Fire-and-forget: kicks off background compression to a
+        // browser-friendly proxy. The coach can keep working from the raw
+        // upload in the meantime - this just swaps the video in once ready.
+        fetch(`/api/videos/${video.id}/process`, { method: "POST" }).catch(() => undefined);
 
         onUploaded();
       } catch (err) {

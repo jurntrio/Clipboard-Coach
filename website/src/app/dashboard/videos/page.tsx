@@ -62,6 +62,12 @@ export default function VideosPage() {
           >
             <p className="text-textBright font-medium truncate">{video.title || "Untitled video"}</p>
             <p className="text-textMuted text-sm mt-1">{new Date(video.created_at).toLocaleDateString()}</p>
+            {video.processing_status === "processing" && (
+              <p className="text-amber-400 text-xs mt-1">Compressing in the background…</p>
+            )}
+            {video.processing_status === "failed" && (
+              <p className="text-red-400 text-xs mt-1">Compression failed — still playable from the original</p>
+            )}
           </Link>
         ))}
         {videos.length === 0 && <p className="text-textMuted">No videos uploaded yet.</p>}

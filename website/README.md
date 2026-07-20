@@ -22,6 +22,10 @@ Not needed yet, only once you build those phases:
 - **Stripe** — subscription billing.
 - **Resend** — transactional email (archive warnings, etc). Supabase's built-in
   email already handles signup confirmation for free at low volume.
+- **Railway** (or similar) — hosts the `worker/` service that compresses
+  raw uploads into a web-friendly HLS proxy. Optional: without it, videos
+  just keep playing straight from the raw R2 upload. See
+  [`worker/README.md`](../worker/README.md) for setup.
 
 ## 2. Environment variables
 

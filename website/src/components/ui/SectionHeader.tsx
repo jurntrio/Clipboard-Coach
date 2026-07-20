@@ -19,7 +19,7 @@ export function SectionHeader({
       >
         <Image src="/branding/home.png" alt="Home" width={38} height={38} />
       </Link>
-      <div className="flex-1">
+      <div className="flex-1 flex flex-col items-center text-center">
         <h1 className="font-display uppercase text-2xl text-textBright">{title}</h1>
         {subtitle && <p className="text-textMuted text-sm">{subtitle}</p>}
       </div>

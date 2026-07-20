@@ -44,7 +44,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-lg mx-auto text-center">
+    <div className="p-6 max-w-4xl mx-auto">
       <SectionHeader title="Settings" artworkSrc="/branding/settings.png" />
 
       <section className="mb-8">

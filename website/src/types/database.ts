@@ -43,6 +43,8 @@ export type Video = {
   file_size: number | null;
   active_player_ids: string[];
   status: "active" | "deleted";
+  processing_status: "pending" | "processing" | "ready" | "failed";
+  processing_error: string | null;
   created_at: string;
 };
 

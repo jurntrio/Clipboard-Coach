@@ -25,7 +25,7 @@ const topics = [
 
 export default function HelpPage() {
   return (
-    <div className="p-8 max-w-2xl mx-auto">
+    <div className="p-8 max-w-4xl mx-auto">
       <SectionHeader title="Help" artworkSrc="/branding/help.png" />
 
       <div className="flex flex-col gap-3">

@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ClipSegmentPlayback } from "./ClipPreviewModal";
+import { useHlsSource } from "../video-player/useHlsSource";
 
 export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segments: ClipSegmentPlayback[] }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [segmentIndex, setSegmentIndex] = useState(0);
   const segment = segments[segmentIndex];
+  useHlsSource(videoRef, videoUrl);
 
   useEffect(() => {
     const player = videoRef.current;
@@ -30,7 +32,6 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
   return (
     <video
       ref={videoRef}
-      src={videoUrl}
       controls
       className="w-full bg-black"
       onLoadedMetadata={handleLoadedMetadata}
