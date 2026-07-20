@@ -1,5 +1,10 @@
 # Clipboard Coach Studio — video worker
 
+> Note: large uploads (>4GB, e.g. drone footage) go through multipart
+> upload from the browser directly to R2. That requires the bucket's CORS
+> policy to expose the `ETag` header — see `website/README.md` for the
+> policy JSON.
+
 Background job that turns a raw upload (whatever a coach's camera produces —
 could be 75GB of drone 4K footage) into a lightweight 720p HLS proxy the web
 viewer can stream and scrub reliably, then deletes the original from R2.

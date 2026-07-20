@@ -6,3 +6,14 @@ release/
 *.log
 .env
 .env.local
+
+# ML model binaries (too large for git; re-export via tools/tracking-export-venv)
+electron/tracking/models/*.onnx
+electron/tracking/models/*.pt
+tools/tracking-export-venv/
+
+# Debug output from the tracking proof-of-concept
+electron/tracking/tmp-poc/
+
+# Machine-specific Claude Code settings
+.claude/settings.local.json

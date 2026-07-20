@@ -1,4 +1,11 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
+  PutObjectCommand,
+  S3Client,
+  UploadPartCommand
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const r2Client = new S3Client({
@@ -18,6 +25,46 @@ export async function getUploadUrl(key: string, contentType: string) {
   });
 
   return getSignedUrl(r2Client, command, { expiresIn: 3600 });
+}
+
+// R2 (like S3) rejects a single PUT over ~5GB, so anything bigger - drone
+// footage especially - has to go through multipart upload instead.
+export async function createMultipartUpload(key: string, contentType: string) {
+  const res = await r2Client.send(
+    new CreateMultipartUploadCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key, ContentType: contentType })
+  );
+  return res.UploadId!;
+}
+
+export async function getPartUploadUrl(key: string, uploadId: string, partNumber: number) {
+  const command = new UploadPartCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key: key,
+    UploadId: uploadId,
+    PartNumber: partNumber
+  });
+  return getSignedUrl(r2Client, command, { expiresIn: 3600 });
+}
+
+export async function completeMultipartUpload(
+  key: string,
+  uploadId: string,
+  parts: { ETag: string; PartNumber: number }[]
+) {
+  await r2Client.send(
+    new CompleteMultipartUploadCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: key,
+      UploadId: uploadId,
+      MultipartUpload: { Parts: parts }
+    })
+  );
+}
+
+export async function abortMultipartUpload(key: string, uploadId: string) {
+  await r2Client.send(
+    new AbortMultipartUploadCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key, UploadId: uploadId })
+  );
 }
 
 export function getPublicUrl(key: string) {

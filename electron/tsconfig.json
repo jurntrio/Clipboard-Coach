@@ -4,12 +4,12 @@
     "module": "CommonJS",
     "lib": ["ES2020", "DOM"],
     "outDir": "../dist-electron",
-    "rootDir": ".",
+    "rootDir": "..",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]
   },
-  "include": ["main.ts", "preload.ts"]
+  "include": ["main.ts", "preload.ts", "../shared/types.ts"]
 }

@@ -1,135 +1,68 @@
 /// <reference types="vite/client" />
 
-type VideoFile = {
-  path: string;
-  name: string;
-  extension: string;
-  url: string;
-};
+import type {
+  AppSettings as _AppSettings,
+  AppStore as _AppStore,
+  ClipAudience as _ClipAudience,
+  ClipDrawing as _ClipDrawing,
+  TagDrawingRecord as _TagDrawingRecord,
+  ClipExportProgress as _ClipExportProgress,
+  ClipExportRequest as _ClipExportRequest,
+  ClipExportResult as _ClipExportResult,
+  ClipExportSegment as _ClipExportSegment,
+  ClipRecord as _ClipRecord,
+  ClipTagSnapshot as _ClipTagSnapshot,
+  FieldReferencePoint as _FieldReferencePoint,
+  FieldTypeId as _FieldTypeId,
+  MatchInfo as _MatchInfo,
+  MatchPlayerState as _MatchPlayerState,
+  MatchState as _MatchState,
+  Player as _Player,
+  PlayerReference as _PlayerReference,
+  StoredMatch as _StoredMatch,
+  StoredVideo as _StoredVideo,
+  Team as _Team,
+  TrackingCalibration as _TrackingCalibration,
+  VideoInspectionResult as _VideoInspectionResult,
+  VideoFile as _VideoFile,
+  VideoWorkingCopyProgress as _VideoWorkingCopyProgress,
+  VideoWorkingCopy as _VideoWorkingCopy,
+  VideoTag as _VideoTag
+} from "../shared/types";
+import type { ClipboardCoachApi as _ClipboardCoachApi } from "../shared/clipboardCoachApi";
 
-type VideoTag = {
-  id: string;
-  time: number;
-  startTime?: number;
-  endTime?: number;
-  label: string;
-  color?: string;
-  playerIds?: string[];
-  playerRefs?: PlayerReference[];
-  createdAt: string;
-};
+// Promote the shared types to globals so existing components can keep
+// referencing them as bare identifiers without an explicit import.
+declare global {
+  type AppSettings = _AppSettings;
+  type AppStore = _AppStore;
+  type ClipAudience = _ClipAudience;
+  type ClipDrawing = _ClipDrawing;
+  type TagDrawingRecord = _TagDrawingRecord;
+  type ClipExportProgress = _ClipExportProgress;
+  type ClipExportRequest = _ClipExportRequest;
+  type ClipExportResult = _ClipExportResult;
+  type ClipExportSegment = _ClipExportSegment;
+  type ClipRecord = _ClipRecord;
+  type ClipTagSnapshot = _ClipTagSnapshot;
+  type FieldReferencePoint = _FieldReferencePoint;
+  type FieldTypeId = _FieldTypeId;
+  type MatchInfo = _MatchInfo;
+  type MatchPlayerState = _MatchPlayerState;
+  type MatchState = _MatchState;
+  type Player = _Player;
+  type PlayerReference = _PlayerReference;
+  type StoredMatch = _StoredMatch;
+  type StoredVideo = _StoredVideo;
+  type Team = _Team;
+  type TrackingCalibration = _TrackingCalibration;
+  type VideoInspectionResult = _VideoInspectionResult;
+  type VideoFile = _VideoFile;
+  type VideoWorkingCopyProgress = _VideoWorkingCopyProgress;
+  type VideoWorkingCopy = _VideoWorkingCopy;
+  type VideoTag = _VideoTag;
 
-type Player = {
-  id: string;
-  name?: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  createdAt: string;
-};
-
-type Team = {
-  id: string;
-  name: string;
-  players: Player[];
-  createdAt: string;
-};
-
-type StoredVideo = {
-  path: string;
-  name: string;
-  extension: string;
-  lastOpenedAt: string;
-  tags: VideoTag[];
-  matchState?: MatchState;
-  matchInfo?: MatchInfo;
-  missing?: boolean;
-};
-
-type MatchInfo = {
-  title?: string;
-  homeTeam?: string;
-  awayTeam?: string;
-  date?: string;
-};
-
-type MatchState = {
-  teamId?: string;
-  teamName?: string;
-  players: MatchPlayerState[];
-};
-
-type MatchPlayerState = {
-  id: string;
-  name: string;
-};
-
-type PlayerReference = {
-  id: string;
-  name: string;
-  firstName?: string;
-  lastName?: string;
-};
-
-type ClipRecord = {
-  id: string;
-  name: string;
-  filePath: string;
-  sourceVideoPath?: string;
-  sourceVideoName?: string;
-  matchTitle?: string;
-  startTime?: number;
-  endTime?: number;
-  selectedTagIds?: string[];
-  tagNames?: string[];
-  tagSnapshots?: ClipTagSnapshot[];
-  intendedAudience?: ClipAudience;
-  exportStatus?: "prepared_only" | "not_exported";
-  localClipPath?: string | null;
-  shareUrl?: string | null;
-  uploadStatus?: "not_uploaded";
-  missingExportFile?: boolean;
-  missingSourceVideo?: boolean;
-  createdAt: string;
-  missing?: boolean;
-};
-
-type ClipTagSnapshot = {
-  id: string;
-  label: string;
-  startTime: number;
-  endTime: number;
-  playerIds?: string[];
-  playerRefs?: PlayerReference[];
-};
-
-type ClipAudience = {
-  type: "full_team" | "selected_match_players" | "specific_players";
-  teamId?: string;
-  teamName?: string;
-  players: MatchPlayerState[];
-};
-
-type AppStore = {
-  teams: Team[];
-  videos: Record<string, StoredVideo>;
-  clips: ClipRecord[];
-  settings: AppSettings;
-};
-
-type AppSettings = {
-  standardTags: string[];
-  activeMatchTeamId?: string;
-  activeMatchPlayerIds: string[];
-};
-
-interface Window {
-  clipboardCoach: {
-    openVideo: () => Promise<VideoFile | null>;
-    openVideoFromPath: (videoPath: string) => Promise<VideoFile>;
-    loadStore: () => Promise<AppStore>;
-    saveStore: (store: AppStore) => Promise<AppStore>;
-    loadTags: (videoPath: string) => Promise<VideoTag[]>;
-    saveTags: (videoPath: string, tags: VideoTag[]) => Promise<VideoTag[]>;
-  };
+  interface Window {
+    clipboardCoach: _ClipboardCoachApi;
+  }
 }

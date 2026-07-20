@@ -3,8 +3,85 @@
 import { useCallback, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+// R2 (like S3) rejects a single PUT over ~5GB. Anything at or above this
+// threshold gets split into parts and sent via multipart upload instead.
+const MULTIPART_THRESHOLD = 4 * 1024 * 1024 * 1024; // 4GB
+const PART_SIZE = 100 * 1024 * 1024; // 100MB per part
+const UPLOAD_CONCURRENCY = 4;
+
+async function callMultipartApi(action: string, payload: Record<string, unknown>) {
+  const res = await fetch("/api/videos/multipart-upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, ...payload })
+  });
+  if (!res.ok) throw new Error(`Multipart "${action}" request failed`);
+  return res.json();
+}
+
+async function uploadSingle(file: File, key: string): Promise<string> {
+  const res = await fetch("/api/videos/upload-url", {
+    method: "POST",
+    body: JSON.stringify({ key, contentType: file.type })
+  });
+  if (!res.ok) throw new Error("Could not get upload URL");
+  const { uploadUrl, publicUrl } = await res.json();
+
+  const putRes = await fetch(uploadUrl, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": file.type }
+  });
+  if (!putRes.ok) throw new Error("Upload to storage failed");
+
+  return publicUrl;
+}
+
+async function uploadMultipart(file: File, key: string, onProgress: (fraction: number) => void): Promise<string> {
+  const { uploadId } = await callMultipartApi("create", { key, contentType: file.type });
+  const totalParts = Math.ceil(file.size / PART_SIZE);
+
+  try {
+    const parts: { ETag: string; PartNumber: number }[] = [];
+    let uploadedBytes = 0;
+    let nextPartNumber = 1;
+
+    async function worker() {
+      while (nextPartNumber <= totalParts) {
+        const partNumber = nextPartNumber++;
+        const start = (partNumber - 1) * PART_SIZE;
+        const end = Math.min(start + PART_SIZE, file.size);
+        const chunk = file.slice(start, end);
+
+        const { urls } = await callMultipartApi("part-urls", { key, uploadId, partNumbers: [partNumber] });
+        const putRes = await fetch(urls[0].url, { method: "PUT", body: chunk });
+        if (!putRes.ok) throw new Error(`Failed to upload part ${partNumber}`);
+
+        const etag = putRes.headers.get("ETag");
+        if (!etag) {
+          throw new Error("Missing ETag on part response - check the R2 bucket CORS ExposeHeaders setting");
+        }
+
+        parts.push({ ETag: etag, PartNumber: partNumber });
+        uploadedBytes += chunk.size;
+        onProgress(uploadedBytes / file.size);
+      }
+    }
+
+    await Promise.all(Array.from({ length: Math.min(UPLOAD_CONCURRENCY, totalParts) }, worker));
+
+    parts.sort((a, b) => a.PartNumber - b.PartNumber);
+    const { publicUrl } = await callMultipartApi("complete", { key, uploadId, parts });
+    return publicUrl;
+  } catch (error) {
+    await callMultipartApi("abort", { key, uploadId }).catch(() => undefined);
+    throw error;
+  }
+}
+
 export function VideoUploader({ teamId, onUploaded }: { teamId: string | null; onUploaded: () => void }) {
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const supabase = createClient();
 
@@ -14,6 +91,7 @@ export function VideoUploader({ teamId, onUploaded }: { teamId: string | null; o
       if (!file) return;
 
       setUploading(true);
+      setProgress(0);
       setError("");
 
       try {
@@ -22,21 +100,11 @@ export function VideoUploader({ teamId, onUploaded }: { teamId: string | null; o
         } = await supabase.auth.getUser();
 
         const key = `videos/${crypto.randomUUID()}-${file.name}`;
-        const res = await fetch("/api/videos/upload-url", {
-          method: "POST",
-          body: JSON.stringify({ key, contentType: file.type })
-        });
 
-        if (!res.ok) throw new Error("Could not get upload URL");
-        const { uploadUrl, publicUrl } = await res.json();
-
-        const putRes = await fetch(uploadUrl, {
-          method: "PUT",
-          body: file,
-          headers: { "Content-Type": file.type }
-        });
-
-        if (!putRes.ok) throw new Error("Upload to storage failed");
+        const publicUrl =
+          file.size >= MULTIPART_THRESHOLD
+            ? await uploadMultipart(file, key, setProgress)
+            : await uploadSingle(file, key);
 
         const { data: video, error: insertError } = await supabase
           .from("videos")
@@ -81,7 +149,7 @@ export function VideoUploader({ teamId, onUploaded }: { teamId: string | null; o
       />
       <label htmlFor="video-upload" className="cursor-pointer">
         {uploading ? (
-          <p className="text-textPrimary">Uploading...</p>
+          <p className="text-textPrimary">Uploading... {progress > 0 ? `${Math.round(progress * 100)}%` : ""}</p>
         ) : (
           <div>
             <p className="text-textPrimary text-lg font-medium">Drop video here or click to browse</p>
