@@ -24,3 +24,12 @@ export function formatTime(totalSeconds: number): string {
 export function getPlayerDisplayName(player: { first_name: string; last_name: string }): string {
   return `${player.first_name} ${player.last_name}`.trim();
 }
+
+export function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / 1024 ** exponent;
+
+  return `${exponent === 0 ? value : value.toFixed(1)} ${units[exponent]}`;
+}
