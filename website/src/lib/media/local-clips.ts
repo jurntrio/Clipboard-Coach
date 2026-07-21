@@ -36,8 +36,8 @@ export async function inspectLocalVideo(file: File): Promise<LocalVideoInfo> {
       input.getMimeType()
     ]);
 
-    if (videoCodec !== "avc") {
-      throw new Error(`Local clip export currently requires H.264 video. This file uses ${videoCodec ?? "an unknown codec"}.`);
+    if (videoCodec !== "avc" && videoCodec !== "hevc") {
+      throw new Error(`Local clip export currently supports H.264 and HEVC video. This file uses ${videoCodec ?? "an unknown codec"}.`);
     }
     if (audioCodec && audioCodec !== "aac") {
       throw new Error(`Local clip export currently requires AAC audio. This file uses ${audioCodec}.`);
@@ -71,8 +71,8 @@ export async function remuxLocalSegment(
     const audioTrack = await input.getPrimaryAudioTrack();
     const videoCodec = await videoTrack.getCodec();
     const audioCodec = await audioTrack?.getCodec();
-    if (videoCodec !== "avc" || (audioCodec && audioCodec !== "aac")) {
-      throw new Error("This clip cannot be copied without converting it. Use H.264 video with AAC audio.");
+    if ((videoCodec !== "avc" && videoCodec !== "hevc") || (audioCodec && audioCodec !== "aac")) {
+      throw new Error("This clip cannot be copied without converting it. Use H.264 or HEVC video with AAC audio.");
     }
 
     const videoSink = new EncodedPacketSink(videoTrack);

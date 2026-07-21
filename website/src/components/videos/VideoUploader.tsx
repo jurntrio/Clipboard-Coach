@@ -247,7 +247,7 @@ export function VideoUploader({ teamId, videos, onUploaded }: VideoUploaderProps
   const openLocalFile = useCallback(async (file: File, handle?: FileSystemFileHandle | null) => {
     const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
     if (!["mp4", "mov", "m4v"].includes(extension)) {
-      setError("Local clip export currently supports MP4, MOV, and M4V with H.264/AAC.");
+      setError("Local clip export currently supports MP4, MOV, and M4V with H.264 or HEVC video and AAC audio.");
       return;
     }
 
@@ -324,7 +324,7 @@ export function VideoUploader({ teamId, videos, onUploaded }: VideoUploaderProps
     try {
       const [handle] = await picker({
         multiple: false,
-        types: [{ description: "H.264 video", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }]
+        types: [{ description: "H.264 or HEVC video", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }]
       });
       if (handle) await openLocalFile(await handle.getFile(), handle);
     } catch (error) {

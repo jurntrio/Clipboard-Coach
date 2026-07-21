@@ -82,12 +82,13 @@ Keep the production domain and the Netlify subdomain in the R2 CORS policy.
 
 "Use video from this PC" stores only video metadata and tags in Supabase. The
 match file remains on that device. Mediabunny reads the file lazily and copies
-the H.264/AAC packets for each selected tag into a small MP4 without re-encoding;
+the H.264/HEVC and AAC packets for each selected tag into a small MP4 without re-encoding;
 only those clip files are uploaded to R2. This avoids uploading a 5–10 GB match
 and keeps CPU and memory use much lower than browser transcoding.
 
-The current local export path accepts MP4/MOV/M4V with H.264 video and AAC (or
-no) audio. A local match must be selected again when browser permissions are not
+The current local export path accepts MP4/MOV/M4V with H.264 or HEVC video and
+AAC (or no) audio. HEVC playback depends on support in the viewer's browser and
+operating system. A local match must be selected again when browser permissions are not
 remembered or when continuing on another device. Tags remain available online.
 
 ## What's ported
