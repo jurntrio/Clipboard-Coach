@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { formatBytes } from "@/lib/utils";
 import { getCoachOverviews, isBanned } from "./data";
+import { PlanBadge } from "./PlanBadge";
 
 export default async function AdminOverviewPage() {
   const coaches = await getCoachOverviews();
@@ -70,11 +71,7 @@ export default async function AdminOverviewPage() {
                 <td className="px-4 py-3 text-right text-textSecondary">{coach.clipCount}</td>
                 <td className="px-4 py-3 text-right text-textSecondary">{formatBytes(coach.storageBytes)}</td>
                 <td className="px-4 py-3">
-                  {coach.plan === "pro" ? (
-                    <span className="px-2 py-0.5 rounded bg-accent/15 text-accent text-xs font-semibold">Pro</span>
-                  ) : (
-                    <span className="text-textMuted text-xs">Free</span>
-                  )}
+                  <PlanBadge email={coach.email} plan={coach.plan} />
                 </td>
                 <td className="px-4 py-3">
                   {isBanned(coach.banned_until) ? (

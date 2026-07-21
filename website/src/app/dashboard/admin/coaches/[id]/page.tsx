@@ -4,6 +4,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { formatBytes } from "@/lib/utils";
 import { getPlayerDisplayName } from "@/lib/utils";
 import { getCoachDetail, isBanned } from "../../data";
+import { PlanBadge } from "../../PlanBadge";
 import { AccountActions } from "./AccountActions";
 
 const statusStyles: Record<string, string> = {
@@ -34,9 +35,7 @@ export default async function AdminCoachDetailPage({ params }: { params: { id: s
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-textBright font-semibold text-lg">{coach.profile.full_name || coach.profile.email}</h2>
-            {coach.profile.plan === "pro" && (
-              <span className="px-2 py-0.5 rounded bg-accent/15 text-accent text-xs font-semibold">Pro</span>
-            )}
+            <PlanBadge email={coach.profile.email} plan={coach.profile.plan} />
             {blocked && <span className="px-2 py-0.5 rounded bg-red-500/15 text-red-400 text-xs font-semibold">Blocked</span>}
           </div>
           <p className="text-textMuted text-sm">{coach.profile.email}</p>
