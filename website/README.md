@@ -91,6 +91,11 @@ AAC (or no) audio. HEVC playback depends on support in the viewer's browser and
 operating system. A local match must be selected again when browser permissions are not
 remembered or when continuing on another device. Tags remain available online.
 
+A match can contain four or more ordered local video blocks. The viewer plays
+them consecutively and presents one combined timeline, while each tag keeps its
+precise source-video timestamp. Run `0005_matches.sql` before deploying this
+match workflow.
+
 ## What's ported
 
 - Teams & players (create/delete teams, add/remove players)

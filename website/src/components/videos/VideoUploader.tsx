@@ -36,6 +36,12 @@ function formatFileSize(bytes: number | null) {
   return `${Math.round(bytes / 1024 ** 2)} MB`;
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  return fallback;
+}
+
 async function callMultipartApi(action: string, payload: Record<string, unknown>) {
   const res = await fetch("/api/videos/multipart-upload", {
     method: "POST",
@@ -291,7 +297,7 @@ export function VideoUploader({ teamId, videos, onUploaded }: VideoUploaderProps
           video_url: `local://${fingerprint}`,
           video_key: `local/${fingerprint}`,
           file_size: file.size,
-          duration: info.duration,
+          duration: Math.round(info.duration),
           processing_status: "ready",
           title: file.name.replace(/\.[^/.]+$/, "")
         })
@@ -307,7 +313,7 @@ export function VideoUploader({ teamId, videos, onUploaded }: VideoUploaderProps
       setIsOpen(false);
       router.push(`/dashboard/videos/${video.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "The local video could not be opened.");
+      setError(errorMessage(err, "The local video could not be opened."));
       setUploading(false);
     }
   }, [onUploaded, router, supabase, teamId]);
@@ -329,7 +335,7 @@ export function VideoUploader({ teamId, videos, onUploaded }: VideoUploaderProps
       if (handle) await openLocalFile(await handle.getFile(), handle);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      setError(error instanceof Error ? error.message : "The local video could not be opened.");
+      setError(errorMessage(error, "The local video could not be opened."));
     }
   }
 

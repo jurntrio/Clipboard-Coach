@@ -15,6 +15,8 @@ export function ClipBuilder({
   players,
   localVideo,
   localFile,
+  localFilesByVideoId,
+  localSourcesReady,
   onClipCreated
 }: {
   videoId: string;
@@ -24,8 +26,11 @@ export function ClipBuilder({
   players: Player[];
   localVideo: boolean;
   localFile: File | null;
+  localFilesByVideoId?: Record<string, File>;
+  localSourcesReady?: boolean;
   onClipCreated: () => void;
 }) {
+  const canUseLocalSources = localSourcesReady ?? !!localFile;
   const [clipName, setClipName] = useState("");
   const [audienceType, setAudienceType] = useState<ClipAudienceType>("full_team");
   const [audiencePlayerIds, setAudiencePlayerIds] = useState<string[]>([]);
@@ -37,7 +42,7 @@ export function ClipBuilder({
 
   async function handleCreateClip() {
     if (selectedTagIds.length === 0) return;
-    if (localVideo && !localFile) {
+    if (localVideo && !canUseLocalSources) {
       setErrorMessage("Reconnect the original match video before making clips.");
       return;
     }
@@ -90,7 +95,9 @@ export function ClipBuilder({
             const baseProgress = index / orderedTags.length;
             const unit = 1 / orderedTags.length;
             setStatus(`Making segment ${index + 1} of ${orderedTags.length}…`);
-            const rendered = await remuxLocalSegment(localFile, tag.start_time, tag.end_time, (value) => {
+            const sourceFile = localFilesByVideoId?.[tag.video_id] ?? localFile;
+            if (!sourceFile) throw new Error(`Reconnect the source video for segment ${index + 1}.`);
+            const rendered = await remuxLocalSegment(sourceFile, tag.start_time, tag.end_time, (value) => {
               setProgress(baseProgress + unit * value * 0.55);
             });
 
@@ -190,12 +197,12 @@ export function ClipBuilder({
 
       <button
         onClick={handleCreateClip}
-        disabled={selectedTagIds.length === 0 || saving || (localVideo && !localFile)}
+        disabled={selectedTagIds.length === 0 || saving || (localVideo && !canUseLocalSources)}
         className="w-full py-2 bg-accent text-page rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
       >
         {saving ? (localFile ? "Making clip…" : "Creating…") : "Create clip"}
       </button>
-      {localVideo && !localFile && <p className="mt-2 text-xs text-textMuted">Reconnect the original match video to enable clip creation.</p>}
+      {localVideo && !canUseLocalSources && <p className="mt-2 text-xs text-textMuted">Reconnect all source videos used by this match to enable clip creation.</p>}
 
       {saving && localFile && (
         <div className="mt-3" role="status" aria-live="polite">

@@ -52,6 +52,29 @@ export type Video = {
   created_at: string;
 };
 
+export type Match = {
+  id: string;
+  coach_id: string;
+  team_a_id: string | null;
+  team_b_id: string | null;
+  team_a_name: string;
+  team_b_name: string;
+  match_date: string | null;
+  start_time: string | null;
+  last_opened_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MatchVideo = {
+  id: string;
+  match_id: string;
+  video_id: string;
+  sequence_order: number;
+  label: string;
+  created_at: string;
+};
+
 export type Tag = {
   id: string;
   video_id: string;
