@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { buildPublicShareUrl } from "@/lib/share-url";
 import { getPlayerDisplayName } from "@/lib/utils";
 import type { Player } from "@/types/database";
 import { ClipCard } from "@/components/clips/ClipCard";
@@ -81,7 +82,7 @@ export default function PlayerClipsPage() {
   async function shareClip(clipId: string) {
     const { data } = await supabase.from("share_links").insert({ clip_id: clipId }).select().single();
     if (!data) return;
-    const shareUrl = `${window.location.origin}/share/${data.token}`;
+    const shareUrl = buildPublicShareUrl(data.token);
     await navigator.clipboard.writeText(shareUrl);
     alert(`Share link copied:\n${shareUrl}`);
   }

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ClipCard } from "@/components/clips/ClipCard";
 import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { buildPublicShareUrl } from "@/lib/share-url";
 
 type ClipWithDetails = {
   id: string;
@@ -67,7 +68,7 @@ export default function ClipsPage() {
   async function shareClip(clipId: string) {
     const { data } = await supabase.from("share_links").insert({ clip_id: clipId }).select().single();
     if (data) {
-      const shareUrl = `${window.location.origin}/share/${data.token}`;
+      const shareUrl = buildPublicShareUrl(data.token);
       await navigator.clipboard.writeText(shareUrl);
       alert(`Share link copied:\n${shareUrl}`);
     }

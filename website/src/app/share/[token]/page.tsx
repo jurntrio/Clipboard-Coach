@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatTime } from "@/lib/utils";
 import { ShareClipPlayer } from "@/components/clips/ShareClipPlayer";
 
 export default async function SharePage({ params }: { params: { token: string } }) {
@@ -46,26 +46,19 @@ export default async function SharePage({ params }: { params: { token: string } 
         source_end: segment.source_end
       }))
     : sourceSegments;
+  const publicClipName = /^Clip \(\d+ tags?\)$/i.test(clip.name) ? "Shared clip" : clip.name;
 
   return (
     <div className="min-h-screen bg-page">
-      <div className="bg-black/80 backdrop-blur-sm border-b border-border">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-accent rounded flex items-center justify-center">
-              <span className="text-page font-bold text-sm">CC</span>
-            </div>
-            <span className="text-textBright font-semibold">Clipboard Coach Studio</span>
-          </div>
-          <a href="/signup" className="px-4 py-1.5 bg-accent text-page text-sm rounded font-semibold">
-            Try it free
-          </a>
+      <header className="border-b border-border bg-black/80 px-4 py-5">
+        <div className="mx-auto flex max-w-4xl justify-center">
+          <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={480} height={150} className="h-auto w-full max-w-md" priority />
         </div>
-      </div>
+      </header>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-4">
-          <h1 className="text-2xl font-bold text-textBright">{clip.name}</h1>
+          <h1 className="text-2xl font-bold text-textBright">{publicClipName}</h1>
           {(clip.videos?.home_team || clip.videos?.away_team) && (
             <p className="text-textMuted">
               {clip.videos?.home_team} vs {clip.videos?.away_team}
@@ -76,26 +69,18 @@ export default async function SharePage({ params }: { params: { token: string } 
         <div className="bg-card rounded-xl overflow-hidden border border-border">
           <ShareClipPlayer videoUrl={clip.videos?.video_url} segments={segments} />
         </div>
+      </div>
 
-        <div className="mt-6 space-y-2">
-          {segments.map((segment: any) => (
-            <div key={segment.id} className="flex items-center gap-3 bg-card rounded-lg p-3 border border-border">
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: segment.color }} />
-              <span className="text-textPrimary font-medium">{segment.name}</span>
-              <span className="text-textMuted text-sm ml-auto">
-                {formatTime(segment.source_start ?? segment.start_time)} - {formatTime(segment.source_end ?? segment.end_time)}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-8 text-center pb-8">
-          <p className="text-textMuted text-sm">Made with Clipboard Coach Studio</p>
-          <a href="/signup" className="inline-block mt-2 px-6 py-2 bg-accent text-page rounded-lg font-semibold">
+      <footer className="border-t border-border bg-black/50 px-4 py-8 text-center">
+        <div className="mx-auto flex max-w-4xl flex-col items-center">
+          <Image src="/branding/logo.png" alt="" width={48} height={48} className="mb-3 h-12 w-12" />
+          <p className="text-sm font-semibold text-textPrimary">Made with Clipboard Coach Studio</p>
+          <p className="mt-1 text-xs text-textMuted">Review matches, tag moments and share the clips that matter.</p>
+          <a href="/signup" className="mt-4 inline-block rounded-lg bg-accent px-6 py-2 font-semibold text-page">
             Start making your own clips
           </a>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }
