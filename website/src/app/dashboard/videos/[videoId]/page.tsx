@@ -7,11 +7,13 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import type { Player, StandardTag, Tag, Video } from "@/types/database";
 import { VideoPlayer } from "@/components/video-player/VideoPlayer";
+import { PlaybackControls } from "@/components/video-player/PlaybackControls";
 import { Timeline } from "@/components/video-player/Timeline";
 import { TagList } from "@/components/tags/TagList";
-import { ActivePlayerSelector } from "@/components/teams/ActivePlayerSelector";
+import { QuickTagCreator } from "@/components/tags/QuickTagCreator";
 import { ClipBuilder } from "@/components/clips/ClipBuilder";
 import { getTagColor } from "@/lib/utils";
+import { isPeriodMarker } from "@/lib/tags";
 import {
   getRememberedLocalVideo,
   isLocalVideoUrl,
@@ -27,19 +29,22 @@ export default function VideoViewerPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [extraPlayers, setExtraPlayers] = useState<Player[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [newTagLabel, setNewTagLabel] = useState("");
   const [localFile, setLocalFile] = useState<File | null>(null);
   const [localVideoUrl, setLocalVideoUrl] = useState<string | null>(null);
   const [localError, setLocalError] = useState("");
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const supabase = createClient();
 
   useEffect(() => {
     loadVideo();
     loadTags();
     loadStandardTags();
+    loadExtraPlayers();
   }, [videoId]);
 
   useEffect(() => {
@@ -95,21 +100,28 @@ export default function VideoViewerPage() {
   }
 
   async function loadPlayers(teamId: string) {
-    const { data } = await supabase.from("players").select("*").eq("team_id", teamId).order("last_name");
+    const { data } = await supabase.from("players").select("*").eq("team_id", teamId).neq("role", "staff").order("last_name");
     setPlayers(data ?? []);
+  }
+
+  async function loadExtraPlayers() {
+    const { data } = await supabase.from("teams").select("players(*)").ilike("name", "EXTRA");
+    const groups = (data as unknown as { players: Player[] }[] | null) ?? [];
+    setExtraPlayers(groups.flatMap((group) => group.players).filter((player) => player.role !== "staff"));
   }
 
   async function addTag(label: string) {
     if (!label.trim() || !video) return;
 
     const startTime = currentTime;
+    const marker = isPeriodMarker(label);
     const { data, error } = await supabase
       .from("tags")
       .insert({
         video_id: video.id,
         name: label.trim(),
         start_time: startTime,
-        end_time: startTime + 5,
+        end_time: marker ? startTime : Math.min(duration || Number.POSITIVE_INFINITY, startTime + 5),
         color: getTagColor(label),
         player_ids: video.active_player_ids
       })
@@ -121,16 +133,19 @@ export default function VideoViewerPage() {
     }
   }
 
+  async function updateTag(tagId: string, startTime: number, endTime: number) {
+    const tag = tags.find((item) => item.id === tagId);
+    if (!tag) return;
+    const safeStart = Math.min(duration || Number.POSITIVE_INFINITY, Math.max(0, startTime));
+    const safeEnd = isPeriodMarker(tag.name) ? safeStart : Math.min(duration || Number.POSITIVE_INFINITY, Math.max(safeStart, endTime));
+    const { error } = await supabase.from("tags").update({ start_time: safeStart, end_time: safeEnd }).eq("id", tagId);
+    if (!error) setTags((current) => current.map((item) => item.id === tagId ? { ...item, start_time: safeStart, end_time: safeEnd } : item).sort((a, b) => a.start_time - b.start_time));
+  }
+
   async function deleteTag(tagId: string) {
     await supabase.from("tags").delete().eq("id", tagId);
     setTags((current) => current.filter((tag) => tag.id !== tagId));
     setSelectedTagIds((current) => current.filter((id) => id !== tagId));
-  }
-
-  async function updateActivePlayers(playerIds: string[]) {
-    if (!video) return;
-    setVideo({ ...video, active_player_ids: playerIds });
-    await supabase.from("videos").update({ active_player_ids: playerIds }).eq("id", video.id);
   }
 
   function seekTo(time: number) {
@@ -142,6 +157,19 @@ export default function VideoViewerPage() {
 
   function toggleTagSelected(tagId: string) {
     setSelectedTagIds((current) => (current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId]));
+  }
+
+  function togglePlayback() {
+    const player = videoRef.current;
+    if (!player) return;
+    if (player.paused) void player.play().catch(() => undefined);
+    else player.pause();
+  }
+
+  function cyclePlaybackRate() {
+    const nextRate = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1;
+    setPlaybackRate(nextRate);
+    if (videoRef.current) videoRef.current.playbackRate = nextRate;
   }
 
   async function attachLocalFile(file: File, handle?: FileSystemFileHandle | null) {
@@ -197,48 +225,37 @@ export default function VideoViewerPage() {
 
       <div className="flex flex-1 min-h-0">
       <div className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
-        <ActivePlayerSelector players={players} selected={video?.active_player_ids ?? []} onChange={updateActivePlayers} />
-
+        <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, currentTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
         <div className="space-y-2">
-          {standardTags.map((tag) => (
+          <h3 className="text-sm font-semibold text-textBright">Period markers</h3>
+          {(["Start", "End"] as const).map((name) => (
             <button
-              key={tag.id}
-              onClick={() => addTag(tag.name)}
+              key={name}
+              onClick={() => addTag(name)}
               className="w-full py-2 bg-button border border-borderButton text-textPrimary rounded-lg hover:bg-cardHover"
             >
-              {tag.name}
+              <span className={`mr-2 ${name === "End" ? "text-white" : "text-accent"}`}>{name === "End" ? "🏁" : "⚑"}</span>{name}
             </button>
           ))}
-          <div className="flex gap-1">
-            <input
-              type="text"
-              placeholder="Custom tag"
-              value={newTagLabel}
-              onChange={(event) => setNewTagLabel(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && newTagLabel.trim()) {
-                  addTag(newTagLabel);
-                  setNewTagLabel("");
-                }
-              }}
-              className="flex-1 px-2 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm"
-            />
-          </div>
         </div>
-
-        <div className="flex-1 min-h-0 flex flex-col">
-          <h3 className="text-textBright font-semibold mb-2">Tags</h3>
-          <TagList
-            tags={tags}
-            selectedTagIds={selectedTagIds}
-            onToggleSelect={toggleTagSelected}
-            onSeek={seekTo}
-            onDelete={deleteTag}
-          />
+        {tags.some((tag) => isPeriodMarker(tag.name)) && (
+          <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
+            <summary className="cursor-pointer text-sm font-semibold text-textBright">Period times</summary>
+            <div className="mt-2">
+            <TagList tags={tags.filter((tag) => isPeriodMarker(tag.name))} selectedTagIds={[]} onToggleSelect={() => undefined} onSeek={seekTo} onDelete={deleteTag} onUpdate={updateTag} />
+            </div>
+          </details>
+        )}
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-textBright">Add clip tag</h3>
+          <div className="grid grid-cols-1 gap-2">
+            {standardTags.filter((tag) => !isPeriodMarker(tag.name)).map((tag) => <button key={tag.id} onClick={() => void addTag(tag.name)} className="rounded-lg border border-borderButton bg-button px-2 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}
+          </div>
+          <div className="mt-2"><QuickTagCreator onCreated={(tag) => setStandardTags((current) => [...current, tag])} /></div>
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col p-4 gap-3">
+      <div className="min-h-0 min-w-0 flex-1 flex flex-col p-4 gap-3">
         <input
           ref={reconnectInputRef}
           type="file"
@@ -264,19 +281,25 @@ export default function VideoViewerPage() {
             ref={videoRef}
             src={localVideoUrl ?? video?.video_url}
             onTimeUpdate={setCurrentTime}
-            onDurationChange={setDuration}
+            onDurationChange={(value) => { setDuration(value); if (videoRef.current) videoRef.current.playbackRate = playbackRate; }}
+            onPlayingChange={setIsPlaying}
           />
         )}
         <Timeline duration={duration} currentTime={currentTime} tags={tags} onSeek={seekTo} />
       </div>
 
-      <div className="w-80 bg-card p-4 border-l border-border overflow-y-auto">
+      <div className="w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
+        <section>
+          <h3 className="mb-2 font-semibold text-textBright">Tagged clips</h3>
+          <TagList tags={tags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={toggleTagSelected} onSeek={seekTo} onDelete={deleteTag} onUpdate={updateTag} />
+        </section>
         <ClipBuilder
           videoId={videoId}
           teamId={video?.team_id ?? null}
           selectedTagIds={selectedTagIds}
           tags={tags}
           players={players}
+          extraPlayers={extraPlayers}
           localVideo={isLocalVideoUrl(video?.video_url)}
           localFile={localFile}
           onClipCreated={() => setSelectedTagIds([])}

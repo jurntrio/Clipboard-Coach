@@ -28,6 +28,8 @@ export type Player = {
   initials: string;
   position: string | null;
   email: string | null;
+  date_of_birth: string | null;
+  phone_numbers: string[];
   jersey_number: number | null;
   role: "player" | "staff";
   created_at: string;

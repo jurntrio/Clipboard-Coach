@@ -19,6 +19,8 @@ export function AddPlayerModal({
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [phoneNumbers, setPhoneNumbers] = useState("");
   const [saving, setSaving] = useState(false);
   const supabase = createClient();
 
@@ -32,6 +34,8 @@ export function AddPlayerModal({
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       email: email.trim() || null,
+      date_of_birth: dateOfBirth || null,
+      phone_numbers: phoneNumbers.split(",").map((phone) => phone.trim()).filter(Boolean),
       role
     });
 
@@ -43,7 +47,7 @@ export function AddPlayerModal({
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-md bg-cardAlt border border-border rounded-xl p-5"
+        className="w-full max-w-lg bg-cardAlt border border-border rounded-xl p-5"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex justify-between items-start mb-4">
@@ -55,7 +59,7 @@ export function AddPlayerModal({
             Close
           </button>
         </div>
-        <form onSubmit={handleAdd} className="grid grid-cols-3 gap-2">
+        <form onSubmit={handleAdd} className="grid grid-cols-2 gap-2">
           <input
             type="text"
             placeholder="First name"
@@ -73,6 +77,7 @@ export function AddPlayerModal({
             className="px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm"
             required
           />
+          <input type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} aria-label="Date of birth" className="px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm" />
           <input
             type="email"
             placeholder="Email"
@@ -80,7 +85,8 @@ export function AddPlayerModal({
             onChange={(event) => setEmail(event.target.value)}
             className="px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm"
           />
-          <div className="col-span-3 flex justify-end gap-2 pt-2">
+          <input type="text" placeholder="Phone numbers, separated by commas" value={phoneNumbers} onChange={(event) => setPhoneNumbers(event.target.value)} className="col-span-2 px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm" />
+          <div className="col-span-2 flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-textSecondary hover:bg-cardHover">
               Cancel
             </button>

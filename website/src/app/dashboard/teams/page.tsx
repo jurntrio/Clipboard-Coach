@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Clip, Player, Team } from "@/types/database";
+import type { Player, Team } from "@/types/database";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { PlayerCard } from "@/components/teams/PlayerCard";
 import { AddPlayerTile } from "@/components/teams/AddPlayerTile";
@@ -10,7 +10,13 @@ import { AddPlayerModal } from "@/components/teams/AddPlayerModal";
 import { CreateTeamModal } from "@/components/teams/CreateTeamModal";
 
 type TeamWithPlayers = Team & { players: Player[] };
-type ClipSummary = Pick<Clip, "id" | "team_id" | "audience_type" | "audience_player_ids">;
+type ClipSummary = {
+  id: string;
+  team_id: string | null;
+  audience_type: "full_team" | "selected_players" | "specific_players";
+  audience_player_ids: string[];
+  clip_segments: { tags: { player_ids: string[] } | null }[];
+};
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState<TeamWithPlayers[]>([]);
@@ -36,16 +42,15 @@ export default function TeamsPage() {
   }
 
   async function loadClips() {
-    const { data } = await supabase.from("clips").select("id, team_id, audience_type, audience_player_ids");
-    setClips(data ?? []);
+    const { data } = await supabase.from("clips").select("id, team_id, audience_type, audience_player_ids, clip_segments(tags(player_ids))");
+    setClips((data as unknown as ClipSummary[] | null) ?? []);
   }
 
   function clipCountFor(team: Team, player: Player) {
-    return clips.filter(
-      (clip) =>
-        clip.team_id === team.id &&
-        (clip.audience_type === "full_team" || clip.audience_player_ids.includes(player.id))
-    ).length;
+    return clips.filter((clip) => {
+      if (clip.audience_player_ids.includes(player.id) || clip.clip_segments.some((segment) => segment.tags?.player_ids.includes(player.id))) return true;
+      return clip.team_id === team.id && clip.audience_type === "full_team";
+    }).length;
   }
 
   async function deleteTeam(teamId: string) {
@@ -64,6 +69,13 @@ export default function TeamsPage() {
   async function deletePlayer(playerId: string) {
     await supabase.from("players").delete().eq("id", playerId);
     loadTeams();
+  }
+
+  async function createExtraGroup() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || teams.some((team) => team.name.trim().toUpperCase() === "EXTRA")) return;
+    await supabase.from("teams").insert({ coach_id: user.id, name: "EXTRA" });
+    await loadTeams();
   }
 
   return (
@@ -152,7 +164,10 @@ export default function TeamsPage() {
         })}
       </div>
 
-      <div className="flex justify-end mt-6">
+      <div className="flex flex-wrap justify-end gap-3 mt-6">
+        {!teams.some((team) => team.name.trim().toUpperCase() === "EXTRA") && (
+          <button onClick={() => void createExtraGroup()} className="px-5 py-2.5 border border-borderButton bg-button text-textPrimary rounded-lg font-semibold hover:border-accent">+ EXTRA group</button>
+        )}
         <button
           onClick={() => setShowCreateModal(true)}
           className="px-5 py-2.5 bg-accent text-page rounded-lg font-semibold hover:opacity-90"

@@ -6,12 +6,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
-import { getTagColor } from "@/lib/utils";
+import { formatTime, getTagColor } from "@/lib/utils";
+import { isPeriodMarker } from "@/lib/tags";
 import type { Match, Player, StandardTag, Tag, Video } from "@/types/database";
 import { VideoPlayer } from "@/components/video-player/VideoPlayer";
+import { PlaybackControls } from "@/components/video-player/PlaybackControls";
 import { Timeline } from "@/components/video-player/Timeline";
 import { TagList } from "@/components/tags/TagList";
-import { ActivePlayerSelector } from "@/components/teams/ActivePlayerSelector";
+import { QuickTagCreator } from "@/components/tags/QuickTagCreator";
 import { ClipBuilder } from "@/components/clips/ClipBuilder";
 
 type MatchBlock = { id: string; sequence_order: number; label: string; videos: Video | null };
@@ -29,6 +31,7 @@ export default function MatchViewerPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const reconnectInputRef = useRef<HTMLInputElement | null>(null);
   const reconnectVideoRef = useRef<Video | null>(null);
+  const reconnectAllRef = useRef(false);
   const pendingSeekRef = useRef<number | null>(null);
   const autoPlayRef = useRef(false);
   const [match, setMatch] = useState<MatchWithBlocks | null>(null);
@@ -38,10 +41,13 @@ export default function MatchViewerPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [extraPlayers, setExtraPlayers] = useState<Player[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [combinedTime, setCombinedTime] = useState(0);
-  const [newTagLabel, setNewTagLabel] = useState("");
   const [error, setError] = useState("");
+  const [supportsPersistentFileAccess, setSupportsPersistentFileAccess] = useState<boolean | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   const blocks = useMemo(() => [...(match?.match_videos ?? [])].sort((a, b) => a.sequence_order - b.sequence_order), [match]);
   const videos = useMemo(() => blocks.map((block) => block.videos).filter((video): video is Video => !!video), [blocks]);
@@ -61,12 +67,19 @@ export default function MatchViewerPage() {
     const offset = offsets.map.get(tag.video_id) ?? 0;
     return { ...tag, start_time: tag.start_time + offset, end_time: tag.end_time + offset };
   }), [offsets, tags]);
+  const markerTags = ["Start", "End"] as const;
+  const clipTags = standardTags.filter((tag) => !isPeriodMarker(tag.name));
 
-  useEffect(() => { void loadMatch(); void loadStandardTags(); }, [matchId]);
+  useEffect(() => {
+    void loadMatch();
+    void loadStandardTags();
+    void loadExtraPlayers();
+    setSupportsPersistentFileAccess(typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === "function");
+  }, [matchId]);
 
   useEffect(() => {
     if (!match?.team_a_id) { setPlayers([]); return; }
-    void supabase.from("players").select("*").eq("team_id", match.team_a_id).order("last_name").then(({ data }) => setPlayers(data ?? []));
+    void supabase.from("players").select("*").eq("team_id", match.team_a_id).neq("role", "staff").order("last_name").then(({ data }) => setPlayers(data ?? []));
   }, [match?.team_a_id]);
 
   useEffect(() => {
@@ -102,6 +115,12 @@ export default function MatchViewerPage() {
     setStandardTags(data ?? []);
   }
 
+  async function loadExtraPlayers() {
+    const { data } = await supabase.from("teams").select("players(*)").ilike("name", "EXTRA");
+    const groups = (data as unknown as { players: Player[] }[] | null) ?? [];
+    setExtraPlayers(groups.flatMap((group) => group.players).filter((player) => player.role !== "staff"));
+  }
+
   async function attachFile(video: Video, file: File, handle?: FileSystemFileHandle | null) {
     try {
       const fingerprint = await localVideoFingerprint(file);
@@ -118,7 +137,7 @@ export default function MatchViewerPage() {
     const remembered = await getRememberedLocalVideo(video.id, true);
     if (remembered) { setFiles((current) => ({ ...current, [video.id]: remembered })); return; }
     const picker = (window as unknown as { showOpenFilePicker?: (options: unknown) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker;
-    if (!picker) { reconnectVideoRef.current = video; reconnectInputRef.current?.click(); return; }
+    if (!picker) { reconnectAllRef.current = false; reconnectVideoRef.current = video; reconnectInputRef.current?.click(); return; }
     try {
       const [handle] = await picker({ multiple: false, types: [{ description: "Match video", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
       if (handle) await attachFile(video, await handle.getFile(), handle);
@@ -127,14 +146,61 @@ export default function MatchViewerPage() {
     }
   }
 
+  async function reconnectAllVideos() {
+    setError("");
+    const missing: Video[] = [];
+    const restored: Record<string, File> = {};
+    for (const video of videos.filter((item) => isLocalVideoUrl(item.video_url))) {
+      const file = await getRememberedLocalVideo(video.id, true);
+      if (file) restored[video.id] = file;
+      else missing.push(video);
+    }
+    if (Object.keys(restored).length) setFiles((current) => ({ ...current, ...restored }));
+    if (!missing.length) return;
+
+    const picker = (window as unknown as { showOpenFilePicker?: (options: unknown) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker;
+    if (!picker) {
+      reconnectAllRef.current = true;
+      reconnectVideoRef.current = null;
+      reconnectInputRef.current?.click();
+      return;
+    }
+    try {
+      const handles = await picker({ multiple: true, types: [{ description: "Match videos", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
+      for (const handle of handles) {
+        const file = await handle.getFile();
+        const fingerprint = await localVideoFingerprint(file);
+        const video = missing.find((item) => item.video_key === `local/${fingerprint}`);
+        if (video) await attachFile(video, file, handle);
+      }
+    } catch (pickerError) {
+      if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) setError(messageFrom(pickerError, "The local videos could not be reconnected."));
+    }
+  }
+
+  async function handleFallbackSelection(selectedFiles: File[]) {
+    if (!reconnectAllRef.current) {
+      const video = reconnectVideoRef.current;
+      if (selectedFiles[0] && video) await attachFile(video, selectedFiles[0]);
+      return;
+    }
+    for (const file of selectedFiles) {
+      const fingerprint = await localVideoFingerprint(file);
+      const video = videos.find((item) => item.video_key === `local/${fingerprint}`);
+      if (video) await attachFile(video, file);
+    }
+    reconnectAllRef.current = false;
+  }
+
   async function addTag(label: string) {
     if (!currentVideo || !label.trim()) return;
     const localTime = videoRef.current?.currentTime ?? Math.max(0, combinedTime - (offsets.map.get(currentVideo.id) ?? 0));
+    const marker = isPeriodMarker(label);
     const { data, error: tagError } = await supabase.from("tags").insert({
       video_id: currentVideo.id,
       name: label.trim(),
       start_time: localTime,
-      end_time: localTime + 5,
+      end_time: marker ? localTime : Math.min(currentVideo.duration ?? Number.POSITIVE_INFINITY, localTime + 5),
       color: getTagColor(label),
       player_ids: currentVideo.active_player_ids
     }).select().single();
@@ -142,16 +208,26 @@ export default function MatchViewerPage() {
     if (data) setTags((current) => [...current, data].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
   }
 
+  async function updateTag(tagId: string, combinedStart: number, combinedEnd: number) {
+    const tag = tags.find((item) => item.id === tagId);
+    if (!tag) return;
+    const offset = offsets.map.get(tag.video_id) ?? 0;
+    const sourceVideo = videos.find((video) => video.id === tag.video_id);
+    const maximum = sourceVideo?.duration ?? Number.POSITIVE_INFINITY;
+    const startTime = Math.min(maximum, Math.max(0, combinedStart - offset));
+    const requestedEnd = Math.min(maximum, Math.max(startTime, combinedEnd - offset));
+    const endTime = isPeriodMarker(tag.name) ? startTime : requestedEnd;
+    const { error: updateError } = await supabase.from("tags").update({ start_time: startTime, end_time: endTime }).eq("id", tagId);
+    if (updateError) { setError(updateError.message); return; }
+    setTags((current) => current
+      .map((item) => item.id === tagId ? { ...item, start_time: startTime, end_time: endTime } : item)
+      .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+  }
+
   async function deleteTag(tagId: string) {
     await supabase.from("tags").delete().eq("id", tagId);
     setTags((current) => current.filter((tag) => tag.id !== tagId));
     setSelectedTagIds((current) => current.filter((id) => id !== tagId));
-  }
-
-  async function updateActivePlayers(playerIds: string[]) {
-    if (!videos.length) return;
-    setMatch((current) => current ? { ...current, match_videos: current.match_videos.map((block) => block.videos ? { ...block, videos: { ...block.videos, active_player_ids: playerIds } } : block) } : current);
-    await supabase.from("videos").update({ active_player_ids: playerIds }).in("id", videos.map((video) => video.id));
   }
 
   function seekTo(time: number) {
@@ -172,6 +248,7 @@ export default function MatchViewerPage() {
   }
 
   function onVideoReady() {
+    if (videoRef.current) videoRef.current.playbackRate = playbackRate;
     if (pendingSeekRef.current !== null && videoRef.current) {
       videoRef.current.currentTime = pendingSeekRef.current;
       pendingSeekRef.current = null;
@@ -189,32 +266,82 @@ export default function MatchViewerPage() {
     setCurrentIndex((index) => index + 1);
   }
 
+  function togglePlayback() {
+    const player = videoRef.current;
+    if (!player) return;
+    if (player.paused) void player.play().catch(() => undefined);
+    else player.pause();
+  }
+
+  function cyclePlaybackRate() {
+    const nextRate = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1;
+    setPlaybackRate(nextRate);
+    if (videoRef.current) videoRef.current.playbackRate = nextRate;
+  }
+
   const title = match ? `${match.team_a_name || "Team A"} – ${match.team_b_name || "Team B"}` : "Match";
 
   return (
     <div className="flex flex-col h-screen">
-      <input ref={reconnectInputRef} type="file" accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; const video = reconnectVideoRef.current; if (file && video) void attachFile(video, file); event.target.value = ""; }} />
+      <input ref={reconnectInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void handleFallbackSelection(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
       <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2 border-b border-border bg-card">
-        <Link href="/dashboard/videos" title="Video Viewer" className="w-12 h-12 rounded-lg bg-button border border-borderButton flex items-center justify-center"><Image src="/branding/video-viewer.png" alt="Video Viewer" width={30} height={30} /></Link>
+        <Link href="/dashboard" title="Home" aria-label="Home" className="w-12 h-12 rounded-lg bg-button border border-borderButton flex items-center justify-center hover:border-accent hover:bg-cardHover transition"><Image src="/branding/home.png" alt="Home" width={30} height={30} /></Link>
         <div><p className="text-textBright font-semibold">{title}</p><p className="text-xs text-textMuted">{match?.match_date || "No date"} · {videos.length} videos</p></div>
       </div>
 
       <div className="flex flex-1 min-h-0">
         <aside className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
-          <ActivePlayerSelector players={players} selected={currentVideo?.active_player_ids ?? []} onChange={updateActivePlayers} />
-          <div className="space-y-2">{standardTags.map((tag) => <button key={tag.id} onClick={() => void addTag(tag.name)} className="w-full py-2 bg-button border border-borderButton text-textPrimary rounded-lg hover:bg-cardHover">{tag.name}</button>)}<input value={newTagLabel} onChange={(event) => setNewTagLabel(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && newTagLabel.trim()) { void addTag(newTagLabel); setNewTagLabel(""); } }} placeholder="Custom tag" className="w-full px-2 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm" /></div>
-          <div className="flex-1 min-h-0 flex flex-col"><h3 className="text-textBright font-semibold mb-2">Tags</h3><TagList tags={displayTags} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={(id) => void deleteTag(id)} /></div>
+          <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-textBright">Period markers</h3>
+            <div className="space-y-2">
+              {markerTags.map((name) => <button key={name} onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={name === "End" ? "text-white" : "text-accent"}>{name === "End" ? "🏁" : "⚑"}</span>{name}</button>)}
+            </div>
+          </div>
+          {displayTags.some((tag) => isPeriodMarker(tag.name)) && (
+            <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
+              <summary className="cursor-pointer text-sm font-semibold text-textBright">Period times</summary>
+              <div className="mt-2">
+              <TagList tags={displayTags.filter((tag) => isPeriodMarker(tag.name))} selectedTagIds={[]} onToggleSelect={() => undefined} onSeek={seekTo} onDelete={(id) => void deleteTag(id)} onUpdate={updateTag} />
+              </div>
+            </details>
+          )}
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-textBright">Add clip tag</h3>
+            <div className="grid grid-cols-1 gap-2">
+              {clipTags.map((tag) => <button key={tag.id} onClick={() => void addTag(tag.name)} className="rounded-lg border border-borderButton bg-button px-2 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}
+            </div>
+            <div className="mt-2"><QuickTagCreator onCreated={(tag) => setStandardTags((current) => [...current, tag])} /></div>
+          </div>
         </aside>
 
-        <main className="flex-1 flex flex-col p-4 gap-3 min-w-0">
-          <div className="flex gap-2 overflow-x-auto pb-1">{videos.map((video, index) => <button key={video.id} onClick={() => seekTo(offsets.map.get(video.id) ?? 0)} className={`shrink-0 rounded-lg border px-3 py-2 text-sm ${index === currentIndex ? "border-accent bg-accentDim text-textBright" : "border-border bg-button text-textSecondary"}`}>Video {index + 1}{isLocalVideoUrl(video.video_url) && !files[video.id] ? " · reconnect" : ""}</button>)}</div>
-          {currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">Reconnect video {currentIndex + 1}</h2><p className="text-textMuted text-sm mt-2">Select the original file. The match and tags are already saved.</p><button onClick={() => void reconnect(currentVideo)} className="mt-4 px-4 py-2 rounded-lg bg-accent text-page font-semibold">Select original video</button></div></div> : <VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={(time) => setCombinedTime((offsets.map.get(currentVideo?.id ?? "") ?? 0) + time)} onDurationChange={onVideoReady} onEnded={playNext} />}
+        <main className="min-h-0 min-w-0 flex-1 flex flex-col p-4 gap-3">
+          {currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">Reconnect video {currentIndex + 1}</h2><p className="text-textMuted text-sm mt-2">Select the original files. The match and tags are already saved.</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">This browser cannot restore local files automatically. Use Chrome or Edge for persistent reconnect.</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">Reconnect all videos</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">Only video {currentIndex + 1}</button></div></div></div> : <VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={(time) => setCombinedTime((offsets.map.get(currentVideo?.id ?? "") ?? 0) + time)} onDurationChange={onVideoReady} onEnded={playNext} onPlayingChange={setIsPlaying} />}
+          <div className="flex min-h-12 overflow-hidden rounded-lg border border-border bg-cardDeep" aria-label="Match video sequence">
+            {videos.map((video, index) => (
+              <button
+                key={video.id}
+                type="button"
+                onClick={() => seekTo(offsets.map.get(video.id) ?? 0)}
+                style={{ flexGrow: Math.max(1, video.duration ?? 0), flexBasis: 0 }}
+                className={`min-w-[72px] border-r border-border px-2 py-1 text-center text-xs last:border-r-0 ${index === currentIndex ? "bg-accentDim text-textBright" : "text-textSecondary hover:bg-cardHover"}`}
+                title={`${video.title || `Video ${index + 1}`} · ${formatTime(video.duration ?? 0)}`}
+              >
+                <span className="block truncate font-semibold">Video {index + 1}</span>
+                <span className="block text-[10px] text-textMuted">{formatTime(video.duration ?? 0)}{isLocalVideoUrl(video.video_url) && !files[video.id] ? " · reconnect" : ""}</span>
+              </button>
+            ))}
+          </div>
           <Timeline duration={offsets.total} currentTime={combinedTime} tags={displayTags} onSeek={seekTo} />
           {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
         </main>
 
-        <aside className="w-80 bg-card p-4 border-l border-border overflow-y-auto">
-          {videos[0] && <ClipBuilder videoId={videos[0].id} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} onClipCreated={() => setSelectedTagIds([])} />}
+        <aside className="w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
+          <section className="min-h-0">
+            <h3 className="mb-2 font-semibold text-textBright">Tagged clips</h3>
+            <TagList tags={displayTags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={(id) => void deleteTag(id)} onUpdate={updateTag} />
+          </section>
+          {videos[0] && <ClipBuilder videoId={videos[0].id} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} extraPlayers={extraPlayers} localVideo localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} onClipCreated={() => setSelectedTagIds([])} />}
         </aside>
       </div>
     </div>

@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { inspectLocalVideo, type LocalVideoInfo } from "@/lib/media/local-clips";
-import { localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
+import { getRememberedLocalVideo, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
 import type { Match, Team, Video } from "@/types/database";
 
 type Mode = "recent" | "all" | "create";
 type SelectedVideo = { file: File; handle: FileSystemFileHandle | null; info: LocalVideoInfo };
 type RecentItem =
-  | { kind: "match"; id: string; title: string; date: string; openedAt: string; count: number }
-  | { kind: "video"; id: string; title: string; date: string; openedAt: string; count: 1 };
+  | { kind: "match"; id: string; title: string; date: string; openedAt: string; count: number; videoIds: string[] }
+  | { kind: "video"; id: string; title: string; date: string; openedAt: string; count: 1; videoIds: string[] };
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -38,8 +38,15 @@ export function MatchLauncher() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [reconnectSavedVideos, setReconnectSavedVideos] = useState(true);
+  const [supportsPersistentFileAccess, setSupportsPersistentFileAccess] = useState<boolean | null>(null);
 
-  useEffect(() => { void loadData(); }, []);
+  useEffect(() => {
+    void loadData();
+    const supported = typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === "function";
+    setSupportsPersistentFileAccess(supported);
+    if (!supported) setReconnectSavedVideos(false);
+  }, []);
 
   async function loadData() {
     const [matchResult, videoResult, teamResult] = await Promise.all([
@@ -61,7 +68,8 @@ export function MatchLauncher() {
       title: `${match.team_a_name || "Team A"} – ${match.team_b_name || "Team B"}`,
       date: match.match_date || "No date",
       openedAt: match.last_opened_at,
-      count: match.match_videos.length
+      count: match.match_videos.length,
+      videoIds: match.match_videos.map((video) => video.video_id)
     })),
     ...videos.filter((video) => !matchedVideoIds.has(video.id)).map((video): RecentItem => ({
       kind: "video",
@@ -69,11 +77,21 @@ export function MatchLauncher() {
       title: video.title || "Untitled video",
       date: new Date(video.created_at).toLocaleDateString(),
       openedAt: video.created_at,
-      count: 1
+      count: 1,
+      videoIds: [video.id]
     }))
   ].sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime());
 
   async function openItem(item: RecentItem) {
+    if (reconnectSavedVideos && supportsPersistentFileAccess) {
+      setBusy(true);
+      setStatus("Reconnecting saved videos…");
+      for (const videoId of item.videoIds) {
+        await getRememberedLocalVideo(videoId, true);
+      }
+      setBusy(false);
+      setStatus("");
+    }
     if (item.kind === "video") {
       router.push(`/dashboard/videos/${item.id}`);
       return;
@@ -220,17 +238,29 @@ export function MatchLauncher() {
           <>
             <button type="button" onClick={() => { resetDraft(); setMode("create"); }} className="w-full rounded-xl bg-accent px-5 py-3 font-bold text-page">Create new match</button>
             <div className="mt-5 space-y-2">
-              <h2 className="text-sm font-semibold text-textSecondary">Last matches</h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold text-textSecondary">Last matches</h2>
+                <label className={`flex items-center gap-2 text-xs ${supportsPersistentFileAccess === false ? "text-textMuted" : "text-textSecondary"}`}>
+                  <input type="checkbox" disabled={!supportsPersistentFileAccess} checked={reconnectSavedVideos && !!supportsPersistentFileAccess} onChange={(event) => setReconnectSavedVideos(event.target.checked)} />
+                  Reconnect saved videos
+                </label>
+              </div>
+              {supportsPersistentFileAccess === false && (
+                <div className="text-[11px] leading-tight text-amber-300">
+                  Automatic reconnect is not available in this browser. Open Clipboard Coach in Chrome or Edge and choose “Allow on every visit”.
+                </div>
+              )}
               {[0, 1, 2, 3].map((index) => {
                 const item = recentItems[index];
                 return item ? (
-                  <button key={`${item.kind}-${item.id}`} type="button" onClick={() => void openItem(item)} className="w-full flex items-center justify-between gap-4 rounded-xl border border-border bg-cardDeep px-4 py-3 text-left hover:border-accent hover:bg-cardHover">
+                  <button key={`${item.kind}-${item.id}`} type="button" disabled={busy} onClick={() => void openItem(item)} className="w-full flex items-center justify-between gap-4 rounded-xl border border-border bg-cardDeep px-4 py-3 text-left hover:border-accent hover:bg-cardHover disabled:opacity-50">
                     <span><strong className="block text-textPrimary">{item.title}</strong><span className="text-xs text-textMuted">{item.date} · {item.count} video{item.count === 1 ? "" : "s"}</span></span>
                     <span className="text-accent">Open</span>
                   </button>
                 ) : <div key={index} className="rounded-xl border border-border bg-cardDeep px-4 py-3 text-sm text-textMuted">No recent match</div>;
               })}
             </div>
+            {status && <div className="mt-3 rounded-lg border border-border bg-cardDeep p-3 text-sm text-textSecondary">{status}</div>}
             <button type="button" onClick={() => setMode("all")} className="mt-4 w-full rounded-lg bg-button px-4 py-2 text-textPrimary">View older matches and videos</button>
           </>
         )}
@@ -245,6 +275,11 @@ export function MatchLauncher() {
 
         {mode === "create" && (
           <form onSubmit={createMatch} className="space-y-5">
+            {supportsPersistentFileAccess === false && (
+              <div className="text-[11px] leading-tight text-amber-300">
+                This browser cannot remember local video access. You can still create the match, but you will need to reconnect the files later. Chrome or Edge can remember them.
+              </div>
+            )}
             <section className="rounded-xl border border-border bg-cardDeep p-4">
               <h2 className="font-semibold text-textBright mb-3">Match information</h2>
               <div className="grid gap-3 sm:grid-cols-2">
