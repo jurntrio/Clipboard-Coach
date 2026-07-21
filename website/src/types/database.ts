@@ -81,7 +81,23 @@ export type Clip = {
   name: string;
   audience_type: ClipAudienceType;
   audience_player_ids: string[];
+  rendered_segments: RenderedClipSegment[];
+  render_status: "metadata_only" | "rendering" | "ready" | "failed";
+  render_error: string | null;
   created_at: string;
+};
+
+export type RenderedClipSegment = {
+  id: string;
+  url: string;
+  key: string;
+  name: string;
+  color: string;
+  file_size: number;
+  duration: number;
+  play_start: number;
+  source_start: number;
+  source_end: number;
 };
 
 export type ClipSegment = {

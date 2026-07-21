@@ -8,6 +8,7 @@ export type ClipSegmentPlayback = {
   color: string;
   start_time: number;
   end_time: number;
+  url?: string;
 };
 
 export function ClipPreviewModal({
@@ -26,13 +27,14 @@ export function ClipPreviewModal({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [segmentIndex, setSegmentIndex] = useState(0);
   const segment = segments[segmentIndex];
+  const currentSource = segment?.url || videoUrl;
 
   useEffect(() => {
     const player = videoRef.current;
     if (!player || !segment) return;
     player.currentTime = segment.start_time;
     player.play().catch(() => undefined);
-  }, [segmentIndex]);
+  }, [segmentIndex, segment]);
 
   function handleTimeUpdate(event: React.SyntheticEvent<HTMLVideoElement>) {
     if (!segment) return;
@@ -43,6 +45,10 @@ export function ClipPreviewModal({
         event.currentTarget.pause();
       }
     }
+  }
+
+  function handleEnded() {
+    if (segmentIndex < segments.length - 1) setSegmentIndex((current) => current + 1);
   }
 
   return (
@@ -63,7 +69,15 @@ export function ClipPreviewModal({
           </div>
         </div>
 
-        <video ref={videoRef} src={videoUrl} controls className="w-full bg-black" onTimeUpdate={handleTimeUpdate} />
+        <video
+          ref={videoRef}
+          src={currentSource}
+          controls
+          className="w-full bg-black"
+          onLoadedMetadata={(event) => { event.currentTarget.currentTime = segment?.start_time ?? 0; }}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleEnded}
+        />
 
         <div className="mt-3 space-y-1">
           {segments.map((seg, index) => (

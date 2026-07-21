@@ -15,10 +15,17 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Your session has expired" }, { status: 401 });
   }
 
   const body = await request.json();
+
+  if (
+    typeof body.key !== "string" ||
+    !(body.key.startsWith(`videos/${user.id}/`) || body.key.startsWith(`clips/${user.id}/`))
+  ) {
+    return NextResponse.json({ error: "Invalid upload key" }, { status: 400 });
+  }
 
   switch (body.action) {
     case "create": {

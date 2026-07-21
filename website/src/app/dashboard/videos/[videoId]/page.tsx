@@ -12,10 +12,17 @@ import { TagList } from "@/components/tags/TagList";
 import { ActivePlayerSelector } from "@/components/teams/ActivePlayerSelector";
 import { ClipBuilder } from "@/components/clips/ClipBuilder";
 import { getTagColor } from "@/lib/utils";
+import {
+  getRememberedLocalVideo,
+  isLocalVideoUrl,
+  localVideoFingerprint,
+  rememberLocalVideo
+} from "@/lib/local-video-store";
 
 export default function VideoViewerPage() {
   const { videoId } = useParams<{ videoId: string }>();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const reconnectInputRef = useRef<HTMLInputElement | null>(null);
   const [video, setVideo] = useState<Video | null>(null);
   const [tags, setTags] = useState<Tag[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
@@ -24,6 +31,9 @@ export default function VideoViewerPage() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [newTagLabel, setNewTagLabel] = useState("");
+  const [localFile, setLocalFile] = useState<File | null>(null);
+  const [localVideoUrl, setLocalVideoUrl] = useState<string | null>(null);
+  const [localError, setLocalError] = useState("");
   const supabase = createClient();
 
   useEffect(() => {
@@ -39,6 +49,25 @@ export default function VideoViewerPage() {
       setPlayers([]);
     }
   }, [video?.team_id]);
+
+  useEffect(() => {
+    if (!video || !isLocalVideoUrl(video.video_url)) return;
+    let active = true;
+    void getRememberedLocalVideo(video.id).then((file) => {
+      if (active && file) setLocalFile(file);
+    });
+    return () => { active = false; };
+  }, [video]);
+
+  useEffect(() => {
+    if (!localFile) {
+      setLocalVideoUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(localFile);
+    setLocalVideoUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [localFile]);
 
   async function loadVideo() {
     const { data } = await supabase.from("videos").select("*").eq("id", videoId).single();
@@ -115,6 +144,44 @@ export default function VideoViewerPage() {
     setSelectedTagIds((current) => (current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId]));
   }
 
+  async function attachLocalFile(file: File, handle?: FileSystemFileHandle | null) {
+    if (!video) return;
+    const fingerprint = await localVideoFingerprint(file);
+    if (video.video_key !== `local/${fingerprint}`) {
+      setLocalError("That is not the same match file. Select the original video again.");
+      return;
+    }
+    await rememberLocalVideo(video.id, file, handle);
+    setLocalFile(file);
+    setLocalError("");
+  }
+
+  async function reconnectLocalVideo() {
+    if (!video) return;
+    const remembered = await getRememberedLocalVideo(video.id, true);
+    if (remembered) {
+      setLocalFile(remembered);
+      setLocalError("");
+      return;
+    }
+
+    const picker = (window as unknown as {
+      showOpenFilePicker?: (options: unknown) => Promise<FileSystemFileHandle[]>;
+    }).showOpenFilePicker;
+    if (!picker) {
+      reconnectInputRef.current?.click();
+      return;
+    }
+    try {
+      const [handle] = await picker({ multiple: false, types: [{ description: "Video", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
+      if (handle) await attachLocalFile(await handle.getFile(), handle);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setLocalError(error instanceof Error ? error.message : "The video could not be opened.");
+      }
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen">
       <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2 border-b border-border bg-card">
@@ -172,12 +239,34 @@ export default function VideoViewerPage() {
       </div>
 
       <div className="flex-1 flex flex-col p-4 gap-3">
-        <VideoPlayer
-          ref={videoRef}
-          src={video?.video_url}
-          onTimeUpdate={setCurrentTime}
-          onDurationChange={setDuration}
+        <input
+          ref={reconnectInputRef}
+          type="file"
+          accept=".mp4,.mov,.m4v,video/mp4,video/quicktime"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void attachLocalFile(file);
+            event.target.value = "";
+          }}
         />
+        {video && isLocalVideoUrl(video.video_url) && !localVideoUrl ? (
+          <div className="flex-1 min-h-0 grid place-items-center bg-black rounded-lg border border-border p-8 text-center">
+            <div>
+              <h2 className="text-textBright text-lg font-semibold">Reconnect the local match video</h2>
+              <p className="text-textMuted text-sm mt-2 max-w-md">Your tags are saved online, but the full match remains on this PC. Select the same file to continue.</p>
+              <button onClick={() => void reconnectLocalVideo()} className="mt-4 px-4 py-2 rounded-lg bg-accent text-page font-semibold">Select original video</button>
+              {localError && <p className="mt-3 text-sm text-red-300">{localError}</p>}
+            </div>
+          </div>
+        ) : (
+          <VideoPlayer
+            ref={videoRef}
+            src={localVideoUrl ?? video?.video_url}
+            onTimeUpdate={setCurrentTime}
+            onDurationChange={setDuration}
+          />
+        )}
         <Timeline duration={duration} currentTime={currentTime} tags={tags} onSeek={seekTo} />
       </div>
 
@@ -188,6 +277,8 @@ export default function VideoViewerPage() {
           selectedTagIds={selectedTagIds}
           tags={tags}
           players={players}
+          localVideo={isLocalVideoUrl(video?.video_url)}
+          localFile={localFile}
           onClipCreated={() => setSelectedTagIds([])}
         />
       </div>

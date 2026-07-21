@@ -9,6 +9,8 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 type ClipWithDetails = {
   id: string;
   name: string;
+  render_status: string;
+  rendered_segments: { id: string; url: string; name: string; color: string; duration: number; play_start?: number }[];
   videos: { title: string | null; video_url: string } | null;
   clip_segments: {
     sequence_order: number;
@@ -29,7 +31,7 @@ export default function ClipsPage() {
     const { data } = await supabase
       .from("clips")
       .select(
-        `id, name,
+        `id, name, render_status, rendered_segments,
          videos ( title, video_url ),
          clip_segments ( sequence_order, tags ( id, name, start_time, end_time, color ) )`
       )
@@ -39,6 +41,16 @@ export default function ClipsPage() {
   }
 
   function segmentsFor(clip: ClipWithDetails): ClipSegmentPlayback[] {
+    if (clip.render_status === "ready" && clip.rendered_segments?.length) {
+      return clip.rendered_segments.map((segment) => ({
+        id: segment.id,
+        name: segment.name,
+        color: segment.color,
+        start_time: segment.play_start ?? 0,
+        end_time: segment.duration,
+        url: segment.url
+      }));
+    }
     return [...clip.clip_segments]
       .sort((a, b) => a.sequence_order - b.sequence_order)
       .map((segment) => segment.tags)

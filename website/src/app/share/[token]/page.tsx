@@ -11,7 +11,7 @@ export default async function SharePage({ params }: { params: { token: string } 
     .select(
       `id, view_count, expires_at,
        clips (
-         name,
+         name, render_status, rendered_segments,
          videos ( video_url, title, home_team, away_team ),
          clip_segments ( sequence_order, tags ( id, name, start_time, end_time, color ) )
        )`
@@ -30,10 +30,22 @@ export default async function SharePage({ params }: { params: { token: string } 
   await supabase.from("share_links").update({ view_count: shareLink.view_count + 1 }).eq("id", shareLink.id);
 
   const clip = shareLink.clips as any;
-  const segments = (clip.clip_segments ?? [])
+  const sourceSegments = (clip.clip_segments ?? [])
     .sort((a: any, b: any) => a.sequence_order - b.sequence_order)
     .map((segment: any) => segment.tags)
     .filter(Boolean);
+  const segments = clip.render_status === "ready" && clip.rendered_segments?.length
+    ? clip.rendered_segments.map((segment: any) => ({
+        id: segment.id,
+        name: segment.name,
+        color: segment.color,
+        start_time: segment.play_start ?? 0,
+        end_time: segment.duration,
+        url: segment.url,
+        source_start: segment.source_start,
+        source_end: segment.source_end
+      }))
+    : sourceSegments;
 
   return (
     <div className="min-h-screen bg-page">
@@ -71,7 +83,7 @@ export default async function SharePage({ params }: { params: { token: string } 
               <span className="w-3 h-3 rounded-full" style={{ backgroundColor: segment.color }} />
               <span className="text-textPrimary font-medium">{segment.name}</span>
               <span className="text-textMuted text-sm ml-auto">
-                {formatTime(segment.start_time)} - {formatTime(segment.end_time)}
+                {formatTime(segment.source_start ?? segment.start_time)} - {formatTime(segment.source_end ?? segment.end_time)}
               </span>
             </div>
           ))}

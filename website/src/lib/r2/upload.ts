@@ -68,5 +68,7 @@ export async function abortMultipartUpload(key: string, uploadId: string) {
 }
 
 export function getPublicUrl(key: string) {
-  return `${process.env.R2_PUBLIC_URL}/${key}`;
+  const baseUrl = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
+  const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+  return `${baseUrl}/${encodedKey}`;
 }

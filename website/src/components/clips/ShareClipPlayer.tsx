@@ -8,13 +8,15 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [segmentIndex, setSegmentIndex] = useState(0);
   const segment = segments[segmentIndex];
-  useHlsSource(videoRef, videoUrl);
+  const currentSource = segment?.url || videoUrl;
+  useHlsSource(videoRef, currentSource);
 
   useEffect(() => {
     const player = videoRef.current;
     if (!player || !segment) return;
     player.currentTime = segment.start_time;
-  }, [segmentIndex]);
+    player.play().catch(() => undefined);
+  }, [segmentIndex, segment]);
 
   function handleLoadedMetadata() {
     if (videoRef.current && segment) {
@@ -36,6 +38,9 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
       className="w-full bg-black"
       onLoadedMetadata={handleLoadedMetadata}
       onTimeUpdate={handleTimeUpdate}
+      onEnded={() => {
+        if (segmentIndex < segments.length - 1) setSegmentIndex((current) => current + 1);
+      }}
     />
   );
 }
