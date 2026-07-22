@@ -23,6 +23,8 @@ export function MatchLauncher() {
   const router = useRouter();
   const supabase = createClient();
   const fallbackInputRef = useRef<HTMLInputElement | null>(null);
+  const reconnectInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingRecentItemRef = useRef<RecentItem | null>(null);
   const pendingSlotRef = useRef(0);
   const [mode, setMode] = useState<Mode>("recent");
   const [matches, setMatches] = useState<(Match & { match_videos: { video_id: string }[] })[]>([]);
@@ -38,14 +40,12 @@ export function MatchLauncher() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [reconnectSavedVideos, setReconnectSavedVideos] = useState(true);
   const [supportsPersistentFileAccess, setSupportsPersistentFileAccess] = useState<boolean | null>(null);
 
   useEffect(() => {
     void loadData();
     const supported = typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === "function";
     setSupportsPersistentFileAccess(supported);
-    if (!supported) setReconnectSavedVideos(false);
   }, []);
 
   async function loadData() {
@@ -83,15 +83,78 @@ export function MatchLauncher() {
   ].sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime());
 
   async function openItem(item: RecentItem) {
-    if (reconnectSavedVideos && supportsPersistentFileAccess) {
-      setBusy(true);
-      setStatus("Reconnecting saved videos…");
-      for (const videoId of item.videoIds) {
-        await getRememberedLocalVideo(videoId, true);
-      }
-      setBusy(false);
-      setStatus("");
+    setBusy(true);
+    setError("");
+    setStatus("Checking saved videos…");
+    const localVideos = videosForItem(item);
+    const missing: Video[] = [];
+    for (const video of localVideos) {
+      if (!await getRememberedLocalVideo(video.id, true)) missing.push(video);
     }
+
+    if (missing.length) {
+      const picker = (window as unknown as { showOpenFilePicker?: (options: unknown) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker;
+      if (!picker) {
+        pendingRecentItemRef.current = item;
+        setStatus(`Select the original video file${missing.length === 1 ? "" : "s"} before opening the viewer.`);
+        setBusy(false);
+        reconnectInputRef.current?.click();
+        return;
+      }
+      try {
+        const handles = await picker({ multiple: missing.length > 1, types: [{ description: "Match videos", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
+        await rememberSelectedFiles(missing, await Promise.all(handles.map(async (handle) => ({ file: await handle.getFile(), handle }))));
+      } catch (pickerError) {
+        setBusy(false);
+        setStatus("");
+        if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) setError(getErrorMessage(pickerError, "The local videos could not be reconnected."));
+        return;
+      }
+      if (!(await allVideosRemembered(missing))) {
+        setBusy(false);
+        setStatus("");
+        setError(`Select all ${missing.length} original video file${missing.length === 1 ? "" : "s"} before opening this match.`);
+        return;
+      }
+    }
+    await navigateToItem(item);
+  }
+
+  function videosForItem(item: RecentItem) {
+    return item.videoIds.map((id) => videos.find((video) => video.id === id)).filter((video): video is Video => !!video && video.video_url.startsWith("local://"));
+  }
+
+  async function rememberSelectedFiles(expected: Video[], selections: { file: File; handle: FileSystemFileHandle | null }[]) {
+    for (const selection of selections) {
+      const fingerprint = await localVideoFingerprint(selection.file);
+      const video = expected.find((candidate) => candidate.video_key === `local/${fingerprint}`);
+      if (video) await rememberLocalVideo(video.id, selection.file, selection.handle);
+    }
+  }
+
+  async function allVideosRemembered(expected: Video[]) {
+    for (const video of expected) if (!await getRememberedLocalVideo(video.id)) return false;
+    return true;
+  }
+
+  async function handleRecentFiles(files: File[]) {
+    const item = pendingRecentItemRef.current;
+    if (!item) return;
+    setBusy(true);
+    setError("");
+    const expected = videosForItem(item);
+    await rememberSelectedFiles(expected, files.map((file) => ({ file, handle: null })));
+    if (!(await allVideosRemembered(expected))) {
+      setError("One or more original match videos are still missing. Select all match files together.");
+      setStatus("");
+      setBusy(false);
+      return;
+    }
+    pendingRecentItemRef.current = null;
+    await navigateToItem(item);
+  }
+
+  async function navigateToItem(item: RecentItem) {
     if (item.kind === "video") {
       router.push(`/dashboard/videos/${item.id}`);
       return;
@@ -228,6 +291,7 @@ export function MatchLauncher() {
           event.target.value = "";
         }}
       />
+      <input ref={reconnectInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void handleRecentFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
       <div className="w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-borderButton bg-cardAlt p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="Video Viewer">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div><h1 className="text-xl font-bold text-textBright">{mode === "create" ? "New match" : mode === "all" ? "Older matches" : "Video Viewer"}</h1><p className="text-sm text-textMuted mt-1">Matches and tags are saved; full local videos stay on this computer.</p></div>
@@ -238,13 +302,7 @@ export function MatchLauncher() {
           <>
             <button type="button" onClick={() => { resetDraft(); setMode("create"); }} className="w-full rounded-xl bg-accent px-5 py-3 font-bold text-page">Create new match</button>
             <div className="mt-5 space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-sm font-semibold text-textSecondary">Last matches</h2>
-                <label className={`flex items-center gap-2 text-xs ${supportsPersistentFileAccess === false ? "text-textMuted" : "text-textSecondary"}`}>
-                  <input type="checkbox" disabled={!supportsPersistentFileAccess} checked={reconnectSavedVideos && !!supportsPersistentFileAccess} onChange={(event) => setReconnectSavedVideos(event.target.checked)} />
-                  Reconnect saved videos
-                </label>
-              </div>
+              <h2 className="text-sm font-semibold text-textSecondary">Last matches</h2>
               {supportsPersistentFileAccess === false && (
                 <div className="text-[11px] leading-tight text-amber-300">
                   Automatic reconnect is not available in this browser. Open Clipboard Coach in Chrome or Edge and choose “Allow on every visit”.
@@ -261,14 +319,17 @@ export function MatchLauncher() {
               })}
             </div>
             {status && <div className="mt-3 rounded-lg border border-border bg-cardDeep p-3 text-sm text-textSecondary">{status}</div>}
+            {error && <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
             <button type="button" onClick={() => setMode("all")} className="mt-4 w-full rounded-lg bg-button px-4 py-2 text-textPrimary">View older matches and videos</button>
           </>
         )}
 
         {mode === "all" && (
           <div className="space-y-2">
-            {recentItems.map((item) => <button key={`${item.kind}-${item.id}`} type="button" onClick={() => void openItem(item)} className="w-full flex justify-between rounded-lg border border-border bg-cardDeep px-4 py-3 text-left text-textPrimary hover:border-accent"><span>{item.title}</span><span className="text-sm text-textMuted">{item.date}</span></button>)}
+            {recentItems.map((item) => <button key={`${item.kind}-${item.id}`} type="button" disabled={busy} onClick={() => void openItem(item)} className="w-full flex justify-between rounded-lg border border-border bg-cardDeep px-4 py-3 text-left text-textPrimary hover:border-accent disabled:opacity-50"><span>{item.title}</span><span className="text-sm text-textMuted">{item.date}</span></button>)}
             {!recentItems.length && <p className="text-textMuted">No saved matches yet.</p>}
+            {status && <div className="rounded-lg border border-border bg-cardDeep p-3 text-sm text-textSecondary">{status}</div>}
+            {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
             <button type="button" onClick={() => setMode("recent")} className="mt-3 w-full rounded-lg bg-button px-4 py-2 text-textPrimary">Back</button>
           </div>
         )}

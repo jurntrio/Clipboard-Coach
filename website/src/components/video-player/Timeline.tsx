@@ -58,11 +58,13 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
                 type="button"
                 key={tag.id}
                 title={`${tag.name} · ${formatTime(tag.start_time)}`}
-                className="absolute top-0 z-10 -translate-x-1/2 text-base leading-none transition hover:scale-110"
-                style={{ left: `${(tag.start_time / safeDuration) * 100}%`, color: endMarker ? "white" : tag.color }}
+                aria-label={`${tag.name} at ${formatTime(tag.start_time)}`}
+                className="absolute top-1 z-10 h-5 w-5 -translate-x-1/2 transition hover:scale-110"
+                style={{ left: `${(tag.start_time / safeDuration) * 100}%` }}
                 onClick={() => onSeek(tag.start_time)}
               >
-                {endMarker ? "🏁" : "⚑"}
+                <span className={`absolute bottom-0 left-1 h-5 border-l-2 ${endMarker ? "border-red-400" : "border-accent"}`} />
+                <span className={`absolute left-1 top-0 h-3 w-3.5 rounded-r-sm ${endMarker ? "bg-red-500" : "bg-accent"}`} />
               </button>
             );
           })}

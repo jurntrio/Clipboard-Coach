@@ -13,6 +13,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
   const [segmentIndex, setSegmentIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
+  const [playbackError, setPlaybackError] = useState("");
   const segment = segments[segmentIndex];
   const currentSource = segment?.url || videoUrl;
   const segmentDurations = useMemo(
@@ -31,7 +32,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
     if (player.readyState >= 1) {
       player.currentTime = pendingLocalTimeRef.current ?? segment.start_time;
       pendingLocalTimeRef.current = null;
-      if (continuePlayingRef.current) player.play().catch(() => setPlaying(false));
+      if (continuePlayingRef.current) player.play().catch(() => { setPlaying(false); setPlaybackError("This clip could not be played by this browser."); });
     }
   }, [segmentIndex, segment]);
 
@@ -40,7 +41,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
     if (!player || !segment) return;
     player.currentTime = pendingLocalTimeRef.current ?? segment.start_time;
     pendingLocalTimeRef.current = null;
-    if (continuePlayingRef.current) player.play().catch(() => setPlaying(false));
+    if (continuePlayingRef.current) player.play().catch(() => { setPlaying(false); setPlaybackError("This clip could not be played by this browser."); });
   }
 
   function moveToNextSegment() {
@@ -87,7 +88,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
       if (segmentIndex === 0) {
         player.currentTime = pendingLocalTimeRef.current;
         pendingLocalTimeRef.current = null;
-        player.play().catch(() => setPlaying(false));
+        player.play().catch(() => { setPlaying(false); setPlaybackError("This clip could not be played by this browser."); });
       } else {
         setSegmentIndex(0);
       }
@@ -95,7 +96,8 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
     }
 
     continuePlayingRef.current = true;
-    player.play().catch(() => setPlaying(false));
+    setPlaybackError("");
+    player.play().catch(() => { setPlaying(false); setPlaybackError("This clip could not be played by this browser. The video format may not be supported."); });
   }
 
   function seekTo(globalTime: number) {
@@ -139,6 +141,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
       <video
         ref={videoRef}
         playsInline
+        preload="auto"
         className="aspect-video w-full cursor-pointer bg-black object-contain"
         onClick={togglePlayback}
         onLoadedMetadata={handleLoadedMetadata}
@@ -146,6 +149,8 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onEnded={moveToNextSegment}
+        onCanPlay={() => setPlaybackError("")}
+        onError={() => setPlaybackError("This clip uses a video format that this browser cannot play. Try Chrome, Safari, or a newly generated mobile-compatible clip.")}
       />
       <div className="flex items-center gap-3 border-t border-white/10 px-3 py-2 text-white">
         <button type="button" onClick={togglePlayback} className="grid h-9 w-9 place-items-center rounded-full bg-accent font-bold text-page" aria-label={playing ? "Pause" : "Play"}>
@@ -165,6 +170,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
         {segments.length > 1 && <span className="hidden text-xs text-white/60 sm:inline">{segmentIndex + 1}/{segments.length}</span>}
         <button type="button" onClick={() => containerRef.current?.requestFullscreen?.()} className="grid h-9 w-9 place-items-center rounded text-lg text-white/80 hover:bg-white/10 hover:text-white" aria-label="Full screen">⛶</button>
       </div>
+      {playbackError && <div className="border-t border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"><p>{playbackError}</p>{currentSource && <a href={currentSource} target="_blank" rel="noreferrer" className="mt-2 inline-block text-accent underline">Open video directly</a>}</div>}
     </div>
   );
 }

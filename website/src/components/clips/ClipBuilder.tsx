@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { ClipAudienceType, Player, Tag } from "@/types/database";
+import type { ClipAudienceType, Player, Tag, Team } from "@/types/database";
 import { getPlayerDisplayName } from "@/lib/utils";
 import { remuxLocalSegment } from "@/lib/media/local-clips";
 import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
@@ -48,6 +48,8 @@ export function ClipBuilder({
   const [errorMessage, setErrorMessage] = useState("");
   const [open, setOpen] = useState(false);
   const [teamPlayers, setTeamPlayers] = useState<Player[]>(players);
+  const [availableTeams, setAvailableTeams] = useState<Team[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState(teamId ?? "");
   const [extraPeople, setExtraPeople] = useState<Player[]>(extraPlayers);
   const [newTeamPlayerName, setNewTeamPlayerName] = useState("");
   const [newExtraName, setNewExtraName] = useState("");
@@ -55,6 +57,7 @@ export function ClipBuilder({
   const supabase = createClient();
 
   useEffect(() => setTeamPlayers(players), [players]);
+  useEffect(() => setSelectedTeamId(teamId ?? ""), [teamId]);
   useEffect(() => setExtraPeople(extraPlayers), [extraPlayers]);
 
   async function handleCreateClip() {
@@ -65,6 +68,10 @@ export function ClipBuilder({
     }
     if (audienceType === "specific_players" && audiencePlayerIds.length === 0) {
       setErrorMessage("Select at least one person, or choose the full team.");
+      return;
+    }
+    if (audienceType === "full_team" && !selectedTeamId) {
+      setErrorMessage("Select a team before choosing the full team.");
       return;
     }
     setSaving(true);
@@ -88,7 +95,7 @@ export function ClipBuilder({
       .insert({
         coach_id: user.id,
         video_id: videoId,
-        team_id: teamId,
+        team_id: selectedTeamId || null,
         name: clipName.trim() || `Clip (${clipTagIds.length} tags)`,
         audience_type: audienceType,
         audience_player_ids: audienceType === "specific_players" ? audiencePlayerIds : [],
@@ -195,15 +202,29 @@ export function ClipBuilder({
     return { firstName: parts.shift() ?? "", lastName: parts.join(" ") };
   }
 
+  async function loadAvailableTeams() {
+    const { data } = await supabase.from("teams").select("*").not("name", "ilike", "EXTRA").order("name");
+    setAvailableTeams(data ?? []);
+    if (!selectedTeamId && data?.length === 1) await selectTeam(data[0].id);
+  }
+
+  async function selectTeam(nextTeamId: string) {
+    setSelectedTeamId(nextTeamId);
+    setAudiencePlayerIds([]);
+    if (!nextTeamId) { setTeamPlayers([]); return; }
+    const { data } = await supabase.from("players").select("*").eq("team_id", nextTeamId).neq("role", "staff").order("last_name");
+    setTeamPlayers(data ?? []);
+  }
+
   async function addTeamPlayer() {
-    if (!teamId || !newTeamPlayerName.trim() || addingPerson) {
-      if (!teamId) setErrorMessage("Select a saved team before adding a player.");
+    if (!selectedTeamId || !newTeamPlayerName.trim() || addingPerson) {
+      if (!selectedTeamId) setErrorMessage("Select a saved team before adding a player.");
       return;
     }
     setAddingPerson(true);
     setErrorMessage("");
     const { firstName, lastName } = splitName(newTeamPlayerName);
-    const { data, error } = await supabase.from("players").insert({ team_id: teamId, first_name: firstName, last_name: lastName, role: "player" }).select().single();
+    const { data, error } = await supabase.from("players").insert({ team_id: selectedTeamId, first_name: firstName, last_name: lastName, role: "player" }).select().single();
     if (error) setErrorMessage(error.message);
     else if (data) {
       setTeamPlayers((current) => [...current, data]);
@@ -242,7 +263,7 @@ export function ClipBuilder({
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="font-semibold text-textBright">Make clip</h3>
       <p className="mb-3 mt-1 text-xs text-textMuted">{clipTagIds.length} clip tag(s) selected</p>
-      <button type="button" onClick={() => { setErrorMessage(""); setOpen(true); }} disabled={clipTagIds.length === 0 || (localVideo && !canUseLocalSources)} className="w-full rounded-lg bg-accent py-2 font-semibold text-page hover:opacity-90 disabled:opacity-50">Create clip</button>
+      <button type="button" onClick={() => { setErrorMessage(""); setOpen(true); void loadAvailableTeams(); }} disabled={clipTagIds.length === 0 || (localVideo && !canUseLocalSources)} className="w-full rounded-lg bg-accent py-2 font-semibold text-page hover:opacity-90 disabled:opacity-50">Create clip</button>
       {localVideo && !canUseLocalSources && <p className="mt-2 text-xs text-textMuted">Reconnect all source videos used by this match to enable clip creation.</p>}
 
       {open && (
@@ -258,9 +279,15 @@ export function ClipBuilder({
             </label>
 
             <div className="mt-4 space-y-3">
+              <label className="block text-sm text-textSecondary">Team
+                <select value={selectedTeamId} onChange={(event) => void selectTeam(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary">
+                  <option value="">Select a team</option>
+                  {availableTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+                </select>
+              </label>
               <label className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 ${audienceType === "full_team" ? "border-accent bg-accentDim" : "border-border bg-cardDeep"}`}>
-                <input type="checkbox" checked={audienceType === "full_team"} onChange={() => { setAudienceType("full_team"); setAudiencePlayerIds([]); }} />
-                <span><strong className="block text-sm text-textPrimary">Full selected team</strong><span className="text-xs text-textMuted">Select everyone, or open the list below.</span></span>
+                <input type="checkbox" checked={audienceType === "full_team"} onChange={(event) => { setAudienceType(event.target.checked ? "full_team" : "specific_players"); setAudiencePlayerIds([]); }} />
+                <span><strong className="block text-sm text-textPrimary">Full selected team{selectedTeamId ? ` · ${availableTeams.find((team) => team.id === selectedTeamId)?.name ?? ""}` : ""}</strong><span className="text-xs text-textMuted">Includes all {teamPlayers.length} players shown below.</span></span>
               </label>
 
               <details className="rounded-lg border border-border bg-cardDeep px-3 py-2" open>

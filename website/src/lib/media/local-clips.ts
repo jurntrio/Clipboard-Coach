@@ -88,7 +88,9 @@ export async function remuxLocalSegment(
 
     const writable = await outputHandle.createWritable();
     const output = new Output({
-      format: new Mp4OutputFormat({ fastStart: false }),
+      // Put MP4 metadata at the front. Shared clips can start immediately on
+      // mobile instead of downloading the entire segment before playback.
+      format: new Mp4OutputFormat({ fastStart: "in-memory" }),
       target: new StreamTarget(writable as unknown as WritableStream<StreamTargetChunk>, { chunked: true })
     });
     const videoSource = new EncodedVideoPacketSource(videoCodec);

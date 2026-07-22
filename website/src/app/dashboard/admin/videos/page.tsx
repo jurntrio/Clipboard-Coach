@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { formatBytes } from "@/lib/utils";
-import { getAllVideos } from "../data";
+import { getAllVideos, cloudVideoBytes } from "../data";
 
 const statusStyles: Record<string, string> = {
   ready: "bg-accent/15 text-accent",
@@ -14,8 +14,8 @@ export default async function AdminVideosPage() {
   const videos = await getAllVideos();
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <SectionHeader title="Videos" subtitle="Every uploaded video across all coaches" artworkSrc="/branding/video-viewer.png" />
+    <div className="p-8 max-w-7xl mx-auto">
+      <SectionHeader title="Videos" subtitle="Every match video across all coaches" artworkSrc="/branding/video-viewer.png" />
 
       <div className="flex justify-end mb-3">
         <Link href="/dashboard/admin" className="text-accent text-sm hover:underline">
@@ -30,7 +30,7 @@ export default async function AdminVideosPage() {
               <th className="text-left px-4 py-3">Video</th>
               <th className="text-left px-4 py-3">Coach</th>
               <th className="text-left px-4 py-3">Uploaded</th>
-              <th className="text-right px-4 py-3">Size</th>
+              <th className="text-right px-4 py-3">Cloud size</th>
               <th className="text-left px-4 py-3">Status</th>
             </tr>
           </thead>
@@ -46,7 +46,9 @@ export default async function AdminVideosPage() {
                   </Link>
                 </td>
                 <td className="px-4 py-3 text-textSecondary">{new Date(video.created_at).toLocaleString()}</td>
-                <td className="px-4 py-3 text-right text-textSecondary">{formatBytes(video.file_size)}</td>
+                <td className="px-4 py-3 text-right text-textSecondary">
+                  {video.video_url.startsWith("local://") ? "Local only" : formatBytes(cloudVideoBytes(video))}
+                </td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded text-xs font-semibold ${statusStyles[video.processing_status] ?? ""}`}>
                     {video.processing_status}

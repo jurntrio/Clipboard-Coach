@@ -47,6 +47,7 @@ export default async function SharePage({ params }: { params: { token: string } 
       }))
     : sourceSegments;
   const publicClipName = /^Clip \(\d+ tags?\)$/i.test(clip.name) ? "Shared clip" : clip.name;
+  const hasOnlineSegments = clip.render_status === "ready" && segments.length > 0 && segments.every((segment: any) => typeof segment.url === "string" && /^https?:\/\//.test(segment.url));
 
   return (
     <div className="min-h-screen bg-page">
@@ -67,7 +68,13 @@ export default async function SharePage({ params }: { params: { token: string } 
         </div>
 
         <div className="bg-card rounded-xl overflow-hidden border border-border">
-          <ShareClipPlayer videoUrl={clip.videos?.video_url} segments={segments} />
+          {hasOnlineSegments ? (
+            <ShareClipPlayer videoUrl={clip.videos?.video_url} segments={segments} />
+          ) : (
+            <div className="grid min-h-72 place-items-center bg-black p-8 text-center">
+              <div><h2 className="font-semibold text-textBright">Clip not available online</h2><p className="mt-2 text-sm text-textMuted">This link has no uploaded video. Recreate the clip while all original match videos are connected, then share the new clip.</p></div>
+            </div>
+          )}
         </div>
       </div>
 

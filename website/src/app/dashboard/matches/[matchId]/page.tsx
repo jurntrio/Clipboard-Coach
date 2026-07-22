@@ -15,6 +15,7 @@ import { Timeline } from "@/components/video-player/Timeline";
 import { TagList } from "@/components/tags/TagList";
 import { QuickTagCreator } from "@/components/tags/QuickTagCreator";
 import { ClipBuilder } from "@/components/clips/ClipBuilder";
+import { MatchDetailsCard } from "@/components/matches/MatchDetailsCard";
 
 type MatchBlock = { id: string; sequence_order: number; label: string; videos: Video | null };
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
@@ -279,25 +280,18 @@ export default function MatchViewerPage() {
     if (videoRef.current) videoRef.current.playbackRate = nextRate;
   }
 
-  const title = match ? `${match.team_a_name || "Team A"} – ${match.team_b_name || "Team B"}` : "Match";
-
   return (
     <div className="flex flex-col h-screen">
       <input ref={reconnectInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void handleFallbackSelection(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
       <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2 border-b border-border bg-card">
         <Link href="/dashboard" title="Home" aria-label="Home" className="w-12 h-12 rounded-lg bg-button border border-borderButton flex items-center justify-center hover:border-accent hover:bg-cardHover transition"><Image src="/branding/home.png" alt="Home" width={30} height={30} /></Link>
-        <div><p className="text-textBright font-semibold">{title}</p><p className="text-xs text-textMuted">{match?.match_date || "No date"} · {videos.length} videos</p></div>
       </div>
 
       <div className="flex flex-1 min-h-0">
         <aside className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
+          {match && <MatchDetailsCard match={match} videoCount={videos.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} />}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
-          <div>
-            <h3 className="mb-2 text-sm font-semibold text-textBright">Period markers</h3>
-            <div className="space-y-2">
-              {markerTags.map((name) => <button key={name} onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={name === "End" ? "text-white" : "text-accent"}>{name === "End" ? "🏁" : "⚑"}</span>{name}</button>)}
-            </div>
-          </div>
+          <div><h3 className="mb-2 text-sm font-semibold text-textBright">Period markers</h3><div className="space-y-2">{markerTags.map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-red-400" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "bg-red-500" : "bg-accent"}`} /></span>{name}</button>)}</div></div>
           {displayTags.some((tag) => isPeriodMarker(tag.name)) && (
             <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
               <summary className="cursor-pointer text-sm font-semibold text-textBright">Period times</summary>

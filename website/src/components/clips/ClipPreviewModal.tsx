@@ -9,6 +9,7 @@ export type ClipSegmentPlayback = {
   start_time: number;
   end_time: number;
   url?: string;
+  playerNames?: string[];
 };
 
 export function ClipPreviewModal({
@@ -16,13 +17,17 @@ export function ClipPreviewModal({
   videoUrl,
   segments,
   onClose,
-  onShare
+  onShare,
+  matchTitle,
+  audienceLabel
 }: {
   clipName: string;
   videoUrl: string;
   segments: ClipSegmentPlayback[];
   onClose: () => void;
-  onShare: () => void;
+  onShare?: () => void;
+  matchTitle?: string;
+  audienceLabel?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [segmentIndex, setSegmentIndex] = useState(0);
@@ -58,11 +63,11 @@ export function ClipPreviewModal({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-3">
-          <h2 className="text-textBright font-semibold">{clipName}</h2>
+          <div><h2 className="text-textBright font-semibold">{clipName}</h2>{matchTitle && <p className="text-xs text-textMuted">{matchTitle}</p>}{audienceLabel && <p className="mt-1 text-xs text-textSecondary">Audience: {audienceLabel}</p>}</div>
           <div className="flex gap-2">
-            <button onClick={onShare} className="px-3 py-1.5 bg-accent text-page rounded-lg text-sm font-semibold">
+            {onShare && <button onClick={onShare} className="px-3 py-1.5 bg-accent text-page rounded-lg text-sm font-semibold">
               Share
-            </button>
+            </button>}
             <button onClick={onClose} className="px-3 py-1.5 text-textSecondary hover:text-textPrimary">
               Close
             </button>
@@ -90,6 +95,7 @@ export function ClipPreviewModal({
             >
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: seg.color }} />
               <span className="text-textPrimary text-sm">{seg.name}</span>
+              <span className="ml-auto text-xs text-textMuted">{seg.playerNames?.length ? seg.playerNames.join(", ") : "No player assigned"}</span>
             </button>
           ))}
         </div>

@@ -226,18 +226,7 @@ export default function VideoViewerPage() {
       <div className="flex flex-1 min-h-0">
       <div className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
         <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, currentTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-textBright">Period markers</h3>
-          {(["Start", "End"] as const).map((name) => (
-            <button
-              key={name}
-              onClick={() => addTag(name)}
-              className="w-full py-2 bg-button border border-borderButton text-textPrimary rounded-lg hover:bg-cardHover"
-            >
-              <span className={`mr-2 ${name === "End" ? "text-white" : "text-accent"}`}>{name === "End" ? "🏁" : "⚑"}</span>{name}
-            </button>
-          ))}
-        </div>
+        <div className="space-y-2"><h3 className="text-sm font-semibold text-textBright">Period markers</h3>{(["Start", "End"] as const).map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-red-400" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "bg-red-500" : "bg-accent"}`} /></span>{name}</button>)}</div>
         {tags.some((tag) => isPeriodMarker(tag.name)) && (
           <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
             <summary className="cursor-pointer text-sm font-semibold text-textBright">Period times</summary>

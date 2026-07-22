@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { formatBytes } from "@/lib/utils";
 import { getPlayerDisplayName } from "@/lib/utils";
-import { getCoachDetail, isBanned } from "../../data";
+import { cloudVideoBytes, getCoachDetail, isBanned } from "../../data";
 import { PlanBadge } from "../../PlanBadge";
 import { AccountActions } from "./AccountActions";
 
@@ -19,17 +19,11 @@ export default async function AdminCoachDetailPage({ params }: { params: { id: s
   if (!coach) notFound();
 
   const blocked = isBanned(coach.banned_until);
-  const storageBytes = coach.videos.reduce((sum, v) => sum + (v.file_size ?? 0), 0);
+  const storageBytes = coach.videos.reduce((sum, video) => sum + cloudVideoBytes(video), 0) + coach.clipStorageBytes;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <SectionHeader title="Coach" artworkSrc="/branding/teams.png" />
-
-      <div className="flex justify-end mb-3">
-        <Link href="/dashboard/admin" className="text-accent text-sm hover:underline">
-          &larr; Back to admin overview
-        </Link>
-      </div>
+    <div className="p-8 max-w-7xl mx-auto">
+      <SectionHeader title="Coach" artworkSrc="/branding/teams.png" backHref="/dashboard/admin" />
 
       <div className="bg-card border border-border rounded-xl p-5 mb-6 flex items-center justify-between gap-4 flex-wrap">
         <div>
@@ -52,7 +46,7 @@ export default async function AdminCoachDetailPage({ params }: { params: { id: s
         <SummaryTile label="Teams" value={coach.teams.length} />
         <SummaryTile label="Videos" value={coach.videos.length} />
         <SummaryTile label="Clips" value={coach.clipCount} />
-        <SummaryTile label="Storage" value={formatBytes(storageBytes)} />
+        <SummaryTile label="Cloud storage" value={formatBytes(storageBytes)} />
       </div>
 
       <h3 className="text-textBright font-semibold mb-3">Teams</h3>
@@ -82,7 +76,7 @@ export default async function AdminCoachDetailPage({ params }: { params: { id: s
             <tr>
               <th className="text-left px-4 py-3">Video</th>
               <th className="text-left px-4 py-3">Uploaded</th>
-              <th className="text-right px-4 py-3">Size</th>
+              <th className="text-right px-4 py-3">Cloud size</th>
               <th className="text-left px-4 py-3">Status</th>
             </tr>
           </thead>
@@ -93,7 +87,9 @@ export default async function AdminCoachDetailPage({ params }: { params: { id: s
                   {video.title || (video.home_team && video.away_team ? `${video.home_team} vs ${video.away_team}` : "Untitled")}
                 </td>
                 <td className="px-4 py-3 text-textSecondary">{new Date(video.created_at).toLocaleString()}</td>
-                <td className="px-4 py-3 text-right text-textSecondary">{formatBytes(video.file_size)}</td>
+                <td className="px-4 py-3 text-right text-textSecondary">
+                  {video.video_url.startsWith("local://") ? "Local only" : formatBytes(cloudVideoBytes(video))}
+                </td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded text-xs font-semibold ${statusStyles[video.processing_status] ?? ""}`}>
                     {video.processing_status}

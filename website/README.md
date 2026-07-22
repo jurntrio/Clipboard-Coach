@@ -119,3 +119,20 @@ match workflow.
   its own thing. Revisit if coaches need combined-halves timelines on the
   web too.
 - **Player tracking / heatmaps** — deliberately excluded, personal-use only.
+
+## Next implementation priorities
+
+- **Tactical drawings without large source files:** store strokes, arrows, colours and their display times as compact JSON next to the clip. Draw them as an overlay during playback. Only re-encode the short shared clip when drawings must be permanently burned into the video; never re-encode the full 5–10 GB match.
+- **Share through email or WhatsApp:** use the browser's native Web Share menu on supported phones so the coach can choose WhatsApp, email or another installed app. Keep Copy link as the desktop and unsupported-browser fallback.
+- **Branded email:** improve the Supabase welcome/confirmation template and later connect custom SMTP through a transactional provider. Send from a verified Clipboard Coach domain address, keep replies going to a monitored inbox, and send clip links rather than video attachments.
+- **Edit players and staff:** add an Edit action for correcting names, role, shirt number, position, birth date, email address and phone numbers without deleting and recreating the person.
+- **Matches hub:** add a Matches section that groups match information, ordered local video blocks, teams, tags and every generated clip. Include per-clip sharing plus a reviewed “Send all clips” flow that previews recipients and links before sending.
+
+## Unresolved security and reliability work
+
+- **P0 — Lock down `share_links` RLS:** the current anonymous SELECT and UPDATE policies use `using (true)`, exposing every share token and allowing unrestricted row updates through the public Supabase API. Remove those policies and keep public token lookup behind the server-side share route.
+- **P1 — Make share view counting atomic:** replace the current read-then-write update with one database-side increment so simultaneous views cannot overwrite each other.
+- **P1 — Clean up orphaned R2 objects:** delete an uploaded object when the following database insert or update fails.
+- **P1 — Surface form mutation failures:** handle and display failed inserts, updates and deletes throughout Teams, Settings and the remaining dashboard forms instead of silently continuing.
+- **P1 — Make MOV playback dependable:** require/configure the video worker or add a compatible conversion path so browsers are not asked to play unsupported raw MOV files.
+- **P1 — Add automated tests:** introduce focused tests for access control, share links, upload cleanup, form failures and clip creation before expanding the workflow further.

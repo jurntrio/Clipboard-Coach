@@ -2,6 +2,7 @@ import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
+  DeleteObjectCommand,
   PutObjectCommand,
   S3Client,
   UploadPartCommand
@@ -65,6 +66,10 @@ export async function abortMultipartUpload(key: string, uploadId: string) {
   await r2Client.send(
     new AbortMultipartUploadCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key, UploadId: uploadId })
   );
+}
+
+export async function deleteObject(key: string) {
+  await r2Client.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key }));
 }
 
 export function getPublicUrl(key: string) {

@@ -10,6 +10,7 @@ import { getPlayerDisplayName } from "@/lib/utils";
 import type { Player } from "@/types/database";
 import { ClipCard } from "@/components/clips/ClipCard";
 import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
+import { EditPlayerModal } from "@/components/teams/EditPlayerModal";
 
 type PlayerWithTeam = Player & { teams: { name: string } | null };
 type PlayerClip = {
@@ -33,6 +34,7 @@ export default function PlayerClipsPage() {
   const [player, setPlayer] = useState<PlayerWithTeam | null>(null);
   const [clips, setClips] = useState<PlayerClip[]>([]);
   const [selectedClip, setSelectedClip] = useState<PlayerClip | null>(null);
+  const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
@@ -88,7 +90,7 @@ export default function PlayerClipsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
+    <div className="mx-auto max-w-7xl p-6">
       <header className="mb-8 flex items-center gap-3 rounded-xl border border-border bg-card p-4">
         <Link href="/dashboard/teams" title="Back to teams" className="grid h-14 w-14 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/back.png" alt="Back" width={38} height={38} /></Link>
         <Link href="/dashboard" title="Home" className="grid h-14 w-14 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt="Home" width={34} height={34} /></Link>
@@ -99,9 +101,10 @@ export default function PlayerClipsPage() {
             <p className="text-sm text-textMuted">{player?.teams?.name || "Team"}{player?.position ? ` · ${player.position}` : ""}</p>
           </div>
         </div>
+        <button type="button" onClick={() => setEditing(true)} disabled={!player} title="Edit player" aria-label="Edit player" className="ml-auto grid h-14 w-14 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button transition hover:border-accent disabled:opacity-40"><Image src="/branding/edit.png" alt="Edit" width={34} height={34} /></button>
       </header>
 
-      {player && (player.date_of_birth || player.email || (player.phone_numbers?.length ?? 0) > 0) && (
+      {player && (
         <section className="mb-8 grid gap-3 rounded-xl border border-border bg-cardDeep p-4 sm:grid-cols-3">
           <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">Date of birth</p><p className="mt-1 text-sm text-textPrimary">{player.date_of_birth ? new Date(`${player.date_of_birth}T00:00:00`).toLocaleDateString("nl-BE") : "–"}</p></div>
           <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">Email</p><p className="mt-1 break-all text-sm text-textPrimary">{player.email || "–"}</p></div>
@@ -127,6 +130,7 @@ export default function PlayerClipsPage() {
       {selectedClip && selectedClip.videos && (
         <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos.video_url} segments={segmentsFor(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip.id)} />
       )}
+      {editing && player && <EditPlayerModal player={player} onClose={() => setEditing(false)} onSaved={() => void loadPlayerAndClips()} />}
     </div>
   );
 }

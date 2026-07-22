@@ -40,27 +40,35 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-page">
       <header className="sticky top-0 z-20 bg-page border-b border-border">
-        <div className="max-w-5xl mx-auto px-6 h-18 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
             <Image src="/branding/logo.png" alt="" width={36} height={36} className="rounded" />
-            <span className="font-display uppercase tracking-wide text-textBright text-sm">
+            <span className="hidden min-[390px]:inline font-display uppercase tracking-wide text-textBright text-sm">
               Clipboard <span className="text-accent">Coach</span> Studio
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3">
             <InlineSignIn />
             <Link href="/signup" className="px-4 py-2 rounded-lg border border-borderButton text-textPrimary text-sm font-semibold hover:border-accent hover:text-accent">
               Register
             </Link>
           </div>
+          <nav className="flex items-center gap-2 md:hidden" aria-label="Account">
+            <Link href="/login" className="rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent">
+              Sign in
+            </Link>
+            <Link href="/signup" className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page hover:opacity-90">
+              Register
+            </Link>
+          </nav>
         </div>
       </header>
 
       <main>
-        <section className="max-w-3xl mx-auto px-6 pt-16 pb-10 text-center">
-          <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={640} height={200} className="mx-auto mb-8" />
+        <section className="max-w-3xl mx-auto px-5 sm:px-6 pt-10 sm:pt-16 pb-10 text-center">
+          <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={640} height={200} className="mx-auto mb-6 sm:mb-8" priority />
           <p className="font-mono text-xs tracking-[0.3em] uppercase text-accent mb-4">Analyze · Coach · Improve · Win</p>
-          <h1 className="font-display uppercase text-4xl sm:text-5xl leading-[0.95] text-textBright">
+          <h1 className="font-display uppercase text-3xl min-[390px]:text-4xl sm:text-5xl leading-[0.95] text-textBright">
             Turn match footage into <span className="text-accent">moments that matter</span>
           </h1>
           <p className="max-w-xl mx-auto mt-5 text-textSecondary text-lg">

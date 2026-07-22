@@ -4,14 +4,17 @@ import Image from "next/image";
 export function SectionHeader({
   title,
   subtitle,
-  artworkSrc
+  artworkSrc,
+  backHref
 }: {
   title: string;
   subtitle?: string;
   artworkSrc: string;
+  backHref?: string;
 }) {
   return (
     <header className="flex items-center gap-4 mb-5">
+      {backHref && <Link href={backHref} title="Back" className="flex-shrink-0 w-16 h-16 rounded-xl bg-button border border-borderButton flex items-center justify-center hover:border-accent hover:bg-cardHover transition"><Image src="/branding/back.png" alt="Back" width={38} height={38} /></Link>}
       <Link
         href="/dashboard"
         title="Home"

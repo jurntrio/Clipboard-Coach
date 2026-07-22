@@ -125,8 +125,8 @@ export function CreateTeamModal({ onClose, onCreated }: { onClose: () => void; o
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
-      <div className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-auto rounded-xl border border-border bg-cardAlt p-5" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-3 sm:grid sm:place-items-center sm:p-4" onClick={onClose}>
+      <div className="mx-auto my-3 w-full max-w-5xl rounded-xl border border-border bg-cardAlt p-4 sm:my-0 sm:max-h-[calc(100dvh-2rem)] sm:overflow-y-auto sm:p-5" onClick={(event) => event.stopPropagation()}>
         <div className="mb-4 flex items-start justify-between">
           <div><h2 className="font-semibold text-textBright">Create Team</h2><p className="text-sm text-textMuted">Add players manually or import a ProSoccerData Excel list.</p></div>
           <button type="button" onClick={onClose} className="text-sm text-textMuted hover:text-textPrimary">Close</button>
@@ -146,7 +146,7 @@ export function CreateTeamModal({ onClose, onCreated }: { onClose: () => void; o
           <section>
             <div className="mb-2 flex items-center justify-between"><h3 className="font-semibold text-textBright">Players ({players.filter((player) => player.firstName || player.lastName).length})</h3><button type="button" onClick={addPlayerRow} className="rounded-lg border border-borderButton px-3 py-1.5 text-sm text-textSecondary hover:border-accent">+ Add player</button></div>
             <div className="hidden grid-cols-[1fr_1fr_140px_1.4fr_1.2fr] gap-2 px-2 pb-1 text-xs font-bold uppercase tracking-wide text-textMuted md:grid"><span>First name</span><span>Last name</span><span>Date of birth</span><span>Email</span><span>Phone numbers</span></div>
-            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+            <div className="space-y-2 pr-1 md:max-h-80 md:overflow-y-auto">
               {players.map((row, index) => (
                 <div key={index} className="grid gap-2 rounded-lg border border-border bg-card p-2 md:grid-cols-[1fr_1fr_140px_1.4fr_1.2fr]">
                   <input type="text" placeholder="First name" value={row.firstName} onChange={(event) => updatePlayerRow(index, "firstName", event.target.value)} className="min-w-0 rounded-lg border border-border bg-input px-2 py-2 text-sm text-textPrimary" />
@@ -160,7 +160,7 @@ export function CreateTeamModal({ onClose, onCreated }: { onClose: () => void; o
           </section>
 
           {error && <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
-          <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-textSecondary hover:bg-cardHover">Cancel</button><button type="submit" disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{saving ? "Creating…" : "Create team"}</button></div>
+          <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-cardAlt px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:border-0 sm:p-0"><button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-textSecondary hover:bg-cardHover">Cancel</button><button type="submit" disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{saving ? "Creating…" : "Create team"}</button></div>
         </form>
       </div>
     </div>

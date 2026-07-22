@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { banCoach, deleteCoach, setCoachPlan, unbanCoach } from "../../actions";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export function AccountActions({
   coachId,
@@ -17,6 +18,7 @@ export function AccountActions({
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"ban" | "delete" | null>(null);
   const router = useRouter();
 
   function handlePlanToggle() {
@@ -35,13 +37,15 @@ export function AccountActions({
 
   function handleBanToggle() {
     setError(null);
-    const action = banned ? unbanCoach : banCoach;
-    const verb = banned ? "unblock" : "block";
-    if (!confirm(`${verb === "block" ? "Block" : "Unblock"} ${email}? ${verb === "block" ? "They will no longer be able to sign in." : ""}`)) return;
+    setConfirmAction("ban");
+  }
 
+  function confirmBanToggle() {
+    const action = banned ? unbanCoach : banCoach;
     startTransition(async () => {
       try {
         await action(coachId);
+        setConfirmAction(null);
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Something went wrong");
@@ -51,9 +55,10 @@ export function AccountActions({
 
   function handleDelete() {
     setError(null);
-    if (!confirm(`Permanently delete ${email} and all their teams, videos and clips? This cannot be undone.`)) return;
-    if (!confirm("Are you really sure? This deletes the account immediately.")) return;
+    setConfirmAction("delete");
+  }
 
+  function confirmDelete() {
     startTransition(async () => {
       try {
         await deleteCoach(coachId);
@@ -90,6 +95,8 @@ export function AccountActions({
         </button>
       </div>
       {error && <p className="text-red-400 text-xs">{error}</p>}
+      <ConfirmDialog open={confirmAction === "ban"} title={banned ? "Unblock account?" : "Block account?"} message={banned ? `Allow ${email} to sign in again?` : `${email} will no longer be able to sign in until the account is unblocked.`} confirmLabel={banned ? "Unblock" : "Block"} destructive={!banned} busy={isPending} onCancel={() => setConfirmAction(null)} onConfirm={confirmBanToggle} />
+      <ConfirmDialog open={confirmAction === "delete"} title="Permanently delete account?" message={`This immediately deletes ${email}, including all teams, players, videos and clips. This cannot be undone.`} confirmLabel="Delete account" busy={isPending} onCancel={() => setConfirmAction(null)} onConfirm={confirmDelete} />
     </div>
   );
 }

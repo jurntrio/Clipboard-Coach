@@ -19,7 +19,7 @@ export default async function AdminOverviewPage() {
   );
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto">
       <SectionHeader title="Admin" subtitle="Coaches, teams and storage across all accounts" artworkSrc="/branding/admin.png" />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-8">
@@ -28,7 +28,7 @@ export default async function AdminOverviewPage() {
         <StatTile label="Videos" value={totals.videos} />
         <StatTile label="Failed" value={totals.failed} warn={totals.failed > 0} />
         <StatTile label="Clips" value={totals.clips} />
-        <StatTile label="Storage" value={formatBytes(totals.storage)} />
+        <StatTile label="Cloud storage" value={formatBytes(totals.storage)} />
       </div>
 
       <div className="flex justify-end mb-3">
@@ -47,7 +47,7 @@ export default async function AdminOverviewPage() {
               <th className="text-right px-4 py-3">Players</th>
               <th className="text-right px-4 py-3">Videos</th>
               <th className="text-right px-4 py-3">Clips</th>
-              <th className="text-right px-4 py-3">Storage</th>
+              <th className="text-right px-4 py-3">Cloud storage</th>
               <th className="text-left px-4 py-3">Plan</th>
               <th className="text-left px-4 py-3">Status</th>
             </tr>
