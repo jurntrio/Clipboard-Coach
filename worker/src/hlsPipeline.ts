@@ -78,3 +78,33 @@ export async function buildHlsProxy(inputPath: string): Promise<{ dir: string; p
 
   return { dir, playlistPath };
 }
+
+/** Convert a short shared clip to a broadly supported mobile MP4. */
+export async function buildMobileMp4(inputPath: string, outputPath: string) {
+  await run(ffmpegPath, [
+    "-y",
+    "-i",
+    inputPath,
+    "-vf",
+    "scale=-2:min(720\\,ih)",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "23",
+    "-pix_fmt",
+    "yuv420p",
+    "-profile:v",
+    "high",
+    "-level",
+    "4.0",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "128k",
+    "-movflags",
+    "+faststart",
+    outputPath
+  ]);
+}

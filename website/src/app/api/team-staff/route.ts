@@ -17,7 +17,7 @@ export async function GET() {
 
   const admin = createAdminClient();
   const [{ data: ownedTeams }, { data: ownMemberships }] = await Promise.all([
-    admin.from("teams").select("id").eq("coach_id", user.id),
+    admin.from("teams").select("id, coach_id").eq("coach_id", user.id),
     admin.from("team_staff_members").select("team_id").eq("user_id", user.id)
   ]);
   const teamIds = Array.from(new Set([...(ownedTeams ?? []).map((team) => team.id), ...(ownMemberships ?? []).map((membership) => membership.team_id)]));
@@ -27,7 +27,7 @@ export async function GET() {
   const userIds = Array.from(new Set((memberships ?? []).map((membership) => membership.user_id)));
   const { data: profiles } = userIds.length ? await admin.from("profiles").select("id, full_name").in("id", userIds) : { data: [] };
   const names = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name || "Registered staff"]));
-  return NextResponse.json({ members: (memberships ?? []).map((membership) => ({ ...membership, full_name: names.get(membership.user_id) || "Registered staff", removable: ownedTeams?.some((team) => team.id === membership.team_id) ?? false })) });
+  return NextResponse.json({ members: (memberships ?? []).map((membership) => ({ ...membership, full_name: names.get(membership.user_id) || "Registered staff", removable: ownedTeams?.some((team) => team.id === membership.team_id && team.coach_id !== membership.user_id) ?? false })) });
 }
 
 export async function POST(request: Request) {
@@ -61,8 +61,10 @@ export async function DELETE(request: Request) {
   const body = await request.json().catch(() => null) as { membershipId?: string } | null;
   if (!body?.membershipId) return NextResponse.json({ error: "Membership is required" }, { status: 400 });
   const admin = createAdminClient();
-  const { data: membership } = await admin.from("team_staff_members").select("id, teams(coach_id)").eq("id", body.membershipId).maybeSingle();
-  if (!membership || (membership.teams as unknown as { coach_id: string } | null)?.coach_id !== user.id) return NextResponse.json({ error: "Membership not found" }, { status: 404 });
+  const { data: membership } = await admin.from("team_staff_members").select("id, user_id, teams(coach_id)").eq("id", body.membershipId).maybeSingle();
+  const team = membership?.teams as unknown as { coach_id: string } | null;
+  if (!membership || team?.coach_id !== user.id) return NextResponse.json({ error: "Membership not found" }, { status: 404 });
+  if (membership.user_id === team.coach_id) return NextResponse.json({ error: "The team owner cannot be removed from staff." }, { status: 400 });
   const { error } = await admin.from("team_staff_members").delete().eq("id", membership.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ deleted: true });

@@ -123,6 +123,8 @@ export type RenderedClipSegment = {
   play_start: number;
   source_start: number;
   source_end: number;
+  video_codec?: "avc";
+  mobile_compatible?: boolean;
 };
 
 export type ClipSegment = {

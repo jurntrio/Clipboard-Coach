@@ -142,6 +142,11 @@ export default function VideoViewerPage() {
     if (!error) setTags((current) => current.map((item) => item.id === tagId ? { ...item, start_time: safeStart, end_time: safeEnd } : item).sort((a, b) => a.start_time - b.start_time));
   }
 
+  async function renameTag(tagId: string, name: string) {
+    const { error } = await supabase.from("tags").update({ name, color: getTagColor(name) }).eq("id", tagId);
+    if (!error) setTags((current) => current.map((tag) => tag.id === tagId ? { ...tag, name, color: getTagColor(name) } : tag));
+  }
+
   async function deleteTag(tagId: string) {
     await supabase.from("tags").delete().eq("id", tagId);
     setTags((current) => current.filter((tag) => tag.id !== tagId));
@@ -212,21 +217,11 @@ export default function VideoViewerPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2 border-b border-border bg-card">
-        <Link
-          href="/dashboard"
-          title="Home"
-          className="flex-shrink-0 w-12 h-12 rounded-lg bg-button border border-borderButton flex items-center justify-center hover:border-accent hover:bg-cardHover transition"
-        >
-          <Image src="/branding/home.png" alt="Home" width={28} height={28} />
-        </Link>
-        <p className="text-textBright font-semibold">{video?.title || "Untitled video"}</p>
-      </div>
-
       <div className="flex flex-1 min-h-0">
       <div className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
+        <div className="flex items-center gap-3"><Link href="/dashboard" title="Home" aria-label="Home" className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt="Home" width={28} height={28} /></Link><p className="min-w-0 truncate text-sm font-semibold text-textBright">{video?.title || "Untitled video"}</p></div>
         <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, currentTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
-        <div className="space-y-2"><h3 className="text-sm font-semibold text-textBright">Period markers</h3>{(["Start", "End"] as const).map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-red-400" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "bg-red-500" : "bg-accent"}`} /></span>{name}</button>)}</div>
+        <div className="space-y-2"><h3 className="text-sm font-semibold text-textBright">Period markers</h3>{(["Start", "End"] as const).map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div>
         {tags.some((tag) => isPeriodMarker(tag.name)) && (
           <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
             <summary className="cursor-pointer text-sm font-semibold text-textBright">Period times</summary>
@@ -280,7 +275,7 @@ export default function VideoViewerPage() {
       <div className="w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
         <section>
           <h3 className="mb-2 font-semibold text-textBright">Tagged clips</h3>
-          <TagList tags={tags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={toggleTagSelected} onSeek={seekTo} onDelete={deleteTag} onUpdate={updateTag} />
+          <TagList tags={tags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={toggleTagSelected} onSeek={seekTo} onDelete={deleteTag} onUpdate={updateTag} onRename={renameTag} />
         </section>
         <ClipBuilder
           videoId={videoId}

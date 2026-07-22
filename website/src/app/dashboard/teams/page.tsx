@@ -102,7 +102,8 @@ export default function TeamsPage() {
   async function createExtraGroup() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || teams.some((team) => team.name.trim().toUpperCase() === "EXTRA")) return;
-    await supabase.from("teams").insert({ coach_id: user.id, name: "EXTRA" });
+    const { data: team } = await supabase.from("teams").insert({ coach_id: user.id, name: "EXTRA" }).select("id").single();
+    if (team) await supabase.from("team_staff_members").insert({ team_id: team.id, user_id: user.id, added_by: user.id });
     await loadTeams();
   }
 
@@ -146,7 +147,7 @@ export default function TeamsPage() {
                     <div className="flex items-center gap-2.5">
                       <strong className="text-textCardTitle">{team.name}</strong>
                       <small className="text-textMuted text-sm">
-                        {players.length} players · {staff.length} staff
+                        {players.length} players · {staff.length + registeredStaff.length} staff
                       </small>
                     </div>
                     {ownsTeam && <div className="flex gap-2">

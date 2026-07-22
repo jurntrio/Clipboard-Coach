@@ -154,11 +154,16 @@ export function ClipBuilder({
 
           const { error: updateError } = await supabase
             .from("clips")
-            .update({ rendered_segments: renderedSegments, render_status: "ready", render_error: null })
+            .update({ rendered_segments: renderedSegments, render_status: "rendering", render_error: null })
             .eq("id", clip.id);
           if (updateError) throw updateError;
+          const processResponse = await fetch(`/api/clips/${clip.id}/process`, { method: "POST" });
+          if (!processResponse.ok) {
+            const body = await processResponse.json().catch(() => null) as { error?: string } | null;
+            throw new Error(body?.error || "The mobile-compatible clip conversion could not be started.");
+          }
           setProgress(1);
-          setStatus("Clip ready");
+          setStatus("Clip uploaded. Preparing the mobile version…");
           setClipName("");
           setAudiencePlayerIds([]);
           setAudienceType("full_team");

@@ -11,6 +11,7 @@ import type { Player } from "@/types/database";
 import { ClipCard } from "@/components/clips/ClipCard";
 import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { EditPlayerModal } from "@/components/teams/EditPlayerModal";
+import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
 
 type PlayerWithTeam = Player & { teams: { name: string } | null };
 type PlayerClip = {
@@ -36,6 +37,8 @@ export default function PlayerClipsPage() {
   const [selectedClip, setSelectedClip] = useState<PlayerClip | null>(null);
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [shareDialog, setShareDialog] = useState<{ clipName: string; shareUrl: string } | null>(null);
+  const [shareError, setShareError] = useState("");
   const supabase = createClient();
 
   useEffect(() => { void loadPlayerAndClips(); }, [playerId]);
@@ -81,12 +84,14 @@ export default function PlayerClipsPage() {
       .map((tag) => ({ id: tag.id, name: tag.name, color: tag.color, start_time: tag.start_time, end_time: tag.end_time }));
   }
 
-  async function shareClip(clipId: string) {
-    const { data } = await supabase.from("share_links").insert({ clip_id: clipId }).select().single();
-    if (!data) return;
-    const shareUrl = buildPublicShareUrl(data.token);
-    await navigator.clipboard.writeText(shareUrl);
-    alert(`Share link copied:\n${shareUrl}`);
+  async function shareClip(clip: PlayerClip) {
+    setShareError("");
+    const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select().single();
+    if (error || !data) {
+      setShareError(error?.message || "The share link could not be created.");
+      return;
+    }
+    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token) });
   }
 
   return (
@@ -128,8 +133,10 @@ export default function PlayerClipsPage() {
       )}
 
       {selectedClip && selectedClip.videos && (
-        <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos.video_url} segments={segmentsFor(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip.id)} />
+        <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos.video_url} segments={segmentsFor(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} />
       )}
+      {shareError && <p className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{shareError}</p>}
+      {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} onClose={() => setShareDialog(null)} />}
       {editing && player && <EditPlayerModal player={player} onClose={() => setEditing(false)} onSaved={() => void loadPlayerAndClips()} />}
     </div>
   );

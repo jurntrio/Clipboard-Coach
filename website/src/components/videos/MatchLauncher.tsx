@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { inspectLocalVideo, type LocalVideoInfo } from "@/lib/media/local-clips";
 import { getRememberedLocalVideo, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
 import type { Match, Team, Video } from "@/types/database";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 type Mode = "recent" | "all" | "create";
 type SelectedVideo = { file: File; handle: FileSystemFileHandle | null; info: LocalVideoInfo };
@@ -41,6 +42,8 @@ export function MatchLauncher() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [supportsPersistentFileAccess, setSupportsPersistentFileAccess] = useState<boolean | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Extract<RecentItem, { kind: "match" }> | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     void loadData();
@@ -49,9 +52,11 @@ export function MatchLauncher() {
   }, []);
 
   async function loadData() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     const [matchResult, videoResult, teamResult] = await Promise.all([
-      supabase.from("matches").select("*, match_videos(video_id)").order("last_opened_at", { ascending: false }),
-      supabase.from("videos").select("*").eq("status", "active").order("created_at", { ascending: false }),
+      supabase.from("matches").select("*, match_videos(video_id)").eq("coach_id", user.id).order("last_opened_at", { ascending: false }),
+      supabase.from("videos").select("*").eq("coach_id", user.id).eq("status", "active").order("created_at", { ascending: false }),
       supabase.from("teams").select("*").order("name")
     ]);
     if (matchResult.error && matchResult.error.code !== "42P01") setError(matchResult.error.message);
@@ -161,6 +166,18 @@ export function MatchLauncher() {
     }
     await supabase.from("matches").update({ last_opened_at: new Date().toISOString() }).eq("id", item.id);
     router.push(`/dashboard/matches/${item.id}`);
+  }
+
+  async function deleteMatch() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setError("");
+    const response = await fetch(`/api/matches/${deleteTarget.id}`, { method: "DELETE" });
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    setDeleting(false);
+    if (!response.ok) { setError(body?.error || "The match could not be deleted."); setDeleteTarget(null); return; }
+    setDeleteTarget(null);
+    await loadData();
   }
 
   async function acceptFile(index: number, file: File, handle: FileSystemFileHandle | null) {
@@ -311,10 +328,10 @@ export function MatchLauncher() {
               {[0, 1, 2, 3].map((index) => {
                 const item = recentItems[index];
                 return item ? (
-                  <button key={`${item.kind}-${item.id}`} type="button" disabled={busy} onClick={() => void openItem(item)} className="w-full flex items-center justify-between gap-4 rounded-xl border border-border bg-cardDeep px-4 py-3 text-left hover:border-accent hover:bg-cardHover disabled:opacity-50">
+                  <div key={`${item.kind}-${item.id}`} className="flex items-stretch overflow-hidden rounded-xl border border-border bg-cardDeep hover:border-accent"><button type="button" disabled={busy} onClick={() => void openItem(item)} className="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3 text-left hover:bg-cardHover disabled:opacity-50">
                     <span><strong className="block text-textPrimary">{item.title}</strong><span className="text-xs text-textMuted">{item.date} · {item.count} video{item.count === 1 ? "" : "s"}</span></span>
                     <span className="text-accent">Open</span>
-                  </button>
+                  </button>{item.kind === "match" && <button type="button" disabled={busy} onClick={() => setDeleteTarget(item)} aria-label={`Delete ${item.title}`} title="Delete match" className="grid w-12 flex-shrink-0 place-items-center border-l border-border text-lg text-red-400 hover:bg-red-500/15 disabled:opacity-50">🗑</button>}</div>
                 ) : <div key={index} className="rounded-xl border border-border bg-cardDeep px-4 py-3 text-sm text-textMuted">No recent match</div>;
               })}
             </div>
@@ -326,7 +343,7 @@ export function MatchLauncher() {
 
         {mode === "all" && (
           <div className="space-y-2">
-            {recentItems.map((item) => <button key={`${item.kind}-${item.id}`} type="button" disabled={busy} onClick={() => void openItem(item)} className="w-full flex justify-between rounded-lg border border-border bg-cardDeep px-4 py-3 text-left text-textPrimary hover:border-accent disabled:opacity-50"><span>{item.title}</span><span className="text-sm text-textMuted">{item.date}</span></button>)}
+            {recentItems.map((item) => <div key={`${item.kind}-${item.id}`} className="flex items-stretch overflow-hidden rounded-lg border border-border bg-cardDeep hover:border-accent"><button type="button" disabled={busy} onClick={() => void openItem(item)} className="flex min-w-0 flex-1 justify-between gap-3 px-4 py-3 text-left text-textPrimary hover:bg-cardHover disabled:opacity-50"><span className="truncate">{item.title}</span><span className="flex-shrink-0 text-sm text-textMuted">{item.date}</span></button>{item.kind === "match" && <button type="button" disabled={busy} onClick={() => setDeleteTarget(item)} aria-label={`Delete ${item.title}`} title="Delete match" className="grid w-12 flex-shrink-0 place-items-center border-l border-border text-lg text-red-400 hover:bg-red-500/15 disabled:opacity-50">🗑</button>}</div>)}
             {!recentItems.length && <p className="text-textMuted">No saved matches yet.</p>}
             {status && <div className="rounded-lg border border-border bg-cardDeep p-3 text-sm text-textSecondary">{status}</div>}
             {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
@@ -364,6 +381,7 @@ export function MatchLauncher() {
           </form>
         )}
       </div>
+      <ConfirmDialog open={!!deleteTarget} title="Delete match?" message={`Delete ${deleteTarget?.title ?? "this match"}, its exclusively linked videos, tags and clips? This cannot be undone.`} busy={deleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void deleteMatch()} />
     </div>
   );
 }

@@ -106,6 +106,9 @@ export function CreateTeamModal({ onClose, onCreated }: { onClose: () => void; o
     const { data: team, error: teamError } = await supabase.from("teams").insert({ coach_id: user.id, name: name.trim() }).select().single();
     if (teamError || !team) { setError(teamError?.message || "The team could not be created."); setSaving(false); return; }
 
+    const { error: staffError } = await supabase.from("team_staff_members").insert({ team_id: team.id, user_id: user.id, added_by: user.id });
+    if (staffError) { await supabase.from("teams").delete().eq("id", team.id); setError(staffError.message); setSaving(false); return; }
+
     const rows = players.filter((row) => row.firstName.trim() && row.lastName.trim()).map((row) => ({
       team_id: team.id,
       first_name: row.firstName.trim(),

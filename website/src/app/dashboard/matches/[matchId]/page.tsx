@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
@@ -16,6 +16,8 @@ import { TagList } from "@/components/tags/TagList";
 import { QuickTagCreator } from "@/components/tags/QuickTagCreator";
 import { ClipBuilder } from "@/components/clips/ClipBuilder";
 import { MatchDetailsCard } from "@/components/matches/MatchDetailsCard";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { inspectLocalVideo } from "@/lib/media/local-clips";
 
 type MatchBlock = { id: string; sequence_order: number; label: string; videos: Video | null };
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
@@ -28,9 +30,11 @@ function messageFrom(error: unknown, fallback: string) {
 
 export default function MatchViewerPage() {
   const { matchId } = useParams<{ matchId: string }>();
+  const router = useRouter();
   const supabase = createClient();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const reconnectInputRef = useRef<HTMLInputElement | null>(null);
+  const replaceInputRef = useRef<HTMLInputElement | null>(null);
   const reconnectVideoRef = useRef<Video | null>(null);
   const reconnectAllRef = useRef(false);
   const pendingSeekRef = useRef<number | null>(null);
@@ -49,6 +53,10 @@ export default function MatchViewerPage() {
   const [supportsPersistentFileAccess, setSupportsPersistentFileAccess] = useState<boolean | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [replacing, setReplacing] = useState(false);
+  const [confirmDeleteMatch, setConfirmDeleteMatch] = useState(false);
+  const [deletingMatch, setDeletingMatch] = useState(false);
 
   const blocks = useMemo(() => [...(match?.match_videos ?? [])].sort((a, b) => a.sequence_order - b.sequence_order), [match]);
   const videos = useMemo(() => blocks.map((block) => block.videos).filter((video): video is Video => !!video), [blocks]);
@@ -76,6 +84,7 @@ export default function MatchViewerPage() {
     void loadStandardTags();
     void loadExtraPlayers();
     setSupportsPersistentFileAccess(typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === "function");
+    void supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? ""));
   }, [matchId]);
 
   useEffect(() => {
@@ -91,11 +100,13 @@ export default function MatchViewerPage() {
   }, [currentFile]);
 
   async function loadMatch() {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data, error: loadError } = await supabase.from("matches")
       .select("*, match_videos(id, sequence_order, label, videos(*))")
       .eq("id", matchId).single();
     if (loadError || !data) { setError(loadError?.message || "Match not found."); return; }
     const loaded = data as unknown as MatchWithBlocks;
+    if (!user || loaded.coach_id !== user.id) { router.replace("/dashboard/clips"); return; }
     setMatch(loaded);
     const loadedVideos = loaded.match_videos.map((block) => block.videos).filter((video): video is Video => !!video);
     if (loadedVideos.length) {
@@ -193,6 +204,52 @@ export default function MatchViewerPage() {
     reconnectAllRef.current = false;
   }
 
+  async function replaceSelectedVideos(selections: { file: File; handle: FileSystemFileHandle | null }[]) {
+    if (selections.length !== videos.length) {
+      setError(`Select exactly ${videos.length} replacement video${videos.length === 1 ? "" : "s"}, in playback order.`);
+      return;
+    }
+    setReplacing(true);
+    setError("");
+    try {
+      for (let index = 0; index < videos.length; index += 1) {
+        const video = videos[index];
+        const selection = selections[index];
+        const [info, fingerprint] = await Promise.all([inspectLocalVideo(selection.file), localVideoFingerprint(selection.file)]);
+        const changes = { video_url: `local://${fingerprint}`, video_key: `local/${fingerprint}`, file_size: selection.file.size, duration: Math.round(info.duration), processing_status: "ready", title: selection.file.name.replace(/\.[^/.]+$/, "") };
+        const { error: updateError } = await supabase.from("videos").update(changes).eq("id", video.id);
+        if (updateError) throw updateError;
+        await rememberLocalVideo(video.id, selection.file, selection.handle);
+      }
+      setCurrentIndex(0);
+      setCombinedTime(0);
+      await loadMatch();
+    } catch (replaceError) {
+      setError(messageFrom(replaceError, "The match videos could not be replaced."));
+    } finally {
+      setReplacing(false);
+    }
+  }
+
+  async function chooseReplacementVideos() {
+    const picker = (window as unknown as { showOpenFilePicker?: (options: unknown) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker;
+    if (!picker) { replaceInputRef.current?.click(); return; }
+    try {
+      const handles = await picker({ multiple: videos.length > 1, types: [{ description: "Replacement match videos", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
+      await replaceSelectedVideos(await Promise.all(handles.map(async (handle) => ({ file: await handle.getFile(), handle }))));
+    } catch (pickerError) {
+      if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) setError(messageFrom(pickerError, "The replacement videos could not be opened."));
+    }
+  }
+
+  async function deleteMatch() {
+    setDeletingMatch(true);
+    const response = await fetch(`/api/matches/${matchId}`, { method: "DELETE" });
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    if (!response.ok) { setError(body?.error || "The match could not be deleted."); setDeletingMatch(false); setConfirmDeleteMatch(false); return; }
+    router.push("/dashboard");
+  }
+
   async function addTag(label: string) {
     if (!currentVideo || !label.trim()) return;
     const localTime = videoRef.current?.currentTime ?? Math.max(0, combinedTime - (offsets.map.get(currentVideo.id) ?? 0));
@@ -223,6 +280,11 @@ export default function MatchViewerPage() {
     setTags((current) => current
       .map((item) => item.id === tagId ? { ...item, start_time: startTime, end_time: endTime } : item)
       .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+  }
+
+  async function renameTag(tagId: string, name: string) {
+    const { error: updateError } = await supabase.from("tags").update({ name, color: getTagColor(name) }).eq("id", tagId);
+    if (!updateError) setTags((current) => current.map((tag) => tag.id === tagId ? { ...tag, name, color: getTagColor(name) } : tag));
   }
 
   async function deleteTag(tagId: string) {
@@ -283,15 +345,14 @@ export default function MatchViewerPage() {
   return (
     <div className="flex flex-col h-screen">
       <input ref={reconnectInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void handleFallbackSelection(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
-      <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2 border-b border-border bg-card">
-        <Link href="/dashboard" title="Home" aria-label="Home" className="w-12 h-12 rounded-lg bg-button border border-borderButton flex items-center justify-center hover:border-accent hover:bg-cardHover transition"><Image src="/branding/home.png" alt="Home" width={30} height={30} /></Link>
-      </div>
-
+      <input ref={replaceInputRef} type="file" multiple={videos.length > 1} accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void replaceSelectedVideos(Array.from(event.target.files ?? []).map((file) => ({ file, handle: null }))); event.target.value = ""; }} />
       <div className="flex flex-1 min-h-0">
         <aside className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
+          <Link href="/dashboard" title="Home" aria-label="Home" className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt="Home" width={28} height={28} /></Link>
           {match && <MatchDetailsCard match={match} videoCount={videos.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} />}
+          {match?.coach_id === currentUserId && <div className="grid gap-2"><button type="button" disabled={replacing || !videos.length} onClick={() => void chooseReplacementVideos()} className="rounded-lg border border-borderButton bg-button px-3 py-2 text-sm font-semibold text-textPrimary hover:border-accent disabled:opacity-50">{replacing ? "Replacing videos..." : "Replace match videos"}</button><button type="button" disabled={replacing} onClick={() => setConfirmDeleteMatch(true)} className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/20 disabled:opacity-50">Delete match</button></div>}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
-          <div><h3 className="mb-2 text-sm font-semibold text-textBright">Period markers</h3><div className="space-y-2">{markerTags.map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-red-400" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "bg-red-500" : "bg-accent"}`} /></span>{name}</button>)}</div></div>
+          <div><h3 className="mb-2 text-sm font-semibold text-textBright">Period markers</h3><div className="space-y-2">{markerTags.map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div></div>
           {displayTags.some((tag) => isPeriodMarker(tag.name)) && (
             <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
               <summary className="cursor-pointer text-sm font-semibold text-textBright">Period times</summary>
@@ -333,11 +394,12 @@ export default function MatchViewerPage() {
         <aside className="w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
           <section className="min-h-0">
             <h3 className="mb-2 font-semibold text-textBright">Tagged clips</h3>
-            <TagList tags={displayTags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={(id) => void deleteTag(id)} onUpdate={updateTag} />
+            <TagList tags={displayTags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={(id) => void deleteTag(id)} onUpdate={updateTag} onRename={renameTag} />
           </section>
           {videos[0] && <ClipBuilder videoId={videos[0].id} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} extraPlayers={extraPlayers} localVideo localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} onClipCreated={() => setSelectedTagIds([])} />}
         </aside>
       </div>
+      <ConfirmDialog open={confirmDeleteMatch} title="Delete match?" message="Delete this match, its exclusively linked videos, tags and clips? This cannot be undone." busy={deletingMatch} onCancel={() => setConfirmDeleteMatch(false)} onConfirm={() => void deleteMatch()} />
     </div>
   );
 }

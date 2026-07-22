@@ -14,21 +14,32 @@ function parseTime(value: string): number | null {
   return null;
 }
 
-function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate }: {
+function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate, onRename }: {
   tag: Tag;
   selected: boolean;
   onToggleSelect: (tagId: string) => void;
   onSeek: (time: number) => void;
   onDelete: (tagId: string) => void;
   onUpdate?: (tagId: string, startTime: number, endTime: number) => void | Promise<void>;
+  onRename?: (tagId: string, name: string) => void | Promise<void>;
 }) {
   const marker = isPeriodMarker(tag.name);
   const endMarker = tag.name.trim().toLowerCase() === "end";
   const [startDraft, setStartDraft] = useState(formatTime(tag.start_time));
   const [endDraft, setEndDraft] = useState(formatTime(tag.end_time));
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(tag.name);
 
   useEffect(() => setStartDraft(formatTime(tag.start_time)), [tag.start_time]);
   useEffect(() => setEndDraft(formatTime(tag.end_time)), [tag.end_time]);
+  useEffect(() => setNameDraft(tag.name), [tag.name]);
+
+  function saveName() {
+    const name = nameDraft.trim();
+    if (!name || !onRename) { setNameDraft(tag.name); setEditingName(false); return; }
+    void onRename(tag.id, name);
+    setEditingName(false);
+  }
 
   function saveTimes() {
     if (!onUpdate) return;
@@ -56,7 +67,8 @@ function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate }: {
           <input type="checkbox" aria-label={`Select ${tag.name} for clip`} checked={selected} onChange={() => onToggleSelect(tag.id)} />
         )}
         <span className={`h-2.5 w-2.5 flex-shrink-0 ${marker ? "rotate-45 rounded-sm" : "rounded-full"}`} style={{ backgroundColor: tag.color }} />
-        <button onClick={() => onSeek(tag.start_time)} className="min-w-0 flex-1 truncate text-left text-sm font-medium text-textPrimary">{tag.name}</button>
+        {editingName ? <input autoFocus value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} onBlur={saveName} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { setNameDraft(tag.name); setEditingName(false); } }} className="min-w-0 flex-1 rounded border border-accent bg-input px-2 py-1 text-sm text-textPrimary outline-none" /> : <button onClick={() => onSeek(tag.start_time)} className="min-w-0 flex-1 truncate text-left text-sm font-medium text-textPrimary">{tag.name}</button>}
+        {!marker && onRename && <button type="button" onClick={() => setEditingName(true)} className="px-1 text-xs text-textMuted hover:text-accent">Edit</button>}
         <button onClick={() => onDelete(tag.id)} className="px-1 text-sm text-textMuted hover:text-red-400" aria-label={`Delete ${tag.name}`}>&times;</button>
       </div>
       <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-textMuted">
@@ -75,19 +87,20 @@ function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate }: {
   );
 }
 
-export function TagList({ tags, selectedTagIds, onToggleSelect, onSeek, onDelete, onUpdate }: {
+export function TagList({ tags, selectedTagIds, onToggleSelect, onSeek, onDelete, onUpdate, onRename }: {
   tags: Tag[];
   selectedTagIds: string[];
   onToggleSelect: (tagId: string) => void;
   onSeek: (time: number) => void;
   onDelete: (tagId: string) => void;
   onUpdate?: (tagId: string, startTime: number, endTime: number) => void | Promise<void>;
+  onRename?: (tagId: string, name: string) => void | Promise<void>;
 }) {
   if (tags.length === 0) return <p className="text-sm text-textMuted">No tags yet. Play the video and tap a tag button.</p>;
 
   return (
     <div className="flex flex-col gap-1 overflow-y-auto">
-      {tags.map((tag) => <TagRow key={tag.id} tag={tag} selected={selectedTagIds.includes(tag.id)} onToggleSelect={onToggleSelect} onSeek={onSeek} onDelete={onDelete} onUpdate={onUpdate} />)}
+      {tags.map((tag) => <TagRow key={tag.id} tag={tag} selected={selectedTagIds.includes(tag.id)} onToggleSelect={onToggleSelect} onSeek={onSeek} onDelete={onDelete} onUpdate={onUpdate} onRename={onRename} />)}
     </div>
   );
 }

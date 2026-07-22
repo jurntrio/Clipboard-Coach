@@ -9,6 +9,8 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 export default function SettingsPage() {
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [newTagName, setNewTagName] = useState("");
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [tagNameDraft, setTagNameDraft] = useState("");
   const supabase = createClient();
 
   useEffect(() => {
@@ -43,6 +45,14 @@ export default function SettingsPage() {
     loadStandardTags();
   }
 
+  async function renameStandardTag(tagId: string) {
+    const name = tagNameDraft.trim();
+    if (!name) return;
+    await supabase.from("standard_tags").update({ name }).eq("id", tagId);
+    setEditingTagId(null);
+    await loadStandardTags();
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <SectionHeader title="Settings" artworkSrc="/branding/settings.png" />
@@ -72,11 +82,9 @@ export default function SettingsPage() {
         <div className="flex flex-col gap-1 mb-4">
           {standardTags.map((tag) => (
             <div key={tag.id} className="flex items-center justify-between bg-card border border-border rounded-lg px-3 py-2">
-              <span className="text-textPrimary">{tag.name}</span>
+              {editingTagId === tag.id ? <input autoFocus value={tagNameDraft} onChange={(event) => setTagNameDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void renameStandardTag(tag.id); if (event.key === "Escape") setEditingTagId(null); }} className="min-w-0 flex-1 rounded border border-accent bg-input px-2 py-1 text-textPrimary outline-none" /> : <span className="text-textPrimary">{tag.name}</span>}
               {!tag.is_protected && (
-                <button onClick={() => removeStandardTag(tag.id)} className="text-textMuted hover:text-red-400 text-sm">
-                  Remove
-                </button>
+                <div className="ml-3 flex gap-3">{editingTagId === tag.id ? <button type="button" onClick={() => void renameStandardTag(tag.id)} className="text-sm font-semibold text-accent">Save</button> : <button type="button" onClick={() => { setEditingTagId(tag.id); setTagNameDraft(tag.name); }} className="text-sm text-textMuted hover:text-accent">Edit</button>}<button type="button" onClick={() => removeStandardTag(tag.id)} className="text-sm text-textMuted hover:text-red-400">Remove</button></div>
               )}
             </div>
           ))}
