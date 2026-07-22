@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import type { Player, StandardTag, Tag, Video } from "@/types/database";
+import type { Player, StandardTag, Tag, TagDrawing, Video } from "@/types/database";
 import { VideoPlayer } from "@/components/video-player/VideoPlayer";
 import { PlaybackControls } from "@/components/video-player/PlaybackControls";
 import { Timeline } from "@/components/video-player/Timeline";
@@ -14,6 +14,10 @@ import { QuickTagCreator } from "@/components/tags/QuickTagCreator";
 import { ClipBuilder } from "@/components/clips/ClipBuilder";
 import { getTagColor } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
+import { ActiveTagOverlay } from "@/components/video-player/ActiveTagOverlay";
+import { captureVideoFrame, FrameDrawingDialog, type WebDrawingShape } from "@/components/drawings/DesktopDrawingDialog";
+import { ActiveDrawingOverlay } from "@/components/video-player/ActiveDrawingOverlay";
+import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
 import {
   getRememberedLocalVideo,
   isLocalVideoUrl,
@@ -38,7 +42,93 @@ export default function VideoViewerPage() {
   const [localError, setLocalError] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [drawingFrame, setDrawingFrame] = useState<{ image: string; time: number; tagId: string | null; drawingId: string | null; key?: string; initialShapes?: WebDrawingShape[]; durationSeconds?: number } | null>(null);
+  const [playingDrawing, setPlayingDrawing] = useState<TagDrawing | null>(null);
+  const lastPlaybackTimeRef = useRef(0);
+  const handledDrawingIdsRef = useRef(new Set<string>());
+  const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supabase = createClient();
+
+  useEffect(() => () => { if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current); }, []);
+
+  function handleViewerTimeUpdate(time: number) {
+    setCurrentTime(time);
+    const previousTime = lastPlaybackTimeRef.current;
+    if (time < previousTime - 0.25) handledDrawingIdsRef.current.clear();
+    lastPlaybackTimeRef.current = time;
+    if (playingDrawing) return;
+    const candidate = tags.flatMap((tag) => tag.drawings ?? []).sort((a, b) => a.video_time - b.video_time)
+      .find((drawing) => !handledDrawingIdsRef.current.has(drawing.id) && previousTime <= drawing.video_time && time >= drawing.video_time);
+    const player = videoRef.current;
+    if (!candidate || !player) return;
+    const resumeAfterFreeze = !player.paused;
+    handledDrawingIdsRef.current.add(candidate.id);
+    player.pause();
+    player.currentTime = candidate.video_time;
+    lastPlaybackTimeRef.current = candidate.video_time;
+    setCurrentTime(candidate.video_time);
+    setPlayingDrawing(candidate);
+    drawingTimerRef.current = setTimeout(() => {
+      setPlayingDrawing(null);
+      drawingTimerRef.current = null;
+      if (resumeAfterFreeze) void player.play();
+    }, candidate.duration_seconds * 1000);
+  }
+
+  function drawOnCurrentFrame(requestedTag?: Tag) {
+    const player = videoRef.current;
+    if (!player) return;
+    const activeTag = requestedTag ?? tags.find((tag) => !isPeriodMarker(tag.name) && currentTime >= tag.start_time && currentTime <= tag.end_time);
+    if (!activeTag) { setLocalError("Draw is available while the timeline is inside a tag."); return; }
+    player.pause();
+    try {
+      setDrawingFrame({ image: captureVideoFrame(player), time: player.currentTime, tagId: activeTag.id, drawingId: null });
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : "Could not capture this video frame.");
+    }
+  }
+
+  function drawDownloadOnly() {
+    const player = videoRef.current;
+    if (!player) return;
+    player.pause();
+    try {
+      setDrawingFrame({ image: captureVideoFrame(player), time: player.currentTime, tagId: null, drawingId: null });
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : "Could not capture this video frame.");
+    }
+  }
+
+  async function saveDrawing(blob: Blob, durationSeconds: number, shapes: WebDrawingShape[]) {
+    if (!drawingFrame?.tagId) return;
+    const tag = tags.find((item) => item.id === drawingFrame.tagId);
+    if (!tag) throw new Error("The selected tag no longer exists.");
+    const id = drawingFrame.drawingId ?? crypto.randomUUID();
+    const key = drawingFrame.key ?? `drawings/${video?.coach_id}/${tag.id}/${id}.png`;
+    const url = await uploadBlobToR2(blob, key, "image/png", () => undefined);
+    let baseFrameUrl = drawingFrame.image;
+    if (!drawingFrame.drawingId) {
+      const baseBlob = await fetch(drawingFrame.image).then((response) => response.blob());
+      baseFrameUrl = await uploadBlobToR2(baseBlob, `drawings/${video?.coach_id}/${tag.id}/${id}-base.png`, "image/png", () => undefined);
+    }
+    const savedDrawing = { id, key, url, video_time: drawingFrame.time, duration_seconds: durationSeconds, base_frame_url: baseFrameUrl, shapes, created_at: new Date().toISOString() };
+    const drawings = drawingFrame.drawingId ? (tag.drawings ?? []).map((drawing) => drawing.id === id ? savedDrawing : drawing) : [...(tag.drawings ?? []), savedDrawing];
+    const { error } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
+    if (error) throw error;
+    setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
+    setDrawingFrame(null);
+  }
+
+  function openSavedDrawing(tag: Tag, drawing: TagDrawing) {
+    setDrawingFrame({ image: drawing.base_frame_url ?? drawing.url, time: drawing.video_time, tagId: tag.id, drawingId: drawing.id, key: drawing.key, initialShapes: (drawing.shapes ?? []) as WebDrawingShape[], durationSeconds: drawing.duration_seconds });
+  }
+
+  async function changeDrawingDuration(tag: Tag, drawingId: string, durationSeconds: number) {
+    const drawings = (tag.drawings ?? []).map((drawing) => drawing.id === drawingId ? { ...drawing, duration_seconds: durationSeconds } : drawing);
+    setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
+    const { error } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
+    if (error) setLocalError(error.message);
+  }
 
   useEffect(() => {
     loadVideo();
@@ -154,6 +244,11 @@ export default function VideoViewerPage() {
   }
 
   function seekTo(time: number) {
+    if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current);
+    drawingTimerRef.current = null;
+    setPlayingDrawing(null);
+    handledDrawingIdsRef.current.clear();
+    lastPlaybackTimeRef.current = time;
     if (videoRef.current) {
       videoRef.current.currentTime = time;
     }
@@ -235,8 +330,9 @@ export default function VideoViewerPage() {
           <div className="grid grid-cols-1 gap-2">
             {standardTags.filter((tag) => !isPeriodMarker(tag.name)).map((tag) => <button key={tag.id} onClick={() => void addTag(tag.name)} className="rounded-lg border border-borderButton bg-button px-2 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}
           </div>
-          <div className="mt-2"><QuickTagCreator onCreated={(tag) => setStandardTags((current) => [...current, tag])} /></div>
+          <div className="mt-2"><QuickTagCreator onCreated={async (tag) => { setStandardTags((current) => [...current, tag]); await addTag(tag.name); }} /></div>
         </div>
+        <button type="button" onClick={drawDownloadOnly} className="mt-auto w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page">Draw</button>
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 flex flex-col p-4 gap-3">
@@ -261,13 +357,17 @@ export default function VideoViewerPage() {
             </div>
           </div>
         ) : (
-          <VideoPlayer
-            ref={videoRef}
-            src={localVideoUrl ?? video?.video_url}
-            onTimeUpdate={setCurrentTime}
-            onDurationChange={(value) => { setDuration(value); if (videoRef.current) videoRef.current.playbackRate = playbackRate; }}
-            onPlayingChange={setIsPlaying}
-          />
+          <div className="relative flex min-h-0 flex-1">
+            <VideoPlayer
+              ref={videoRef}
+              src={localVideoUrl ?? video?.video_url}
+              onTimeUpdate={handleViewerTimeUpdate}
+              onDurationChange={(value) => { setDuration(value); if (videoRef.current) videoRef.current.playbackRate = playbackRate; }}
+              onPlayingChange={setIsPlaying}
+            />
+            <ActiveTagOverlay tags={tags} currentTime={currentTime} />
+            <ActiveDrawingOverlay drawing={playingDrawing} />
+          </div>
         )}
         <Timeline duration={duration} currentTime={currentTime} tags={tags} onSeek={seekTo} />
       </div>
@@ -275,7 +375,7 @@ export default function VideoViewerPage() {
       <div className="w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
         <section>
           <h3 className="mb-2 font-semibold text-textBright">Tagged clips</h3>
-          <TagList tags={tags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={toggleTagSelected} onSeek={seekTo} onDelete={deleteTag} onUpdate={updateTag} onRename={renameTag} />
+          <TagList tags={tags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={toggleTagSelected} onSeek={seekTo} onDelete={deleteTag} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={currentTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
         </section>
         <ClipBuilder
           videoId={videoId}
@@ -286,9 +386,11 @@ export default function VideoViewerPage() {
           extraPlayers={extraPlayers}
           localVideo={isLocalVideoUrl(video?.video_url)}
           localFile={localFile}
+          matchLabel={video?.home_team && video?.away_team ? `${video.home_team} - ${video.away_team}` : video?.title || "Match"}
           onClipCreated={() => setSelectedTagIds([])}
         />
       </div>
+      {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}
       </div>
     </div>
   );

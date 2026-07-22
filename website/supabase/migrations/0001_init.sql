@@ -138,8 +138,8 @@ create policy "Coaches can CRUD own clip segments" on clip_segments for all
   using (clip_id in (select id from clips where coach_id = auth.uid()));
 
 alter table share_links enable row level security;
-create policy "Anyone can view share links" on share_links for select to anon, authenticated using (true);
-create policy "Anyone can increment view count" on share_links for update to anon, authenticated using (true);
+-- Public token lookup and view counting must go through trusted server-side
+-- routes. Never grant anon/authenticated blanket access to this table.
 create policy "Coaches can manage own share links" on share_links for all
   using (clip_id in (select id from clips where coach_id = auth.uid()));
 

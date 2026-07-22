@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Tag } from "@/types/database";
+import type { Tag, TagDrawing } from "@/types/database";
 import { formatTime } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
 
@@ -14,7 +14,7 @@ function parseTime(value: string): number | null {
   return null;
 }
 
-function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate, onRename }: {
+function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate, onRename, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
   tag: Tag;
   selected: boolean;
   onToggleSelect: (tagId: string) => void;
@@ -22,6 +22,10 @@ function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate, onR
   onDelete: (tagId: string) => void;
   onUpdate?: (tagId: string, startTime: number, endTime: number) => void | Promise<void>;
   onRename?: (tagId: string, name: string) => void | Promise<void>;
+  onDraw?: (tag: Tag) => void;
+  currentTime?: number;
+  onDrawingDurationChange?: (tag: Tag, drawingId: string, durationSeconds: number) => void | Promise<void>;
+  onOpenDrawing?: (tag: Tag, drawing: TagDrawing) => void;
 }) {
   const marker = isPeriodMarker(tag.name);
   const endMarker = tag.name.trim().toLowerCase() === "end";
@@ -72,6 +76,11 @@ function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate, onR
         <button onClick={() => onDelete(tag.id)} className="px-1 text-sm text-textMuted hover:text-red-400" aria-label={`Delete ${tag.name}`}>&times;</button>
       </div>
       <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-textMuted">
+        {!marker && onDraw && currentTime !== undefined && currentTime >= tag.start_time && currentTime <= tag.end_time && (
+          <button type="button" onClick={() => onDraw(tag)} className="mr-auto rounded border border-accent/60 bg-accentDim px-2 py-1 text-[11px] font-semibold text-accent hover:bg-accent hover:text-page">
+            Draw
+          </button>
+        )}
         <label className="flex items-center gap-1">
           <span>{marker ? "Time" : "Start"}</span>
           <input value={startDraft} onChange={(event) => setStartDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} disabled={!onUpdate} className={timeInput} inputMode="numeric" />
@@ -83,11 +92,12 @@ function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate, onR
           </label>
         )}
       </div>
+      {!marker && (tag.drawings?.length ?? 0) > 0 && <div className="mt-2 flex flex-wrap gap-2">{tag.drawings.map((drawing) => <div key={drawing.id} className="w-24 rounded border border-border bg-card p-1"><button type="button" onClick={() => onOpenDrawing?.(tag, drawing)} className="block w-full" aria-label={`Edit drawing at ${formatTime(drawing.video_time)}`}><img src={drawing.url} alt={`Drawing at ${formatTime(drawing.video_time)}`} className="h-12 w-full rounded bg-black object-cover" /></button><label className="mt-1 flex items-center gap-1 text-[10px] text-textMuted"><input type="number" min={1} max={30} value={drawing.duration_seconds} onChange={(event) => void onDrawingDurationChange?.(tag, drawing.id, Math.min(30, Math.max(1, Number(event.target.value) || 1)))} className="w-10 rounded border border-border bg-input px-1 text-textPrimary" /> sec</label></div>)}</div>}
     </div>
   );
 }
 
-export function TagList({ tags, selectedTagIds, onToggleSelect, onSeek, onDelete, onUpdate, onRename }: {
+export function TagList({ tags, selectedTagIds, onToggleSelect, onSeek, onDelete, onUpdate, onRename, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
   tags: Tag[];
   selectedTagIds: string[];
   onToggleSelect: (tagId: string) => void;
@@ -95,12 +105,16 @@ export function TagList({ tags, selectedTagIds, onToggleSelect, onSeek, onDelete
   onDelete: (tagId: string) => void;
   onUpdate?: (tagId: string, startTime: number, endTime: number) => void | Promise<void>;
   onRename?: (tagId: string, name: string) => void | Promise<void>;
+  onDraw?: (tag: Tag) => void;
+  currentTime?: number;
+  onDrawingDurationChange?: (tag: Tag, drawingId: string, durationSeconds: number) => void | Promise<void>;
+  onOpenDrawing?: (tag: Tag, drawing: TagDrawing) => void;
 }) {
   if (tags.length === 0) return <p className="text-sm text-textMuted">No tags yet. Play the video and tap a tag button.</p>;
 
   return (
     <div className="flex flex-col gap-1 overflow-y-auto">
-      {tags.map((tag) => <TagRow key={tag.id} tag={tag} selected={selectedTagIds.includes(tag.id)} onToggleSelect={onToggleSelect} onSeek={onSeek} onDelete={onDelete} onUpdate={onUpdate} onRename={onRename} />)}
+      {tags.map((tag) => <TagRow key={tag.id} tag={tag} selected={selectedTagIds.includes(tag.id)} onToggleSelect={onToggleSelect} onSeek={onSeek} onDelete={onDelete} onUpdate={onUpdate} onRename={onRename} onDraw={onDraw} currentTime={currentTime} onDrawingDurationChange={onDrawingDurationChange} onOpenDrawing={onOpenDrawing} />)}
     </div>
   );
 }

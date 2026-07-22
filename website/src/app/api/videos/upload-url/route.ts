@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
     if (
       typeof key !== "string" ||
-      !(key.startsWith(`videos/${user.id}/`) || key.startsWith(`clips/${user.id}/`)) ||
+      !(key.startsWith(`videos/${user.id}/`) || key.startsWith(`clips/${user.id}/`) || key.startsWith(`drawings/${user.id}/`)) ||
       typeof contentType !== "string" ||
       !contentType
     ) {

@@ -20,6 +20,7 @@ export function ClipBuilder({
   localFile,
   localFilesByVideoId,
   localSourcesReady,
+  matchLabel,
   onClipCreated
 }: {
   videoId: string;
@@ -32,6 +33,7 @@ export function ClipBuilder({
   localFile: File | null;
   localFilesByVideoId?: Record<string, File>;
   localSourcesReady?: boolean;
+  matchLabel?: string;
   onClipCreated: () => void;
 }) {
   const canUseLocalSources = localSourcesReady ?? !!localFile;
@@ -54,14 +56,33 @@ export function ClipBuilder({
   const [newTeamPlayerName, setNewTeamPlayerName] = useState("");
   const [newExtraName, setNewExtraName] = useState("");
   const [addingPerson, setAddingPerson] = useState(false);
+  const [clipAllowance, setClipAllowance] = useState<{ plan: "free" | "pro"; used: number } | null>(null);
   const supabase = createClient();
+  const freeClipLimit = 20;
+  const clipLimitReached = clipAllowance?.plan === "free" && clipAllowance.used >= freeClipLimit;
 
   useEffect(() => setTeamPlayers(players), [players]);
   useEffect(() => setSelectedTeamId(teamId ?? ""), [teamId]);
   useEffect(() => setExtraPeople(extraPlayers), [extraPlayers]);
+  useEffect(() => {
+    let active = true;
+    const loadClipAllowance = async () => {
+      const client = createClient();
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) return;
+      const { data } = await client.from("profiles").select("plan, clips_created_total").eq("id", user.id).single();
+      if (active && data) setClipAllowance({ plan: data.plan === "pro" ? "pro" : "free", used: data.clips_created_total ?? 0 });
+    };
+    void loadClipAllowance();
+    return () => { active = false; };
+  }, []);
 
   async function handleCreateClip() {
     if (clipTagIds.length === 0) return;
+    if (clipLimitReached) {
+      setErrorMessage("You have used all 20 clips included with a free account. Upgrade to Pro to create more clips.");
+      return;
+    }
     if (localVideo && !canUseLocalSources) {
       setErrorMessage("Reconnect the original match video before making clips.");
       return;
@@ -90,13 +111,21 @@ export function ClipBuilder({
     }
 
     const orderedTags = tags.filter((tag) => clipTagIds.includes(tag.id) && !isPeriodMarker(tag.name));
+    let resolvedClipName = clipName.trim();
+    if (!resolvedClipName && orderedTags.length === 1) {
+      resolvedClipName = orderedTags[0].name;
+    } else if (!resolvedClipName) {
+      const { count } = await supabase.from("clips").select("id", { count: "exact", head: true }).eq("video_id", videoId);
+      const sequence = String((count ?? 0) + 1).padStart(2, "0");
+      resolvedClipName = `Clip ${sequence} ${matchLabel?.trim() || "Match"}`;
+    }
     const { data: clip, error } = await supabase
       .from("clips")
       .insert({
         coach_id: user.id,
         video_id: videoId,
         team_id: selectedTeamId || null,
-        name: clipName.trim() || `Clip (${clipTagIds.length} tags)`,
+        name: resolvedClipName,
         audience_type: audienceType,
         audience_player_ids: audienceType === "specific_players" ? audiencePlayerIds : [],
         render_status: localFile ? "rendering" : "metadata_only"
@@ -105,6 +134,7 @@ export function ClipBuilder({
       .single();
 
     if (!error && clip) {
+      setClipAllowance((current) => current ? { ...current, used: current.used + 1 } : current);
       // Order segments by the tag's position in the timeline, not selection order.
       const segments = orderedTags.map((tag, index) => ({
         clip_id: clip.id,
@@ -183,7 +213,9 @@ export function ClipBuilder({
         setOpen(false);
       }
     } else if (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(error.message.includes("FREE_CLIP_LIMIT_REACHED")
+        ? "You have used all 20 clips included with a free account. Upgrade to Pro to create more clips."
+        : error.message);
     }
 
     setSaving(false);
@@ -268,8 +300,10 @@ export function ClipBuilder({
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="font-semibold text-textBright">Make clip</h3>
       <p className="mb-3 mt-1 text-xs text-textMuted">{clipTagIds.length} clip tag(s) selected</p>
-      <button type="button" onClick={() => { setErrorMessage(""); setOpen(true); void loadAvailableTeams(); }} disabled={clipTagIds.length === 0 || (localVideo && !canUseLocalSources)} className="w-full rounded-lg bg-accent py-2 font-semibold text-page hover:opacity-90 disabled:opacity-50">Create clip</button>
+      {clipAllowance && <p className={`mb-3 text-xs ${clipLimitReached ? "text-red-300" : "text-textMuted"}`}>{clipAllowance.plan === "pro" ? `Pro plan · Unlimited clips (${clipAllowance.used} created)` : `${clipAllowance.used}/${freeClipLimit} free clips used`}</p>}
+      <button type="button" onClick={() => { setErrorMessage(""); setOpen(true); void loadAvailableTeams(); }} disabled={clipTagIds.length === 0 || (localVideo && !canUseLocalSources) || clipLimitReached} className="w-full rounded-lg bg-accent py-2 font-semibold text-page hover:opacity-90 disabled:opacity-50">Create clip</button>
       {localVideo && !canUseLocalSources && <p className="mt-2 text-xs text-textMuted">Reconnect all source videos used by this match to enable clip creation.</p>}
+      {clipLimitReached && <p className="mt-2 text-xs text-red-300">Your 20 free clips have been used. Existing clips remain available; Pro will unlock unlimited new clips.</p>}
 
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" onClick={() => { if (!saving) setOpen(false); }}>
@@ -280,7 +314,7 @@ export function ClipBuilder({
             </div>
 
             <label className="block text-sm text-textSecondary">Clip name
-              <input type="text" placeholder="Clip name" value={clipName} onChange={(event) => setClipName(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
+              <input type="text" placeholder={clipTagIds.length === 1 ? tags.find((tag) => tag.id === clipTagIds[0])?.name || "Tag name" : `Clip 01 ${matchLabel?.trim() || "Match"}`} value={clipName} onChange={(event) => setClipName(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
             </label>
 
             <div className="mt-4 space-y-3">
@@ -314,7 +348,7 @@ export function ClipBuilder({
               <div className="mt-4" role="status" aria-live="polite"><div className="mb-1 flex justify-between text-xs text-textSecondary"><span>{status}</span><span>{Math.round(progress * 100)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-button"><div className="h-full bg-accent transition-[width]" style={{ width: `${progress * 100}%` }} /></div><p className="mt-2 text-xs text-textMuted">Keep this page open. The full match remains on this PC.</p></div>
             )}
             {errorMessage && <p className="mt-3 text-sm text-red-300">{errorMessage}</p>}
-            <div className="mt-5 flex gap-3"><button type="button" disabled={saving} onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary disabled:opacity-50">Cancel</button><button type="button" onClick={() => void handleCreateClip()} disabled={saving} className="flex-1 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{saving ? (localFile ? "Making clip…" : "Creating…") : "Create clip"}</button></div>
+            <div className="mt-5 flex gap-3"><button type="button" disabled={saving} onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary disabled:opacity-50">Cancel</button><button type="button" onClick={() => void handleCreateClip()} disabled={saving || clipLimitReached} className="flex-1 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{saving ? (localFile ? "Making clip…" : "Creating…") : "Create clip"}</button></div>
           </div>
         </div>
       )}

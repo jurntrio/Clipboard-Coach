@@ -3,6 +3,7 @@ import express from "express";
 import { env } from "./env";
 import { processVideo } from "./processVideo";
 import { processClip } from "./processClip";
+import { cleanupExpiredClips } from "./cleanupExpiredClips";
 
 const app = express();
 app.use(express.json());
@@ -42,3 +43,14 @@ app.post("/process-clip", (req, res) => {
 app.listen(env.port, () => {
   console.log(`[worker] listening on port ${env.port}`);
 });
+
+const cleanupInterval = setInterval(() => {
+  cleanupExpiredClips()
+    .then((result) => console.log("[worker] clip retention cleanup complete:", result))
+    .catch((error) => console.error("[worker] clip retention cleanup failed:", error));
+}, 24 * 60 * 60 * 1000);
+cleanupInterval.unref();
+
+cleanupExpiredClips()
+  .then((result) => console.log("[worker] startup clip retention cleanup complete:", result))
+  .catch((error) => console.error("[worker] startup clip retention cleanup failed:", error));

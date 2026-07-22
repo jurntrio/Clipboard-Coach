@@ -103,8 +103,9 @@ export default function TeamsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || teams.some((team) => team.name.trim().toUpperCase() === "EXTRA")) return;
     const { data: team } = await supabase.from("teams").insert({ coach_id: user.id, name: "EXTRA" }).select("id").single();
-    if (team) await supabase.from("team_staff_members").insert({ team_id: team.id, user_id: user.id, added_by: user.id });
+    if (team) await supabase.from("team_staff_members").upsert({ team_id: team.id, user_id: user.id, added_by: user.id }, { onConflict: "team_id,user_id", ignoreDuplicates: true });
     await loadTeams();
+    await loadLinkedStaff();
   }
 
   return (
@@ -212,7 +213,7 @@ export default function TeamsPage() {
       {showCreateModal && (
         <CreateTeamModal
           onClose={() => setShowCreateModal(false)}
-          onCreated={loadTeams}
+          onCreated={() => { void Promise.all([loadTeams(), loadLinkedStaff()]); }}
         />
       )}
 

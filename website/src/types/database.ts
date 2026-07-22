@@ -3,6 +3,7 @@ export type Profile = {
   email: string;
   full_name: string | null;
   plan: "free" | "pro";
+  clips_created_total: number;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   subscription_status: string | null;
@@ -85,6 +86,18 @@ export type Tag = {
   end_time: number;
   color: string;
   player_ids: string[];
+  drawings: TagDrawing[];
+  created_at: string;
+};
+
+export type TagDrawing = {
+  id: string;
+  url: string;
+  key: string;
+  video_time: number;
+  duration_seconds: number;
+  base_frame_url?: string;
+  shapes?: unknown[];
   created_at: string;
 };
 

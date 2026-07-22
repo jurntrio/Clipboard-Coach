@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { StandardTag } from "@/types/database";
 
-export function QuickTagCreator({ onCreated }: { onCreated: (tag: StandardTag) => void }) {
+export function QuickTagCreator({ onCreated }: { onCreated: (tag: StandardTag) => void | Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -28,7 +28,7 @@ export function QuickTagCreator({ onCreated }: { onCreated: (tag: StandardTag) =
       setSaving(false);
       return;
     }
-    onCreated(data);
+    await onCreated(data);
     setName("");
     setSaving(false);
     setOpen(false);

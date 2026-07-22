@@ -2053,6 +2053,7 @@ function App() {
     }
 
     player.pause();
+    setIsPlaying(false);
     setDrawingCaptureError("");
 
     const canvas = document.createElement("canvas");
@@ -4587,11 +4588,9 @@ function App() {
                     <div className="tagRowActions">
                       {item.videoId === currentVideoKey ? (
                         <>
-                          {isTagActiveAtTime(item.tag, currentTime) ? (
-                            <button type="button" onClick={() => captureFrameForDrawing(item.tag.id)}>
-                              Draw
-                            </button>
-                          ) : null}
+                          <button type="button" onClick={() => captureFrameForDrawing(item.tag.id)}>
+                            Draw
+                          </button>
                           <button
                             type="button"
                             onClick={() => {

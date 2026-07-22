@@ -386,13 +386,15 @@ export default function DrawingCanvas({
   initialShapes,
   onSave,
   onCancel,
-  onDownload
+  onDownload,
+  showSave = true
 }: {
   imageUrl: string;
   initialShapes?: Shape[];
   onSave: (dataUrl: string, shapes: Shape[]) => void;
   onCancel: () => void;
   onDownload?: (dataUrl: string) => void;
+  showSave?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -410,6 +412,7 @@ export default function DrawingCanvas({
   const [dragMode, setDragMode] = useState<"move" | "resize" | null>(null);
   const [dragOrigin, setDragOrigin] = useState<Point | null>(null);
   const [activeHandleId, setActiveHandleId] = useState<string | null>(null);
+  const [selectedHandleId, setSelectedHandleId] = useState<string | null>(null);
   const [liveShape, setLiveShape] = useState<Shape | null>(null);
   const hasDraggedRef = useRef(false);
 
@@ -417,6 +420,7 @@ export default function DrawingCanvas({
 
   useEffect(() => {
     const image = new Image();
+    image.crossOrigin = "anonymous";
     image.onload = () => {
       imageRef.current = image;
       setImageSize({ width: image.naturalWidth, height: image.naturalHeight });
@@ -470,6 +474,9 @@ export default function DrawingCanvas({
     }
 
     if (tool === "polygon" && polygonPoints.length > 0) {
+      if (polygonPoints.length >= 3) {
+        drawPolygon(ctx, { points: polygonPoints, color, lineWidth });
+      }
       ctx.setLineDash([]);
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
@@ -526,7 +533,9 @@ export default function DrawingCanvas({
       }
 
       const hitIndex = [...shapes].reverse().findIndex((shape) => hitTestShape(point, shape));
-      setSelectedShapeIndex(hitIndex === -1 ? null : shapes.length - 1 - hitIndex);
+      const nextIndex = hitIndex === -1 ? null : shapes.length - 1 - hitIndex;
+      if (nextIndex !== selectedShapeIndex) setSelectedHandleId(null);
+      setSelectedShapeIndex(nextIndex);
       return;
     }
 
@@ -595,6 +604,7 @@ export default function DrawingCanvas({
     if (handle) {
       setDragMode("resize");
       setActiveHandleId(handle.id);
+      setSelectedHandleId(handle.id);
       setLiveShape(shape);
       hasDraggedRef.current = true;
       return;
@@ -723,6 +733,17 @@ export default function DrawingCanvas({
 
     setShapes((current) => current.filter((_, index) => index !== selectedShapeIndex));
     setSelectedShapeIndex(null);
+    setSelectedHandleId(null);
+  }
+
+  function deleteSelectedPolygonPoint() {
+    if (selectedShapeIndex === null || !selectedHandleId?.startsWith("p")) return;
+    const shape = shapes[selectedShapeIndex];
+    if (!shape || shape.type !== "polygon" || shape.points.length <= 3) return;
+    const pointIndex = Number(selectedHandleId.slice(1));
+    if (!Number.isInteger(pointIndex)) return;
+    setShapes((current) => current.map((item, index) => index === selectedShapeIndex && item.type === "polygon" ? { ...item, points: item.points.filter((_, currentIndex) => currentIndex !== pointIndex) } : item));
+    setSelectedHandleId(null);
   }
 
   function undo() {
@@ -763,19 +784,19 @@ export default function DrawingCanvas({
       <div className="drawingToolbar">
         <div className="drawingToolButtons">
           <button type="button" className={tool === "arrow" ? "drawingToolActive" : ""} onClick={() => { setTool("arrow"); setSelectedShapeIndex(null); }}>
-            Pijl
+            Arrow
           </button>
           <button type="button" className={tool === "arrowDashed" ? "drawingToolActive" : ""} onClick={() => { setTool("arrowDashed"); setSelectedShapeIndex(null); }}>
-            Looplijn ----&gt;
+            Dotted line ----&gt;
           </button>
           <button type="button" className={tool === "circle" ? "drawingToolActive" : ""} onClick={() => { setTool("circle"); setSelectedShapeIndex(null); }}>
-            Cirkel
+            Circle
           </button>
           <button type="button" className={tool === "polygon" ? "drawingToolActive" : ""} onClick={() => { setTool("polygon"); setPolygonPoints([]); setPreviewEnd(null); setSelectedShapeIndex(null); }}>
-            Vlak
+            Area
           </button>
           <button type="button" className={tool === "text" ? "drawingToolActive" : ""} onClick={() => { setTool("text"); setSelectedShapeIndex(null); }}>
-            Tekst
+            Text
           </button>
           <button type="button" className={tool === "select" ? "drawingToolActive" : ""} onClick={() => setTool("select")}>
             Edit
@@ -788,7 +809,7 @@ export default function DrawingCanvas({
               type="button"
               className={color === option ? "drawingColorSwatch drawingColorActive" : "drawingColorSwatch"}
               style={{ background: option }}
-              aria-label={`Kleur ${option}`}
+              aria-label={`Color ${option}`}
               onClick={() => updateSelectedShapeColor(option)}
             />
           ))}
@@ -797,18 +818,18 @@ export default function DrawingCanvas({
             className="drawingColorPicker"
             value={color}
             onChange={(event) => updateSelectedShapeColor(event.target.value)}
-            aria-label="Kies kleur"
+            aria-label="Choose color"
           />
         </div>
         {tool !== "text" && (tool !== "select" || (selectedShape && selectedShape.type !== "text")) ? (
-          <div className="drawingLineWidthButtons" aria-label="Lijndikte">
+          <div className="drawingLineWidthButtons" aria-label="Line width">
             {lineWidthOptions.map((option) => (
               <button
                 key={option}
                 type="button"
                 className={lineWidth === option ? "drawingLineWidthActive" : ""}
                 onClick={() => updateSelectedShapeLineWidth(option)}
-                aria-label={`Lijndikte ${option}`}
+                aria-label={`Line width ${option}`}
               >
                 <span className="drawingLineWidthDot" style={{ width: option + 4, height: option + 4 }} />
               </button>
@@ -818,27 +839,32 @@ export default function DrawingCanvas({
         <div className="drawingHistoryButtons">
           {tool === "select" && selectedShapeIndex !== null ? (
             <button type="button" onClick={deleteSelectedShape}>
-              Verwijder
+              Delete shape
+            </button>
+          ) : null}
+          {tool === "select" && selectedShape?.type === "polygon" && selectedHandleId?.startsWith("p") ? (
+            <button type="button" onClick={deleteSelectedPolygonPoint} disabled={selectedShape.points.length <= 3}>
+              Delete point
             </button>
           ) : null}
           <button type="button" onClick={undo} disabled={shapes.length === 0}>
             Undo
           </button>
           <button type="button" onClick={clearAll} disabled={shapes.length === 0}>
-            Wis alles
+            Clear all
           </button>
         </div>
       </div>
 
-      {tool === "text" ? <p className="drawingHint">Teken eerst een kader (klik-klik), typ daarna de tekst.</p> : null}
+      {tool === "text" ? <p className="drawingHint">Draw a text box first (click twice), then enter your text.</p> : null}
       {tool === "polygon" && polygonPoints.length === 0 ? (
-        <p className="drawingHint">Klik punten om een vlak te tekenen (driehoek, vierkant, ...) — min. 3 punten, dan Enter of Klaar.</p>
+        <p className="drawingHint">Click points to draw an area (triangle, square, etc.). Add at least 3 points, then press Enter or Done.</p>
       ) : null}
       {tool === "polygon" && polygonPoints.length >= 3 ? (
         <div className="drawingTextEntry">
-          <span className="drawingHint">{polygonPoints.length} punten — nog meer klikken of afsluiten.</span>
-          <button type="button" onClick={finalizePolygon}>Klaar (Enter)</button>
-          <button type="button" onClick={() => { setPolygonPoints([]); setPreviewEnd(null); }}>Annuleer</button>
+          <span className="drawingHint">{polygonPoints.length} points — click to add more or finish the area.</span>
+          <button type="button" onClick={finalizePolygon}>Done (Enter)</button>
+          <button type="button" onClick={() => { setPolygonPoints([]); setPreviewEnd(null); }}>Cancel</button>
         </div>
       ) : null}
 
@@ -846,10 +872,10 @@ export default function DrawingCanvas({
         <div className="drawingTextEntry">
           <input
             value={selectedShape.text}
-            placeholder="Tekst..."
+            placeholder="Text..."
             onChange={(event) => updateSelectedTextValue(event.target.value)}
           />
-          <span className="drawingHint">Tekst en kleur aanpassen, of slepen om te verplaatsen.</span>
+          <span className="drawingHint">Edit the text and color, or drag it to reposition.</span>
         </div>
       ) : null}
 
@@ -858,7 +884,7 @@ export default function DrawingCanvas({
           <input
             autoFocus
             value={pendingTextValue}
-            placeholder="Tekst..."
+            placeholder="Text..."
             onChange={(event) => setPendingTextValue(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -870,7 +896,7 @@ export default function DrawingCanvas({
             }}
           />
           <button type="button" onClick={confirmPendingText}>
-            Plaatsen
+            Place
           </button>
           <button
             type="button"
@@ -879,7 +905,7 @@ export default function DrawingCanvas({
               setPendingTextValue("");
             }}
           >
-            Annuleer
+            Cancel
           </button>
         </div>
       ) : null}
@@ -911,12 +937,12 @@ export default function DrawingCanvas({
         </button>
         {onDownload ? (
           <button type="button" onClick={handleDownload}>
-            Download
+            Download picture
           </button>
         ) : null}
-        <button type="button" onClick={handleSave}>
-          Opslaan
-        </button>
+        {showSave ? <button type="button" onClick={handleSave}>
+          Save
+        </button> : null}
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
 import { formatTime, getTagColor } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
-import type { Match, Player, StandardTag, Tag, Video } from "@/types/database";
+import type { Match, Player, StandardTag, Tag, TagDrawing, Video } from "@/types/database";
 import { VideoPlayer } from "@/components/video-player/VideoPlayer";
 import { PlaybackControls } from "@/components/video-player/PlaybackControls";
 import { Timeline } from "@/components/video-player/Timeline";
@@ -18,6 +18,10 @@ import { ClipBuilder } from "@/components/clips/ClipBuilder";
 import { MatchDetailsCard } from "@/components/matches/MatchDetailsCard";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { inspectLocalVideo } from "@/lib/media/local-clips";
+import { ActiveTagOverlay } from "@/components/video-player/ActiveTagOverlay";
+import { captureVideoFrame, FrameDrawingDialog, type WebDrawingShape } from "@/components/drawings/DesktopDrawingDialog";
+import { ActiveDrawingOverlay } from "@/components/video-player/ActiveDrawingOverlay";
+import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
 
 type MatchBlock = { id: string; sequence_order: number; label: string; videos: Video | null };
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
@@ -52,6 +56,99 @@ export default function MatchViewerPage() {
   const [error, setError] = useState("");
   const [supportsPersistentFileAccess, setSupportsPersistentFileAccess] = useState<boolean | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [drawingFrame, setDrawingFrame] = useState<{ image: string; time: number; tagId: string | null; drawingId: string | null; key?: string; initialShapes?: WebDrawingShape[]; durationSeconds?: number } | null>(null);
+  const [playingDrawing, setPlayingDrawing] = useState<TagDrawing | null>(null);
+  const lastPlaybackTimeRef = useRef(0);
+  const handledDrawingIdsRef = useRef(new Set<string>());
+  const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current); }, []);
+
+  function handleViewerTimeUpdate(localTime: number) {
+    const offset = offsets.map.get(currentVideo?.id ?? "") ?? 0;
+    const time = offset + localTime;
+    setCombinedTime(time);
+    const previousTime = lastPlaybackTimeRef.current;
+    if (time < previousTime - 0.25) handledDrawingIdsRef.current.clear();
+    lastPlaybackTimeRef.current = time;
+    if (playingDrawing) return;
+    const candidate = tags.flatMap((tag) => (tag.drawings ?? []).map((drawing) => ({ drawing, at: drawing.video_time + (offsets.map.get(tag.video_id) ?? 0) })))
+      .sort((a, b) => a.at - b.at)
+      .find(({ drawing, at }) => !handledDrawingIdsRef.current.has(drawing.id) && previousTime <= at && time >= at);
+    const player = videoRef.current;
+    if (!candidate || !player) return;
+    const resumeAfterFreeze = !player.paused;
+    handledDrawingIdsRef.current.add(candidate.drawing.id);
+    player.pause();
+    player.currentTime = candidate.drawing.video_time;
+    lastPlaybackTimeRef.current = candidate.at;
+    setCombinedTime(candidate.at);
+    setPlayingDrawing(candidate.drawing);
+    drawingTimerRef.current = setTimeout(() => {
+      setPlayingDrawing(null);
+      drawingTimerRef.current = null;
+      if (resumeAfterFreeze) void player.play();
+    }, candidate.drawing.duration_seconds * 1000);
+  }
+
+  function drawOnCurrentFrame(requestedTag?: Tag) {
+    const player = videoRef.current;
+    if (!player) return;
+    const activeTag = requestedTag ?? displayTags.find((tag) => !isPeriodMarker(tag.name) && combinedTime >= tag.start_time && combinedTime <= tag.end_time);
+    if (!activeTag) { setError("Draw is available while the timeline is inside a tag."); return; }
+    player.pause();
+    try {
+      setDrawingFrame({ image: captureVideoFrame(player), time: player.currentTime, tagId: activeTag.id, drawingId: null });
+    } catch (captureError) {
+      setError(messageFrom(captureError, "Could not capture this video frame."));
+    }
+  }
+
+  function drawDownloadOnly() {
+    const player = videoRef.current;
+    if (!player) return;
+    player.pause();
+    try {
+      setDrawingFrame({ image: captureVideoFrame(player), time: combinedTime, tagId: null, drawingId: null });
+    } catch (captureError) {
+      setError(messageFrom(captureError, "Could not capture this video frame."));
+    }
+  }
+
+  async function saveDrawing(blob: Blob, durationSeconds: number, shapes: WebDrawingShape[]) {
+    if (!drawingFrame?.tagId) return;
+    const tag = tags.find((item) => item.id === drawingFrame.tagId);
+    if (!tag) throw new Error("The selected tag no longer exists.");
+    const id = drawingFrame.drawingId ?? crypto.randomUUID();
+    const key = drawingFrame.key ?? `drawings/${match?.coach_id}/${tag.id}/${id}.png`;
+    const url = await uploadBlobToR2(blob, key, "image/png", () => undefined);
+    let baseFrameUrl = drawingFrame.image;
+    if (!drawingFrame.drawingId) {
+      const baseBlob = await fetch(drawingFrame.image).then((response) => response.blob());
+      baseFrameUrl = await uploadBlobToR2(baseBlob, `drawings/${match?.coach_id}/${tag.id}/${id}-base.png`, "image/png", () => undefined);
+    }
+    const savedDrawing = { id, key, url, video_time: drawingFrame.time, duration_seconds: durationSeconds, base_frame_url: baseFrameUrl, shapes, created_at: new Date().toISOString() };
+    const drawings = drawingFrame.drawingId ? (tag.drawings ?? []).map((drawing) => drawing.id === id ? savedDrawing : drawing) : [...(tag.drawings ?? []), savedDrawing];
+    const { error: saveError } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
+    if (saveError) throw saveError;
+    setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
+    setDrawingFrame(null);
+  }
+
+  function openSavedDrawing(displayTag: Tag, drawing: TagDrawing) {
+    const tag = tags.find((item) => item.id === displayTag.id);
+    if (!tag) return;
+    setDrawingFrame({ image: drawing.base_frame_url ?? drawing.url, time: drawing.video_time, tagId: tag.id, drawingId: drawing.id, key: drawing.key, initialShapes: (drawing.shapes ?? []) as WebDrawingShape[], durationSeconds: drawing.duration_seconds });
+  }
+
+  async function changeDrawingDuration(displayTag: Tag, drawingId: string, durationSeconds: number) {
+    const tag = tags.find((item) => item.id === displayTag.id);
+    if (!tag) return;
+    const drawings = (tag.drawings ?? []).map((drawing) => drawing.id === drawingId ? { ...drawing, duration_seconds: durationSeconds } : drawing);
+    setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
+    const { error: updateError } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
+    if (updateError) setError(updateError.message);
+  }
   const [playbackRate, setPlaybackRate] = useState(1);
   const [currentUserId, setCurrentUserId] = useState("");
   const [replacing, setReplacing] = useState(false);
@@ -294,6 +391,11 @@ export default function MatchViewerPage() {
   }
 
   function seekTo(time: number) {
+    if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current);
+    drawingTimerRef.current = null;
+    setPlayingDrawing(null);
+    handledDrawingIdsRef.current.clear();
+    lastPlaybackTimeRef.current = time;
     if (!videos.length) return;
     let targetIndex = videos.length - 1;
     for (let index = 0; index < videos.length; index += 1) {
@@ -349,8 +451,7 @@ export default function MatchViewerPage() {
       <div className="flex flex-1 min-h-0">
         <aside className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
           <Link href="/dashboard" title="Home" aria-label="Home" className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt="Home" width={28} height={28} /></Link>
-          {match && <MatchDetailsCard match={match} videoCount={videos.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} />}
-          {match?.coach_id === currentUserId && <div className="grid gap-2"><button type="button" disabled={replacing || !videos.length} onClick={() => void chooseReplacementVideos()} className="rounded-lg border border-borderButton bg-button px-3 py-2 text-sm font-semibold text-textPrimary hover:border-accent disabled:opacity-50">{replacing ? "Replacing videos..." : "Replace match videos"}</button><button type="button" disabled={replacing} onClick={() => setConfirmDeleteMatch(true)} className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/20 disabled:opacity-50">Delete match</button></div>}
+          {match && <MatchDetailsCard match={match} videoCount={videos.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} onReplaceVideos={match.coach_id === currentUserId ? () => void chooseReplacementVideos() : undefined} onDeleteMatch={match.coach_id === currentUserId ? () => setConfirmDeleteMatch(true) : undefined} replacing={replacing} />}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
           <div><h3 className="mb-2 text-sm font-semibold text-textBright">Period markers</h3><div className="space-y-2">{markerTags.map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div></div>
           {displayTags.some((tag) => isPeriodMarker(tag.name)) && (
@@ -366,12 +467,13 @@ export default function MatchViewerPage() {
             <div className="grid grid-cols-1 gap-2">
               {clipTags.map((tag) => <button key={tag.id} onClick={() => void addTag(tag.name)} className="rounded-lg border border-borderButton bg-button px-2 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}
             </div>
-            <div className="mt-2"><QuickTagCreator onCreated={(tag) => setStandardTags((current) => [...current, tag])} /></div>
+            <div className="mt-2"><QuickTagCreator onCreated={async (tag) => { setStandardTags((current) => [...current, tag]); await addTag(tag.name); }} /></div>
           </div>
+          <button type="button" onClick={drawDownloadOnly} className="mt-auto w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page">Draw</button>
         </aside>
 
         <main className="min-h-0 min-w-0 flex-1 flex flex-col p-4 gap-3">
-          {currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">Reconnect video {currentIndex + 1}</h2><p className="text-textMuted text-sm mt-2">Select the original files. The match and tags are already saved.</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">This browser cannot restore local files automatically. Use Chrome or Edge for persistent reconnect.</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">Reconnect all videos</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">Only video {currentIndex + 1}</button></div></div></div> : <VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={(time) => setCombinedTime((offsets.map.get(currentVideo?.id ?? "") ?? 0) + time)} onDurationChange={onVideoReady} onEnded={playNext} onPlayingChange={setIsPlaying} />}
+          {currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">Reconnect video {currentIndex + 1}</h2><p className="text-textMuted text-sm mt-2">Select the original files. The match and tags are already saved.</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">This browser cannot restore local files automatically. Use Chrome or Edge for persistent reconnect.</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">Reconnect all videos</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">Only video {currentIndex + 1}</button></div></div></div> : <div className="relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={playNext} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={displayTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /></div>}
           <div className="flex min-h-12 overflow-hidden rounded-lg border border-border bg-cardDeep" aria-label="Match video sequence">
             {videos.map((video, index) => (
               <button
@@ -394,11 +496,12 @@ export default function MatchViewerPage() {
         <aside className="w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
           <section className="min-h-0">
             <h3 className="mb-2 font-semibold text-textBright">Tagged clips</h3>
-            <TagList tags={displayTags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={(id) => void deleteTag(id)} onUpdate={updateTag} onRename={renameTag} />
+            <TagList tags={displayTags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={(id) => void deleteTag(id)} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={combinedTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
           </section>
-          {videos[0] && <ClipBuilder videoId={videos[0].id} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} extraPlayers={extraPlayers} localVideo localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} onClipCreated={() => setSelectedTagIds([])} />}
+          {videos[0] && <ClipBuilder videoId={videos[0].id} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} extraPlayers={extraPlayers} localVideo localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} matchLabel={`${match?.team_a_name || "Team A"} - ${match?.team_b_name || "Team B"}`} onClipCreated={() => setSelectedTagIds([])} />}
         </aside>
       </div>
+      {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}
       <ConfirmDialog open={confirmDeleteMatch} title="Delete match?" message="Delete this match, its exclusively linked videos, tags and clips? This cannot be undone." busy={deletingMatch} onCancel={() => setConfirmDeleteMatch(false)} onConfirm={() => void deleteMatch()} />
     </div>
   );

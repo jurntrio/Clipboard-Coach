@@ -25,6 +25,14 @@ viewer can stream and scrub reliably, then deletes the original from R2.
 While processing is running, the coach can already scrub/tag the raw
 upload — the swap to the compressed proxy happens invisibly once it's done.
 
+## Clip retention
+
+Shared clips are retained for 365 days. The worker runs a cleanup on startup
+and every 24 hours: it deletes each expired clip's rendered R2 objects first,
+then deletes the clip row. Database cascades remove its segments and share
+links. A storage failure stops the database deletion so an R2 object is never
+silently orphaned by the retention job.
+
 ## Deploy on Railway
 
 1. On [railway.com](https://railway.com), **New Project → Deploy from GitHub repo**,

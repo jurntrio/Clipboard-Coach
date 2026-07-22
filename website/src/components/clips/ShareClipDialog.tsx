@@ -6,9 +6,12 @@ import { useEffect, useState } from "react";
 export function ShareClipDialog({ clipName, shareUrl, onClose }: { clipName: string; shareUrl: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const [canNativeShare, setCanNativeShare] = useState(false);
-  const shareText = `Watch ${clipName} from Clipboard Coach Studio`;
+  const isAutomaticClipName = /^Clip \(\d+ tags?\)$/i.test(clipName.trim());
+  const publicClipName = isAutomaticClipName ? "this clip" : `“${clipName.trim()}”`;
+  const shareText = `Watch ${publicClipName} from Clipboard Coach Studio`;
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText}\n${shareUrl}`)}`;
-  const emailUrl = `mailto:?subject=${encodeURIComponent(`Clipboard Coach clip: ${clipName}`)}&body=${encodeURIComponent(`${shareText}\n\n${shareUrl}`)}`;
+  const emailSubject = isAutomaticClipName ? "A Clipboard Coach clip for you" : `Clipboard Coach clip: ${clipName.trim()}`;
+  const emailUrl = `mailto:?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(`${shareText}\n\n${shareUrl}`)}`;
 
   useEffect(() => setCanNativeShare(typeof navigator.share === "function"), []);
 
@@ -20,7 +23,7 @@ export function ShareClipDialog({ clipName, shareUrl, onClose }: { clipName: str
 
   async function nativeShare() {
     try {
-      await navigator.share({ title: clipName, text: shareText, url: shareUrl });
+      await navigator.share({ title: isAutomaticClipName ? "Clipboard Coach clip" : clipName, text: shareText, url: shareUrl });
     } catch (error) {
       if ((error as DOMException).name !== "AbortError") await copyLink();
     }

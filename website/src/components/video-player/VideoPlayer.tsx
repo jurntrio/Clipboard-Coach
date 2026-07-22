@@ -28,6 +28,7 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           else if (forwardedRef) forwardedRef.current = node;
         }}
         playsInline
+        crossOrigin="anonymous"
         className="min-h-0 w-full flex-1 bg-black object-contain"
         onTimeUpdate={(event) => onTimeUpdate?.(event.currentTarget.currentTime)}
         onDurationChange={(event) => onDurationChange?.(event.currentTarget.duration)}
