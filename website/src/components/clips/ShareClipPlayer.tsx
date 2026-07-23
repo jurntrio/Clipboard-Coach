@@ -14,7 +14,6 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
   const changingSegmentRef = useRef(false);
   const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drawingActiveRef = useRef(false);
-  const drawingSeekPendingRef = useRef(false);
   const shownDrawingIdsRef = useRef(new Set<string>());
   const [segmentIndex, setSegmentIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -88,8 +87,6 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
       continuePlayingRef.current = shouldResume;
       event.currentTarget.pause();
       drawingActiveRef.current = true;
-      drawingSeekPendingRef.current = true;
-      event.currentTarget.currentTime = drawing.at_time;
       setActiveDrawing(drawing);
       drawingTimerRef.current = setTimeout(() => {
         setActiveDrawing(null);
@@ -108,10 +105,6 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
 
   function handleSeeked(event: React.SyntheticEvent<HTMLVideoElement>) {
     if (!segment) return;
-    if (drawingSeekPendingRef.current) {
-      drawingSeekPendingRef.current = false;
-      return;
-    }
     if (drawingActiveRef.current) return;
     shownDrawingIdsRef.current = new Set(
       (segment.drawings ?? []).filter((drawing) => drawing.at_time < event.currentTarget.currentTime - 0.1).map((drawing) => drawing.id)
