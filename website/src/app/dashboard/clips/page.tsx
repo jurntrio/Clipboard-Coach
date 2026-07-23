@@ -24,7 +24,7 @@ type ClipWithDetails = {
   matchId: string | null;
   matchTitle: string;
   audienceLabel: string;
-  rendered_segments: { id: string; url: string; name: string; color: string; duration: number; play_start?: number; drawing_time_base?: "clip"; drawings?: Array<{ id: string; url: string; at_seconds: number; duration_seconds: number }> }[];
+  rendered_segments: { id: string; url: string; name: string; color: string; duration: number; play_start?: number; drawing_time_base?: "clip"; mobile_compatible?: boolean; drawings?: Array<{ id: string; url: string; at_seconds: number; duration_seconds: number }> }[];
   videos: { id: string; title: string | null; video_url: string } | null;
   clip_segments: {
     sequence_order: number;
@@ -97,7 +97,7 @@ export default function ClipsPage() {
         start_time: segment.play_start ?? 0,
         end_time: segment.duration,
         url: segment.url,
-        drawings: (segment.drawings ?? []).map((drawing) => ({
+        drawings: (segment.mobile_compatible ? [] : segment.drawings ?? []).map((drawing) => ({
           id: drawing.id,
           url: drawing.url,
           at_time: (segment.drawing_time_base === "clip" ? (segment.play_start ?? 0) : 0) + drawing.at_seconds,

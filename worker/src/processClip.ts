@@ -75,10 +75,9 @@ export async function processClip(clipId: string) {
         duration,
         play_start: 0,
         drawing_time_base: "clip",
-        drawings: (segment.drawings ?? []).map((drawing, drawingIndex) => ({
-          ...drawing,
-          at_seconds: normalizedDrawingInputs.find((input) => input.sourceIndex === drawingIndex)?.atSeconds ?? drawing.at_seconds
-        })),
+        // Drawings are already baked into the optimized MP4 as freeze-frames.
+        // Keeping their metadata would make web players show the same drawing twice.
+        drawings: [],
         file_size: stat.size,
         video_codec: "avc",
         mobile_compatible: true

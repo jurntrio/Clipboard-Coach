@@ -47,7 +47,7 @@ export default async function SharePage({ params }: { params: { token: string } 
         start_time: segment.play_start ?? 0,
         end_time: segment.duration,
         url: segment.url,
-        drawings: (segment.drawings ?? []).map((drawing: any) => ({
+        drawings: (segment.mobile_compatible ? [] : segment.drawings ?? []).map((drawing: any) => ({
           id: drawing.id,
           url: drawing.url,
           at_time: (segment.drawing_time_base === "clip" ? (segment.play_start ?? 0) : 0) + drawing.at_seconds,
