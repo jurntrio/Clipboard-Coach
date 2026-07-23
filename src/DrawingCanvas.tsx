@@ -493,8 +493,13 @@ export default function DrawingCanvas({
     }
 
     if (tool === "polygon" && polygonPoints.length > 0) {
-      if (polygonPoints.length >= 3) {
-        drawPolygon(ctx, { points: polygonPoints, color, lineWidth });
+      const previewPoints =
+        previewEnd && distance(polygonPoints[polygonPoints.length - 1], previewEnd) > 0
+          ? [...polygonPoints, previewEnd]
+          : polygonPoints;
+
+      if (previewPoints.length >= 3) {
+        drawPolygon(ctx, { points: previewPoints, color, lineWidth });
       }
       ctx.setLineDash([]);
       ctx.strokeStyle = color;
@@ -687,16 +692,24 @@ export default function DrawingCanvas({
   }
 
   useEffect(() => {
-    if (tool !== "polygon" || polygonPoints.length < 3) {
+    if (tool !== "polygon" && tool !== "text") {
       return;
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Enter") {
+      if (tool === "polygon" && polygonPoints.length >= 3 && event.key === "Enter") {
         finalizePolygon();
       } else if (event.key === "Escape") {
+        event.preventDefault();
         setPolygonPoints([]);
+        setPendingStart(null);
         setPreviewEnd(null);
+        setPendingTextBox(null);
+        setPendingTextValue("");
+
+        if (tool === "text") {
+          setTool("select");
+        }
       }
     }
 
@@ -711,6 +724,14 @@ export default function DrawingCanvas({
 
     setPendingTextBox(null);
     setPendingTextValue("");
+  }
+
+  function cancelTextTool() {
+    setPendingStart(null);
+    setPreviewEnd(null);
+    setPendingTextBox(null);
+    setPendingTextValue("");
+    setTool("select");
   }
 
   function updateSelectedShapeColor(nextColor: string) {
@@ -909,8 +930,9 @@ export default function DrawingCanvas({
               if (event.key === "Enter") {
                 confirmPendingText();
               } else if (event.key === "Escape") {
-                setPendingTextBox(null);
-                setPendingTextValue("");
+                event.preventDefault();
+                event.stopPropagation();
+                cancelTextTool();
               }
             }}
           />
@@ -919,10 +941,7 @@ export default function DrawingCanvas({
           </button>
           <button
             type="button"
-            onClick={() => {
-              setPendingTextBox(null);
-              setPendingTextValue("");
-            }}
+            onClick={cancelTextTool}
           >
             {labels.cancel}
           </button>
