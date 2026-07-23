@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useI18n } from "@/i18n/client";
 
 type Theme = "dark" | "light";
 
 export function ThemeToggle() {
+  const { t } = useI18n();
   const [theme, setTheme] = useState<Theme>("dark");
 
   useEffect(() => {
@@ -27,7 +29,7 @@ export function ThemeToggle() {
           theme === "dark" ? "border-accent bg-cardHover text-textCardTitle" : "border-border bg-cardDeep text-textMuted hover:text-textPrimary hover:border-borderButton"
         }`}
       >
-        <span>🌙</span> Dark
+        <span aria-hidden="true">🌙</span> {t("common.dark")}
       </button>
       <button
         type="button"
@@ -36,7 +38,7 @@ export function ThemeToggle() {
           theme === "light" ? "border-accent bg-cardHover text-textCardTitle" : "border-border bg-cardDeep text-textMuted hover:text-textPrimary hover:border-borderButton"
         }`}
       >
-        <span>☀️</span> Light
+        <span aria-hidden="true">☀️</span> {t("common.light")}
       </button>
     </div>
   );

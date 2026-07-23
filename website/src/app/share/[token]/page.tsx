@@ -2,8 +2,13 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ShareClipPlayer } from "@/components/clips/ShareClipPlayer";
+import { getServerI18n } from "@/i18n/server";
+import { LegalLinks } from "@/components/legal/LegalLinks";
+
+export const metadata = { robots: { index: false, follow: false } };
 
 export default async function SharePage({ params }: { params: { token: string } }) {
+  const { t } = getServerI18n();
   const supabase = createAdminClient();
 
   const { data: shareLink } = await supabase
@@ -42,11 +47,17 @@ export default async function SharePage({ params }: { params: { token: string } 
         start_time: segment.play_start ?? 0,
         end_time: segment.duration,
         url: segment.url,
+        drawings: (segment.drawings ?? []).map((drawing: any) => ({
+          id: drawing.id,
+          url: drawing.url,
+          at_time: (segment.drawing_time_base === "clip" ? (segment.play_start ?? 0) : 0) + drawing.at_seconds,
+          duration_seconds: drawing.duration_seconds
+        })),
         source_start: segment.source_start,
         source_end: segment.source_end
       }))
     : sourceSegments;
-  const publicClipName = /^Clip \(\d+ tags?\)$/i.test(clip.name) ? "Shared clip" : clip.name;
+  const publicClipName = /^Clip \(\d+ tags?\)$/i.test(clip.name) ? t("public.sharedClip") : clip.name;
   const hasOnlineSegments = clip.render_status === "ready" && segments.length > 0 && segments.every((segment: any) => typeof segment.url === "string" && /^https?:\/\//.test(segment.url));
 
   return (
@@ -72,7 +83,7 @@ export default async function SharePage({ params }: { params: { token: string } 
             <ShareClipPlayer videoUrl={clip.videos?.video_url} segments={segments} />
           ) : (
             <div className="grid min-h-72 place-items-center bg-black p-8 text-center">
-              <div><h2 className="font-semibold text-textBright">Clip not available online</h2><p className="mt-2 text-sm text-textMuted">This link has no uploaded video. Recreate the clip while all original match videos are connected, then share the new clip.</p></div>
+              <div><h2 className="font-semibold text-textBright">{t("public.unavailable")}</h2><p className="mt-2 text-sm text-textMuted">{t("public.unavailableBody")}</p></div>
             </div>
           )}
         </div>
@@ -81,11 +92,12 @@ export default async function SharePage({ params }: { params: { token: string } 
       <footer className="border-t border-border bg-black/50 px-4 py-8 text-center">
         <div className="mx-auto flex max-w-4xl flex-col items-center">
           <Image src="/branding/logo.png" alt="" width={48} height={48} className="mb-3 h-12 w-12" />
-          <p className="text-sm font-semibold text-textPrimary">Made with Clipboard Coach Studio</p>
-          <p className="mt-1 text-xs text-textMuted">Review matches, tag moments and share the clips that matter.</p>
+          <p className="text-sm font-semibold text-textPrimary">{t("public.madeWith")}</p>
+          <p className="mt-1 text-xs text-textMuted">{t("public.tagline")}</p>
           <a href="/signup" className="mt-4 inline-block rounded-lg bg-accent px-6 py-2 font-semibold text-page">
-            Start making your own clips
+            {t("public.start")}
           </a>
+          <div className="mt-5"><LegalLinks includeReport /></div>
         </div>
       </footer>
     </div>

@@ -2,6 +2,7 @@
 
 import { forwardRef, useRef } from "react";
 import { useHlsSource } from "./useHlsSource";
+import { useI18n } from "@/i18n/client";
 
 type VideoPlayerProps = {
   src: string | null | undefined;
@@ -13,11 +14,12 @@ type VideoPlayerProps = {
 
 export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
   ({ src, onTimeUpdate, onDurationChange, onEnded, onPlayingChange }, forwardedRef) => {
+    const { t } = useI18n();
     const videoRef = useRef<HTMLVideoElement | null>(null);
     useHlsSource(videoRef, src);
 
     if (!src) {
-      return <div className="min-h-0 flex-1 bg-cardDeep flex items-center justify-center text-textMuted">No video</div>;
+      return <div className="min-h-0 flex-1 bg-cardDeep flex items-center justify-center text-textMuted">{t("video.noVideo")}</div>;
     }
 
     return (

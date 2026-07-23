@@ -12,6 +12,7 @@ import { ClipCard } from "@/components/clips/ClipCard";
 import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { EditPlayerModal } from "@/components/teams/EditPlayerModal";
 import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
+import { useI18n } from "@/i18n/client";
 
 type PlayerWithTeam = Player & { teams: { name: string } | null };
 type PlayerClip = {
@@ -22,7 +23,7 @@ type PlayerClip = {
   audience_type: "full_team" | "selected_players" | "specific_players";
   audience_player_ids: string[];
   render_status: string;
-  rendered_segments: { id: string; url: string; name: string; color: string; duration: number; play_start?: number }[];
+  rendered_segments: { id: string; url: string; name: string; color: string; duration: number; play_start?: number; drawing_time_base?: "clip"; drawings?: Array<{ id: string; url: string; at_seconds: number; duration_seconds: number }> }[];
   videos: { title: string | null; video_url: string } | null;
   clip_segments: {
     sequence_order: number;
@@ -31,6 +32,7 @@ type PlayerClip = {
 };
 
 export default function PlayerClipsPage() {
+  const { t, locale } = useI18n();
   const { playerId } = useParams<{ playerId: string }>();
   const [player, setPlayer] = useState<PlayerWithTeam | null>(null);
   const [clips, setClips] = useState<PlayerClip[]>([]);
@@ -73,7 +75,13 @@ export default function PlayerClipsPage() {
         color: segment.color,
         start_time: segment.play_start ?? 0,
         end_time: segment.duration,
-        url: segment.url
+        url: segment.url,
+        drawings: (segment.drawings ?? []).map((drawing) => ({
+          id: drawing.id,
+          url: drawing.url,
+          at_time: (segment.drawing_time_base === "clip" ? (segment.play_start ?? 0) : 0) + drawing.at_seconds,
+          duration_seconds: drawing.duration_seconds
+        }))
       }));
     }
 
@@ -88,7 +96,7 @@ export default function PlayerClipsPage() {
     setShareError("");
     const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select().single();
     if (error || !data) {
-      setShareError(error?.message || "The share link could not be created.");
+      setShareError(error?.message || t("share.createFailed"));
       return;
     }
     setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token) });
@@ -97,39 +105,39 @@ export default function PlayerClipsPage() {
   return (
     <div className="mx-auto max-w-7xl p-6">
       <header className="mb-8 flex items-center gap-3 rounded-xl border border-border bg-card p-4">
-        <Link href="/dashboard/teams" title="Back to teams" className="grid h-14 w-14 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/back.png" alt="Back" width={38} height={38} /></Link>
-        <Link href="/dashboard" title="Home" className="grid h-14 w-14 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt="Home" width={34} height={34} /></Link>
+        <Link href="/dashboard/teams" title={t("team.back")} className="grid h-14 w-14 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/back.png" alt={t("team.back")} width={38} height={38} /></Link>
+        <Link href="/dashboard" title={t("nav.home")} className="grid h-14 w-14 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt={t("nav.home")} width={34} height={34} /></Link>
         <div className="ml-3 flex min-w-0 flex-1 items-center gap-3">
           <div className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-full border-2 border-accent bg-avatar font-bold text-accent">{player?.initials || "–"}</div>
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold text-textBright">{player ? getPlayerDisplayName(player) : "Player"}</h1>
-            <p className="text-sm text-textMuted">{player?.teams?.name || "Team"}{player?.position ? ` · ${player.position}` : ""}</p>
+            <h1 className="truncate text-xl font-bold text-textBright">{player ? getPlayerDisplayName(player) : t("team.player")}</h1>
+            <p className="text-sm text-textMuted">{player?.teams?.name || t("team.team")}{player?.position ? ` · ${player.position}` : ""}</p>
           </div>
         </div>
-        <button type="button" onClick={() => setEditing(true)} disabled={!player} title="Edit player" aria-label="Edit player" className="ml-auto grid h-14 w-14 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button transition hover:border-accent disabled:opacity-40"><Image src="/branding/edit.png" alt="Edit" width={34} height={34} /></button>
+        <button type="button" onClick={() => setEditing(true)} disabled={!player} title={t("team.editPlayer")} aria-label={t("team.editPlayer")} className="ml-auto grid h-14 w-14 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button transition hover:border-accent disabled:opacity-40"><Image src="/branding/edit.png" alt={t("common.edit")} width={34} height={34} /></button>
       </header>
 
       {player && (
         <section className="mb-8 grid gap-3 rounded-xl border border-border bg-cardDeep p-4 sm:grid-cols-3">
-          <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">Date of birth</p><p className="mt-1 text-sm text-textPrimary">{player.date_of_birth ? new Date(`${player.date_of_birth}T00:00:00`).toLocaleDateString("nl-BE") : "–"}</p></div>
-          <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">Email</p><p className="mt-1 break-all text-sm text-textPrimary">{player.email || "–"}</p></div>
-          <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">Phone numbers</p><p className="mt-1 text-sm text-textPrimary">{player.phone_numbers?.join(", ") || "–"}</p></div>
+          <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">{t("team.dateOfBirth")}</p><p className="mt-1 text-sm text-textPrimary">{player.date_of_birth ? new Date(`${player.date_of_birth}T00:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB") : "–"}</p></div>
+          <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">{t("auth.email")}</p><p className="mt-1 break-all text-sm text-textPrimary">{player.email || "–"}</p></div>
+          <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">{t("team.phoneNumbers")}</p><p className="mt-1 text-sm text-textPrimary">{player.phone_numbers?.join(", ") || "–"}</p></div>
         </section>
       )}
 
       <div className="mb-3 flex items-center gap-2">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">Tagged clips</h2>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">{t("team.taggedTitle")}</h2>
         <span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{clips.length}</span>
       </div>
 
       {loading ? (
-        <p className="text-sm text-textMuted">Loading clips…</p>
+        <p className="text-sm text-textMuted">{t("team.loadingClips")}</p>
       ) : clips.length ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {clips.map((clip) => <ClipCard key={clip.id} name={clip.name} videoTitle={clip.videos?.title || "Untitled video"} segmentCount={clip.clip_segments.length} onClick={() => setSelectedClip(clip)} />)}
+          {clips.map((clip) => <ClipCard key={clip.id} name={clip.name} videoTitle={clip.videos?.title || t("team.untitledVideo")} segmentCount={clip.clip_segments.length} onClick={() => setSelectedClip(clip)} />)}
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-cardDeep p-5 text-sm text-textMuted">No clips contain a tag for this player yet.</div>
+        <div className="rounded-xl border border-border bg-cardDeep p-5 text-sm text-textMuted">{t("team.noTaggedClips")}</div>
       )}
 
       {selectedClip && selectedClip.videos && (

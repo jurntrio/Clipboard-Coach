@@ -3,23 +3,24 @@ import Image from "next/image";
 import { ExitCard } from "@/components/ui/ExitCard";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminEmail } from "@/lib/auth/admin";
-
-const cards = [
-  { href: "/dashboard/teams", label: "Teams", icon: "/branding/teams.png" },
-  { href: "/dashboard/videos", label: "Video Viewer", icon: "/branding/video-viewer.png" },
-  { href: "/dashboard/clips", label: "Clips", icon: "/branding/clips.png" },
-  { href: "/dashboard/settings", label: "Settings", icon: "/branding/settings.png" },
-  { href: "/dashboard/help", label: "Help", icon: "/branding/help.png" }
-];
+import { getServerI18n } from "@/i18n/server";
 
 export default async function DashboardHomePage() {
+  const { t } = getServerI18n();
+  const cards = [
+    { href: "/dashboard/teams", label: t("common.teams"), icon: "/branding/teams.png" },
+    { href: "/dashboard/videos", label: t("common.videoViewer"), icon: "/branding/video-viewer.png" },
+    { href: "/dashboard/clips", label: t("common.clips"), icon: "/branding/clips.png" },
+    { href: "/dashboard/settings", label: t("common.settings"), icon: "/branding/settings.png" },
+    { href: "/dashboard/help", label: t("common.help"), icon: "/branding/help.png" }
+  ];
   const supabase = createClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();
 
   const visibleCards = isAdminEmail(user?.email)
-    ? [...cards, { href: "/dashboard/admin", label: "Admin", icon: "/branding/admin.png" }]
+    ? [...cards, { href: "/dashboard/admin", label: t("common.admin"), icon: "/branding/admin.png" }]
     : cards;
 
   return (

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Tag, TagDrawing } from "@/types/database";
 import { formatTime } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
+import { useI18n } from "@/i18n/client";
 
 function parseTime(value: string): number | null {
   const parts = value.trim().split(":").map(Number);
@@ -27,6 +28,7 @@ function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate, onR
   onDrawingDurationChange?: (tag: Tag, drawingId: string, durationSeconds: number) => void | Promise<void>;
   onOpenDrawing?: (tag: Tag, drawing: TagDrawing) => void;
 }) {
+  const { t } = useI18n();
   const marker = isPeriodMarker(tag.name);
   const endMarker = tag.name.trim().toLowerCase() === "end";
   const [startDraft, setStartDraft] = useState(formatTime(tag.start_time));
@@ -66,33 +68,33 @@ function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate, onR
     <div className={`rounded-lg border px-2 py-2 ${selected && !marker ? "border-accent bg-accentDim" : "border-transparent bg-cardDeep hover:border-border"}`}>
       <div className="flex items-center gap-2">
         {marker ? (
-          <span className="w-4 text-center text-sm" style={{ color: endMarker ? "white" : tag.color }} title="Period marker">{endMarker ? "🏁" : "⚑"}</span>
+          <span className="w-4 text-center text-sm" style={{ color: endMarker ? "white" : tag.color }} title={t("tag.periodMarker")}>{endMarker ? "🏁" : "⚑"}</span>
         ) : (
-          <input type="checkbox" aria-label={`Select ${tag.name} for clip`} checked={selected} onChange={() => onToggleSelect(tag.id)} />
+          <input type="checkbox" aria-label={t("tag.selectForClip", { name: tag.name })} checked={selected} onChange={() => onToggleSelect(tag.id)} />
         )}
         <span className={`h-2.5 w-2.5 flex-shrink-0 ${marker ? "rotate-45 rounded-sm" : "rounded-full"}`} style={{ backgroundColor: tag.color }} />
         {editingName ? <input autoFocus value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} onBlur={saveName} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { setNameDraft(tag.name); setEditingName(false); } }} className="min-w-0 flex-1 rounded border border-accent bg-input px-2 py-1 text-sm text-textPrimary outline-none" /> : <button onClick={() => onSeek(tag.start_time)} className="min-w-0 flex-1 truncate text-left text-sm font-medium text-textPrimary">{tag.name}</button>}
-        {!marker && onRename && <button type="button" onClick={() => setEditingName(true)} className="px-1 text-xs text-textMuted hover:text-accent">Edit</button>}
-        <button onClick={() => onDelete(tag.id)} className="px-1 text-sm text-textMuted hover:text-red-400" aria-label={`Delete ${tag.name}`}>&times;</button>
+        {!marker && onRename && <button type="button" onClick={() => setEditingName(true)} className="px-1 text-xs text-textMuted hover:text-accent">{t("common.edit")}</button>}
+        <button onClick={() => onDelete(tag.id)} className="px-1 text-sm text-textMuted hover:text-red-400" aria-label={t("tag.deleteNamed", { name: tag.name })}>&times;</button>
       </div>
       <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-textMuted">
         {!marker && onDraw && currentTime !== undefined && currentTime >= tag.start_time && currentTime <= tag.end_time && (
           <button type="button" onClick={() => onDraw(tag)} className="mr-auto rounded border border-accent/60 bg-accentDim px-2 py-1 text-[11px] font-semibold text-accent hover:bg-accent hover:text-page">
-            Draw
+            {t("tag.draw")}
           </button>
         )}
         <label className="flex items-center gap-1">
-          <span>{marker ? "Time" : "Start"}</span>
+          <span>{marker ? t("tag.time") : t("tag.start")}</span>
           <input value={startDraft} onChange={(event) => setStartDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} disabled={!onUpdate} className={timeInput} inputMode="numeric" />
         </label>
         {!marker && (
           <label className="flex items-center gap-1">
-            <span>End</span>
+            <span>{t("tag.end")}</span>
             <input value={endDraft} onChange={(event) => setEndDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} disabled={!onUpdate} className={timeInput} inputMode="numeric" />
           </label>
         )}
       </div>
-      {!marker && (tag.drawings?.length ?? 0) > 0 && <div className="mt-2 flex flex-wrap gap-2">{tag.drawings.map((drawing) => <div key={drawing.id} className="w-24 rounded border border-border bg-card p-1"><button type="button" onClick={() => onOpenDrawing?.(tag, drawing)} className="block w-full" aria-label={`Edit drawing at ${formatTime(drawing.video_time)}`}><img src={drawing.url} alt={`Drawing at ${formatTime(drawing.video_time)}`} className="h-12 w-full rounded bg-black object-cover" /></button><label className="mt-1 flex items-center gap-1 text-[10px] text-textMuted"><input type="number" min={1} max={30} value={drawing.duration_seconds} onChange={(event) => void onDrawingDurationChange?.(tag, drawing.id, Math.min(30, Math.max(1, Number(event.target.value) || 1)))} className="w-10 rounded border border-border bg-input px-1 text-textPrimary" /> sec</label></div>)}</div>}
+      {!marker && (tag.drawings?.length ?? 0) > 0 && <div className="mt-2 flex flex-wrap gap-2">{tag.drawings.map((drawing) => <div key={drawing.id} className="w-24 rounded border border-border bg-card p-1"><button type="button" onClick={() => onOpenDrawing?.(tag, drawing)} className="block w-full" aria-label={t("tag.editDrawingAt", { time: formatTime(drawing.video_time) })}><img src={drawing.url} alt={t("tag.drawingAt", { time: formatTime(drawing.video_time) })} className="h-12 w-full rounded bg-black object-cover" /></button><label className="mt-1 flex items-center gap-1 text-[10px] text-textMuted"><input type="number" min={1} max={30} value={drawing.duration_seconds} onChange={(event) => void onDrawingDurationChange?.(tag, drawing.id, Math.min(30, Math.max(1, Number(event.target.value) || 1)))} className="w-10 rounded border border-border bg-input px-1 text-textPrimary" /> {t("tag.seconds")}</label></div>)}</div>}
     </div>
   );
 }
@@ -110,7 +112,8 @@ export function TagList({ tags, selectedTagIds, onToggleSelect, onSeek, onDelete
   onDrawingDurationChange?: (tag: Tag, drawingId: string, durationSeconds: number) => void | Promise<void>;
   onOpenDrawing?: (tag: Tag, drawing: TagDrawing) => void;
 }) {
-  if (tags.length === 0) return <p className="text-sm text-textMuted">No tags yet. Play the video and tap a tag button.</p>;
+  const { t } = useI18n();
+  if (tags.length === 0) return <p className="text-sm text-textMuted">{t("tag.none")}</p>;
 
   return (
     <div className="flex flex-col gap-1 overflow-y-auto">

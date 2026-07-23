@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Player, Team } from "@/types/database";
+import { useI18n } from "@/i18n/client";
 
 export function EditPlayerModal({
   player,
@@ -13,6 +14,7 @@ export function EditPlayerModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useI18n();
   const [firstName, setFirstName] = useState(player.first_name);
   const [lastName, setLastName] = useState(player.last_name);
   const [role, setRole] = useState<Player["role"]>(player.role);
@@ -65,36 +67,36 @@ export function EditPlayerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-cardAlt p-5" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Edit player">
+      <div className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-cardAlt p-5" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("team.editPlayer")}>
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 className="font-semibold text-textBright">Edit player</h2>
-            <p className="text-sm text-textMuted">Update personal and contact details.</p>
+            <h2 className="font-semibold text-textBright">{t("team.editPlayer")}</h2>
+            <p className="text-sm text-textMuted">{t("team.updateDetails")}</p>
           </div>
-          <button type="button" onClick={onClose} className="text-sm text-textMuted hover:text-textPrimary">Close</button>
+          <button type="button" onClick={onClose} className="text-sm text-textMuted hover:text-textPrimary">{t("common.close")}</button>
         </div>
 
         <form onSubmit={handleSave} className="grid gap-3 sm:grid-cols-2">
-          <Field label="Team"><select required value={teamId} onChange={(event) => setTeamId(event.target.value)} className={inputClass}>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></Field>
-          <Field label="First name"><input required autoFocus value={firstName} onChange={(event) => setFirstName(event.target.value)} className={inputClass} /></Field>
-          <Field label="Last name"><input required value={lastName} onChange={(event) => setLastName(event.target.value)} className={inputClass} /></Field>
-          <Field label="Role">
+          <Field label={t("team.team")}><select required value={teamId} onChange={(event) => setTeamId(event.target.value)} className={inputClass}>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></Field>
+          <Field label={t("team.firstName")}><input required autoFocus value={firstName} onChange={(event) => setFirstName(event.target.value)} className={inputClass} /></Field>
+          <Field label={t("team.lastName")}><input required value={lastName} onChange={(event) => setLastName(event.target.value)} className={inputClass} /></Field>
+          <Field label={t("team.role")}>
             <select value={role} onChange={(event) => setRole(event.target.value as Player["role"])} className={inputClass}>
-              <option value="player">Player</option>
-              <option value="staff">Staff</option>
+              <option value="player">{t("team.player")}</option>
+              <option value="staff">{t("team.staff")}</option>
             </select>
           </Field>
-          <Field label="Jersey number"><input type="number" min="0" max="999" value={jerseyNumber} onChange={(event) => setJerseyNumber(event.target.value)} className={inputClass} /></Field>
-          <Field label="Position"><input value={position} onChange={(event) => setPosition(event.target.value)} className={inputClass} /></Field>
-          <Field label="Date of birth"><input type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} className={inputClass} /></Field>
-          <Field label="Email"><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} /></Field>
-          <Field label="Phone numbers"><input value={phoneNumbers} onChange={(event) => setPhoneNumbers(event.target.value)} placeholder="Separate multiple numbers with commas" className={inputClass} /></Field>
+          <Field label={t("team.jerseyNumber")}><input type="number" min="0" max="999" value={jerseyNumber} onChange={(event) => setJerseyNumber(event.target.value)} className={inputClass} /></Field>
+          <Field label={t("team.position")}><input value={position} onChange={(event) => setPosition(event.target.value)} className={inputClass} /></Field>
+          <Field label={t("team.dateOfBirth")}><input type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} className={inputClass} /></Field>
+          <Field label={t("auth.email")}><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} /></Field>
+          <Field label={t("team.phoneNumbers")}><input value={phoneNumbers} onChange={(event) => setPhoneNumbers(event.target.value)} placeholder={t("team.phonePlaceholder")} className={inputClass} /></Field>
 
-          {error && <p className="sm:col-span-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">Could not save: {error}</p>}
+          {error && <p className="sm:col-span-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">{t("team.couldNotSave", { error })}</p>}
 
           <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
-            <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-textSecondary hover:bg-cardHover">Cancel</button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page hover:opacity-90 disabled:opacity-50">{saving ? "Saving..." : "Save changes"}</button>
+            <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-textSecondary hover:bg-cardHover">{t("common.cancel")}</button>
+            <button type="submit" disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page hover:opacity-90 disabled:opacity-50">{saving ? t("common.saving") : t("team.saveChanges")}</button>
           </div>
         </form>
       </div>

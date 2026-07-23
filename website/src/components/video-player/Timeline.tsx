@@ -1,6 +1,9 @@
+"use client";
+
 import type { Tag } from "@/types/database";
 import { formatTime } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
+import { useI18n } from "@/i18n/client";
 
 function arrangeInLanes(tags: Tag[]) {
   const laneEnds: number[] = [];
@@ -26,6 +29,7 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
   tags: Tag[];
   onSeek: (time: number) => void;
 }) {
+  const { t } = useI18n();
   const safeDuration = duration > 0 ? duration : 1;
   const markers = tags.filter((tag) => isPeriodMarker(tag.name));
   const clipTags = tags.filter((tag) => !isPeriodMarker(tag.name));
@@ -44,23 +48,23 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
         <span>0:00</span>
         <span>{formatTime(duration)}</span>
       </div>
-      <div className="relative h-6" aria-label="Period markers">
+      <div className="relative h-6" aria-label={t("timeline.periodMarkers")}>
         {markers.map((tag) => {
           const endMarker = tag.name.trim().toLowerCase() === "end";
           return (
-            <button type="button" key={tag.id} title={`${tag.name} · ${formatTime(tag.start_time)}`} aria-label={`${tag.name} at ${formatTime(tag.start_time)}`} className="absolute top-0 z-10 h-6 w-5 -translate-x-1/2 transition hover:scale-110" style={{ left: `${(tag.start_time / safeDuration) * 100}%` }} onClick={() => onSeek(tag.start_time)}>
+            <button type="button" key={tag.id} title={`${tag.name} · ${formatTime(tag.start_time)}`} aria-label={`${tag.name} · ${formatTime(tag.start_time)}`} className="absolute top-0 z-10 h-6 w-5 -translate-x-1/2 transition hover:scale-110" style={{ left: `${(tag.start_time / safeDuration) * 100}%` }} onClick={() => onSeek(tag.start_time)}>
               <span className={`absolute bottom-0 left-1 h-6 border-l-2 ${endMarker ? "border-white" : "border-accent"}`} />
               <span className={`absolute left-1 top-0 h-3 w-4 rounded-r-sm ${endMarker ? "border border-white" : "bg-accent"}`} style={endMarker ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "6px 6px" } : undefined} />
             </button>
           );
         })}
       </div>
-      <div className="relative h-5 cursor-pointer overflow-hidden rounded-md border border-border bg-input" onClick={handleClick} aria-label="Match timeline">
+      <div className="relative h-5 cursor-pointer overflow-hidden rounded-md border border-border bg-input" onClick={handleClick} aria-label={t("timeline.match")}>
         <div className="absolute inset-y-0 left-0 bg-accent/20" style={{ width: `${Math.min(100, Math.max(0, (currentTime / safeDuration) * 100))}%` }} />
         <div className="absolute top-0 h-full w-0.5 bg-white" style={{ left: `${Math.min(100, Math.max(0, (currentTime / safeDuration) * 100))}%` }} />
       </div>
 
-      <div className="max-h-32 overflow-y-auto rounded-md border border-borderSubtle bg-cardDeep" aria-label="Tag bands">
+      <div className="max-h-32 overflow-y-auto rounded-md border border-borderSubtle bg-cardDeep" aria-label={t("tag.bands")}>
         <div className="relative min-w-full" style={{ height: bandHeight }}>
           {clipTags.map((tag) => (
             <button

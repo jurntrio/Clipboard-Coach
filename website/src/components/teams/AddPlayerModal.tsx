@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/i18n/client";
 
 export function AddPlayerModal({
   teamId,
@@ -16,6 +17,7 @@ export function AddPlayerModal({
   onClose: () => void;
   onAdded: () => void;
 }) {
+  const { t } = useI18n();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -52,17 +54,17 @@ export function AddPlayerModal({
       >
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h2 className="text-textBright font-semibold">Add {role === "staff" ? "Staff" : "Player"}</h2>
+            <h2 className="text-textBright font-semibold">{t("team.addPerson", { role: t(role === "staff" ? "team.staff" : "team.player") })}</h2>
             <p className="text-textMuted text-sm">{teamName}</p>
           </div>
           <button type="button" onClick={onClose} className="text-textMuted hover:text-textPrimary text-sm">
-            Close
+            {t("common.close")}
           </button>
         </div>
         <form onSubmit={handleAdd} className="grid grid-cols-2 gap-2">
           <input
             type="text"
-            placeholder="First name"
+            placeholder={t("team.firstName")}
             value={firstName}
             onChange={(event) => setFirstName(event.target.value)}
             className="px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm"
@@ -71,31 +73,31 @@ export function AddPlayerModal({
           />
           <input
             type="text"
-            placeholder="Last name"
+            placeholder={t("team.lastName")}
             value={lastName}
             onChange={(event) => setLastName(event.target.value)}
             className="px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm"
             required
           />
-          <input type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} aria-label="Date of birth" className="px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm" />
+          <input type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} aria-label={t("team.dateOfBirth")} className="px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm" />
           <input
             type="email"
-            placeholder="Email"
+            placeholder={t("auth.email")}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             className="px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm"
           />
-          <input type="text" placeholder="Phone numbers, separated by commas" value={phoneNumbers} onChange={(event) => setPhoneNumbers(event.target.value)} className="col-span-2 px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm" />
+          <input type="text" placeholder={t("team.phonePlaceholder")} value={phoneNumbers} onChange={(event) => setPhoneNumbers(event.target.value)} className="col-span-2 px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm" />
           <div className="col-span-2 flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-textSecondary hover:bg-cardHover">
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
               disabled={saving}
               className="px-4 py-2 bg-accent text-page rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
             >
-              {saving ? "Adding..." : "Add"}
+              {saving ? t("team.adding") : t("settings.add")}
             </button>
           </div>
         </form>

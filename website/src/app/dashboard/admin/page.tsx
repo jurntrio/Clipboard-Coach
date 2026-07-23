@@ -3,9 +3,11 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { formatBytes } from "@/lib/utils";
 import { getCoachOverviews, isBanned } from "./data";
 import { PlanBadge } from "./PlanBadge";
+import { getServerI18n } from "@/i18n/server";
 
 export default async function AdminOverviewPage() {
   const coaches = await getCoachOverviews();
+  const { locale, t } = getServerI18n();
 
   const totals = coaches.reduce(
     (acc, c) => ({
@@ -20,20 +22,20 @@ export default async function AdminOverviewPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <SectionHeader title="Admin" subtitle="Coaches, teams and storage across all accounts" artworkSrc="/branding/admin.png" />
+      <SectionHeader title={t("common.admin")} subtitle={t("admin.subtitle")} artworkSrc="/branding/admin.png" />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-8">
-        <StatTile label="Coaches" value={coaches.length} />
-        <StatTile label="Teams" value={totals.teams} />
-        <StatTile label="Videos" value={totals.videos} />
-        <StatTile label="Failed" value={totals.failed} warn={totals.failed > 0} />
-        <StatTile label="Clips" value={totals.clips} />
-        <StatTile label="Cloud storage" value={formatBytes(totals.storage)} />
+        <StatTile label={t("admin.coaches")} value={coaches.length} />
+        <StatTile label={t("common.teams")} value={totals.teams} />
+        <StatTile label={t("admin.videos")} value={totals.videos} />
+        <StatTile label={t("admin.failed")} value={totals.failed} warn={totals.failed > 0} />
+        <StatTile label={t("common.clips")} value={totals.clips} />
+        <StatTile label={t("admin.storage")} value={formatBytes(totals.storage)} />
       </div>
 
       <div className="flex justify-end mb-3">
         <Link href="/dashboard/admin/videos" className="text-accent text-sm hover:underline">
-          View all videos &rarr;
+          {t("admin.viewVideos")}
         </Link>
       </div>
 
@@ -41,15 +43,15 @@ export default async function AdminOverviewPage() {
         <table className="w-full text-sm">
           <thead className="bg-cardDeep text-textMuted uppercase text-xs">
             <tr>
-              <th className="text-left px-4 py-3">Coach</th>
-              <th className="text-left px-4 py-3">Joined</th>
-              <th className="text-right px-4 py-3">Teams</th>
-              <th className="text-right px-4 py-3">Players</th>
-              <th className="text-right px-4 py-3">Videos</th>
-              <th className="text-right px-4 py-3">Clips</th>
-              <th className="text-right px-4 py-3">Cloud storage</th>
-              <th className="text-left px-4 py-3">Plan</th>
-              <th className="text-left px-4 py-3">Status</th>
+              <th className="text-left px-4 py-3">{t("admin.coach")}</th>
+              <th className="text-left px-4 py-3">{t("admin.joined")}</th>
+              <th className="text-right px-4 py-3">{t("common.teams")}</th>
+              <th className="text-right px-4 py-3">{t("admin.players")}</th>
+              <th className="text-right px-4 py-3">{t("admin.videos")}</th>
+              <th className="text-right px-4 py-3">{t("common.clips")}</th>
+              <th className="text-right px-4 py-3">{t("admin.storage")}</th>
+              <th className="text-left px-4 py-3">{t("admin.plan")}</th>
+              <th className="text-left px-4 py-3">{t("admin.status")}</th>
             </tr>
           </thead>
           <tbody>
@@ -61,12 +63,12 @@ export default async function AdminOverviewPage() {
                     <div className="text-textMuted text-xs">{coach.email}</div>
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-textSecondary">{new Date(coach.created_at).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-textSecondary">{new Date(coach.created_at).toLocaleDateString(locale)}</td>
                 <td className="px-4 py-3 text-right text-textSecondary">{coach.teamCount}</td>
                 <td className="px-4 py-3 text-right text-textSecondary">{coach.playerCount}</td>
                 <td className="px-4 py-3 text-right text-textSecondary">
                   {coach.videoCount}
-                  {coach.failedVideoCount > 0 && <span className="text-red-400"> ({coach.failedVideoCount} failed)</span>}
+                  {coach.failedVideoCount > 0 && <span className="text-red-400"> {t("admin.failedCount", { count: coach.failedVideoCount })}</span>}
                 </td>
                 <td className="px-4 py-3 text-right text-textSecondary">{coach.clipCount}</td>
                 <td className="px-4 py-3 text-right text-textSecondary">{formatBytes(coach.storageBytes)}</td>
@@ -75,9 +77,9 @@ export default async function AdminOverviewPage() {
                 </td>
                 <td className="px-4 py-3">
                   {isBanned(coach.banned_until) ? (
-                    <span className="px-2 py-0.5 rounded bg-red-500/15 text-red-400 text-xs font-semibold">Blocked</span>
+                    <span className="px-2 py-0.5 rounded bg-red-500/15 text-red-400 text-xs font-semibold">{t("admin.blocked")}</span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded bg-accent/15 text-accent text-xs font-semibold">Active</span>
+                    <span className="px-2 py-0.5 rounded bg-accent/15 text-accent text-xs font-semibold">{t("admin.active")}</span>
                   )}
                 </td>
               </tr>
@@ -86,7 +88,7 @@ export default async function AdminOverviewPage() {
             {coaches.length === 0 && (
               <tr>
                 <td colSpan={9} className="px-4 py-6 text-center text-textMuted">
-                  No coaches yet.
+                  {t("admin.noneCoaches")}
                 </td>
               </tr>
             )}

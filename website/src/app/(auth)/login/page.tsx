@@ -5,8 +5,12 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/i18n/client";
+import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
+import { LegalLinks } from "@/components/legal/LegalLinks";
 
 export default function LoginPage() {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,17 +40,17 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-page px-4 py-10">
       <div className="w-full max-w-md">
         <Link href="/" className="inline-flex items-center gap-1 text-textMuted hover:text-accent font-mono text-xs uppercase tracking-widest mb-5">
-          &larr; Back to home
+          &larr; {t("common.backHome")}
         </Link>
 
         <div className="bg-card rounded-2xl border border-border p-8 text-center">
           <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={280} height={90} className="mx-auto mb-4" />
-          <h1 className="font-display uppercase text-2xl text-textBright">Coach sign in</h1>
-          <p className="text-textMuted text-sm mb-6">Welcome back. Pick up where you left off.</p>
+          <h1 className="font-display uppercase text-2xl text-textBright">{t("auth.coachSignIn")}</h1>
+          <p className="text-textMuted text-sm mb-6">{t("auth.welcomeBackIntro")}</p>
 
           <form onSubmit={handleLogin} className="space-y-4 text-left">
             <div>
-              <label className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">Email</label>
+              <label className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.email")}</label>
               <input
                 type="email"
                 placeholder="coach@club.com"
@@ -57,10 +61,10 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">Password</label>
+              <label className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.password")}</label>
               <input
                 type="password"
-                placeholder="Your password"
+                placeholder={t("auth.yourPassword")}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 className="w-full px-4 py-3 bg-input text-textPrimary rounded-lg border border-border"
@@ -73,14 +77,14 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-3 bg-accent text-page rounded-lg font-bold hover:opacity-90 disabled:opacity-50"
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? t("auth.signingIn") : t("auth.signIn")}
             </button>
           </form>
 
           <p className="mt-4 text-textSecondary text-sm">
-            No account?{" "}
+            {t("auth.noAccount")} {" "}
             <Link href="/signup" className="text-accent hover:underline font-semibold">
-              Create a coach account
+              {t("auth.createCoach")}
             </Link>
           </p>
         </div>
@@ -90,15 +94,16 @@ export default function LoginPage() {
           className="w-full mt-4 flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-accent transition text-left"
         >
           <Image src="/branding/help.png" alt="" width={36} height={36} />
-          <span className="text-textPrimary font-semibold">Need help signing in?</span>
+          <span className="text-textPrimary font-semibold">{t("auth.needSignInHelp")}</span>
         </button>
 
         {showHelp && (
           <div className="mt-2 bg-cardAlt border border-border rounded-xl p-4 text-textSecondary text-sm space-y-2">
-            <p>Didn&apos;t get the confirmation email? Check your spam folder — it comes from Supabase.</p>
-            <p>Forgot your password? Password reset isn&apos;t wired up yet — ask whoever set up your account to reset it from the Supabase dashboard for now.</p>
+            <p>{t("auth.confirmationHelp")}</p>
+            <p>{t("auth.resetUnavailable")}</p>
           </div>
         )}
+        <div className="mt-4 flex justify-center"><LanguageSwitcher compact /></div><div className="mt-4"><LegalLinks /></div>
       </div>
     </div>
   );

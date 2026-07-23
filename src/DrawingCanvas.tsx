@@ -9,6 +9,23 @@ export type Box = Box2D;
 
 export type Shape = DrawingShape;
 
+export type DrawingCanvasLabels = {
+  arrow: string; dottedLine: string; circle: string; area: string; text: string; edit: string;
+  color: (value: string) => string; chooseColor: string; lineWidth: string; lineWidthValue: (value: number) => string;
+  deleteShape: string; deletePoint: string; undo: string; clearAll: string; textHint: string; areaHint: string;
+  pointsHint: (value: number) => string; done: string; cancel: string; textPlaceholder: string; editTextHint: string;
+  place: string; download: string; save: string;
+};
+
+const defaultLabels: DrawingCanvasLabels = {
+  arrow: "Arrow", dottedLine: "Dotted line →", circle: "Circle", area: "Area", text: "Text", edit: "Edit",
+  color: (value) => `Color ${value}`, chooseColor: "Choose color", lineWidth: "Line width", lineWidthValue: (value) => `Line width ${value}`,
+  deleteShape: "Delete shape", deletePoint: "Delete point", undo: "Undo", clearAll: "Clear all",
+  textHint: "Draw a text box first (click twice), then enter your text.", areaHint: "Click points to draw an area. Add at least 3 points, then press Enter or Done.",
+  pointsHint: (value) => `${value} points — click to add more or finish the area.`, done: "Done (Enter)", cancel: "Cancel",
+  textPlaceholder: "Text…", editTextHint: "Edit the text and color, or drag it to reposition.", place: "Place", download: "Download picture", save: "Save"
+};
+
 const colorOptions = ["#ff3b3b", "#ffd23b", "#3bb8ff", "#3bff7a", "#ffffff", "#000000"];
 const lineWidthOptions = [1, 3, 6, 10];
 const hitTestPadding = 14;
@@ -387,7 +404,8 @@ export default function DrawingCanvas({
   onSave,
   onCancel,
   onDownload,
-  showSave = true
+  showSave = true,
+  labels = defaultLabels
 }: {
   imageUrl: string;
   initialShapes?: Shape[];
@@ -395,6 +413,7 @@ export default function DrawingCanvas({
   onCancel: () => void;
   onDownload?: (dataUrl: string) => void;
   showSave?: boolean;
+  labels?: DrawingCanvasLabels;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -784,22 +803,22 @@ export default function DrawingCanvas({
       <div className="drawingToolbar">
         <div className="drawingToolButtons">
           <button type="button" className={tool === "arrow" ? "drawingToolActive" : ""} onClick={() => { setTool("arrow"); setSelectedShapeIndex(null); }}>
-            Arrow
+            {labels.arrow}
           </button>
           <button type="button" className={tool === "arrowDashed" ? "drawingToolActive" : ""} onClick={() => { setTool("arrowDashed"); setSelectedShapeIndex(null); }}>
-            Dotted line ----&gt;
+            {labels.dottedLine}
           </button>
           <button type="button" className={tool === "circle" ? "drawingToolActive" : ""} onClick={() => { setTool("circle"); setSelectedShapeIndex(null); }}>
-            Circle
+            {labels.circle}
           </button>
           <button type="button" className={tool === "polygon" ? "drawingToolActive" : ""} onClick={() => { setTool("polygon"); setPolygonPoints([]); setPreviewEnd(null); setSelectedShapeIndex(null); }}>
-            Area
+            {labels.area}
           </button>
           <button type="button" className={tool === "text" ? "drawingToolActive" : ""} onClick={() => { setTool("text"); setSelectedShapeIndex(null); }}>
-            Text
+            {labels.text}
           </button>
           <button type="button" className={tool === "select" ? "drawingToolActive" : ""} onClick={() => setTool("select")}>
-            Edit
+            {labels.edit}
           </button>
         </div>
         <div className="drawingColorButtons">
@@ -809,7 +828,7 @@ export default function DrawingCanvas({
               type="button"
               className={color === option ? "drawingColorSwatch drawingColorActive" : "drawingColorSwatch"}
               style={{ background: option }}
-              aria-label={`Color ${option}`}
+              aria-label={labels.color(option)}
               onClick={() => updateSelectedShapeColor(option)}
             />
           ))}
@@ -818,18 +837,18 @@ export default function DrawingCanvas({
             className="drawingColorPicker"
             value={color}
             onChange={(event) => updateSelectedShapeColor(event.target.value)}
-            aria-label="Choose color"
+            aria-label={labels.chooseColor}
           />
         </div>
         {tool !== "text" && (tool !== "select" || (selectedShape && selectedShape.type !== "text")) ? (
-          <div className="drawingLineWidthButtons" aria-label="Line width">
+          <div className="drawingLineWidthButtons" aria-label={labels.lineWidth}>
             {lineWidthOptions.map((option) => (
               <button
                 key={option}
                 type="button"
                 className={lineWidth === option ? "drawingLineWidthActive" : ""}
                 onClick={() => updateSelectedShapeLineWidth(option)}
-                aria-label={`Line width ${option}`}
+                aria-label={labels.lineWidthValue(option)}
               >
                 <span className="drawingLineWidthDot" style={{ width: option + 4, height: option + 4 }} />
               </button>
@@ -839,32 +858,32 @@ export default function DrawingCanvas({
         <div className="drawingHistoryButtons">
           {tool === "select" && selectedShapeIndex !== null ? (
             <button type="button" onClick={deleteSelectedShape}>
-              Delete shape
+              {labels.deleteShape}
             </button>
           ) : null}
           {tool === "select" && selectedShape?.type === "polygon" && selectedHandleId?.startsWith("p") ? (
             <button type="button" onClick={deleteSelectedPolygonPoint} disabled={selectedShape.points.length <= 3}>
-              Delete point
+              {labels.deletePoint}
             </button>
           ) : null}
           <button type="button" onClick={undo} disabled={shapes.length === 0}>
-            Undo
+            {labels.undo}
           </button>
           <button type="button" onClick={clearAll} disabled={shapes.length === 0}>
-            Clear all
+            {labels.clearAll}
           </button>
         </div>
       </div>
 
-      {tool === "text" ? <p className="drawingHint">Draw a text box first (click twice), then enter your text.</p> : null}
+      {tool === "text" ? <p className="drawingHint">{labels.textHint}</p> : null}
       {tool === "polygon" && polygonPoints.length === 0 ? (
-        <p className="drawingHint">Click points to draw an area (triangle, square, etc.). Add at least 3 points, then press Enter or Done.</p>
+        <p className="drawingHint">{labels.areaHint}</p>
       ) : null}
       {tool === "polygon" && polygonPoints.length >= 3 ? (
         <div className="drawingTextEntry">
-          <span className="drawingHint">{polygonPoints.length} points — click to add more or finish the area.</span>
-          <button type="button" onClick={finalizePolygon}>Done (Enter)</button>
-          <button type="button" onClick={() => { setPolygonPoints([]); setPreviewEnd(null); }}>Cancel</button>
+          <span className="drawingHint">{labels.pointsHint(polygonPoints.length)}</span>
+          <button type="button" onClick={finalizePolygon}>{labels.done}</button>
+          <button type="button" onClick={() => { setPolygonPoints([]); setPreviewEnd(null); }}>{labels.cancel}</button>
         </div>
       ) : null}
 
@@ -872,10 +891,10 @@ export default function DrawingCanvas({
         <div className="drawingTextEntry">
           <input
             value={selectedShape.text}
-            placeholder="Text..."
+            placeholder={labels.textPlaceholder}
             onChange={(event) => updateSelectedTextValue(event.target.value)}
           />
-          <span className="drawingHint">Edit the text and color, or drag it to reposition.</span>
+          <span className="drawingHint">{labels.editTextHint}</span>
         </div>
       ) : null}
 
@@ -884,7 +903,7 @@ export default function DrawingCanvas({
           <input
             autoFocus
             value={pendingTextValue}
-            placeholder="Text..."
+            placeholder={labels.textPlaceholder}
             onChange={(event) => setPendingTextValue(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -896,7 +915,7 @@ export default function DrawingCanvas({
             }}
           />
           <button type="button" onClick={confirmPendingText}>
-            Place
+            {labels.place}
           </button>
           <button
             type="button"
@@ -905,7 +924,7 @@ export default function DrawingCanvas({
               setPendingTextValue("");
             }}
           >
-            Cancel
+            {labels.cancel}
           </button>
         </div>
       ) : null}
@@ -933,15 +952,15 @@ export default function DrawingCanvas({
 
       <div className="modalActions">
         <button type="button" onClick={onCancel}>
-          Cancel
+          {labels.cancel}
         </button>
         {onDownload ? (
           <button type="button" onClick={handleDownload}>
-            Download picture
+            {labels.download}
           </button>
         ) : null}
         {showSave ? <button type="button" onClick={handleSave}>
-          Save
+          {labels.save}
         </button> : null}
       </div>
     </div>

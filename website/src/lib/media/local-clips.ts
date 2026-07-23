@@ -18,16 +18,30 @@ export type LocalVideoInfo = {
   audioCodec: string | null;
 };
 
+export type LocalMediaMessages = {
+  unreadable: string; noVideoTrack: string; unsupportedVideoCodec: (codec: string) => string;
+  unsupportedAudioCodec: (codec: string) => string; durationUnknown: string; largeClipsUnsupported: string;
+  incompatibleClip: string; noKeyframe: string;
+};
+
+export const defaultLocalMediaMessages: LocalMediaMessages = {
+  unreadable: "This video container cannot be read in the browser.", noVideoTrack: "No video track was found in this file.",
+  unsupportedVideoCodec: (codec) => `Local clip export currently supports H.264 and HEVC video. This file uses ${codec}.`,
+  unsupportedAudioCodec: (codec) => `Local clip export currently requires AAC audio. This file uses ${codec}.`,
+  durationUnknown: "The video duration could not be determined.", largeClipsUnsupported: "This browser cannot create large local clips. Use a recent Chrome, Edge, or Firefox version.",
+  incompatibleClip: "This clip cannot be copied without converting it. Use H.264 or HEVC video with AAC audio.", noKeyframe: "No usable keyframe was found before this tag."
+};
+
 function createInput(file: File) {
   return new Input({ formats: ALL_FORMATS, source: new BlobSource(file) });
 }
 
-export async function inspectLocalVideo(file: File): Promise<LocalVideoInfo> {
+export async function inspectLocalVideo(file: File, messages = defaultLocalMediaMessages): Promise<LocalVideoInfo> {
   const input = createInput(file);
   try {
-    if (!(await input.canRead())) throw new Error("This video container cannot be read in the browser.");
+    if (!(await input.canRead())) throw new Error(messages.unreadable);
     const videoTrack = await input.getPrimaryVideoTrack();
-    if (!videoTrack) throw new Error("No video track was found in this file.");
+    if (!videoTrack) throw new Error(messages.noVideoTrack);
     const audioTrack = await input.getPrimaryAudioTrack();
     const [videoCodec, audioCodec, metadataDuration, mimeType] = await Promise.all([
       videoTrack.getCodec(),
@@ -37,14 +51,14 @@ export async function inspectLocalVideo(file: File): Promise<LocalVideoInfo> {
     ]);
 
     if (videoCodec !== "avc" && videoCodec !== "hevc") {
-      throw new Error(`Local clip export currently supports H.264 and HEVC video. This file uses ${videoCodec ?? "an unknown codec"}.`);
+      throw new Error(messages.unsupportedVideoCodec(videoCodec ?? "?"));
     }
     if (audioCodec && audioCodec !== "aac") {
-      throw new Error(`Local clip export currently requires AAC audio. This file uses ${audioCodec}.`);
+      throw new Error(messages.unsupportedAudioCodec(audioCodec));
     }
 
     const duration = metadataDuration ?? await input.computeDuration();
-    if (!Number.isFinite(duration) || duration <= 0) throw new Error("The video duration could not be determined.");
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error(messages.durationUnknown);
     return { duration, mimeType, videoCodec, audioCodec };
   } finally {
     input.dispose();
@@ -54,10 +68,11 @@ export async function remuxLocalSegment(
   file: File,
   requestedStart: number,
   requestedEnd: number,
-  onProgress: (fraction: number) => void
+  onProgress: (fraction: number) => void,
+  messages = defaultLocalMediaMessages
 ) {
   if (!navigator.storage?.getDirectory) {
-    throw new Error("This browser cannot create large local clips. Use a recent Chrome, Edge, or Firefox version.");
+    throw new Error(messages.largeClipsUnsupported);
   }
 
   const input = createInput(file);
@@ -67,17 +82,17 @@ export async function remuxLocalSegment(
 
   try {
     const videoTrack = await input.getPrimaryVideoTrack();
-    if (!videoTrack) throw new Error("No video track was found.");
+    if (!videoTrack) throw new Error(messages.noVideoTrack);
     const audioTrack = await input.getPrimaryAudioTrack();
     const videoCodec = await videoTrack.getCodec();
     const audioCodec = await audioTrack?.getCodec();
     if ((videoCodec !== "avc" && videoCodec !== "hevc") || (audioCodec && audioCodec !== "aac")) {
-      throw new Error("This clip cannot be copied without converting it. Use H.264 or HEVC video with AAC audio.");
+      throw new Error(messages.incompatibleClip);
     }
 
     const videoSink = new EncodedPacketSink(videoTrack);
     const videoStart = await videoSink.getKeyPacket(Math.max(0, requestedStart), { verifyKeyPackets: true });
-    if (!videoStart) throw new Error("No usable keyframe was found before this tag.");
+    if (!videoStart) throw new Error(messages.noKeyframe);
     const videoEnd = await videoSink.getPacket(requestedEnd);
 
     const audioSink = audioTrack ? new EncodedPacketSink(audioTrack) : null;

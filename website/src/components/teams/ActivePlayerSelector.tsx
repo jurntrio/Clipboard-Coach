@@ -1,5 +1,6 @@
 import type { Player } from "@/types/database";
 import { getPlayerDisplayName } from "@/lib/utils";
+import { useI18n } from "@/i18n/client";
 
 export function ActivePlayerSelector({
   players,
@@ -10,17 +11,18 @@ export function ActivePlayerSelector({
   selected: string[];
   onChange: (playerIds: string[]) => void;
 }) {
+  const { t } = useI18n();
   function toggle(playerId: string) {
     onChange(selected.includes(playerId) ? selected.filter((id) => id !== playerId) : [...selected, playerId]);
   }
 
   if (players.length === 0) {
-    return <p className="text-textMuted text-sm">No players on this team yet.</p>;
+    return <p className="text-textMuted text-sm">{t("team.noPlayers")}</p>;
   }
 
   return (
     <div>
-      <p className="text-textMuted text-xs mb-2">Active players</p>
+      <p className="text-textMuted text-xs mb-2">{t("team.activePlayers")}</p>
       <div className="flex flex-wrap gap-2">
         {players.map((player) => (
           <button

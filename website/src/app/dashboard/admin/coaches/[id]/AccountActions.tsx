@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { banCoach, deleteCoach, setCoachPlan, unbanCoach } from "../../actions";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useI18n } from "@/i18n/client";
 
 export function AccountActions({
   coachId,
@@ -20,6 +21,7 @@ export function AccountActions({
   const [error, setError] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<"ban" | "delete" | null>(null);
   const router = useRouter();
+  const { t } = useI18n();
 
   function handlePlanToggle() {
     setError(null);
@@ -30,7 +32,7 @@ export function AccountActions({
         await setCoachPlan(coachId, nextPlan);
         router.refresh();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Something went wrong");
+        setError(e instanceof Error ? e.message : t("admin.genericError"));
       }
     });
   }
@@ -48,7 +50,7 @@ export function AccountActions({
         setConfirmAction(null);
         router.refresh();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Something went wrong");
+        setError(e instanceof Error ? e.message : t("admin.genericError"));
       }
     });
   }
@@ -64,7 +66,7 @@ export function AccountActions({
         await deleteCoach(coachId);
         router.push("/dashboard/admin");
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Something went wrong");
+        setError(e instanceof Error ? e.message : t("admin.genericError"));
       }
     });
   }
@@ -77,26 +79,26 @@ export function AccountActions({
           disabled={isPending}
           className="px-4 py-2 rounded-lg text-sm font-semibold border border-borderButton text-textPrimary hover:bg-cardHover disabled:opacity-50"
         >
-          {plan === "pro" ? "Move to free plan" : "Mark as Pro"}
+          {plan === "pro" ? t("admin.toFree") : t("admin.markPro")}
         </button>
         <button
           onClick={handleBanToggle}
           disabled={isPending}
           className="px-4 py-2 rounded-lg text-sm font-semibold border border-borderButton text-textPrimary hover:bg-cardHover disabled:opacity-50"
         >
-          {banned ? "Unblock account" : "Block account"}
+          {banned ? t("admin.unblockAccount") : t("admin.blockAccount")}
         </button>
         <button
           onClick={handleDelete}
           disabled={isPending}
           className="px-4 py-2 rounded-lg text-sm font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 disabled:opacity-50"
         >
-          Delete account
+          {t("admin.deleteAccount")}
         </button>
       </div>
       {error && <p className="text-red-400 text-xs">{error}</p>}
-      <ConfirmDialog open={confirmAction === "ban"} title={banned ? "Unblock account?" : "Block account?"} message={banned ? `Allow ${email} to sign in again?` : `${email} will no longer be able to sign in until the account is unblocked.`} confirmLabel={banned ? "Unblock" : "Block"} destructive={!banned} busy={isPending} onCancel={() => setConfirmAction(null)} onConfirm={confirmBanToggle} />
-      <ConfirmDialog open={confirmAction === "delete"} title="Permanently delete account?" message={`This immediately deletes ${email}, including all teams, players, videos and clips. This cannot be undone.`} confirmLabel="Delete account" busy={isPending} onCancel={() => setConfirmAction(null)} onConfirm={confirmDelete} />
+      <ConfirmDialog open={confirmAction === "ban"} title={banned ? t("admin.unblockTitle") : t("admin.blockTitle")} message={banned ? t("admin.unblockMessage", { email }) : t("admin.blockMessage", { email })} confirmLabel={banned ? t("admin.unblock") : t("admin.block")} destructive={!banned} busy={isPending} onCancel={() => setConfirmAction(null)} onConfirm={confirmBanToggle} />
+      <ConfirmDialog open={confirmAction === "delete"} title={t("admin.deleteTitle")} message={t("admin.deleteMessage", { email })} confirmLabel={t("admin.deleteAccount")} busy={isPending} onCancel={() => setConfirmAction(null)} onConfirm={confirmDelete} />
     </div>
   );
 }

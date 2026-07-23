@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { buildMobileMp4 } from "./hlsPipeline";
+import { buildMobileMp4WithDrawings, probeDurationSeconds } from "./hlsPipeline";
 import { downloadToFile, uploadFile } from "./r2";
 import { supabase } from "./supabase";
 
@@ -10,6 +10,14 @@ type RenderedSegment = {
   key: string;
   url: string;
   file_size: number;
+  duration?: number;
+  play_start?: number;
+  drawing_time_base?: "clip";
+  drawings?: Array<{
+    key: string;
+    at_seconds: number;
+    duration_seconds: number;
+  }>;
   [key: string]: unknown;
 };
 
@@ -28,10 +36,53 @@ export async function processClip(clipId: string) {
       const inputPath = path.join(workDir, `${index}-source.mp4`);
       const outputPath = path.join(workDir, `${index}-mobile.mp4`);
       await downloadToFile(segment.key, inputPath);
-      await buildMobileMp4(inputPath, outputPath);
+      const drawingInputs = [];
+      for (const [drawingIndex, drawing] of (segment.drawings ?? []).entries()) {
+        if (!drawing.key) continue;
+        const imagePath = path.join(workDir, `${index}-drawing-${drawingIndex}.png`);
+        await downloadToFile(drawing.key, imagePath);
+        drawingInputs.push({
+          sourceIndex: drawingIndex,
+          imagePath,
+          atSeconds: drawing.at_seconds,
+          durationSeconds: drawing.duration_seconds
+        });
+      }
+      const segmentWorkDir = path.join(workDir, `${index}-parts`);
+      await fs.mkdir(segmentWorkDir, { recursive: true });
+      const playStart = Math.max(0, Number(segment.play_start) || 0);
+      const storedDuration = Number(segment.duration);
+      const playDuration = Number.isFinite(storedDuration) && storedDuration > playStart
+        ? storedDuration - playStart
+        : undefined;
+      const normalizedDrawingInputs = drawingInputs.map((drawing) => ({
+        ...drawing,
+        atSeconds: segment.drawing_time_base === "clip" ? drawing.atSeconds : drawing.atSeconds - playStart
+      }));
+      await buildMobileMp4WithDrawings(
+        inputPath,
+        outputPath,
+        normalizedDrawingInputs,
+        segmentWorkDir,
+        playStart,
+        playDuration
+      );
       await uploadFile(segment.key, outputPath, "video/mp4");
       const stat = await fs.stat(outputPath);
-      optimized.push({ ...segment, file_size: stat.size, video_codec: "avc", mobile_compatible: true });
+      const duration = await probeDurationSeconds(outputPath);
+      optimized.push({
+        ...segment,
+        duration,
+        play_start: 0,
+        drawing_time_base: "clip",
+        drawings: (segment.drawings ?? []).map((drawing, drawingIndex) => ({
+          ...drawing,
+          at_seconds: normalizedDrawingInputs.find((input) => input.sourceIndex === drawingIndex)?.atSeconds ?? drawing.at_seconds
+        })),
+        file_size: stat.size,
+        video_codec: "avc",
+        mobile_compatible: true
+      });
     }
 
     const { error: updateError } = await supabase

@@ -136,8 +136,16 @@ export type RenderedClipSegment = {
   play_start: number;
   source_start: number;
   source_end: number;
+  drawing_time_base?: "clip";
   video_codec?: "avc";
   mobile_compatible?: boolean;
+  drawings?: Array<{
+    id: string;
+    key: string;
+    url: string;
+    at_seconds: number;
+    duration_seconds: number;
+  }>;
 };
 
 export type ClipSegment = {

@@ -10,6 +10,7 @@ import { AddPlayerModal } from "@/components/teams/AddPlayerModal";
 import { CreateTeamModal } from "@/components/teams/CreateTeamModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LinkStaffModal } from "@/components/teams/LinkStaffModal";
+import { useI18n } from "@/i18n/client";
 
 type TeamWithPlayers = Team & { players: Player[] };
 type ClipSummary = {
@@ -22,6 +23,7 @@ type ClipSummary = {
 type LinkedStaff = { id: string; team_id: string; user_id: string; full_name: string; removable: boolean };
 
 export default function TeamsPage() {
+  const { t } = useI18n();
   const [teams, setTeams] = useState<TeamWithPlayers[]>([]);
   const [clips, setClips] = useState<ClipSummary[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -110,12 +112,12 @@ export default function TeamsPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <SectionHeader title="Teams" artworkSrc="/branding/teams.png" />
+      <SectionHeader title={t("common.teams")} artworkSrc="/branding/teams.png" />
 
       <div className="flex flex-col gap-6">
         {teams.length === 0 && (
           <div className="border border-borderButton rounded-lg bg-cardAlt p-4 text-textSecondary">
-            No teams yet. Create one to get started.
+            {t("team.none")}
           </div>
         )}
 
@@ -137,10 +139,10 @@ export default function TeamsPage() {
                       autoFocus
                     />
                     <button onClick={() => saveTeamName(team.id)} className="px-3 py-1.5 bg-accent text-page rounded-lg text-sm font-semibold">
-                      Save
+                      {t("common.save")}
                     </button>
                     <button onClick={() => setEditingTeamId(null)} className="px-3 py-1.5 text-textSecondary text-sm">
-                      Cancel
+                      {t("common.cancel")}
                     </button>
                   </div>
                 ) : (
@@ -148,7 +150,7 @@ export default function TeamsPage() {
                     <div className="flex items-center gap-2.5">
                       <strong className="text-textCardTitle">{team.name}</strong>
                       <small className="text-textMuted text-sm">
-                        {players.length} players · {staff.length + registeredStaff.length} staff
+                        {t("team.summary", { players: players.length, staff: staff.length + registeredStaff.length })}
                       </small>
                     </div>
                     {ownsTeam && <div className="flex gap-2">
@@ -159,10 +161,10 @@ export default function TeamsPage() {
                         }}
                         className="text-textSecondary hover:text-textPrimary text-sm"
                       >
-                        Edit
+                        {t("common.edit")}
                       </button>
                       <button onClick={() => setDeleteTarget({ kind: "team", id: team.id, name: team.name })} className="text-textSecondary hover:text-red-400 text-sm">
-                        Delete
+                        {t("team.delete")}
                       </button>
                     </div>}
                   </>
@@ -174,23 +176,23 @@ export default function TeamsPage() {
                   <PlayerCard key={player.id} player={player} clipCount={clipCountFor(team, player)} onDelete={() => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() })} />
                 ))}
                 {ownsTeam && <AddPlayerTile
-                  label="Add player"
+                  label={t("team.addPlayer").replace("+ ", "")}
                   onClick={() => setAddPlayerTarget({ teamId: team.id, teamName: team.name, role: "player" })}
                 />}
               </div>
 
               <div className="mt-1 pt-2.5 mx-3.5 mb-3.5 border-t border-borderSubtle">
-                <p className="text-textMuted text-xs font-bold uppercase tracking-wide mb-2">Staff</p>
+                <p className="text-textMuted text-xs font-bold uppercase tracking-wide mb-2">{t("team.staff")}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                   {staff.map((player) => (
                     <PlayerCard key={player.id} player={player} clipCount={clipCountFor(team, player)} onDelete={() => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() })} />
                   ))}
-                  {registeredStaff.map((member) => <div key={member.id} className="relative flex min-h-24 flex-col items-center justify-center rounded-lg border border-accent/40 bg-accentDim p-3 text-center"><div className="grid h-10 w-10 place-items-center rounded-full bg-avatar font-bold text-accent">{member.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div><span className="mt-2 text-sm text-textCard">{member.full_name}</span><span className="text-[10px] uppercase tracking-wide text-accent">Registered staff</span>{member.removable && <button type="button" onClick={() => setDeleteTarget({ kind: "linked-staff", id: member.id, name: member.full_name })} className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-xs text-textMuted hover:bg-red-500/15 hover:text-red-400" aria-label={`Remove ${member.full_name} from team`}>Remove</button>}</div>)}
+                  {registeredStaff.map((member) => <div key={member.id} className="relative flex min-h-24 flex-col items-center justify-center rounded-lg border border-accent/40 bg-accentDim p-3 text-center"><div className="grid h-10 w-10 place-items-center rounded-full bg-avatar font-bold text-accent">{member.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div><span className="mt-2 text-sm text-textCard">{member.full_name}</span><span className="text-[10px] uppercase tracking-wide text-accent">{t("team.registeredStaff")}</span>{member.removable && <button type="button" onClick={() => setDeleteTarget({ kind: "linked-staff", id: member.id, name: member.full_name })} className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-xs text-textMuted hover:bg-red-500/15 hover:text-red-400" aria-label={t("team.removeMessage", { name: member.full_name })}>{t("common.remove")}</button>}</div>)}
                   {ownsTeam && <AddPlayerTile
-                    label="Add staff"
+                    label={t("team.addStaff")}
                     onClick={() => setAddPlayerTarget({ teamId: team.id, teamName: team.name, role: "staff" })}
                   />}
-                  {ownsTeam && <button type="button" onClick={() => setLinkStaffTarget({ teamId: team.id, teamName: team.name })} className="min-h-24 rounded-lg border border-dashed border-accent/60 bg-accentDim p-3 text-sm font-semibold text-accent hover:border-accent">+ Link registered user</button>}
+                  {ownsTeam && <button type="button" onClick={() => setLinkStaffTarget({ teamId: team.id, teamName: team.name })} className="min-h-24 rounded-lg border border-dashed border-accent/60 bg-accentDim p-3 text-sm font-semibold text-accent hover:border-accent">{t("team.linkRegistered")}</button>}
                 </div>
               </div>
             </article>
@@ -200,13 +202,13 @@ export default function TeamsPage() {
 
       <div className="flex flex-wrap justify-end gap-3 mt-6">
         {!teams.some((team) => team.name.trim().toUpperCase() === "EXTRA") && (
-          <button onClick={() => void createExtraGroup()} className="px-5 py-2.5 border border-borderButton bg-button text-textPrimary rounded-lg font-semibold hover:border-accent">+ EXTRA group</button>
+          <button onClick={() => void createExtraGroup()} className="px-5 py-2.5 border border-borderButton bg-button text-textPrimary rounded-lg font-semibold hover:border-accent">{t("team.extraGroup")}</button>
         )}
         <button
           onClick={() => setShowCreateModal(true)}
           className="px-5 py-2.5 bg-accent text-page rounded-lg font-semibold hover:opacity-90"
         >
-          Create Team
+          {t("team.create")}
         </button>
       </div>
 
@@ -227,7 +229,7 @@ export default function TeamsPage() {
         />
       )}
       {linkStaffTarget && <LinkStaffModal teamId={linkStaffTarget.teamId} teamName={linkStaffTarget.teamName} onClose={() => setLinkStaffTarget(null)} onLinked={() => void loadLinkedStaff()} />}
-      <ConfirmDialog open={!!deleteTarget} title={deleteTarget?.kind === "team" ? "Delete team?" : deleteTarget?.kind === "linked-staff" ? "Remove linked staff?" : "Delete player?"} message={deleteTarget?.kind === "team" ? `Delete ${deleteTarget.name} and all its players and staff? This cannot be undone.` : `Remove ${deleteTarget?.name} from this team? This cannot be undone.`} confirmLabel={deleteTarget?.kind === "linked-staff" ? "Remove" : "Delete"} busy={deleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDelete()} />
+      <ConfirmDialog open={!!deleteTarget} title={deleteTarget?.kind === "team" ? t("team.deleteTeam") : deleteTarget?.kind === "linked-staff" ? t("team.removeLinked") : t("team.deletePlayer")} message={deleteTarget?.kind === "team" ? t("team.deleteTeamMessage", { name: deleteTarget.name }) : t("team.removeMessage", { name: deleteTarget?.name ?? "" })} confirmLabel={deleteTarget?.kind === "linked-staff" ? t("common.remove") : t("team.delete")} busy={deleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDelete()} />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { buildPublicShareUrl } from "@/lib/share-url";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
 import Link from "next/link";
+import { useI18n } from "@/i18n/client";
 
 type ClipWithDetails = {
   id: string;
@@ -23,7 +24,7 @@ type ClipWithDetails = {
   matchId: string | null;
   matchTitle: string;
   audienceLabel: string;
-  rendered_segments: { id: string; url: string; name: string; color: string; duration: number; play_start?: number }[];
+  rendered_segments: { id: string; url: string; name: string; color: string; duration: number; play_start?: number; drawing_time_base?: "clip"; drawings?: Array<{ id: string; url: string; at_seconds: number; duration_seconds: number }> }[];
   videos: { id: string; title: string | null; video_url: string } | null;
   clip_segments: {
     sequence_order: number;
@@ -45,6 +46,7 @@ export default function ClipsPage() {
   const [matches, setMatches] = useState<MatchSummary[]>([]);
   const [expandedMatchIds, setExpandedMatchIds] = useState<Set<string>>(new Set());
   const supabase = createClient();
+  const { t } = useI18n();
 
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? ""));
@@ -69,14 +71,14 @@ export default function ClipsPage() {
     for (const match of loadedMatches) for (const link of match.match_videos ?? []) matchIdsByVideo.set(link.video_id, match.id);
     const matchesByVideo = new Map<string, string>();
     for (const match of matchData ?? []) {
-      const title = `${match.team_a_name || "Team A"} – ${match.team_b_name || "Team B"}${match.match_date ? ` · ${match.match_date}` : ""}`;
+      const title = `${match.team_a_name || t("match.teamA")} – ${match.team_b_name || t("match.teamB")}${match.match_date ? ` · ${match.match_date}` : ""}`;
       for (const link of match.match_videos ?? []) matchesByVideo.set(link.video_id, title);
     }
     const loaded = ((data as unknown as Omit<ClipWithDetails, "matchTitle" | "audienceLabel">[] | null) ?? []).map((clip) => ({
       ...clip,
       matchId: matchIdsByVideo.get(clip.video_id) ?? null,
-      matchTitle: matchesByVideo.get(clip.video_id) || clip.videos?.title || "Untitled match",
-      audienceLabel: clip.audience_type === "full_team" ? "Full selected team" : clip.audience_player_ids.map((id) => playerNames.get(id)).filter(Boolean).join(", ") || "No players selected",
+      matchTitle: matchesByVideo.get(clip.video_id) || clip.videos?.title || t("clip.untitledMatch"),
+      audienceLabel: clip.audience_type === "full_team" ? t("clip.fullSelectedTeam") : clip.audience_player_ids.map((id) => playerNames.get(id)).filter(Boolean).join(", ") || t("clip.noPlayersSelected"),
       clip_segments: clip.clip_segments.map((segment) => ({ ...segment, tags: segment.tags ? { ...segment.tags, playerNames: segment.tags.player_ids.map((id) => playerNames.get(id)).filter((name): name is string => !!name) } : null }))
     }));
     setClips(loaded as ClipWithDetails[]);
@@ -95,6 +97,12 @@ export default function ClipsPage() {
         start_time: segment.play_start ?? 0,
         end_time: segment.duration,
         url: segment.url,
+        drawings: (segment.drawings ?? []).map((drawing) => ({
+          id: drawing.id,
+          url: drawing.url,
+          at_time: (segment.drawing_time_base === "clip" ? (segment.play_start ?? 0) : 0) + drawing.at_seconds,
+          duration_seconds: drawing.duration_seconds
+        })),
         playerNames: (clip.clip_segments[index]?.tags as any)?.playerNames ?? []
       }));
     }
@@ -116,7 +124,7 @@ export default function ClipsPage() {
     setShareError("");
     const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select().single();
     if (error || !data) {
-      setShareError(error?.message || "The share link could not be created.");
+      setShareError(error?.message || t("share.createFailed"));
       return;
     }
     setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token) });
@@ -129,7 +137,7 @@ export default function ClipsPage() {
     const response = await fetch(`/api/clips/${deleteTarget.id}`, { method: "DELETE" });
     if (!response.ok) {
       const body = await response.json().catch(() => null) as { error?: string } | null;
-      setDeleteError(body?.error || "The clip could not be deleted.");
+      setDeleteError(body?.error || t("clip.deleteFailed"));
       setDeleting(false);
       return;
     }
@@ -141,7 +149,7 @@ export default function ClipsPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <SectionHeader title="Clips" artworkSrc="/branding/clips.png" />
+      <SectionHeader title={t("common.clips")} artworkSrc="/branding/clips.png" />
 
       <div className="space-y-4">
         {matches.map((match) => {
@@ -149,14 +157,14 @@ export default function ClipsPage() {
           const expanded = expandedMatchIds.has(match.id);
           return <article key={match.id} className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="flex items-center gap-3 border-b border-borderSubtle bg-cardDeep p-4">
-              <button type="button" onClick={() => toggleMatch(match.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left"><span className={`text-accent transition-transform ${expanded ? "rotate-90" : ""}`}>▶</span><span className="min-w-0"><strong className="block truncate text-textBright">{match.team_a_name || "Team A"} – {match.team_b_name || "Team B"}</strong><span className="mt-0.5 block text-xs text-textMuted">{match.match_date || "No date"} · {matchClips.length} clip{matchClips.length === 1 ? "" : "s"}</span></span></button>
-              {match.coach_id === currentUserId && <Link href={`/dashboard/matches/${match.id}`} className="flex-shrink-0 rounded-lg border border-accent bg-accentDim px-3 py-2 text-sm font-semibold text-accent hover:bg-cardHover">Video Viewer</Link>}
+              <button type="button" onClick={() => toggleMatch(match.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left"><span className={`text-accent transition-transform ${expanded ? "rotate-90" : ""}`}>▶</span><span className="min-w-0"><strong className="block truncate text-textBright">{match.team_a_name || t("match.teamA")} – {match.team_b_name || t("match.teamB")}</strong><span className="mt-0.5 block text-xs text-textMuted">{match.match_date || t("match.noDate")} · {t("clip.count", { count: matchClips.length })}</span></span></button>
+              {match.coach_id === currentUserId && <Link href={`/dashboard/matches/${match.id}`} className="flex-shrink-0 rounded-lg border border-accent bg-accentDim px-3 py-2 text-sm font-semibold text-accent hover:bg-cardHover">{t("common.videoViewer")}</Link>}
             </div>
-            {expanded && <div className="p-4">{matchClips.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{matchClips.map((clip) => <ClipCard key={clip.id} name={clip.name} videoTitle="" segmentCount={clip.clip_segments.length} audienceLabel={clip.audienceLabel} onClick={() => setSelectedClip(clip)} onDelete={clip.coach_id === currentUserId ? () => setDeleteTarget(clip) : undefined} />)}</div> : <p className="text-sm text-textMuted">No clips have been created for this match yet.</p>}</div>}
+            {expanded && <div className="p-4">{matchClips.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{matchClips.map((clip) => <ClipCard key={clip.id} name={clip.name} videoTitle="" segmentCount={clip.clip_segments.length} audienceLabel={clip.audienceLabel} onClick={() => setSelectedClip(clip)} onDelete={clip.coach_id === currentUserId ? () => setDeleteTarget(clip) : undefined} />)}</div> : <p className="text-sm text-textMuted">{t("clip.noneForMatch")}</p>}</div>}
           </article>;
         })}
-        {clips.some((clip) => !clip.matchId) && <article className="overflow-hidden rounded-xl border border-border bg-card"><button type="button" onClick={() => toggleMatch("unmatched")} className="flex w-full items-center gap-3 border-b border-borderSubtle bg-cardDeep p-4 text-left"><span className={`text-accent transition-transform ${expandedMatchIds.has("unmatched") ? "rotate-90" : ""}`}>▶</span><span><strong className="block text-textBright">Other videos</strong><span className="text-xs text-textMuted">Clips not linked to a match</span></span></button>{expandedMatchIds.has("unmatched") && <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">{clips.filter((clip) => !clip.matchId).map((clip) => <ClipCard key={clip.id} name={clip.name} videoTitle={clip.matchTitle} segmentCount={clip.clip_segments.length} audienceLabel={clip.audienceLabel} onClick={() => setSelectedClip(clip)} onDelete={clip.coach_id === currentUserId ? () => setDeleteTarget(clip) : undefined} />)}</div>}</article>}
-        {!matches.length && !clips.length && <p className="text-textMuted">No matches or clips yet.</p>}
+        {clips.some((clip) => !clip.matchId) && <article className="overflow-hidden rounded-xl border border-border bg-card"><button type="button" onClick={() => toggleMatch("unmatched")} className="flex w-full items-center gap-3 border-b border-borderSubtle bg-cardDeep p-4 text-left"><span className={`text-accent transition-transform ${expandedMatchIds.has("unmatched") ? "rotate-90" : ""}`}>▶</span><span><strong className="block text-textBright">{t("clip.otherVideos")}</strong><span className="text-xs text-textMuted">{t("clip.notLinked")}</span></span></button>{expandedMatchIds.has("unmatched") && <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">{clips.filter((clip) => !clip.matchId).map((clip) => <ClipCard key={clip.id} name={clip.name} videoTitle={clip.matchTitle} segmentCount={clip.clip_segments.length} audienceLabel={clip.audienceLabel} onClick={() => setSelectedClip(clip)} onDelete={clip.coach_id === currentUserId ? () => setDeleteTarget(clip) : undefined} />)}</div>}</article>}
+        {!matches.length && !clips.length && <p className="text-textMuted">{t("clip.none")}</p>}
       </div>
 
       {selectedClip && (
@@ -173,7 +181,7 @@ export default function ClipsPage() {
       {deleteError && <p className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{deleteError}</p>}
       {shareError && <p className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{shareError}</p>}
       {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} onClose={() => setShareDialog(null)} />}
-      <ConfirmDialog open={!!deleteTarget} title="Delete clip?" message={`Delete ${deleteTarget?.name ?? "this clip"}, its share links and all uploaded video segments? This cannot be undone.`} busy={deleting} onCancel={() => { setDeleteTarget(null); setDeleteError(""); }} onConfirm={() => void deleteClip()} />
+      <ConfirmDialog open={!!deleteTarget} title={t("clip.deleteTitle")} message={t("clip.deleteMessage", { name: deleteTarget?.name ?? t("share.thisClip") })} busy={deleting} onCancel={() => { setDeleteTarget(null); setDeleteError(""); }} onConfirm={() => void deleteClip()} />
     </div>
   );
 }

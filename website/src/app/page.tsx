@@ -3,31 +3,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { InlineSignIn } from "@/components/auth/InlineSignIn";
-
-const features = [
-  {
-    icon: "/branding/video-viewer.png",
-    title: "Video Viewer",
-    body: "Open any match file, scrub the timeline, and drop timestamped tags on the moments you want to revisit."
-  },
-  {
-    icon: "/branding/teams.png",
-    title: "Teams",
-    body: "Build squads, add players, and link each tag to who made the play — so clips find the right people."
-  },
-  {
-    icon: "/branding/clips.png",
-    title: "Clips",
-    body: "Turn your tagged moments into a clip library, ready to share with the full team or a single player."
-  },
-  {
-    icon: "/branding/settings.png",
-    title: "Settings",
-    body: "Quick tags, player order, appearance — tuned to how you like to work."
-  }
-];
+import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
+import { getServerI18n } from "@/i18n/server";
+import { LegalLinks } from "@/components/legal/LegalLinks";
 
 export default async function HomePage() {
+  const { t } = getServerI18n();
+  const features = [
+    { icon: "/branding/video-viewer.png", title: t("common.videoViewer"), body: t("home.videoBody") },
+    { icon: "/branding/teams.png", title: t("common.teams"), body: t("home.teamsBody") },
+    { icon: "/branding/clips.png", title: t("common.clips"), body: t("home.clipsBody") },
+    { icon: "/branding/settings.png", title: t("common.settings"), body: t("home.settingsBody") }
+  ];
   const supabase = createClient();
   const {
     data: { user }
@@ -48,17 +35,18 @@ export default async function HomePage() {
             </span>
           </div>
           <div className="hidden md:flex items-center gap-3">
+            <LanguageSwitcher compact />
             <InlineSignIn />
             <Link href="/signup" className="px-4 py-2 rounded-lg border border-borderButton text-textPrimary text-sm font-semibold hover:border-accent hover:text-accent">
-              Register
+              {t("home.register")}
             </Link>
           </div>
-          <nav className="flex items-center gap-2 md:hidden" aria-label="Account">
+          <nav className="flex items-center gap-2 md:hidden" aria-label={t("nav.account")}>
             <Link href="/login" className="rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent">
-              Sign in
+              {t("home.signIn")}
             </Link>
             <Link href="/signup" className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page hover:opacity-90">
-              Register
+              {t("home.register")}
             </Link>
           </nav>
         </div>
@@ -67,28 +55,27 @@ export default async function HomePage() {
       <main>
         <section className="max-w-3xl mx-auto px-5 sm:px-6 pt-10 sm:pt-16 pb-10 text-center">
           <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={640} height={200} className="mx-auto mb-6 sm:mb-8" priority />
-          <p className="font-mono text-xs tracking-[0.3em] uppercase text-accent mb-4">Analyze · Coach · Improve · Win</p>
+          <p className="font-mono text-xs tracking-[0.3em] uppercase text-accent mb-4">{t("home.tagline")}</p>
           <h1 className="font-display uppercase text-3xl min-[390px]:text-4xl sm:text-5xl leading-[0.95] text-textBright">
-            Turn match footage into <span className="text-accent">moments that matter</span>
+            {t("home.heroTitle")}
           </h1>
           <p className="max-w-xl mx-auto mt-5 text-textSecondary text-lg">
-            Tag every key moment on the timeline, link plays to your players, and build a clip library your team can
-            actually learn from.
+            {t("home.intro")}
           </p>
           <div className="flex gap-3 justify-center flex-wrap mt-8">
             <Link href="/signup" className="px-6 py-3 rounded-xl bg-accent text-page font-bold hover:opacity-90">
-              Start reviewing
+              {t("home.start")}
             </Link>
             <Link href="/login" className="px-6 py-3 rounded-xl border border-borderButton text-textPrimary font-bold hover:border-accent">
-              Sign in
+              {t("home.signIn")}
             </Link>
           </div>
         </section>
 
         <section className="max-w-5xl mx-auto px-6 py-16">
           <div className="text-center max-w-xl mx-auto mb-12">
-            <p className="font-mono text-xs tracking-[0.3em] uppercase text-accent mb-2">One studio, four rooms</p>
-            <h2 className="font-display uppercase text-3xl text-textBright">Everything a coach needs to review</h2>
+            <p className="font-mono text-xs tracking-[0.3em] uppercase text-accent mb-2">{t("home.roomsEyebrow")}</p>
+            <h2 className="font-display uppercase text-3xl text-textBright">{t("home.roomsTitle")}</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {features.map((feature) => (
@@ -111,7 +98,7 @@ export default async function HomePage() {
             <Image src="/branding/logo.png" alt="" width={24} height={24} className="rounded" />
             <span>Clipboard Coach Studio</span>
           </div>
-          <span>Analyze · Coach · Improve · Win</span>
+          <span>{t("home.tagline")}</span><LegalLinks />
         </div>
       </footer>
     </div>

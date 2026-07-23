@@ -33,7 +33,10 @@ export async function probeDurationSeconds(inputPath: string): Promise<number> {
     inputPath
   ]);
   const seconds = Number(stdout.trim());
-  return Number.isFinite(seconds) ? Math.round(seconds) : 0;
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw new Error(`ffprobe returned an invalid duration for ${path.basename(inputPath)}: ${stdout.trim() || "empty output"}`);
+  }
+  return seconds;
 }
 
 /**
@@ -80,9 +83,14 @@ export async function buildHlsProxy(inputPath: string): Promise<{ dir: string; p
 }
 
 /** Convert a short shared clip to a broadly supported mobile MP4. */
-export async function buildMobileMp4(inputPath: string, outputPath: string) {
+export async function buildMobileMp4(inputPath: string, outputPath: string, startSeconds = 0, durationSeconds?: number) {
+  const trimArgs = [
+    ...(startSeconds > 0 ? ["-ss", startSeconds.toFixed(3)] : []),
+    ...(durationSeconds !== undefined ? ["-t", durationSeconds.toFixed(3)] : [])
+  ];
   await run(ffmpegPath, [
     "-y",
+    ...trimArgs,
     "-i",
     inputPath,
     "-vf",
@@ -107,4 +115,118 @@ export async function buildMobileMp4(inputPath: string, outputPath: string) {
     "+faststart",
     outputPath
   ]);
+}
+
+export type ClipDrawingInput = {
+  imagePath: string;
+  atSeconds: number;
+  durationSeconds: number;
+};
+
+async function buildMobileVideoPart(inputPath: string, outputPath: string, startSeconds: number, durationSeconds: number) {
+  await run(ffmpegPath, [
+    "-y",
+    "-ss", startSeconds.toFixed(3),
+    "-t", durationSeconds.toFixed(3),
+    "-i", inputPath,
+    "-vf", "scale=-2:min(720\\,ih)",
+    "-c:v", "libx264",
+    "-preset", "veryfast",
+    "-crf", "23",
+    "-pix_fmt", "yuv420p",
+    "-profile:v", "high",
+    "-level", "4.0",
+    "-r", "25",
+    "-c:a", "aac",
+    "-ar", "48000",
+    "-ac", "2",
+    "-b:a", "128k",
+    outputPath
+  ]);
+}
+
+async function buildDrawingPart(imagePath: string, outputPath: string, durationSeconds: number) {
+  await run(ffmpegPath, [
+    "-y",
+    "-loop", "1",
+    "-framerate", "25",
+    "-i", imagePath,
+    "-f", "lavfi",
+    "-i", "anullsrc=r=48000:cl=stereo",
+    "-vf", "scale=-2:min(720\\,ih)",
+    "-c:v", "libx264",
+    "-preset", "veryfast",
+    "-crf", "23",
+    "-pix_fmt", "yuv420p",
+    "-profile:v", "high",
+    "-level", "4.0",
+    "-r", "25",
+    "-c:a", "aac",
+    "-ar", "48000",
+    "-ac", "2",
+    "-b:a", "128k",
+    "-t", durationSeconds.toFixed(3),
+    "-shortest",
+    outputPath
+  ]);
+}
+
+/** Convert a shared clip and insert each saved drawing as a timed freeze-frame. */
+export async function buildMobileMp4WithDrawings(
+  inputPath: string,
+  outputPath: string,
+  drawings: ClipDrawingInput[],
+  workDir: string,
+  trimStartSeconds = 0,
+  trimDurationSeconds?: number
+) {
+  if (drawings.length === 0) {
+    await buildMobileMp4(inputPath, outputPath, trimStartSeconds, trimDurationSeconds);
+    return;
+  }
+
+  const probedDuration = await probeDurationSeconds(inputPath);
+  const availableDuration = Math.max(0, probedDuration - trimStartSeconds);
+  const inputDuration = trimDurationSeconds === undefined
+    ? availableDuration
+    : Math.min(availableDuration, trimDurationSeconds);
+  if (inputDuration <= 0) {
+    throw new Error(`Invalid trimmed clip duration for ${path.basename(inputPath)}`);
+  }
+  const ordered = drawings
+    .filter((drawing) => Number.isFinite(drawing.atSeconds) && Number.isFinite(drawing.durationSeconds))
+    .map((drawing) => ({
+      ...drawing,
+      atSeconds: Math.min(inputDuration, Math.max(0, drawing.atSeconds)),
+      durationSeconds: Math.min(30, Math.max(1, drawing.durationSeconds))
+    }))
+    .sort((first, second) => first.atSeconds - second.atSeconds);
+
+  const resolvedWorkDir = path.resolve(workDir);
+  const partPaths: string[] = [];
+  let cursor = 0;
+  let partIndex = 0;
+
+  for (const drawing of ordered) {
+    if (drawing.atSeconds > cursor + 0.001) {
+      const partPath = path.join(resolvedWorkDir, `part-${partIndex++}.mp4`);
+      await buildMobileVideoPart(inputPath, partPath, trimStartSeconds + cursor, drawing.atSeconds - cursor);
+      partPaths.push(partPath);
+    }
+
+    const drawingPath = path.join(resolvedWorkDir, `part-${partIndex++}.mp4`);
+    await buildDrawingPart(drawing.imagePath, drawingPath, drawing.durationSeconds);
+    partPaths.push(drawingPath);
+    cursor = Math.max(cursor, drawing.atSeconds);
+  }
+
+  if (cursor < inputDuration - 0.001) {
+    const partPath = path.join(resolvedWorkDir, `part-${partIndex++}.mp4`);
+    await buildMobileVideoPart(inputPath, partPath, trimStartSeconds + cursor, inputDuration - cursor);
+    partPaths.push(partPath);
+  }
+
+  const listPath = path.join(resolvedWorkDir, "concat.txt");
+  await fs.writeFile(listPath, partPaths.map((partPath) => `file '${partPath.replace(/'/g, "'\\''")}'`).join("\n"), "utf8");
+  await run(ffmpegPath, ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", "-movflags", "+faststart", outputPath]);
 }

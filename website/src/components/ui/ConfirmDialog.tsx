@@ -1,8 +1,11 @@
 "use client";
 
-export function ConfirmDialog({ open, title, message, confirmLabel = "Delete", destructive = true, busy = false, onCancel, onConfirm }: {
+import { useI18n } from "@/i18n/client";
+
+export function ConfirmDialog({ open, title, message, confirmLabel, destructive = true, busy = false, onCancel, onConfirm }: {
   open: boolean; title: string; message: string; confirmLabel?: string; destructive?: boolean; busy?: boolean; onCancel: () => void; onConfirm: () => void;
 }) {
+  const { t } = useI18n();
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 p-4" onClick={busy ? undefined : onCancel}>
@@ -12,8 +15,8 @@ export function ConfirmDialog({ open, title, message, confirmLabel = "Delete", d
           <div><h2 id="confirm-title" className="text-lg font-semibold text-textBright">{title}</h2><p id="confirm-message" className="mt-1 text-sm leading-6 text-textSecondary">{message}</p></div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button type="button" disabled={busy} onClick={onCancel} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent disabled:opacity-50">Cancel</button>
-          <button type="button" disabled={busy} onClick={onConfirm} className={`rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 ${destructive ? "bg-red-500 text-white hover:bg-red-400" : "bg-accent text-page hover:opacity-90"}`}>{busy ? "Working..." : confirmLabel}</button>
+          <button type="button" disabled={busy} onClick={onCancel} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent disabled:opacity-50">{t("common.cancel")}</button>
+          <button type="button" disabled={busy} onClick={onConfirm} className={`rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 ${destructive ? "bg-red-500 text-white hover:bg-red-400" : "bg-accent text-page hover:opacity-90"}`}>{busy ? t("common.working") : (confirmLabel ?? t("common.delete"))}</button>
         </div>
       </div>
     </div>

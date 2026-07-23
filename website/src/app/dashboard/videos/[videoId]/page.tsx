@@ -14,6 +14,7 @@ import { QuickTagCreator } from "@/components/tags/QuickTagCreator";
 import { ClipBuilder } from "@/components/clips/ClipBuilder";
 import { getTagColor } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
+import { useI18n } from "@/i18n/client";
 import { ActiveTagOverlay } from "@/components/video-player/ActiveTagOverlay";
 import { captureVideoFrame, FrameDrawingDialog, type WebDrawingShape } from "@/components/drawings/DesktopDrawingDialog";
 import { ActiveDrawingOverlay } from "@/components/video-player/ActiveDrawingOverlay";
@@ -26,6 +27,7 @@ import {
 } from "@/lib/local-video-store";
 
 export default function VideoViewerPage() {
+  const { t } = useI18n();
   const { videoId } = useParams<{ videoId: string }>();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const reconnectInputRef = useRef<HTMLInputElement | null>(null);
@@ -82,7 +84,7 @@ export default function VideoViewerPage() {
     if (!activeTag) { setLocalError("Draw is available while the timeline is inside a tag."); return; }
     player.pause();
     try {
-      setDrawingFrame({ image: captureVideoFrame(player), time: player.currentTime, tagId: activeTag.id, drawingId: null });
+      setDrawingFrame({ image: captureVideoFrame(player, t("drawing.frameNotReady")), time: player.currentTime, tagId: activeTag.id, drawingId: null });
     } catch (error) {
       setLocalError(error instanceof Error ? error.message : "Could not capture this video frame.");
     }
@@ -93,7 +95,7 @@ export default function VideoViewerPage() {
     if (!player) return;
     player.pause();
     try {
-      setDrawingFrame({ image: captureVideoFrame(player), time: player.currentTime, tagId: null, drawingId: null });
+      setDrawingFrame({ image: captureVideoFrame(player, t("drawing.frameNotReady")), time: player.currentTime, tagId: null, drawingId: null });
     } catch (error) {
       setLocalError(error instanceof Error ? error.message : "Could not capture this video frame.");
     }
@@ -102,7 +104,7 @@ export default function VideoViewerPage() {
   async function saveDrawing(blob: Blob, durationSeconds: number, shapes: WebDrawingShape[]) {
     if (!drawingFrame?.tagId) return;
     const tag = tags.find((item) => item.id === drawingFrame.tagId);
-    if (!tag) throw new Error("The selected tag no longer exists.");
+    if (!tag) throw new Error(t("tag.noLongerExists"));
     const id = drawingFrame.drawingId ?? crypto.randomUUID();
     const key = drawingFrame.key ?? `drawings/${video?.coach_id}/${tag.id}/${id}.png`;
     const url = await uploadBlobToR2(blob, key, "image/png", () => undefined);
@@ -314,25 +316,25 @@ export default function VideoViewerPage() {
     <div className="flex flex-col h-screen">
       <div className="flex flex-1 min-h-0">
       <div className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
-        <div className="flex items-center gap-3"><Link href="/dashboard" title="Home" aria-label="Home" className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt="Home" width={28} height={28} /></Link><p className="min-w-0 truncate text-sm font-semibold text-textBright">{video?.title || "Untitled video"}</p></div>
+        <div className="flex items-center gap-3"><Link href="/dashboard" title={t("nav.home")} aria-label={t("nav.home")} className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt={t("nav.home")} width={28} height={28} /></Link><p className="min-w-0 truncate text-sm font-semibold text-textBright">{video?.title || t("video.untitled")}</p></div>
         <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, currentTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
-        <div className="space-y-2"><h3 className="text-sm font-semibold text-textBright">Period markers</h3>{(["Start", "End"] as const).map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div>
+        <div className="space-y-2"><h3 className="text-sm font-semibold text-textBright">{t("video.periodMarkers")}</h3>{(["Start", "End"] as const).map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div>
         {tags.some((tag) => isPeriodMarker(tag.name)) && (
           <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
-            <summary className="cursor-pointer text-sm font-semibold text-textBright">Period times</summary>
+            <summary className="cursor-pointer text-sm font-semibold text-textBright">{t("video.periodTimes")}</summary>
             <div className="mt-2">
             <TagList tags={tags.filter((tag) => isPeriodMarker(tag.name))} selectedTagIds={[]} onToggleSelect={() => undefined} onSeek={seekTo} onDelete={deleteTag} onUpdate={updateTag} />
             </div>
           </details>
         )}
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-textBright">Add clip tag</h3>
+          <h3 className="mb-2 text-sm font-semibold text-textBright">{t("video.addClipTag")}</h3>
           <div className="grid grid-cols-1 gap-2">
             {standardTags.filter((tag) => !isPeriodMarker(tag.name)).map((tag) => <button key={tag.id} onClick={() => void addTag(tag.name)} className="rounded-lg border border-borderButton bg-button px-2 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}
           </div>
           <div className="mt-2"><QuickTagCreator onCreated={async (tag) => { setStandardTags((current) => [...current, tag]); await addTag(tag.name); }} /></div>
         </div>
-        <button type="button" onClick={drawDownloadOnly} className="mt-auto w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page">Draw</button>
+        <button type="button" onClick={drawDownloadOnly} className="mt-auto w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page">{t("video.draw")}</button>
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 flex flex-col p-4 gap-3">
@@ -350,9 +352,9 @@ export default function VideoViewerPage() {
         {video && isLocalVideoUrl(video.video_url) && !localVideoUrl ? (
           <div className="flex-1 min-h-0 grid place-items-center bg-black rounded-lg border border-border p-8 text-center">
             <div>
-              <h2 className="text-textBright text-lg font-semibold">Reconnect the local match video</h2>
-              <p className="text-textMuted text-sm mt-2 max-w-md">Your tags are saved online, but the full match remains on this PC. Select the same file to continue.</p>
-              <button onClick={() => void reconnectLocalVideo()} className="mt-4 px-4 py-2 rounded-lg bg-accent text-page font-semibold">Select original video</button>
+              <h2 className="text-textBright text-lg font-semibold">{t("video.reconnectTitle")}</h2>
+              <p className="text-textMuted text-sm mt-2 max-w-md">{t("video.reconnectHelp")}</p>
+              <button onClick={() => void reconnectLocalVideo()} className="mt-4 px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("video.selectOriginal")}</button>
               {localError && <p className="mt-3 text-sm text-red-300">{localError}</p>}
             </div>
           </div>
@@ -374,7 +376,7 @@ export default function VideoViewerPage() {
 
       <div className="w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
         <section>
-          <h3 className="mb-2 font-semibold text-textBright">Tagged clips</h3>
+          <h3 className="mb-2 font-semibold text-textBright">{t("video.taggedClips")}</h3>
           <TagList tags={tags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={toggleTagSelected} onSeek={seekTo} onDelete={deleteTag} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={currentTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
         </section>
         <ClipBuilder
@@ -386,7 +388,7 @@ export default function VideoViewerPage() {
           extraPlayers={extraPlayers}
           localVideo={isLocalVideoUrl(video?.video_url)}
           localFile={localFile}
-          matchLabel={video?.home_team && video?.away_team ? `${video.home_team} - ${video.away_team}` : video?.title || "Match"}
+          matchLabel={video?.home_team && video?.away_team ? `${video.home_team} - ${video.away_team}` : video?.title || t("video.match")}
           onClipCreated={() => setSelectedTagIds([])}
         />
       </div>

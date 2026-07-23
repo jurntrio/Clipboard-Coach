@@ -8,6 +8,8 @@ import { remuxLocalSegment } from "@/lib/media/local-clips";
 import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
 import { isPeriodMarker } from "@/lib/tags";
 import Link from "next/link";
+import { useI18n } from "@/i18n/client";
+import { localMediaMessages } from "@/i18n/local-media";
 
 export function ClipBuilder({
   videoId,
@@ -58,6 +60,7 @@ export function ClipBuilder({
   const [addingPerson, setAddingPerson] = useState(false);
   const [clipAllowance, setClipAllowance] = useState<{ plan: "free" | "pro"; used: number } | null>(null);
   const supabase = createClient();
+  const { t } = useI18n();
   const freeClipLimit = 20;
   const clipLimitReached = clipAllowance?.plan === "free" && clipAllowance.used >= freeClipLimit;
 
@@ -80,24 +83,24 @@ export function ClipBuilder({
   async function handleCreateClip() {
     if (clipTagIds.length === 0) return;
     if (clipLimitReached) {
-      setErrorMessage("You have used all 20 clips included with a free account. Upgrade to Pro to create more clips.");
+      setErrorMessage(t("clip.freeLimit"));
       return;
     }
     if (localVideo && !canUseLocalSources) {
-      setErrorMessage("Reconnect the original match video before making clips.");
+      setErrorMessage(t("clip.reconnectOriginal"));
       return;
     }
     if (audienceType === "specific_players" && audiencePlayerIds.length === 0) {
-      setErrorMessage("Select at least one person, or choose the full team.");
+      setErrorMessage(t("clip.selectPerson"));
       return;
     }
     if (audienceType === "full_team" && !selectedTeamId) {
-      setErrorMessage("Select a team before choosing the full team.");
+      setErrorMessage(t("clip.selectFullTeam"));
       return;
     }
     setSaving(true);
     setProgress(0);
-    setStatus(localFile ? "Preparing clip…" : "Saving clip…");
+    setStatus(localFile ? t("clip.preparing") : t("clip.saving"));
     setErrorMessage("");
 
     const {
@@ -105,7 +108,7 @@ export function ClipBuilder({
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setErrorMessage("Your session has expired. Sign in again.");
+      setErrorMessage(t("errors.sessionExpired"));
       setSaving(false);
       return;
     }
@@ -117,7 +120,7 @@ export function ClipBuilder({
     } else if (!resolvedClipName) {
       const { count } = await supabase.from("clips").select("id", { count: "exact", head: true }).eq("video_id", videoId);
       const sequence = String((count ?? 0) + 1).padStart(2, "0");
-      resolvedClipName = `Clip ${sequence} ${matchLabel?.trim() || "Match"}`;
+      resolvedClipName = `Clip ${sequence} ${matchLabel?.trim() || t("clip.match")}`;
     }
     const { data: clip, error } = await supabase
       .from("clips")
@@ -152,15 +155,15 @@ export function ClipBuilder({
             const tag = orderedTags[index];
             const baseProgress = index / orderedTags.length;
             const unit = 1 / orderedTags.length;
-            setStatus(`Making segment ${index + 1} of ${orderedTags.length}…`);
+            setStatus(t("clip.makingSegment", { current: index + 1, total: orderedTags.length }));
             const sourceFile = localFilesByVideoId?.[tag.video_id] ?? localFile;
-            if (!sourceFile) throw new Error(`Reconnect the source video for segment ${index + 1}.`);
+            if (!sourceFile) throw new Error(t("clip.reconnectSegment", { current: index + 1 }));
             const rendered = await remuxLocalSegment(sourceFile, tag.start_time, tag.end_time, (value) => {
               setProgress(baseProgress + unit * value * 0.55);
-            });
+            }, localMediaMessages(t));
 
             try {
-              setStatus(`Uploading segment ${index + 1} of ${orderedTags.length}…`);
+              setStatus(t("clip.uploadingSegment", { current: index + 1, total: orderedTags.length }));
               const key = `clips/${user.id}/${clip.id}/${index + 1}-${crypto.randomUUID()}.mp4`;
               const url = await uploadBlobToR2(rendered.file, key, "video/mp4", (value) => {
                 setProgress(baseProgress + unit * (0.55 + value * 0.45));
@@ -175,7 +178,18 @@ export function ClipBuilder({
                 duration: Math.max(0, tag.end_time - rendered.actualStart),
                 play_start: Math.max(0, tag.start_time - rendered.actualStart),
                 source_start: tag.start_time,
-                source_end: tag.end_time
+                source_end: tag.end_time,
+                drawing_time_base: "clip",
+                drawings: (tag.drawings ?? [])
+                  .filter((drawing) => drawing.video_time >= tag.start_time && drawing.video_time <= tag.end_time)
+                  .sort((first, second) => first.video_time - second.video_time)
+                  .map((drawing) => ({
+                    id: drawing.id,
+                    key: drawing.key,
+                    url: drawing.url,
+                    at_seconds: Math.max(0, drawing.video_time - tag.start_time),
+                    duration_seconds: Math.max(1, drawing.duration_seconds || 5)
+                  }))
               });
             } finally {
               await rendered.cleanup();
@@ -190,17 +204,17 @@ export function ClipBuilder({
           const processResponse = await fetch(`/api/clips/${clip.id}/process`, { method: "POST" });
           if (!processResponse.ok) {
             const body = await processResponse.json().catch(() => null) as { error?: string } | null;
-            throw new Error(body?.error || "The mobile-compatible clip conversion could not be started.");
+            throw new Error(body?.error || t("clip.conversionFailed"));
           }
           setProgress(1);
-          setStatus("Clip uploaded. Preparing the mobile version…");
+          setStatus(t("clip.uploadedPreparing"));
           setClipName("");
           setAudiencePlayerIds([]);
           setAudienceType("full_team");
           onClipCreated();
           setOpen(false);
         } catch (renderError) {
-          const message = renderError instanceof Error ? renderError.message : "Clip creation failed.";
+          const message = renderError instanceof Error ? renderError.message : t("clip.creationFailed");
           await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", clip.id);
           setErrorMessage(message);
           setStatus("");
@@ -214,7 +228,7 @@ export function ClipBuilder({
       }
     } else if (error) {
       setErrorMessage(error.message.includes("FREE_CLIP_LIMIT_REACHED")
-        ? "You have used all 20 clips included with a free account. Upgrade to Pro to create more clips."
+        ? t("clip.freeLimit")
         : error.message);
     }
 
@@ -255,7 +269,7 @@ export function ClipBuilder({
 
   async function addTeamPlayer() {
     if (!selectedTeamId || !newTeamPlayerName.trim() || addingPerson) {
-      if (!selectedTeamId) setErrorMessage("Select a saved team before adding a player.");
+      if (!selectedTeamId) setErrorMessage(t("clip.selectSavedTeam"));
       return;
     }
     setAddingPerson(true);
@@ -276,7 +290,7 @@ export function ClipBuilder({
     setAddingPerson(true);
     setErrorMessage("");
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setErrorMessage("Your session has expired."); setAddingPerson(false); return; }
+    if (!user) { setErrorMessage(t("errors.sessionExpired")); setAddingPerson(false); return; }
     const { data: existingTeam } = await supabase.from("teams").select("id").ilike("name", "EXTRA").limit(1).maybeSingle();
     let extraTeamId = existingTeam?.id;
     if (!extraTeamId) {
@@ -298,57 +312,57 @@ export function ClipBuilder({
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <h3 className="font-semibold text-textBright">Make clip</h3>
-      <p className="mb-3 mt-1 text-xs text-textMuted">{clipTagIds.length} clip tag(s) selected</p>
-      {clipAllowance && <p className={`mb-3 text-xs ${clipLimitReached ? "text-red-300" : "text-textMuted"}`}>{clipAllowance.plan === "pro" ? `Pro plan · Unlimited clips (${clipAllowance.used} created)` : `${clipAllowance.used}/${freeClipLimit} free clips used`}</p>}
-      <button type="button" onClick={() => { setErrorMessage(""); setOpen(true); void loadAvailableTeams(); }} disabled={clipTagIds.length === 0 || (localVideo && !canUseLocalSources) || clipLimitReached} className="w-full rounded-lg bg-accent py-2 font-semibold text-page hover:opacity-90 disabled:opacity-50">Create clip</button>
-      {localVideo && !canUseLocalSources && <p className="mt-2 text-xs text-textMuted">Reconnect all source videos used by this match to enable clip creation.</p>}
-      {clipLimitReached && <p className="mt-2 text-xs text-red-300">Your 20 free clips have been used. Existing clips remain available; Pro will unlock unlimited new clips.</p>}
+      <h3 className="font-semibold text-textBright">{t("clip.make")}</h3>
+      <p className="mb-3 mt-1 text-xs text-textMuted">{t("clip.selected", { count: clipTagIds.length })}</p>
+      {clipAllowance && <p className={`mb-3 text-xs ${clipLimitReached ? "text-red-300" : "text-textMuted"}`}>{clipAllowance.plan === "pro" ? t("clip.proPlan", { count: clipAllowance.used }) : t("clip.freeUsed", { used: clipAllowance.used, limit: freeClipLimit })}</p>}
+      <button type="button" onClick={() => { setErrorMessage(""); setOpen(true); void loadAvailableTeams(); }} disabled={clipTagIds.length === 0 || (localVideo && !canUseLocalSources) || clipLimitReached} className="w-full rounded-lg bg-accent py-2 font-semibold text-page hover:opacity-90 disabled:opacity-50">{t("clip.create")}</button>
+      {localVideo && !canUseLocalSources && <p className="mt-2 text-xs text-textMuted">{t("clip.reconnectAll")}</p>}
+      {clipLimitReached && <p className="mt-2 text-xs text-red-300">{t("clip.freeLimit")}</p>}
 
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" onClick={() => { if (!saving) setOpen(false); }}>
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-xl border border-borderButton bg-cardAlt p-5 shadow-2xl" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Create clip">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-xl border border-borderButton bg-cardAlt p-5 shadow-2xl" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("clip.create")}>
             <div className="mb-4 flex items-start justify-between gap-4">
-              <div><h2 className="text-lg font-semibold text-textBright">Create clip</h2><p className="text-xs text-textMuted">Choose who can find this clip.</p></div>
+              <div><h2 className="text-lg font-semibold text-textBright">{t("clip.create")}</h2><p className="text-xs text-textMuted">{t("clip.chooseAudience")}</p></div>
               <button type="button" disabled={saving} onClick={() => setOpen(false)} className="text-textMuted hover:text-textPrimary disabled:opacity-50">&times;</button>
             </div>
 
-            <label className="block text-sm text-textSecondary">Clip name
-              <input type="text" placeholder={clipTagIds.length === 1 ? tags.find((tag) => tag.id === clipTagIds[0])?.name || "Tag name" : `Clip 01 ${matchLabel?.trim() || "Match"}`} value={clipName} onChange={(event) => setClipName(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
+            <label className="block text-sm text-textSecondary">{t("clip.name")}
+              <input type="text" placeholder={clipTagIds.length === 1 ? tags.find((tag) => tag.id === clipTagIds[0])?.name || t("tag.name") : `Clip 01 ${matchLabel?.trim() || t("clip.match")}`} value={clipName} onChange={(event) => setClipName(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
             </label>
 
             <div className="mt-4 space-y-3">
-              <label className="block text-sm text-textSecondary">Team
+              <label className="block text-sm text-textSecondary">{t("clip.team")}
                 <select value={selectedTeamId} onChange={(event) => void selectTeam(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary">
-                  <option value="">Select a team</option>
+                  <option value="">{t("clip.selectTeam")}</option>
                   {availableTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
                 </select>
               </label>
               <label className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 ${audienceType === "full_team" ? "border-accent bg-accentDim" : "border-border bg-cardDeep"}`}>
                 <input type="checkbox" checked={audienceType === "full_team"} onChange={(event) => { setAudienceType(event.target.checked ? "full_team" : "specific_players"); setAudiencePlayerIds([]); }} />
-                <span><strong className="block text-sm text-textPrimary">Full selected team{selectedTeamId ? ` · ${availableTeams.find((team) => team.id === selectedTeamId)?.name ?? ""}` : ""}</strong><span className="text-xs text-textMuted">Includes all {teamPlayers.length} players shown below.</span></span>
+                <span><strong className="block text-sm text-textPrimary">{t("clip.fullTeam")}{selectedTeamId ? ` · ${availableTeams.find((team) => team.id === selectedTeamId)?.name ?? ""}` : ""}</strong><span className="text-xs text-textMuted">{t("clip.includesPlayers", { count: teamPlayers.length })}</span></span>
               </label>
 
               <details className="rounded-lg border border-border bg-cardDeep px-3 py-2" open>
-                <summary className="cursor-pointer text-sm font-semibold text-textPrimary">Players in selected team ({teamPlayers.length})</summary>
-                <div className="mt-3 space-y-2">{teamPlayers.map((player) => recipientButton(player, true))}{!teamPlayers.length && <p className="text-xs text-textMuted">No players in this team yet.</p>}</div>
-                <div className="mt-3 flex gap-2"><input value={newTeamPlayerName} onChange={(event) => setNewTeamPlayerName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void addTeamPlayer(); } }} placeholder="Add player name" className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" /><button type="button" disabled={addingPerson || !newTeamPlayerName.trim()} onClick={() => void addTeamPlayer()} className="rounded-lg bg-button px-3 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">Add</button></div>
+                <summary className="cursor-pointer text-sm font-semibold text-textPrimary">{t("clip.teamPlayers", { count: teamPlayers.length })}</summary>
+                <div className="mt-3 space-y-2">{teamPlayers.map((player) => recipientButton(player, true))}{!teamPlayers.length && <p className="text-xs text-textMuted">{t("clip.noTeamPlayers")}</p>}</div>
+                <div className="mt-3 flex gap-2"><input value={newTeamPlayerName} onChange={(event) => setNewTeamPlayerName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void addTeamPlayer(); } }} placeholder={t("clip.addPlayerName")} className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" /><button type="button" disabled={addingPerson || !newTeamPlayerName.trim()} onClick={() => void addTeamPlayer()} className="rounded-lg bg-button px-3 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">{t("clip.add")}</button></div>
               </details>
 
               <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
                 <summary className="cursor-pointer text-sm font-semibold text-textPrimary">EXTRA ({extraPeople.length})</summary>
-                <p className="mt-2 text-xs text-textMuted">For opponents or other people who are not in a fixed team.</p>
+                <p className="mt-2 text-xs text-textMuted">{t("clip.extraHelp")}</p>
                 <div className="mt-3 space-y-2">{extraPeople.map((player) => recipientButton(player, false))}</div>
-                <div className="mt-3 flex gap-2"><input value={newExtraName} onChange={(event) => setNewExtraName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void addExtraPerson(); } }} placeholder="Add extra person" className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" /><button type="button" disabled={addingPerson || !newExtraName.trim()} onClick={() => void addExtraPerson()} className="rounded-lg bg-button px-3 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">Add</button></div>
-                <Link href="/dashboard/teams" className="mt-2 inline-block text-xs text-accent hover:underline">Manage EXTRA in Teams</Link>
+                <div className="mt-3 flex gap-2"><input value={newExtraName} onChange={(event) => setNewExtraName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void addExtraPerson(); } }} placeholder={t("clip.addExtra")} className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" /><button type="button" disabled={addingPerson || !newExtraName.trim()} onClick={() => void addExtraPerson()} className="rounded-lg bg-button px-3 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">{t("clip.add")}</button></div>
+                <Link href="/dashboard/teams" className="mt-2 inline-block text-xs text-accent hover:underline">{t("clip.manageExtra")}</Link>
               </details>
             </div>
 
             {saving && localFile && (
-              <div className="mt-4" role="status" aria-live="polite"><div className="mb-1 flex justify-between text-xs text-textSecondary"><span>{status}</span><span>{Math.round(progress * 100)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-button"><div className="h-full bg-accent transition-[width]" style={{ width: `${progress * 100}%` }} /></div><p className="mt-2 text-xs text-textMuted">Keep this page open. The full match remains on this PC.</p></div>
+              <div className="mt-4" role="status" aria-live="polite"><div className="mb-1 flex justify-between text-xs text-textSecondary"><span>{status}</span><span>{Math.round(progress * 100)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-button"><div className="h-full bg-accent transition-[width]" style={{ width: `${progress * 100}%` }} /></div><p className="mt-2 text-xs text-textMuted">{t("clip.keepOpen")}</p></div>
             )}
             {errorMessage && <p className="mt-3 text-sm text-red-300">{errorMessage}</p>}
-            <div className="mt-5 flex gap-3"><button type="button" disabled={saving} onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary disabled:opacity-50">Cancel</button><button type="button" onClick={() => void handleCreateClip()} disabled={saving || clipLimitReached} className="flex-1 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{saving ? (localFile ? "Making clip…" : "Creating…") : "Create clip"}</button></div>
+            <div className="mt-5 flex gap-3"><button type="button" disabled={saving} onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary disabled:opacity-50">{t("common.cancel")}</button><button type="button" onClick={() => void handleCreateClip()} disabled={saving || clipLimitReached} className="flex-1 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{saving ? (localFile ? t("clip.making") : t("clip.creating")) : t("clip.create")}</button></div>
           </div>
         </div>
       )}

@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import { inspectLocalVideo, type LocalVideoInfo } from "@/lib/media/local-clips";
 import { getRememberedLocalVideo, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
 import type { Match, Team, Video } from "@/types/database";
+import { useI18n } from "@/i18n/client";
+import { localMediaMessages } from "@/i18n/local-media";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 type Mode = "recent" | "all" | "create";
@@ -21,6 +23,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 export function MatchLauncher() {
+  const { t, locale } = useI18n();
   const router = useRouter();
   const supabase = createClient();
   const fallbackInputRef = useRef<HTMLInputElement | null>(null);
@@ -70,8 +73,8 @@ export function MatchLauncher() {
     ...matches.map((match): RecentItem => ({
       kind: "match",
       id: match.id,
-      title: `${match.team_a_name || "Team A"} – ${match.team_b_name || "Team B"}`,
-      date: match.match_date || "No date",
+      title: `${match.team_a_name || t("match.teamA")} – ${match.team_b_name || t("match.teamB")}`,
+      date: match.match_date || t("match.noDate"),
       openedAt: match.last_opened_at,
       count: match.match_videos.length,
       videoIds: match.match_videos.map((video) => video.video_id)
@@ -79,8 +82,8 @@ export function MatchLauncher() {
     ...videos.filter((video) => !matchedVideoIds.has(video.id)).map((video): RecentItem => ({
       kind: "video",
       id: video.id,
-      title: video.title || "Untitled video",
-      date: new Date(video.created_at).toLocaleDateString(),
+      title: video.title || t("video.untitled"),
+      date: new Date(video.created_at).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB"),
       openedAt: video.created_at,
       count: 1,
       videoIds: [video.id]
@@ -90,7 +93,7 @@ export function MatchLauncher() {
   async function openItem(item: RecentItem) {
     setBusy(true);
     setError("");
-    setStatus("Checking saved videos…");
+    setStatus(t("match.checkingSaved"));
     const localVideos = videosForItem(item);
     const missing: Video[] = [];
     for (const video of localVideos) {
@@ -101,7 +104,7 @@ export function MatchLauncher() {
       const picker = (window as unknown as { showOpenFilePicker?: (options: unknown) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker;
       if (!picker) {
         pendingRecentItemRef.current = item;
-        setStatus(`Select the original video file${missing.length === 1 ? "" : "s"} before opening the viewer.`);
+        setStatus(t("match.selectOriginalBeforeOpen"));
         setBusy(false);
         reconnectInputRef.current?.click();
         return;
@@ -112,13 +115,13 @@ export function MatchLauncher() {
       } catch (pickerError) {
         setBusy(false);
         setStatus("");
-        if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) setError(getErrorMessage(pickerError, "The local videos could not be reconnected."));
+        if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) setError(getErrorMessage(pickerError, t("match.localReconnectFailed")));
         return;
       }
       if (!(await allVideosRemembered(missing))) {
         setBusy(false);
         setStatus("");
-        setError(`Select all ${missing.length} original video file${missing.length === 1 ? "" : "s"} before opening this match.`);
+        setError(t("match.selectAllOriginals", { count: missing.length }));
         return;
       }
     }
@@ -150,7 +153,7 @@ export function MatchLauncher() {
     const expected = videosForItem(item);
     await rememberSelectedFiles(expected, files.map((file) => ({ file, handle: null })));
     if (!(await allVideosRemembered(expected))) {
-      setError("One or more original match videos are still missing. Select all match files together.");
+      setError(t("match.originalsMissing"));
       setStatus("");
       setBusy(false);
       return;
@@ -175,20 +178,20 @@ export function MatchLauncher() {
     const response = await fetch(`/api/matches/${deleteTarget.id}`, { method: "DELETE" });
     const body = await response.json().catch(() => null) as { error?: string } | null;
     setDeleting(false);
-    if (!response.ok) { setError(body?.error || "The match could not be deleted."); setDeleteTarget(null); return; }
+    if (!response.ok) { setError(body?.error || t("match.deleteFailed")); setDeleteTarget(null); return; }
     setDeleteTarget(null);
     await loadData();
   }
 
   async function acceptFile(index: number, file: File, handle: FileSystemFileHandle | null) {
     setBusy(true);
-    setStatus(`Checking video ${index + 1}…`);
+    setStatus(t("match.checkingVideo", { number: index + 1 }));
     setError("");
     try {
-      const info = await inspectLocalVideo(file);
+      const info = await inspectLocalVideo(file, localMediaMessages(t));
       setSlots((current) => current.map((slot, slotIndex) => slotIndex === index ? { file, handle, info } : slot));
     } catch (fileError) {
-      setError(getErrorMessage(fileError, "This video could not be opened."));
+      setError(getErrorMessage(fileError, t("video.localOpenFailed")));
     } finally {
       setBusy(false);
       setStatus("");
@@ -212,7 +215,7 @@ export function MatchLauncher() {
       if (handle) await acceptFile(index, await handle.getFile(), handle);
     } catch (pickerError) {
       if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) {
-        setError(getErrorMessage(pickerError, "This video could not be opened."));
+        setError(getErrorMessage(pickerError, t("video.localOpenFailed")));
       }
     }
   }
@@ -238,16 +241,16 @@ export function MatchLauncher() {
     let createdMatchId: string | null = null;
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Your session has expired. Sign in again.");
-      setStatus("Creating match…");
+      if (!user) throw new Error(t("errors.sessionExpired"));
+      setStatus(t("match.creating"));
       const selectedTeamA = teams.find((team) => team.id === teamAId);
       const selectedTeamB = teams.find((team) => team.id === teamBId);
       const { data: match, error: matchError } = await supabase.from("matches").insert({
         coach_id: user.id,
         team_a_id: teamAId || null,
         team_b_id: teamBId || null,
-        team_a_name: selectedTeamA?.name || teamAName.trim() || "Team A",
-        team_b_name: selectedTeamB?.name || teamBName.trim() || "Team B",
+        team_a_name: selectedTeamA?.name || teamAName.trim() || t("match.teamA"),
+        team_b_name: selectedTeamB?.name || teamBName.trim() || t("match.teamB"),
         match_date: date || null,
         start_time: startTime || null,
         last_opened_at: new Date().toISOString()
@@ -257,7 +260,7 @@ export function MatchLauncher() {
 
       for (let index = 0; index < selected.length; index += 1) {
         const selection = selected[index];
-        setStatus(`Saving video ${index + 1} of ${selected.length}…`);
+        setStatus(t("match.savingVideo", { current: index + 1, total: selected.length }));
         const fingerprint = await localVideoFingerprint(selection.file);
         const { data: existing } = await supabase.from("videos").select("id")
           .eq("coach_id", user.id).eq("video_key", `local/${fingerprint}`).eq("status", "active").maybeSingle();
@@ -289,7 +292,7 @@ export function MatchLauncher() {
       router.push(`/dashboard/matches/${match.id}`);
     } catch (createError) {
       if (createdMatchId) await supabase.from("matches").delete().eq("id", createdMatchId);
-      setError(getErrorMessage(createError, "The match could not be created."));
+      setError(getErrorMessage(createError, t("match.createFailed")));
       setBusy(false);
       setStatus("");
     }
@@ -309,20 +312,20 @@ export function MatchLauncher() {
         }}
       />
       <input ref={reconnectInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void handleRecentFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
-      <div className="w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-borderButton bg-cardAlt p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="Video Viewer">
+      <div className="w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-borderButton bg-cardAlt p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label={t("common.videoViewer")}>
         <div className="flex items-start justify-between gap-4 mb-5">
-          <div><h1 className="text-xl font-bold text-textBright">{mode === "create" ? "New match" : mode === "all" ? "Older matches" : "Video Viewer"}</h1><p className="text-sm text-textMuted mt-1">Matches and tags are saved; full local videos stay on this computer.</p></div>
-          <button type="button" onClick={() => router.push("/dashboard")} className="px-3 py-2 rounded-lg bg-button text-textPrimary">Close</button>
+          <div><h1 className="text-xl font-bold text-textBright">{mode === "create" ? t("match.new") : mode === "all" ? t("match.older") : t("common.videoViewer")}</h1><p className="text-sm text-textMuted mt-1">{t("match.localIntro")}</p></div>
+          <button type="button" onClick={() => router.push("/dashboard")} className="px-3 py-2 rounded-lg bg-button text-textPrimary">{t("common.close")}</button>
         </div>
 
         {mode === "recent" && (
           <>
-            <button type="button" onClick={() => { resetDraft(); setMode("create"); }} className="w-full rounded-xl bg-accent px-5 py-3 font-bold text-page">Create new match</button>
+            <button type="button" onClick={() => { resetDraft(); setMode("create"); }} className="w-full rounded-xl bg-accent px-5 py-3 font-bold text-page">{t("match.createNew")}</button>
             <div className="mt-5 space-y-2">
-              <h2 className="text-sm font-semibold text-textSecondary">Last matches</h2>
+              <h2 className="text-sm font-semibold text-textSecondary">{t("match.last")}</h2>
               {supportsPersistentFileAccess === false && (
                 <div className="text-[11px] leading-tight text-amber-300">
-                  Automatic reconnect is not available in this browser. Open Clipboard Coach in Chrome or Edge and choose “Allow on every visit”.
+                  {t("match.autoReconnectUnavailable")}
                 </div>
               )}
               {[0, 1, 2, 3].map((index) => {
@@ -330,24 +333,24 @@ export function MatchLauncher() {
                 return item ? (
                   <div key={`${item.kind}-${item.id}`} className="flex items-stretch overflow-hidden rounded-xl border border-border bg-cardDeep hover:border-accent"><button type="button" disabled={busy} onClick={() => void openItem(item)} className="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3 text-left hover:bg-cardHover disabled:opacity-50">
                     <span><strong className="block text-textPrimary">{item.title}</strong><span className="text-xs text-textMuted">{item.date} · {item.count} video{item.count === 1 ? "" : "s"}</span></span>
-                    <span className="text-accent">Open</span>
-                  </button>{item.kind === "match" && <button type="button" disabled={busy} onClick={() => setDeleteTarget(item)} aria-label={`Delete ${item.title}`} title="Delete match" className="grid w-12 flex-shrink-0 place-items-center border-l border-border text-lg text-red-400 hover:bg-red-500/15 disabled:opacity-50">🗑</button>}</div>
-                ) : <div key={index} className="rounded-xl border border-border bg-cardDeep px-4 py-3 text-sm text-textMuted">No recent match</div>;
+                    <span className="text-accent">{t("match.open")}</span>
+                  </button>{item.kind === "match" && <button type="button" disabled={busy} onClick={() => setDeleteTarget(item)} aria-label={t("match.deleteNamed", { name: item.title })} title={t("match.delete")} className="grid w-12 flex-shrink-0 place-items-center border-l border-border text-lg text-red-400 hover:bg-red-500/15 disabled:opacity-50">🗑</button>}</div>
+                ) : <div key={index} className="rounded-xl border border-border bg-cardDeep px-4 py-3 text-sm text-textMuted">{t("match.noRecent")}</div>;
               })}
             </div>
             {status && <div className="mt-3 rounded-lg border border-border bg-cardDeep p-3 text-sm text-textSecondary">{status}</div>}
             {error && <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
-            <button type="button" onClick={() => setMode("all")} className="mt-4 w-full rounded-lg bg-button px-4 py-2 text-textPrimary">View older matches and videos</button>
+            <button type="button" onClick={() => setMode("all")} className="mt-4 w-full rounded-lg bg-button px-4 py-2 text-textPrimary">{t("match.viewOlder")}</button>
           </>
         )}
 
         {mode === "all" && (
           <div className="space-y-2">
-            {recentItems.map((item) => <div key={`${item.kind}-${item.id}`} className="flex items-stretch overflow-hidden rounded-lg border border-border bg-cardDeep hover:border-accent"><button type="button" disabled={busy} onClick={() => void openItem(item)} className="flex min-w-0 flex-1 justify-between gap-3 px-4 py-3 text-left text-textPrimary hover:bg-cardHover disabled:opacity-50"><span className="truncate">{item.title}</span><span className="flex-shrink-0 text-sm text-textMuted">{item.date}</span></button>{item.kind === "match" && <button type="button" disabled={busy} onClick={() => setDeleteTarget(item)} aria-label={`Delete ${item.title}`} title="Delete match" className="grid w-12 flex-shrink-0 place-items-center border-l border-border text-lg text-red-400 hover:bg-red-500/15 disabled:opacity-50">🗑</button>}</div>)}
-            {!recentItems.length && <p className="text-textMuted">No saved matches yet.</p>}
+            {recentItems.map((item) => <div key={`${item.kind}-${item.id}`} className="flex items-stretch overflow-hidden rounded-lg border border-border bg-cardDeep hover:border-accent"><button type="button" disabled={busy} onClick={() => void openItem(item)} className="flex min-w-0 flex-1 justify-between gap-3 px-4 py-3 text-left text-textPrimary hover:bg-cardHover disabled:opacity-50"><span className="truncate">{item.title}</span><span className="flex-shrink-0 text-sm text-textMuted">{item.date}</span></button>{item.kind === "match" && <button type="button" disabled={busy} onClick={() => setDeleteTarget(item)} aria-label={t("match.deleteNamed", { name: item.title })} title={t("match.delete")} className="grid w-12 flex-shrink-0 place-items-center border-l border-border text-lg text-red-400 hover:bg-red-500/15 disabled:opacity-50">🗑</button>}</div>)}
+            {!recentItems.length && <p className="text-textMuted">{t("match.noneSaved")}</p>}
             {status && <div className="rounded-lg border border-border bg-cardDeep p-3 text-sm text-textSecondary">{status}</div>}
             {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
-            <button type="button" onClick={() => setMode("recent")} className="mt-3 w-full rounded-lg bg-button px-4 py-2 text-textPrimary">Back</button>
+            <button type="button" onClick={() => setMode("recent")} className="mt-3 w-full rounded-lg bg-button px-4 py-2 text-textPrimary">{t("common.back")}</button>
           </div>
         )}
 
@@ -355,33 +358,33 @@ export function MatchLauncher() {
           <form onSubmit={createMatch} className="space-y-5">
             {supportsPersistentFileAccess === false && (
               <div className="text-[11px] leading-tight text-amber-300">
-                This browser cannot remember local video access. You can still create the match, but you will need to reconnect the files later. Chrome or Edge can remember them.
+                {t("match.browserCannotRemember")}
               </div>
             )}
             <section className="rounded-xl border border-border bg-cardDeep p-4">
-              <h2 className="font-semibold text-textBright mb-3">Match information</h2>
+              <h2 className="font-semibold text-textBright mb-3">{t("match.information")}</h2>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm text-textSecondary">Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" /></label>
-                <label className="text-sm text-textSecondary">Start time<input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" /></label>
-                <label className="text-sm text-textSecondary">Team A<select value={teamAId} onChange={(event) => { setTeamAId(event.target.value); setTeamAName(""); }} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary"><option value="">Enter a name</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>{!teamAId && <input value={teamAName} onChange={(event) => setTeamAName(event.target.value)} placeholder="Team A" className="mt-2 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />}</label>
-                <label className="text-sm text-textSecondary">Team B<select value={teamBId} onChange={(event) => { setTeamBId(event.target.value); setTeamBName(""); }} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary"><option value="">Enter a name</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>{!teamBId && <input value={teamBName} onChange={(event) => setTeamBName(event.target.value)} placeholder="Team B" className="mt-2 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />}</label>
+                <label className="text-sm text-textSecondary">{t("match.date")}<input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" /></label>
+                <label className="text-sm text-textSecondary">{t("match.startTime")}<input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" /></label>
+                <label className="text-sm text-textSecondary">{t("match.teamA")}<select value={teamAId} onChange={(event) => { setTeamAId(event.target.value); setTeamAName(""); }} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary"><option value="">{t("match.enterName")}</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>{!teamAId && <input value={teamAName} onChange={(event) => setTeamAName(event.target.value)} placeholder={t("match.teamA")} className="mt-2 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />}</label>
+                <label className="text-sm text-textSecondary">{t("match.teamB")}<select value={teamBId} onChange={(event) => { setTeamBId(event.target.value); setTeamBName(""); }} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary"><option value="">{t("match.enterName")}</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>{!teamBId && <input value={teamBName} onChange={(event) => setTeamBName(event.target.value)} placeholder={t("match.teamB")} className="mt-2 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />}</label>
               </div>
             </section>
 
             <section className="rounded-xl border border-border bg-cardDeep p-4">
-              <div className="flex items-center justify-between"><div><h2 className="font-semibold text-textBright">Match videos</h2><p className="text-xs text-textMuted mt-1">They play automatically in this order.</p></div><button type="button" onClick={() => setSlots((current) => [...current, null])} className="rounded-lg bg-button px-3 py-2 text-sm text-textPrimary">Add more</button></div>
+              <div className="flex items-center justify-between"><div><h2 className="font-semibold text-textBright">{t("match.videos")}</h2><p className="text-xs text-textMuted mt-1">{t("match.playOrder")}</p></div><button type="button" onClick={() => setSlots((current) => [...current, null])} className="rounded-lg bg-button px-3 py-2 text-sm text-textPrimary">{t("match.addMore")}</button></div>
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {slots.map((slot, index) => <button key={index} type="button" disabled={busy} onClick={() => void selectSlot(index)} className={`min-h-24 rounded-xl border p-3 text-center ${slot ? "border-accent bg-accentDim" : "border-dashed border-borderButton bg-cardAlt"}`}><strong className="block truncate text-textBright">{slot?.file.name || "+"}</strong><span className="mt-1 block text-xs text-textMuted">Video {index + 1}</span>{slot && <span className="mt-1 block text-xs text-textSecondary">{slot.info.videoCodec.toUpperCase()}</span>}</button>)}
+                {slots.map((slot, index) => <button key={index} type="button" disabled={busy} onClick={() => void selectSlot(index)} className={`min-h-24 rounded-xl border p-3 text-center ${slot ? "border-accent bg-accentDim" : "border-dashed border-borderButton bg-cardAlt"}`}><strong className="block truncate text-textBright">{slot?.file.name || "+"}</strong><span className="mt-1 block text-xs text-textMuted">{t("match.videoNumber", { number: index + 1 })}</span>{slot && <span className="mt-1 block text-xs text-textSecondary">{slot.info.videoCodec.toUpperCase()}</span>}</button>)}
               </div>
             </section>
 
             {status && <div className="rounded-lg border border-border bg-cardDeep p-3 text-sm text-textSecondary">{status}</div>}
             {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
-            <div className="flex gap-3"><button type="button" disabled={busy} onClick={() => setMode("recent")} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary">Back</button><button type="submit" disabled={busy || !slots.some(Boolean)} className="flex-1 rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{busy ? "Working…" : "Create match"}</button></div>
+            <div className="flex gap-3"><button type="button" disabled={busy} onClick={() => setMode("recent")} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary">{t("match.back")}</button><button type="submit" disabled={busy || !slots.some(Boolean)} className="flex-1 rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{busy ? t("match.working") : t("match.createAction")}</button></div>
           </form>
         )}
       </div>
-      <ConfirmDialog open={!!deleteTarget} title="Delete match?" message={`Delete ${deleteTarget?.title ?? "this match"}, its exclusively linked videos, tags and clips? This cannot be undone.`} busy={deleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void deleteMatch()} />
+      <ConfirmDialog open={!!deleteTarget} title={t("match.deleteTitle")} message={t("match.deleteNamedMessage", { name: deleteTarget?.title ?? t("video.match") })} busy={deleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void deleteMatch()} />
     </div>
   );
 }
