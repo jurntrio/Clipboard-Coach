@@ -27,7 +27,12 @@ open **Settings > CORS Policy** and allow the exact production website origin
 ```json
 [
   {
-    "AllowedOrigins": ["https://your-domain.example", "http://localhost:3000"],
+    "AllowedOrigins": [
+      "https://clipboardcoachstudio.com",
+      "https://www.clipboardcoachstudio.com",
+      "https://clipboard-coach-studio.netlify.app",
+      "http://localhost:3000"
+    ],
     "AllowedMethods": ["GET", "HEAD", "PUT"],
     "AllowedHeaders": ["Content-Type"],
     "ExposeHeaders": ["ETag"],
@@ -36,9 +41,9 @@ open **Settings > CORS Policy** and allow the exact production website origin
 ]
 ```
 
-Replace `https://your-domain.example` with the deployed site's precise origin
-(no path and normally no trailing slash). `ETag` is required for multipart
-uploads; `PUT` and `Content-Type` are required for every upload.
+Keep the deployed origins exact (no path and no trailing slash). `ETag` is
+required for multipart uploads; `PUT` and `Content-Type` are required for
+every upload. Do not retain origins from previous deployments.
 
 Not needed yet, only once you build those phases:
 - **Stripe** — subscription billing.

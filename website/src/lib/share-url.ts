@@ -1,4 +1,4 @@
-const PRODUCTION_ORIGIN = "https://evrenna.com";
+const PRODUCTION_ORIGIN = "https://clipboardcoachstudio.com";
 
 export function buildPublicShareUrl(token: string) {
   const configuredOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");

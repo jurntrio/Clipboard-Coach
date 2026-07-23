@@ -53,8 +53,6 @@ export function ShareClipDialog({ clipName, shareUrl, onClose }: { clipName: str
         <div className="p-5">
           <p className="text-sm text-textSecondary">{t("share.anyone")}</p>
 
-          <label className="mt-4 flex items-start gap-3 rounded-xl border border-border bg-cardDeep p-3 text-xs leading-5 text-textSecondary"><input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} className="mt-1" /><span>{t("share.review")}</span></label>
-
           <div className={`mt-4 flex items-center gap-2 rounded-xl border border-borderButton bg-input p-2 ${reviewed ? "" : "opacity-50"}`}>
             <span className="min-w-0 flex-1 truncate px-2 font-mono text-xs text-textPrimary">{shareUrl}</span>
             <button type="button" disabled={!reviewed} onClick={() => void copyLink()} className="flex-shrink-0 rounded-lg bg-accent px-3 py-2 text-sm font-bold text-page hover:opacity-90 disabled:cursor-not-allowed">
@@ -68,6 +66,8 @@ export function ShareClipDialog({ clipName, shareUrl, onClose }: { clipName: str
             {reviewed ? <a href={emailUrl} className="flex items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover"><span className="text-lg text-accent" aria-hidden="true">✉</span> {t("share.email")}</a> : <span className="flex cursor-not-allowed items-center justify-center rounded-xl border border-borderButton bg-button px-3 py-3 text-sm text-textMuted opacity-50">{t("share.email")}</span>}
             <button type="button" disabled={!reviewed} onClick={() => void copyLink()} className="col-span-2 flex items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1"><span className="text-accent" aria-hidden="true">⧉</span> {copied ? t("share.copied") : t("share.copy")}</button>
           </div>
+
+          <label className="mt-5 flex items-start gap-3 rounded-xl border border-border bg-cardDeep p-3 text-xs leading-5 text-textSecondary"><input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} className="mt-1" /><span>{t("share.review")}</span></label>
 
           <div className="mt-5 flex items-center gap-2 border-t border-border pt-4 text-xs text-textMuted">
             <span className="text-accent" aria-hidden="true">●</span>

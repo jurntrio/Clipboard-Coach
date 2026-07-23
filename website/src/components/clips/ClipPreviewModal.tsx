@@ -35,6 +35,7 @@ export function ClipPreviewModal({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drawingActiveRef = useRef(false);
+  const drawingSeekPendingRef = useRef(false);
   const shownDrawingIdsRef = useRef(new Set<string>());
   const [segmentIndex, setSegmentIndex] = useState(0);
   const [activeDrawing, setActiveDrawing] = useState<NonNullable<ClipSegmentPlayback["drawings"]>[number] | null>(null);
@@ -67,6 +68,7 @@ export function ClipPreviewModal({
       const shouldResume = !event.currentTarget.paused;
       event.currentTarget.pause();
       drawingActiveRef.current = true;
+      drawingSeekPendingRef.current = true;
       event.currentTarget.currentTime = drawing.at_time;
       setActiveDrawing(drawing);
       drawingTimerRef.current = setTimeout(() => {
@@ -86,7 +88,12 @@ export function ClipPreviewModal({
   }
 
   function handleSeeked(event: React.SyntheticEvent<HTMLVideoElement>) {
-    if (!segment || drawingActiveRef.current) return;
+    if (!segment) return;
+    if (drawingSeekPendingRef.current) {
+      drawingSeekPendingRef.current = false;
+      return;
+    }
+    if (drawingActiveRef.current) return;
     shownDrawingIdsRef.current = new Set(
       (segment.drawings ?? []).filter((drawing) => drawing.at_time < event.currentTarget.currentTime - 0.1).map((drawing) => drawing.id)
     );
