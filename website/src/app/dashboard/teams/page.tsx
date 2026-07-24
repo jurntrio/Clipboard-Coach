@@ -185,14 +185,11 @@ export default function TeamsPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 p-3.5">
+              <div className="flex flex-col gap-2.5 p-3.5">
                 {players.map((player) => (
                   <PlayerCard key={player.id} player={player} clipCount={clipCountFor(team, player)} onDelete={() => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() })} />
                 ))}
-                {ownsTeam && <AddPlayerTile
-                  label={t("team.addPlayer").replace("+ ", "")}
-                  onClick={() => setAddPlayerTarget({ teamId: team.id, teamName: team.name, role: "player" })}
-                />}
+                {ownsTeam && <button type="button" onClick={() => setAddPlayerTarget({ teamId: team.id, teamName: team.name, role: "player" })} className="min-h-14 rounded-lg border border-dashed border-accent/60 bg-accentDim px-4 py-3 text-left text-sm font-semibold text-accent hover:border-accent">+ {t("team.addPlayer").replace("+ ", "")}</button>}
               </div>
 
               <div className="mt-1 pt-2.5 mx-3.5 mb-3.5 border-t border-borderSubtle">

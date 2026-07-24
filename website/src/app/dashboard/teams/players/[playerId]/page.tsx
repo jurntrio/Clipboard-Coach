@@ -24,7 +24,23 @@ type PlayerClip = {
   audience_player_ids: string[];
   render_status: string;
   rendered_segments: { id: string; url: string; name: string; color: string; duration: number; play_start?: number; drawing_time_base?: "clip"; mobile_compatible?: boolean; drawings?: Array<{ id: string; url: string; at_seconds: number; duration_seconds: number }> }[];
-  videos: { title: string | null; video_url: string } | null;
+  videos: {
+    id: string;
+    title: string | null;
+    video_url: string;
+    match_videos: {
+      match_id: string;
+      matches: {
+        id: string;
+        team_a_name: string;
+        team_b_name: string;
+        match_date: string | null;
+        start_time: string | null;
+        score_a: number | null;
+        score_b: number | null;
+      } | null;
+    }[];
+  } | null;
   clip_segments: {
     sequence_order: number;
     tags: { id: string; name: string; start_time: number; end_time: number; color: string; player_ids: string[] } | null;
@@ -51,7 +67,7 @@ export default function PlayerClipsPage() {
       supabase.from("players").select("*, teams(name)").eq("id", playerId).single(),
       supabase.from("clips").select(`
         id, name, created_at, team_id, audience_type, audience_player_ids, render_status, rendered_segments,
-        videos(title, video_url),
+        videos(id, title, video_url, match_videos(match_id, matches(id, team_a_name, team_b_name, match_date, start_time, score_a, score_b))),
         clip_segments(sequence_order, tags(id, name, start_time, end_time, color, player_ids))
       `).order("created_at", { ascending: false })
     ]);
@@ -66,6 +82,28 @@ export default function PlayerClipsPage() {
     }));
     setLoading(false);
   }
+
+  const clipGroups = clips.reduce((groups, clip) => {
+    const match = clip.videos?.match_videos?.[0]?.matches ?? null;
+    const key = match?.id ?? `video:${clip.videos?.id ?? clip.id}`;
+    const existing = groups.find((group) => group.key === key);
+    if (existing) {
+      existing.clips.push(clip);
+    } else {
+      groups.push({
+        key,
+        match,
+        videoTitle: clip.videos?.title || t("team.untitledVideo"),
+        clips: [clip]
+      });
+    }
+    return groups;
+  }, [] as {
+    key: string;
+    match: NonNullable<PlayerClip["videos"]>["match_videos"][number]["matches"];
+    videoTitle: string;
+    clips: PlayerClip[];
+  }[]);
 
   function segmentsFor(clip: PlayerClip): ClipSegmentPlayback[] {
     if (clip.render_status === "ready" && clip.rendered_segments?.length) {
@@ -126,15 +164,36 @@ export default function PlayerClipsPage() {
       )}
 
       <div className="mb-3 flex items-center gap-2">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">{t("team.taggedTitle")}</h2>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">Wedstrijden met gedeelde clips</h2>
         <span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{clips.length}</span>
       </div>
 
       {loading ? (
         <p className="text-sm text-textMuted">{t("team.loadingClips")}</p>
       ) : clips.length ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {clips.map((clip) => <ClipCard key={clip.id} name={clip.name} videoTitle={clip.videos?.title || t("team.untitledVideo")} segmentCount={clip.clip_segments.length} onClick={() => setSelectedClip(clip)} />)}
+        <div className="space-y-5">
+          {clipGroups.map((group) => (
+            <section key={group.key} className="overflow-hidden rounded-xl border border-border bg-cardDeep">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-borderSubtle px-4 py-3">
+                <div>
+                  <h3 className="font-semibold text-textBright">
+                    {group.match ? `${group.match.team_a_name} – ${group.match.team_b_name}` : group.videoTitle}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-textMuted">
+                    {group.match?.match_date
+                      ? new Date(`${group.match.match_date}T00:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB")
+                      : "Oudere clip zonder wedstrijdkoppeling"}
+                    {group.match?.start_time ? ` · ${group.match.start_time.slice(0, 5)}` : ""}
+                    {group.match && group.match.score_a !== null && group.match.score_b !== null ? ` · ${group.match.score_a}–${group.match.score_b}` : ""}
+                  </p>
+                </div>
+                <span className="rounded-full bg-accentDim px-2.5 py-1 text-xs font-semibold text-accent">{group.clips.length}</span>
+              </div>
+              <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {group.clips.map((clip) => <ClipCard key={clip.id} name={clip.name} videoTitle={clip.videos?.title || t("team.untitledVideo")} segmentCount={clip.clip_segments.length} onClick={() => setSelectedClip(clip)} />)}
+              </div>
+            </section>
+          ))}
         </div>
       ) : (
         <div className="rounded-xl border border-border bg-cardDeep p-5 text-sm text-textMuted">{t("team.noTaggedClips")}</div>
