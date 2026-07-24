@@ -11,16 +11,20 @@ import { LegalLinks } from "@/components/legal/LegalLinks";
 
 export default function LoginPage() {
   const { t } = useI18n();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showHelp, setShowHelp] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
-  async function handleLogin(event: React.FormEvent) {
+  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // Read the actual form controls before changing React state. Password
+    // managers can fill the DOM without firing an input/change event, leaving
+    // controlled React state empty even though the user sees filled fields.
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
     setLoading(true);
     setError("");
 
@@ -50,23 +54,25 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-4 text-left">
             <div>
-              <label className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.email")}</label>
+              <label htmlFor="login-email" className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.email")}</label>
               <input
+                id="login-email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 placeholder="coach@club.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
                 className="w-full px-4 py-3 bg-input text-textPrimary rounded-lg border border-border"
                 required
               />
             </div>
             <div>
-              <label className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.password")}</label>
+              <label htmlFor="login-password" className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.password")}</label>
               <input
+                id="login-password"
+                name="password"
                 type="password"
+                autoComplete="current-password"
                 placeholder={t("auth.yourPassword")}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
                 className="w-full px-4 py-3 bg-input text-textPrimary rounded-lg border border-border"
                 required
               />

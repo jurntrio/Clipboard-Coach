@@ -10,10 +10,19 @@ export type CoachOverview = Profile & {
   failedVideoCount: number;
   clipCount: number;
   storageBytes: number;
+  clubNames: string[];
+  teamNames: string[];
 };
 
 type StoredClipSegment = { file_size?: number | null };
 type StoredClip = { coach_id: string; rendered_segments?: StoredClipSegment[] | null };
+
+function relatedName(value: unknown): string | null {
+  const relation = Array.isArray(value) ? value[0] : value;
+  return relation && typeof relation === "object" && "name" in relation
+    ? String((relation as { name: unknown }).name)
+    : null;
+}
 
 export function cloudVideoBytes(video: Pick<Video, "video_url" | "file_size">) {
   return video.video_url.startsWith("local://") ? 0 : (video.file_size ?? 0);
@@ -32,14 +41,16 @@ export function isBanned(bannedUntil: string | null): boolean {
 export async function getCoachOverviews(): Promise<CoachOverview[]> {
   const admin = createAdminClient();
 
-  const [{ data: authUsers }, { data: profiles }, { data: teams }, { data: players }, { data: videos }, { data: clips }] =
+  const [{ data: authUsers }, { data: profiles }, { data: teams }, { data: players }, { data: videos }, { data: clips }, { data: memberships }, { data: clubTrainers }] =
     await Promise.all([
       admin.auth.admin.listUsers({ perPage: 1000 }),
       admin.from("profiles").select("*").order("created_at", { ascending: false }),
-      admin.from("teams").select("id, coach_id"),
+      admin.from("teams").select("id, coach_id, name"),
       admin.from("players").select("id, team_id"),
       admin.from("videos").select("id, coach_id, video_url, file_size, processing_status").eq("status", "active"),
-      admin.from("clips").select("id, coach_id, rendered_segments")
+      admin.from("clips").select("id, coach_id, rendered_segments"),
+      admin.from("club_memberships").select("profile_id, clubs(name)"),
+      admin.from("club_trainers").select("profile_id, club_trainer_teams(club_teams(name))").not("profile_id", "is", null)
     ]);
 
   const authById = new Map(authUsers?.users.map((u) => [u.id, u]) ?? []);
@@ -49,19 +60,28 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
     const auth = authById.get(profile.id);
     const coachVideos = (videos ?? []).filter((v) => v.coach_id === profile.id);
     const coachClips = ((clips ?? []) as StoredClip[]).filter((clip) => clip.coach_id === profile.id);
+    const legacyTeamNames = (teams ?? []).filter((team) => team.coach_id === profile.id).map((team) => team.name);
+    const assignedClubTeamNames = (clubTrainers ?? [])
+      .filter((trainer) => trainer.profile_id === profile.id)
+      .flatMap((trainer) => trainer.club_trainer_teams ?? [])
+      .map((link) => relatedName(link.club_teams))
+      .filter((name): name is string => !!name);
+    const teamNames = Array.from(new Set([...legacyTeamNames, ...assignedClubTeamNames]));
 
     return {
       ...profile,
       banned_until: (auth as any)?.banned_until ?? null,
       last_sign_in_at: auth?.last_sign_in_at ?? null,
-      teamCount: (teams ?? []).filter((t) => t.coach_id === profile.id).length,
+      teamCount: teamNames.length,
       playerCount: (players ?? []).filter((p) => coachIdByTeamId.get(p.team_id) === profile.id).length,
       videoCount: coachVideos.length,
       failedVideoCount: coachVideos.filter((v) => v.processing_status === "failed").length,
       clipCount: (clips ?? []).filter((c) => c.coach_id === profile.id).length,
       storageBytes:
         coachVideos.reduce((sum, video) => sum + cloudVideoBytes(video), 0) +
-        coachClips.reduce((sum, clip) => sum + renderedClipBytes(clip), 0)
+        coachClips.reduce((sum, clip) => sum + renderedClipBytes(clip), 0),
+      clubNames: (memberships ?? []).filter((item) => item.profile_id === profile.id).map((item) => (item.clubs as unknown as { name: string } | null)?.name).filter((name): name is string => !!name),
+      teamNames
     };
   });
 }
@@ -106,16 +126,21 @@ export type CoachDetail = {
   videos: Video[];
   clipCount: number;
   clipStorageBytes: number;
+  clubOptions: { id: string; name: string; teams: { id: string; name: string }[] }[];
+  clubAssignment: { club_id: string; role: "trainer" | "club_admin" | "analyst"; team_ids: string[]; phone_number: string } | null;
 };
 
 export async function getCoachDetail(coachId: string): Promise<CoachDetail | null> {
   const admin = createAdminClient();
 
-  const [{ data: authUser }, { data: profile }, { data: teams }, { data: clips }] = await Promise.all([
+  const [{ data: authUser }, { data: profile }, { data: teams }, { data: clips }, { data: clubs }, { data: memberships }, { data: clubTrainers }] = await Promise.all([
     admin.auth.admin.getUserById(coachId),
     admin.from("profiles").select("*").eq("id", coachId).maybeSingle(),
     admin.from("teams").select("*, players(*)").eq("coach_id", coachId).order("created_at", { ascending: false }),
-    admin.from("clips").select("id, rendered_segments").eq("coach_id", coachId)
+    admin.from("clips").select("id, rendered_segments").eq("coach_id", coachId),
+    admin.from("clubs").select("id, name, club_teams(id, name)").order("name"),
+    admin.from("club_memberships").select("club_id, role").eq("profile_id", coachId),
+    admin.from("club_trainers").select("club_id, phone_number, club_trainer_teams(club_team_id)").eq("profile_id", coachId)
   ]);
 
   if (!profile) return null;
@@ -138,6 +163,14 @@ export async function getCoachDetail(coachId: string): Promise<CoachDetail | nul
     clipStorageBytes: ((clips ?? []) as Pick<StoredClip, "rendered_segments">[]).reduce(
       (sum, clip) => sum + renderedClipBytes(clip),
       0
-    )
+    ),
+    clubOptions: (clubs ?? []).map((club) => ({ id: club.id, name: club.name, teams: (club.club_teams ?? []) as { id: string; name: string }[] })),
+    clubAssignment: memberships?.[0] ? {
+      club_id: memberships[0].club_id,
+      role: memberships[0].role as "trainer" | "club_admin" | "analyst",
+      team_ids: clubTrainers?.find((trainer) => trainer.club_id === memberships[0].club_id)
+        ?.club_trainer_teams.map((item) => item.club_team_id) ?? [],
+      phone_number: clubTrainers?.find((trainer) => trainer.club_id === memberships[0].club_id)?.phone_number ?? ""
+    } : null
   };
 }

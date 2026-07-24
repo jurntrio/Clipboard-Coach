@@ -10,12 +10,14 @@ export function AccountActions({
   coachId,
   email,
   banned,
-  plan
+  plan,
+  accountRole
 }: {
   coachId: string;
   email: string;
   banned: boolean;
   plan: "free" | "pro";
+  accountRole: "coach" | "club_admin" | "analyst";
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);

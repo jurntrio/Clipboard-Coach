@@ -21,6 +21,7 @@ type ClipSummary = {
   clip_segments: { tags: { player_ids: string[] } | null }[];
 };
 type LinkedStaff = { id: string; team_id: string; user_id: string; full_name: string; removable: boolean };
+type StaffInvitation = { id: string; team_id: string; team_name: string; created_at: string };
 
 export default function TeamsPage() {
   const { t } = useI18n();
@@ -34,6 +35,7 @@ export default function TeamsPage() {
   const [deleting, setDeleting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState("");
   const [linkedStaff, setLinkedStaff] = useState<LinkedStaff[]>([]);
+  const [staffInvitations, setStaffInvitations] = useState<StaffInvitation[]>([]);
   const [linkStaffTarget, setLinkStaffTarget] = useState<{ teamId: string; teamName: string } | null>(null);
   const supabase = createClient();
 
@@ -62,8 +64,19 @@ export default function TeamsPage() {
   async function loadLinkedStaff() {
     const response = await fetch("/api/team-staff");
     if (!response.ok) return;
-    const body = await response.json() as { members: LinkedStaff[] };
+    const body = await response.json() as { members: LinkedStaff[]; invitations?: StaffInvitation[] };
     setLinkedStaff(body.members);
+    setStaffInvitations(body.invitations ?? []);
+  }
+
+  async function answerStaffInvitation(invitationId: string, action: "accept" | "decline") {
+    const response = await fetch("/api/team-staff", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invitationId, action })
+    });
+    if (!response.ok) return;
+    await Promise.all([loadTeams(), loadLinkedStaff()]);
   }
 
   function clipCountFor(team: Team, player: Player) {
@@ -104,8 +117,7 @@ export default function TeamsPage() {
   async function createExtraGroup() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || teams.some((team) => team.name.trim().toUpperCase() === "EXTRA")) return;
-    const { data: team } = await supabase.from("teams").insert({ coach_id: user.id, name: "EXTRA" }).select("id").single();
-    if (team) await supabase.from("team_staff_members").upsert({ team_id: team.id, user_id: user.id, added_by: user.id }, { onConflict: "team_id,user_id", ignoreDuplicates: true });
+    await supabase.from("teams").insert({ coach_id: user.id, name: "EXTRA" });
     await loadTeams();
     await loadLinkedStaff();
   }
@@ -113,6 +125,8 @@ export default function TeamsPage() {
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <SectionHeader title={t("common.teams")} artworkSrc="/branding/teams.png" />
+
+      {staffInvitations.length > 0 && <div className="mb-6 space-y-3">{staffInvitations.map((invitation) => <div key={invitation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent/40 bg-accentDim p-4"><p className="text-sm text-textPrimary">{t("team.invitedTo", { team: invitation.team_name })}</p><div className="flex gap-2"><button type="button" onClick={() => void answerStaffInvitation(invitation.id, "decline")} className="rounded-lg border border-borderButton px-3 py-2 text-sm text-textSecondary">{t("team.declineInvitation")}</button><button type="button" onClick={() => void answerStaffInvitation(invitation.id, "accept")} className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page">{t("team.acceptInvitation")}</button></div></div>)}</div>}
 
       <div className="flex flex-col gap-6">
         {teams.length === 0 && (

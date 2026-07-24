@@ -58,11 +58,11 @@ export function ClipBuilder({
   const [newTeamPlayerName, setNewTeamPlayerName] = useState("");
   const [newExtraName, setNewExtraName] = useState("");
   const [addingPerson, setAddingPerson] = useState(false);
-  const [clipAllowance, setClipAllowance] = useState<{ plan: "free" | "pro"; used: number } | null>(null);
+  const [clipAllowance, setClipAllowance] = useState<{ plan: "free" | "pro"; used: number; exempt: boolean } | null>(null);
   const supabase = createClient();
   const { t } = useI18n();
   const freeClipLimit = 20;
-  const clipLimitReached = clipAllowance?.plan === "free" && clipAllowance.used >= freeClipLimit;
+  const clipLimitReached = !clipAllowance?.exempt && clipAllowance?.plan === "free" && clipAllowance.used >= freeClipLimit;
 
   useEffect(() => setTeamPlayers(players), [players]);
   useEffect(() => setSelectedTeamId(teamId ?? ""), [teamId]);
@@ -73,8 +73,8 @@ export function ClipBuilder({
       const client = createClient();
       const { data: { user } } = await client.auth.getUser();
       if (!user) return;
-      const { data } = await client.from("profiles").select("plan, clips_created_total").eq("id", user.id).single();
-      if (active && data) setClipAllowance({ plan: data.plan === "pro" ? "pro" : "free", used: data.clips_created_total ?? 0 });
+      const { data } = await client.from("profiles").select("plan, clips_created_total, clip_limit_exempt").eq("id", user.id).single();
+      if (active && data) setClipAllowance({ plan: data.plan === "pro" ? "pro" : "free", used: data.clips_created_total ?? 0, exempt: data.clip_limit_exempt === true });
     };
     void loadClipAllowance();
     return () => { active = false; };
@@ -314,7 +314,7 @@ export function ClipBuilder({
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="font-semibold text-textBright">{t("clip.make")}</h3>
       <p className="mb-3 mt-1 text-xs text-textMuted">{t("clip.selected", { count: clipTagIds.length })}</p>
-      {clipAllowance && <p className={`mb-3 text-xs ${clipLimitReached ? "text-red-300" : "text-textMuted"}`}>{clipAllowance.plan === "pro" ? t("clip.proPlan", { count: clipAllowance.used }) : t("clip.freeUsed", { used: clipAllowance.used, limit: freeClipLimit })}</p>}
+      {clipAllowance && !clipAllowance.exempt && <p className={`mb-3 text-xs ${clipLimitReached ? "text-red-300" : "text-textMuted"}`}>{clipAllowance.plan === "pro" ? t("clip.proPlan", { count: clipAllowance.used }) : t("clip.freeUsed", { used: clipAllowance.used, limit: freeClipLimit })}</p>}
       <button type="button" onClick={() => { setErrorMessage(""); setOpen(true); void loadAvailableTeams(); }} disabled={clipTagIds.length === 0 || (localVideo && !canUseLocalSources) || clipLimitReached} className="w-full rounded-lg bg-accent py-2 font-semibold text-page hover:opacity-90 disabled:opacity-50">{t("clip.create")}</button>
       {localVideo && !canUseLocalSources && <p className="mt-2 text-xs text-textMuted">{t("clip.reconnectAll")}</p>}
       {clipLimitReached && <p className="mt-2 text-xs text-red-300">{t("clip.freeLimit")}</p>}

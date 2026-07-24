@@ -48,39 +48,45 @@ export async function buildHlsProxy(inputPath: string): Promise<{ dir: string; p
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cc-hls-"));
   const playlistPath = path.join(dir, "playlist.m3u8");
 
-  await run(ffmpegPath, [
-    "-y",
-    "-i",
-    inputPath,
-    "-vf",
-    "scale=-2:720",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "veryfast",
-    "-crf",
-    "23",
-    "-g",
-    "48",
-    "-keyint_min",
-    "48",
-    "-sc_threshold",
-    "0",
-    "-c:a",
-    "aac",
-    "-b:a",
-    "128k",
-    "-hls_time",
-    "5",
-    "-hls_playlist_type",
-    "vod",
-    "-hls_segment_filename",
-    path.join(dir, "segment_%04d.ts"),
-    playlistPath
-  ]);
+  try {
+    await run(ffmpegPath, [
+      "-y",
+      "-i",
+      inputPath,
+      "-vf",
+      "scale=-2:720",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "23",
+      "-g",
+      "48",
+      "-keyint_min",
+      "48",
+      "-sc_threshold",
+      "0",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "128k",
+      "-hls_time",
+      "5",
+      "-hls_playlist_type",
+      "vod",
+      "-hls_segment_filename",
+      path.join(dir, "segment_%04d.ts"),
+      playlistPath
+    ]);
 
-  return { dir, playlistPath };
+    return { dir, playlistPath };
+  } catch (error) {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
 }
+
 
 /** Convert a short shared clip to a broadly supported mobile MP4. */
 export async function buildMobileMp4(inputPath: string, outputPath: string, startSeconds = 0, durationSeconds?: number) {

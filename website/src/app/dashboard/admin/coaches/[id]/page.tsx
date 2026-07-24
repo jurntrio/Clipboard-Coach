@@ -6,6 +6,7 @@ import { getPlayerDisplayName } from "@/lib/utils";
 import { cloudVideoBytes, getCoachDetail, isBanned } from "../../data";
 import { PlanBadge } from "../../PlanBadge";
 import { AccountActions } from "./AccountActions";
+import { TrainerAssignmentEditor } from "./TrainerAssignmentEditor";
 import { getServerI18n } from "@/i18n/server";
 
 const statusStyles: Record<string, string> = {
@@ -31,7 +32,7 @@ export default async function AdminCoachDetailPage({ params }: { params: { id: s
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-textBright font-semibold text-lg">{coach.profile.full_name || coach.profile.email}</h2>
-            <PlanBadge email={coach.profile.email} plan={coach.profile.plan} />
+            <PlanBadge email={coach.profile.email} plan={coach.profile.plan} accountRole={coach.profile.account_role} />
             {blocked && <span className="px-2 py-0.5 rounded bg-red-500/15 text-red-400 text-xs font-semibold">{t("admin.blocked")}</span>}
           </div>
           <p className="text-textMuted text-sm">{coach.profile.email}</p>
@@ -41,8 +42,10 @@ export default async function AdminCoachDetailPage({ params }: { params: { id: s
             {!coach.email_confirmed_at && <> · {t("admin.emailUnconfirmed")}</>}
           </p>
         </div>
-        <AccountActions coachId={coach.profile.id} email={coach.profile.email} banned={blocked} plan={coach.profile.plan} />
+        <AccountActions coachId={coach.profile.id} email={coach.profile.email} banned={blocked} plan={coach.profile.plan} accountRole={coach.profile.account_role} />
       </div>
+
+      <TrainerAssignmentEditor profileId={coach.profile.id} fullName={coach.profile.full_name || ""} clubs={coach.clubOptions} assignment={coach.clubAssignment} />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
         <SummaryTile label={t("common.teams")} value={coach.teams.length} />

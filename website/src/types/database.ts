@@ -4,6 +4,8 @@ export type Profile = {
   full_name: string | null;
   plan: "free" | "pro";
   clips_created_total: number;
+  account_role: "coach" | "club_admin" | "analyst";
+  clip_limit_exempt: boolean;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   subscription_status: string | null;
@@ -64,9 +66,18 @@ export type Match = {
   team_b_name: string;
   match_date: string | null;
   start_time: string | null;
+  status: "scheduled" | "live" | "finished";
+  score_a: number | null;
+  score_b: number | null;
+  player_ids: string[];
+  live_tag_names: string[];
   last_opened_at: string;
   created_at: string;
   updated_at: string;
+  club_id: string | null;
+  club_team_id: string | null;
+  external_source: string | null;
+  external_match_id: string | null;
 };
 
 export type MatchVideo = {

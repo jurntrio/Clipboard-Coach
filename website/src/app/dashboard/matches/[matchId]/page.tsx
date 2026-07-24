@@ -154,6 +154,7 @@ export default function MatchViewerPage() {
   }
   const [playbackRate, setPlaybackRate] = useState(1);
   const [currentUserId, setCurrentUserId] = useState("");
+  const [canEditMatch, setCanEditMatch] = useState(false);
   const [replacing, setReplacing] = useState(false);
   const [confirmDeleteMatch, setConfirmDeleteMatch] = useState(false);
   const [deletingMatch, setDeletingMatch] = useState(false);
@@ -189,8 +190,11 @@ export default function MatchViewerPage() {
 
   useEffect(() => {
     if (!match?.team_a_id) { setPlayers([]); return; }
-    void supabase.from("players").select("*").eq("team_id", match.team_a_id).neq("role", "staff").order("last_name").then(({ data }) => setPlayers(data ?? []));
-  }, [match?.team_a_id]);
+    void supabase.from("players").select("*").eq("team_id", match.team_a_id).neq("role", "staff").order("last_name").then(({ data }) => {
+      const teamPlayers = data ?? [];
+      setPlayers(match.player_ids?.length ? teamPlayers.filter((player) => match.player_ids.includes(player.id)) : teamPlayers);
+    });
+  }, [match?.team_a_id, match?.player_ids]);
 
   useEffect(() => {
     if (!currentFile) { setPlaybackUrl(null); return; }
@@ -206,7 +210,9 @@ export default function MatchViewerPage() {
       .eq("id", matchId).single();
     if (loadError || !data) { setError(loadError?.message || t("match.notFound")); return; }
     const loaded = data as unknown as MatchWithBlocks;
-    if (!user || loaded.coach_id !== user.id) { router.replace("/dashboard/clips"); return; }
+    if (!user) { router.replace("/dashboard/clips"); return; }
+    const { data: profile } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
+    setCanEditMatch(loaded.coach_id === user.id || profile?.account_role === "club_admin");
     setMatch(loaded);
     const loadedVideos = loaded.match_videos.map((block) => block.videos).filter((video): video is Video => !!video);
     if (loadedVideos.length) {
@@ -454,7 +460,7 @@ export default function MatchViewerPage() {
       <div className="flex flex-1 min-h-0">
         <aside className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
           <Link href="/dashboard" title={t("nav.home")} aria-label={t("nav.home")} className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt={t("nav.home")} width={28} height={28} /></Link>
-          {match && <MatchDetailsCard match={match} videoCount={videos.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} onReplaceVideos={match.coach_id === currentUserId ? () => void chooseReplacementVideos() : undefined} onDeleteMatch={match.coach_id === currentUserId ? () => setConfirmDeleteMatch(true) : undefined} replacing={replacing} />}
+          {match && <MatchDetailsCard match={match} videoCount={videos.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} onReplaceVideos={match.coach_id === currentUserId ? () => void chooseReplacementVideos() : undefined} onDeleteMatch={match.coach_id === currentUserId ? () => setConfirmDeleteMatch(true) : undefined} replacing={replacing} editable={canEditMatch} />}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
           <div><h3 className="mb-2 text-sm font-semibold text-textBright">{t("video.periodMarkers")}</h3><div className="space-y-2">{markerTags.map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div></div>
           {displayTags.some((tag) => isPeriodMarker(tag.name)) && (

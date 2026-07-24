@@ -7,6 +7,7 @@ import {
   getPartUploadUrl,
   getPublicUrl
 } from "@/lib/r2/upload";
+import { validCompletedParts, validPartNumbers } from "@/lib/security/multipart";
 
 export async function POST(request: Request) {
   const supabase = createClient();
@@ -14,58 +15,49 @@ export async function POST(request: Request) {
     data: { user }
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    return NextResponse.json({ error: "Your session has expired" }, { status: 401 });
-  }
+  if (!user) return NextResponse.json({ error: "Your session has expired" }, { status: 401 });
 
-  const body = await request.json();
-
-  if (
-    typeof body.key !== "string" ||
-    !(body.key.startsWith(`videos/${user.id}/`) || body.key.startsWith(`clips/${user.id}/`))
-  ) {
+  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  if (!body || typeof body.key !== "string" || !(body.key.startsWith(`videos/${user.id}/`) || body.key.startsWith(`clips/${user.id}/`))) {
     return NextResponse.json({ error: "Invalid upload key" }, { status: 400 });
   }
 
   switch (body.action) {
     case "create": {
-      const { key, contentType } = body;
-      if (typeof key !== "string" || typeof contentType !== "string") {
-        return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-      }
-      const uploadId = await createMultipartUpload(key, contentType);
+      if (typeof body.contentType !== "string") return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+      const uploadId = await createMultipartUpload(body.key, body.contentType);
       return NextResponse.json({ uploadId });
     }
 
     case "part-urls": {
-      const { key, uploadId, partNumbers } = body;
-      if (typeof key !== "string" || typeof uploadId !== "string" || !Array.isArray(partNumbers)) {
-        return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+      if (typeof body.uploadId !== "string" || !validPartNumbers(body.partNumbers)) {
+        return NextResponse.json({ error: "Request between 1 and 100 unique, valid part numbers." }, { status: 400 });
       }
-      const urls = await Promise.all(
-        partNumbers.map(async (partNumber: number) => ({
-          partNumber,
-          url: await getPartUploadUrl(key, uploadId, partNumber)
-        }))
-      );
+      const { data: allowed, error: quotaError } = await supabase.rpc("consume_upload_part_url_quota", { requested_count: body.partNumbers.length });
+      if (quotaError) {
+        console.error("Could not enforce multipart URL quota:", quotaError);
+        return NextResponse.json({ error: "Upload protection is temporarily unavailable." }, { status: 503 });
+      }
+      if (!allowed) return NextResponse.json({ error: "Too many upload parts requested. Try again in a minute." }, { status: 429 });
+
+      const urls = await Promise.all(body.partNumbers.map(async (partNumber) => ({
+        partNumber,
+        url: await getPartUploadUrl(body.key as string, body.uploadId as string, partNumber)
+      })));
       return NextResponse.json({ urls });
     }
 
     case "complete": {
-      const { key, uploadId, parts } = body;
-      if (typeof key !== "string" || typeof uploadId !== "string" || !Array.isArray(parts)) {
-        return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+      if (typeof body.uploadId !== "string" || !validCompletedParts(body.parts)) {
+        return NextResponse.json({ error: "Invalid completed upload parts" }, { status: 400 });
       }
-      await completeMultipartUpload(key, uploadId, parts);
-      return NextResponse.json({ publicUrl: getPublicUrl(key) });
+      await completeMultipartUpload(body.key, body.uploadId, body.parts);
+      return NextResponse.json({ publicUrl: getPublicUrl(body.key) });
     }
 
     case "abort": {
-      const { key, uploadId } = body;
-      if (typeof key !== "string" || typeof uploadId !== "string") {
-        return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-      }
-      await abortMultipartUpload(key, uploadId);
+      if (typeof body.uploadId !== "string") return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+      await abortMultipartUpload(body.key, body.uploadId);
       return NextResponse.json({ aborted: true });
     }
 

@@ -10,7 +10,7 @@ export default async function DashboardHomePage() {
   const cards = [
     { href: "/dashboard/teams", label: t("common.teams"), icon: "/branding/teams.png" },
     { href: "/dashboard/videos", label: t("common.videoViewer"), icon: "/branding/video-viewer.png" },
-    { href: "/dashboard/clips", label: t("common.clips"), icon: "/branding/clips.png" },
+    { href: "/dashboard/clips", label: t("common.matches"), icon: "/branding/games.png" },
     { href: "/dashboard/training", label: t("common.training"), icon: "/branding/training.png" },
     { href: "/dashboard/settings", label: t("common.settings"), icon: "/branding/settings.png" },
     { href: "/dashboard/help", label: t("common.help"), icon: "/branding/help.png" }
@@ -19,10 +19,17 @@ export default async function DashboardHomePage() {
   const {
     data: { user }
   } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle()
+    : { data: null };
 
-  const visibleCards = isAdminEmail(user?.email)
-    ? [...cards, { href: "/dashboard/admin", label: t("common.admin"), icon: "/branding/admin.png" }]
-    : cards;
+  const visibleCards = [...cards];
+  if (isAdminEmail(user?.email) || profile?.account_role === "club_admin") {
+    visibleCards.push({ href: "/dashboard/club", label: "Clubbeheer", icon: "/branding/clubadmin.png" });
+  }
+  if (isAdminEmail(user?.email)) {
+    visibleCards.push({ href: "/dashboard/admin", label: t("common.admin"), icon: "/branding/admin.png" });
+  }
 
   return (
     <div className="p-8 flex flex-col items-center">

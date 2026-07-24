@@ -14,6 +14,19 @@ const nl = {
   "common.teams": "Teams",
   "common.videoViewer": "Videoviewer",
   "common.clips": "Clips",
+  "common.matches": "Wedstrijden",
+  "matchHub.title": "Alles rond je wedstrijden",
+  "matchHub.subtitle": "Bereid wedstrijden voor, laat mensen live taggen en bekijk clips per speler.",
+  "matchHub.new": "Nieuwe wedstrijd",
+  "matchHub.edit": "Wedstrijd bewerken",
+  "matchHub.prepare": "Kies de spelers en tagknoppen die je tijdens deze wedstrijd nodig hebt.",
+  "matchHub.upcoming": "Gepland en live",
+  "matchHub.finished": "Afgewerkte wedstrijden",
+  "matchHub.noUpcoming": "Nog geen geplande wedstrijden.",
+  "matchHub.noFinished": "Nog geen afgewerkte wedstrijden.",
+  "matchHub.linkFailed": "De taglink kon niet worden gemaakt.",
+  "matchHub.linkCopied": "De externe taglink staat op het klembord.",
+  "matchHub.required": "Selecteer een team en vul de tegenstander in.",
   "common.settings": "Instellingen",
   "common.exit": "Afmelden",
   "common.language": "Taal",
@@ -132,13 +145,16 @@ const nl = {
   ,"team.imported": "{count} spelers geïmporteerd. Controleer de lijst voordat je het team aanmaakt."
   ,"team.readFailed": "De spelerslijst kon niet worden gelezen."
   ,"team.createFailed": "Het team kon niet worden aangemaakt."
-  ,"team.linkStaff": "Geregistreerd staflid koppelen"
-  ,"team.linkStaffHelp": "Voer de volledige geregistreerde naam in, in eender welke volgorde, of het exacte geregistreerde e-mailadres. Er wordt geen gebruikerslijst of gedeeltelijke zoekfunctie getoond."
-  ,"team.registeredName": "Geregistreerde naam of e-mail"
-  ,"team.nameOrEmail": "Voor- en achternaam, of e-mail"
-  ,"team.linking": "Koppelen…"
-  ,"team.link": "Staflid koppelen"
-  ,"team.linkFailed": "De geregistreerde gebruiker kon niet worden gekoppeld."
+  ,"team.linkStaff": "Geregistreerd staflid uitnodigen"
+  ,"team.linkStaffHelp": "Voer het exacte geregistreerde e-mailadres in. De gebruiker wordt pas staflid nadat die de uitnodiging aanvaardt."
+  ,"team.registeredName": "Geregistreerd e-mailadres"
+  ,"team.nameOrEmail": "naam@voorbeeld.be"
+  ,"team.linking": "Uitnodigen…"
+  ,"team.link": "Uitnodiging sturen"
+  ,"team.linkFailed": "De uitnodiging kon niet worden verstuurd."
+  ,"team.invitedTo": "Je bent uitgenodigd als staflid van {team}."
+  ,"team.acceptInvitation": "Aanvaarden"
+  ,"team.declineInvitation": "Weigeren"
   ,"team.removePlayer": "Speler verwijderen"
   ,"team.taggedClips": "{count} getagde clip(s)"
   ,"team.none": "Nog geen teams. Maak een team aan om te beginnen."
@@ -146,7 +162,7 @@ const nl = {
   ,"team.delete": "Verwijderen"
   ,"team.registeredStaff": "Geregistreerd staflid"
   ,"team.addStaff": "Staflid toevoegen"
-  ,"team.linkRegistered": "+ Geregistreerde gebruiker koppelen"
+  ,"team.linkRegistered": "+ Geregistreerde gebruiker uitnodigen"
   ,"team.extraGroup": "+ EXTRA-groep"
   ,"team.deleteTeam": "Team verwijderen?"
   ,"team.removeLinked": "Gekoppeld staflid verwijderen?"
@@ -187,6 +203,8 @@ const nl = {
   ,"match.date": "Datum"
   ,"match.startTime": "Starttijd"
   ,"match.videoManagement": "Videobeheer"
+  ,"match.attendance": "Aanwezigheidslijst"
+  ,"match.noAttendancePlayers": "Selecteer eerst een eigen team om spelers toe te voegen."
   ,"match.replacing": "Video’s vervangen…"
   ,"match.replace": "Wedstrijdvideo’s vervangen"
   ,"match.delete": "Wedstrijd verwijderen"
@@ -316,6 +334,7 @@ const nl = {
   ,"clip.reconnectSegment": "Koppel de bronvideo voor segment {current} opnieuw."
   ,"clip.conversionFailed": "De conversie naar een mobiel compatibele clip kon niet worden gestart."
   ,"clip.uploadedPreparing": "Clip geüpload. De mobiele versie wordt voorbereid…"
+  ,"clip.processing": "Wordt verwerkt…"
   ,"clip.creationFailed": "Het maken van de clip is mislukt."
   ,"clip.keepOpen": "Laat deze pagina open. De volledige wedstrijd blijft op deze pc."
   ,"clip.play": "Afspelen"
@@ -375,6 +394,8 @@ const nl = {
   ,"admin.blockAccount": "Account blokkeren"
   ,"admin.deleteAccount": "Account verwijderen"
   ,"admin.genericError": "Er ging iets mis."
+  ,"admin.makeClubAdmin": "Club Admin maken"
+  ,"admin.removeClubAdmin": "Club Admin verwijderen"
   ,"admin.unblockTitle": "Account deblokkeren?"
   ,"admin.blockTitle": "Account blokkeren?"
   ,"admin.unblockMessage": "{email} opnieuw laten aanmelden?"
@@ -525,6 +546,19 @@ const en: Record<MessageKey, string> = {
   "common.teams": "Teams",
   "common.videoViewer": "Video Viewer",
   "common.clips": "Clips",
+  "common.matches": "Games",
+  "matchHub.title": "Everything around your games",
+  "matchHub.subtitle": "Prepare games, let people tag live and open clips by player.",
+  "matchHub.new": "New game",
+  "matchHub.edit": "Edit game",
+  "matchHub.prepare": "Choose the players and tag buttons needed for this game.",
+  "matchHub.upcoming": "Scheduled and live",
+  "matchHub.finished": "Finished games",
+  "matchHub.noUpcoming": "No scheduled games yet.",
+  "matchHub.noFinished": "No finished games yet.",
+  "matchHub.linkFailed": "The tagging link could not be created.",
+  "matchHub.linkCopied": "The external tagging link was copied.",
+  "matchHub.required": "Select a team and enter the opponent.",
   "common.settings": "Settings",
   "common.exit": "Sign out",
   "common.language": "Language",
@@ -643,13 +677,16 @@ const en: Record<MessageKey, string> = {
   ,"team.imported": "{count} players imported. Check the list before creating the team."
   ,"team.readFailed": "The player list could not be read."
   ,"team.createFailed": "The team could not be created."
-  ,"team.linkStaff": "Link registered staff"
-  ,"team.linkStaffHelp": "Enter the complete registered name in either order, or the exact registered email address. No user list or partial search is shown."
-  ,"team.registeredName": "Registered name or email"
-  ,"team.nameOrEmail": "First and last name, or email"
-  ,"team.linking": "Linking…"
-  ,"team.link": "Link staff"
-  ,"team.linkFailed": "The registered user could not be linked."
+  ,"team.linkStaff": "Invite registered staff"
+  ,"team.linkStaffHelp": "Enter the exact registered email address. The user only becomes staff after accepting the invitation."
+  ,"team.registeredName": "Registered email address"
+  ,"team.nameOrEmail": "name@example.com"
+  ,"team.linking": "Inviting…"
+  ,"team.link": "Send invitation"
+  ,"team.linkFailed": "The invitation could not be sent."
+  ,"team.invitedTo": "You have been invited to join {team} as staff."
+  ,"team.acceptInvitation": "Accept"
+  ,"team.declineInvitation": "Decline"
   ,"team.removePlayer": "Remove player"
   ,"team.taggedClips": "{count} tagged clip(s)"
   ,"team.none": "No teams yet. Create one to get started."
@@ -657,7 +694,7 @@ const en: Record<MessageKey, string> = {
   ,"team.delete": "Delete"
   ,"team.registeredStaff": "Registered staff"
   ,"team.addStaff": "Add staff"
-  ,"team.linkRegistered": "+ Link registered user"
+  ,"team.linkRegistered": "+ Invite registered user"
   ,"team.extraGroup": "+ EXTRA group"
   ,"team.deleteTeam": "Delete team?"
   ,"team.removeLinked": "Remove linked staff?"
@@ -698,6 +735,8 @@ const en: Record<MessageKey, string> = {
   ,"match.date": "Date"
   ,"match.startTime": "Start time"
   ,"match.videoManagement": "Video management"
+  ,"match.attendance": "Attendance list"
+  ,"match.noAttendancePlayers": "Select a home team first to add players."
   ,"match.replacing": "Replacing videos…"
   ,"match.replace": "Replace match videos"
   ,"match.delete": "Delete match"
@@ -827,6 +866,7 @@ const en: Record<MessageKey, string> = {
   ,"clip.reconnectSegment": "Reconnect the source video for segment {current}."
   ,"clip.conversionFailed": "The mobile-compatible clip conversion could not be started."
   ,"clip.uploadedPreparing": "Clip uploaded. Preparing the mobile version…"
+  ,"clip.processing": "Processing…"
   ,"clip.creationFailed": "Clip creation failed."
   ,"clip.keepOpen": "Keep this page open. The full match remains on this PC."
   ,"clip.play": "Play"
@@ -886,6 +926,8 @@ const en: Record<MessageKey, string> = {
   ,"admin.blockAccount": "Block account"
   ,"admin.deleteAccount": "Delete account"
   ,"admin.genericError": "Something went wrong."
+  ,"admin.makeClubAdmin": "Make Club Admin"
+  ,"admin.removeClubAdmin": "Remove Club Admin"
   ,"admin.unblockTitle": "Unblock account?"
   ,"admin.blockTitle": "Block account?"
   ,"admin.unblockMessage": "Allow {email} to sign in again?"
