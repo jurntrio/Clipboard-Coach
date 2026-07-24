@@ -41,6 +41,8 @@ export default function MatchesHubPage() {
   const [playerShare, setPlayerShare] = useState<{ playerName: string; title: string; text: string } | null>(null);
   const [sharingPlayerId, setSharingPlayerId] = useState("");
   const [accountRole, setAccountRole] = useState<"coach" | "club_admin" | "analyst">("coach");
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -55,10 +57,13 @@ export default function MatchesHubPage() {
     setTeams(teamData ?? []); setPlayers(playerData ?? []); setStandardTags(tagData ?? []);
     setClips((clipData as unknown as HubClip[] | null) ?? []);
     if (user) {
+      setCurrentUserId(user.id);
       const { data: profile } = await supabase.from("profiles").select("account_role, full_name").eq("id", user.id).maybeSingle();
       setAccountRole((profile?.account_role as "coach" | "club_admin" | "analyst" | undefined) ?? "coach");
       setCoachName(profile?.full_name?.trim() || user.email?.split("@")[0] || "Je trainer");
     }
+    const adminStatus = await fetch("/api/admin/status").then((response) => response.json()).catch(() => ({ isAdmin: false }));
+    setIsPlatformAdmin(adminStatus.isAdmin === true);
     if (!expandedId && matchData?.length) setExpandedId(matchData[0].id);
   }
 
@@ -108,6 +113,26 @@ export default function MatchesHubPage() {
     setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token) });
   }
 
+  async function deleteClip(clip: HubClip) {
+    if (!window.confirm(`Clip "${clip.name}" definitief verwijderen?`)) return;
+    const response = await fetch(`/api/clips/${clip.id}`, { method: "DELETE" });
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    if (!response.ok) { setNotice(body?.error || "De clip kon niet worden verwijderd."); return; }
+    if (selectedClip?.id === clip.id) setSelectedClip(null);
+    setNotice(`Clip "${clip.name}" is verwijderd.`);
+    await load();
+  }
+
+  async function deleteMatch(match: HubMatch) {
+    if (!window.confirm(`Wedstrijd "${match.team_a_name} - ${match.team_b_name}" en de gekoppelde gegevens definitief verwijderen?`)) return;
+    const response = await fetch(`/api/matches/${match.id}`, { method: "DELETE" });
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    if (!response.ok) { setNotice(body?.error || "De wedstrijd kon niet worden verwijderd."); return; }
+    setExpandedId(null);
+    setNotice(`Wedstrijd "${match.team_a_name} - ${match.team_b_name}" is verwijderd.`);
+    await load();
+  }
+
   async function sharePlayerClips(match: HubMatch, player: Player, relevantClips: HubClip[]) {
     if (!relevantClips.length) { setNotice(`Er zijn nog geen clips om met ${player.first_name} te delen.`); return; }
     setSharingPlayerId(player.id);
@@ -146,8 +171,8 @@ export default function MatchesHubPage() {
       </div>
       {notice && <button type="button" onClick={() => setNotice("")} className="mb-5 w-full rounded-xl border border-accent/30 bg-accentDim p-3 text-left text-sm text-textPrimary">{notice}</button>}
 
-      <MatchSection title={t("matchHub.upcoming")} matches={upcoming} empty={t("matchHub.noUpcoming")} allowTagging={canManageMatches} canManage={canManageMatches} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onTagLink={createTagLink} onClip={setSelectedClip} />
-      <div className="mt-8"><MatchSection title={t("matchHub.finished")} matches={finished} empty={t("matchHub.noFinished")} allowTagging={false} canManage={canManageMatches} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onTagLink={createTagLink} onClip={setSelectedClip} /></div>
+      <MatchSection title={t("matchHub.upcoming")} matches={upcoming} empty={t("matchHub.noUpcoming")} allowTagging={canManageMatches} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onDeleteMatch={deleteMatch} onDeleteClip={deleteClip} onTagLink={createTagLink} onClip={setSelectedClip} />
+      <div className="mt-8"><MatchSection title={t("matchHub.finished")} matches={finished} empty={t("matchHub.noFinished")} allowTagging={false} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onDeleteMatch={deleteMatch} onDeleteClip={deleteClip} onTagLink={createTagLink} onClip={setSelectedClip} /></div>
 
       {(createOpen || editingMatch) && <MatchEditor match={editingMatch} teams={teams} allPlayers={players} standardTags={standardTags} onClose={() => { setCreateOpen(false); setEditingMatch(null); }} onSaved={async () => { setCreateOpen(false); setEditingMatch(null); await load(); }} />}
       {selectedClip && <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos?.video_url ?? ""} segments={playbackSegments(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} />}
@@ -157,9 +182,9 @@ export default function MatchesHubPage() {
   );
 }
 
-function MatchSection({ title, matches, empty, allowTagging, canManage, expandedId, setExpandedId, clipsByMatch, players, sharingPlayerId, onSharePlayer, onEdit, onTagLink, onClip }: {
+function MatchSection({ title, matches, empty, allowTagging, canManage, currentUserId, isPlatformAdmin, expandedId, setExpandedId, clipsByMatch, players, sharingPlayerId, onSharePlayer, onEdit, onDeleteMatch, onDeleteClip, onTagLink, onClip }: {
   title: string; matches: HubMatch[]; empty: string; allowTagging: boolean; canManage: boolean; expandedId: string | null; setExpandedId: (id: string | null) => void;
-  clipsByMatch: Map<string, HubClip[]>; players: Player[]; sharingPlayerId: string; onSharePlayer: (match: HubMatch, player: Player, clips: HubClip[]) => void; onEdit: (match: HubMatch) => void; onTagLink: (match: HubMatch) => void; onClip: (clip: HubClip) => void;
+  currentUserId: string; isPlatformAdmin: boolean; clipsByMatch: Map<string, HubClip[]>; players: Player[]; sharingPlayerId: string; onSharePlayer: (match: HubMatch, player: Player, clips: HubClip[]) => void; onEdit: (match: HubMatch) => void; onDeleteMatch: (match: HubMatch) => void; onDeleteClip: (clip: HubClip) => void; onTagLink: (match: HubMatch) => void; onClip: (clip: HubClip) => void;
 }) {
   return <section><h2 className="mb-3 text-sm font-bold uppercase tracking-[0.15em] text-textMuted">{title}</h2><div className="space-y-3">{matches.length ? matches.map((match) => {
     const expanded = expandedId === match.id; const matchClips = clipsByMatch.get(match.id) ?? [];
@@ -171,10 +196,10 @@ function MatchSection({ title, matches, empty, allowTagging, canManage, expanded
         {match.score_a !== null && match.score_b !== null && <strong className="rounded-xl bg-cardDeep px-4 py-2 text-xl text-textBright">{match.score_a} – {match.score_b}</strong>}<span className={`text-accent transition ${expanded ? "rotate-90" : ""}`}>▶</span>
       </button>
       {expanded && <div className="border-t border-border p-4">
-        <div className="mb-5 flex flex-wrap gap-2">{allowTagging && match.status !== "finished" && <button type="button" onClick={() => void onTagLink(match)} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Taglink kopiëren</button>}{canManage && <button type="button" onClick={() => onEdit(match)} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">Wedstrijd bewerken</button>}{match.match_videos?.length ? <Link href={`/dashboard/matches/${match.id}`} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">Video Viewer</Link> : canManage ? <Link href="/dashboard/videos" className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">Video toevoegen</Link> : null}</div>
+        <div className="mb-5 flex flex-wrap gap-2">{allowTagging && match.status !== "finished" && <button type="button" onClick={() => void onTagLink(match)} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Taglink kopiëren</button>}{canManage && <button type="button" onClick={() => onEdit(match)} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">Wedstrijd bewerken</button>}{match.match_videos?.length ? <Link href={`/dashboard/matches/${match.id}`} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">Video Viewer</Link> : canManage ? <Link href="/dashboard/videos" className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">Video toevoegen</Link> : null}{(isPlatformAdmin || match.coach_id === currentUserId) && <button type="button" onClick={() => void onDeleteMatch(match)} className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/20">Wedstrijd verwijderen</button>}</div>
         <div className="mb-4 rounded-xl border border-accent/25 bg-accentDim/40 p-3">
           <div className="mb-2 flex items-center justify-between gap-3"><h4 className="text-sm font-semibold text-textBright">Clips voor de volledige ploeg</h4><span className="text-xs text-textMuted">{teamClips.length}</span></div>
-          <ClipPills clips={teamClips} onClip={onClip} empty="Nog geen ploegclips" />
+          <ClipPills clips={teamClips} onClip={onClip} onDelete={onDeleteClip} canDelete={(clip) => isPlatformAdmin || clip.coach_id === currentUserId} empty="Nog geen ploegclips" />
         </div>
         <div className="hidden grid-cols-[minmax(190px,1.2fr)_minmax(160px,1fr)_minmax(160px,1fr)_52px] gap-3 px-3 pb-2 text-[11px] font-bold uppercase tracking-wide text-textMuted md:grid">
           <span>Speler</span><span>Geselecteerde clips</span><span>Individueel getagd</span><span className="text-center">Deel</span>
@@ -185,8 +210,8 @@ function MatchSection({ title, matches, empty, allowTagging, canManage, expanded
           const playerShareClips = [...teamClips, ...selectedClips, ...taggedClips];
           return <div key={player.id} className="grid gap-3 rounded-xl border border-border bg-cardDeep px-3 py-3 md:grid-cols-[minmax(190px,1.2fr)_minmax(160px,1fr)_minmax(160px,1fr)_52px] md:items-center">
             <div className="flex min-w-0 items-center gap-3"><span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-button text-xs font-bold text-accent">{player.jersey_number ?? player.initials}</span><span className="truncate text-sm text-textPrimary">{player.first_name} {player.last_name}</span></div>
-            <div><span className="mb-1 block text-[10px] font-bold uppercase text-textMuted md:hidden">Geselecteerd</span><ClipPills clips={selectedClips} onClip={onClip} /></div>
-            <div><span className="mb-1 block text-[10px] font-bold uppercase text-textMuted md:hidden">Individueel getagd</span><ClipPills clips={taggedClips} onClip={onClip} /></div>
+            <div><span className="mb-1 block text-[10px] font-bold uppercase text-textMuted md:hidden">Geselecteerd</span><ClipPills clips={selectedClips} onClip={onClip} onDelete={onDeleteClip} canDelete={(clip) => isPlatformAdmin || clip.coach_id === currentUserId} /></div>
+            <div><span className="mb-1 block text-[10px] font-bold uppercase text-textMuted md:hidden">Individueel getagd</span><ClipPills clips={taggedClips} onClip={onClip} onDelete={onDeleteClip} canDelete={(clip) => isPlatformAdmin || clip.coach_id === currentUserId} /></div>
             <button type="button" disabled={!playerShareClips.length || sharingPlayerId === player.id} onClick={() => onSharePlayer(match, player, playerShareClips)} title={`Alle clips delen met ${player.first_name}`} aria-label={`Alle clips delen met ${player.first_name}`} className="grid h-11 w-full place-items-center rounded-xl border border-accent/40 bg-accentDim text-xl text-accent hover:bg-accent hover:text-page disabled:cursor-not-allowed disabled:opacity-30 md:w-11">{sharingPlayerId === player.id ? <span className="text-xs">…</span> : <span aria-hidden="true">↗</span>}</button>
           </div>;
         })}</div> : <p className="text-sm text-textMuted">Nog geen spelers aangeduid.</p>}
@@ -195,9 +220,9 @@ function MatchSection({ title, matches, empty, allowTagging, canManage, expanded
   }) : <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-textMuted">{empty}</p>}</div></section>;
 }
 
-function ClipPills({ clips, onClip, empty }: { clips: HubClip[]; onClip: (clip: HubClip) => void; empty?: string }) {
+function ClipPills({ clips, onClip, onDelete, canDelete, empty }: { clips: HubClip[]; onClip: (clip: HubClip) => void; onDelete?: (clip: HubClip) => void; canDelete?: (clip: HubClip) => boolean; empty?: string }) {
   if (!clips.length) return <span className="text-xs text-textMuted">{empty ?? "—"}</span>;
-  return <div className="flex flex-wrap gap-1.5">{clips.map((clip, index) => <button key={clip.id} type="button" disabled={clip.render_status === "rendering"} onClick={() => onClip(clip)} title={clip.name} aria-label={`${clip.name} afspelen`} className="flex h-8 min-w-10 items-center justify-center gap-1 rounded-full border border-accent/40 bg-accentDim px-2 text-xs font-bold text-accent hover:bg-accent hover:text-page disabled:cursor-wait disabled:opacity-50"><span aria-hidden="true">▶</span><span>{index + 1}</span></button>)}</div>;
+  return <div className="flex flex-wrap gap-1.5">{clips.map((clip, index) => <span key={clip.id} className="inline-flex items-center overflow-hidden rounded-full border border-accent/40 bg-accentDim"><button type="button" disabled={clip.render_status === "rendering"} onClick={() => onClip(clip)} title={clip.name} aria-label={`${clip.name} afspelen`} className="flex h-8 min-w-10 items-center justify-center gap-1 px-2 text-xs font-bold text-accent hover:bg-accent hover:text-page disabled:cursor-wait disabled:opacity-50"><span aria-hidden="true">▶</span><span>{index + 1}</span></button>{onDelete && canDelete?.(clip) && <button type="button" onClick={() => onDelete(clip)} title={`${clip.name} verwijderen`} aria-label={`${clip.name} verwijderen`} className="grid h-8 w-7 place-items-center border-l border-red-500/30 text-sm text-red-300 hover:bg-red-500/20">×</button>}</span>)}</div>;
 }
 
 function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved }: { match: HubMatch | null; teams: Team[]; allPlayers: Player[]; standardTags: StandardTag[]; onClose: () => void; onSaved: () => void }) {
