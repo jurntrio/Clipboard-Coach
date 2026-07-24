@@ -18,10 +18,15 @@ type StoredClipSegment = { file_size?: number | null };
 type StoredClip = { coach_id: string; rendered_segments?: StoredClipSegment[] | null };
 
 function relatedName(value: unknown): string | null {
-  const relation = Array.isArray(value) ? value[0] : value;
+  const relation = relatedRecord(value);
   return relation && typeof relation === "object" && "name" in relation
     ? String((relation as { name: unknown }).name)
     : null;
+}
+
+function relatedRecord(value: unknown): Record<string, unknown> | null {
+  const relation = Array.isArray(value) ? value[0] : value;
+  return relation && typeof relation === "object" ? relation as Record<string, unknown> : null;
 }
 
 export function cloudVideoBytes(video: Pick<Video, "video_url" | "file_size">) {
@@ -49,7 +54,7 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
       admin.from("players").select("id, team_id"),
       admin.from("videos").select("id, coach_id, video_url, file_size, processing_status").eq("status", "active"),
       admin.from("clips").select("id, coach_id, rendered_segments"),
-      admin.from("club_memberships").select("profile_id, clubs(name)"),
+      admin.from("club_memberships").select("profile_id, role, clubs(name, club_teams(name))"),
       admin.from("club_trainers").select("profile_id, club_trainer_teams(club_teams(name))").not("profile_id", "is", null)
     ]);
 
@@ -66,7 +71,15 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
       .flatMap((trainer) => trainer.club_trainer_teams ?? [])
       .map((link) => relatedName(link.club_teams))
       .filter((name): name is string => !!name);
-    const teamNames = Array.from(new Set([...legacyTeamNames, ...assignedClubTeamNames]));
+    const profileMemberships = (memberships ?? []).filter((membership) => membership.profile_id === profile.id);
+    const fullClubAccessTeamNames = profileMemberships
+      .filter((membership) => membership.role === "club_admin" || membership.role === "analyst")
+      .flatMap((membership) => {
+        const club = relatedRecord(membership.clubs);
+        const clubTeams = club && Array.isArray(club.club_teams) ? club.club_teams : [];
+        return clubTeams.map((team) => relatedName(team)).filter((name): name is string => !!name);
+      });
+    const teamNames = Array.from(new Set([...legacyTeamNames, ...assignedClubTeamNames, ...fullClubAccessTeamNames]));
 
     return {
       ...profile,
@@ -80,7 +93,7 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
       storageBytes:
         coachVideos.reduce((sum, video) => sum + cloudVideoBytes(video), 0) +
         coachClips.reduce((sum, clip) => sum + renderedClipBytes(clip), 0),
-      clubNames: (memberships ?? []).filter((item) => item.profile_id === profile.id).map((item) => (item.clubs as unknown as { name: string } | null)?.name).filter((name): name is string => !!name),
+      clubNames: profileMemberships.map((membership) => relatedName(membership.clubs)).filter((name): name is string => !!name),
       teamNames
     };
   });
