@@ -24,6 +24,8 @@ import { ActiveDrawingOverlay } from "@/components/video-player/ActiveDrawingOve
 import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
 import { useI18n } from "@/i18n/client";
 import { localMediaMessages } from "@/i18n/local-media";
+import { getTagEventKind } from "@/lib/tag-events";
+import { GoalTagDialog, type GoalTagDetails } from "@/components/tags/GoalTagDialog";
 
 type MatchBlock = { id: string; sequence_order: number; label: string; videos: Video | null };
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
@@ -61,6 +63,7 @@ export default function MatchViewerPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [drawingFrame, setDrawingFrame] = useState<{ image: string; time: number; tagId: string | null; drawingId: string | null; key?: string; initialShapes?: WebDrawingShape[]; durationSeconds?: number } | null>(null);
   const [playingDrawing, setPlayingDrawing] = useState<TagDrawing | null>(null);
+  const [pendingGoal, setPendingGoal] = useState<{ video: Video; label: string; localTime: number } | null>(null);
   const lastPlaybackTimeRef = useRef(0);
   const handledDrawingIdsRef = useRef(new Set<string>());
   const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -358,15 +361,45 @@ export default function MatchViewerPage() {
     router.push("/dashboard");
   }
 
+  async function persistProfiledTag(video: Video, label: string, localTime: number, goal?: GoalTagDetails) {
+    const selectedPlayers = match?.player_ids?.length ? match.player_ids : players.map((player) => player.id);
+    const { data, error: tagError } = await supabase.rpc("create_profiled_tag", {
+      target_video_id: video.id,
+      target_match_id: matchId,
+      tag_name: label.trim(),
+      tag_moment: localTime,
+      tag_color: getTagColor(label),
+      selected_player_ids: selectedPlayers,
+      tag_event_type: goal?.eventType ?? null,
+      scorer_id: goal?.scorerId ?? null,
+      assist_id: goal?.assistId ?? null
+    });
+    if (tagError) {
+      setError(tagError.message.includes("FREE_CLIP_LIMIT_REACHED") ? t("clip.freeLimit") : tagError.message);
+      return;
+    }
+    const created = (Array.isArray(data) ? data[0] : data) as Tag | null;
+    if (created) setTags((current) => [...current, created].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+  }
+
   async function addTag(label: string) {
     if (!currentVideo || !label.trim()) return;
     const localTime = videoRef.current?.currentTime ?? Math.max(0, combinedTime - (offsets.map.get(currentVideo.id) ?? 0));
     const marker = isPeriodMarker(label);
+    if (!marker && getTagEventKind(label) === "goal") {
+      setPendingGoal({ video: currentVideo, label, localTime });
+      return;
+    }
+    if (!marker) {
+      await persistProfiledTag(currentVideo, label, localTime);
+      return;
+    }
     const { data, error: tagError } = await supabase.from("tags").insert({
       video_id: currentVideo.id,
       name: label.trim(),
+      occurred_at_seconds: localTime,
       start_time: localTime,
-      end_time: marker ? localTime : Math.min(currentVideo.duration ?? Number.POSITIVE_INFINITY, localTime + 5),
+      end_time: localTime,
       color: getTagColor(label),
       player_ids: currentVideo.active_player_ids
     }).select().single();
@@ -513,6 +546,7 @@ export default function MatchViewerPage() {
         </aside>
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}
+      {pendingGoal && <GoalTagDialog players={players} onCancel={() => setPendingGoal(null)} onConfirm={async (details) => { const pending = pendingGoal; setPendingGoal(null); await persistProfiledTag(pending.video, pending.label, pending.localTime, details); }} />}
       <ConfirmDialog open={confirmDeleteMatch} title={t("match.deleteTitle")} message={t("match.deleteMessage")} busy={deletingMatch} onCancel={() => setConfirmDeleteMatch(false)} onConfirm={() => void deleteMatch()} />
     </div>
   );

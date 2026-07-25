@@ -212,6 +212,7 @@ export default function VideoViewerPage() {
       .insert({
         video_id: video.id,
         name: label.trim(),
+        occurred_at_seconds: startTime,
         start_time: startTime,
         end_time: marker ? startTime : Math.min(duration || Number.POSITIVE_INFINITY, startTime + 5),
         color: getTagColor(label),

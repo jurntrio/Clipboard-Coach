@@ -95,8 +95,11 @@ export type Tag = {
   name: string;
   start_time: number;
   end_time: number;
+  occurred_at_seconds: number;
   color: string;
   player_ids: string[];
+  event_type: "goal_for" | "goal_against" | null;
+  event_metadata: Record<string, unknown>;
   drawings: TagDrawing[];
   created_at: string;
 };
@@ -117,7 +120,15 @@ export type StandardTag = {
   coach_id: string;
   name: string;
   is_protected: boolean;
+  start_offset_seconds: number;
+  end_offset_seconds: number;
   created_at: string;
+};
+
+export type PlayerCareerStats = {
+  player_id: string;
+  goals: number;
+  assists: number;
 };
 
 export type ClipAudienceType = "full_team" | "selected_players" | "specific_players";
