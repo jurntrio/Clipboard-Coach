@@ -4,7 +4,7 @@ export type Profile = {
   full_name: string | null;
   plan: "free" | "pro";
   clips_created_total: number;
-  account_role: "coach" | "club_admin" | "analyst";
+  account_role: "platform_admin" | "club_admin" | "coach" | "assistant_coach" | "team_manager" | "analyst";
   clip_limit_exempt: boolean;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
@@ -19,6 +19,39 @@ export type Team = {
   name: string;
   age_group: string | null;
   club_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Club = {
+  id: string;
+  name: string;
+  normalized_name: string;
+  rbfa_registration_number: string | null;
+  city: string | null;
+  country: string;
+  status: "active" | "inactive" | "pending" | "archived";
+  external_provider: string | null;
+  external_club_id: string | null;
+  external_sync_status: string | null;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClubTeam = {
+  id: string;
+  club_id: string;
+  name: string;
+  normalized_name: string;
+  age_category: string | null;
+  level_or_competition: string | null;
+  status: "active" | "inactive" | "pending" | "rejected" | "archived" | "merged";
+  merged_into_id: string | null;
+  external_provider: string | null;
+  external_team_id: string | null;
+  external_sync_status: string | null;
+  last_synced_at: string | null;
   created_at: string;
   updated_at: string;
 };

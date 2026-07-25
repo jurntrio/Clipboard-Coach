@@ -4,6 +4,24 @@ Web version of the desktop app: Teams, Video Viewer + Tagging, Clip Builder,
 Clip Library, and Shareable Clip links. Player tracking/heatmaps stay
 desktop-only and are not part of this project.
 
+## Club- en teamregistratie
+
+Migratie `supabase/migrations/0021_club_team_onboarding.sql` breidt het bestaande
+clubmodel uit met genormaliseerde namen, unieke stamnummers, teamstatussen,
+meerdere teamrollen en transactionele onboarding. Voer de migratie via het
+gebruikelijke Supabase-migratieproces uit voordat deze versie wordt gepubliceerd.
+
+De databasetests staan in `supabase/tests/club_team_onboarding.test.sql`:
+
+```sh
+supabase start
+supabase db reset
+supabase test db
+```
+
+De RBFA-velden zijn alleen voorbereidende opslag. Deze versie maakt geen
+verbinding met een RBFA-API en vereist daarvoor geen sleutel.
+
 Scaffolded from `migration-guide.docx`, scoped down to the core product
 (no billing, no archive cron, no drawing overlays, no multi-video "match"
 grouping) so there's something runnable to build on first. Those can be
