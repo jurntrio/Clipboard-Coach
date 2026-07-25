@@ -17,7 +17,7 @@ export function AccountActions({
   email: string;
   banned: boolean;
   plan: "free" | "pro";
-  accountRole: "coach" | "club_admin" | "analyst";
+  accountRole: "platform_admin" | "club_admin" | "coach" | "assistant_coach" | "team_manager" | "analyst";
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);

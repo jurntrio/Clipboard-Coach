@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ClubTeamsManager } from "./ClubTeamsManager";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null };
-type Team = { id: string; club_id: string; name: string };
+type Team = { id: string; club_id: string; name: string; age_category: string | null; level_or_competition: string | null; status: string; club_trainer_teams?: { trainer_id: string; role: string; status: string }[] };
 type Trainer = { id: string; club_id: string; profile_id: string | null; display_name: string; phone_number: string | null; invitation_status: string; profiles: { email: string } | null; club_trainer_teams: { club_team_id: string }[] };
 type Membership = { club_id: string; profile_id: string; role: "trainer" | "club_admin" | "analyst" };
 type Match = { id: string; club_id: string; club_team_id: string | null; team_a_name: string; team_b_name: string; match_date: string | null; start_time: string | null; status: string; score_a: number | null; score_b: number | null; external_source: string | null };
@@ -16,13 +17,17 @@ export function ClubDashboard() {
   const [saving, setSaving] = useState("");
   const [selectedClubId, setSelectedClubId] = useState("");
 
-  useEffect(() => {
-    fetch("/api/club/overview").then(async (response) => {
+  async function load() {
+    await fetch("/api/club/overview").then(async (response) => {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Clubgegevens konden niet geladen worden.");
       setData(body);
-      setSelectedClubId(body.clubs?.[0]?.id || "");
+      setSelectedClubId((current) => current || body.clubs?.[0]?.id || "");
     }).catch((reason) => setError(reason.message));
+  }
+
+  useEffect(() => {
+    void load();
   }, []);
 
   const club = data?.clubs.find((item) => item.id === selectedClubId);
@@ -85,6 +90,8 @@ export function ClubDashboard() {
           </table>
         </div>
       </section>
+
+      <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} onChanged={load} />
 
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Wedstrijden toewijzen</h2>
