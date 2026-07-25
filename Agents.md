@@ -1,63 +1,35 @@
-# Instructions for Codex
+# Agent Instructions
 
-## General rules
+These instructions apply to contributors and coding agents working in this repository.
 
-- Build in small steps.
-- Do not rewrite the whole app unless explicitly asked.
-- Keep the app local-first.
-- Prioritize stable working features over visual polish.
-- After every change, explain what files changed and how to test it.
-- Do not add paid APIs unless explicitly approved.
-- Do not add login, cloud sync, or online accounts in early builds.
-- Do not add extra features unless they are part of the current build request.
+## Project Context
 
-## Technical direction
+Clipboard Coach Studio is a focused Windows desktop app for local video review and timestamped tagging. Treat this repository as the source of truth for product direction, implementation plans, and application code.
 
-Preferred direction:
+## Collaboration Rules
 
-- Desktop app
-- Local-first
-- Windows first
-- Electron + React + TypeScript
-- Simple local storage first
-- SQLite for local storage later if needed
+- Read the existing files before making changes.
+- Preserve user-authored work unless explicitly asked to replace it.
+- Keep changes scoped to the requested task.
+- Prefer clear documentation and incremental implementation.
+- Use concise commit messages that describe the completed change.
 
-## First milestone
+## Product Direction
 
-Build 1 should only include:
+When adding features or documentation, favor workflows that help users:
 
-1. Open a local video file
-2. Play/pause video
-3. Add timestamped tags, that I can name myself
-4. Show tags in a list
-5. Save and reload tags locally
-6. Clip export, with possibility to choose which tags should be in the clip
+- Open and review local video files.
+- Add useful timestamped tags quickly.
+- Understand which tags belong to which video.
+- Keep their review data local and easy to reason about.
 
-## Future features
+## Engineering Direction
 
-Possible later features:
+- Follow the patterns already present in the repository.
+- Add dependencies only when they are clearly justified.
+- Keep configuration and setup steps documented.
+- Add tests once application code or repeatable logic is introduced.
 
-- Adding Teams
-- Adding Players in Teams
-- Assigning players to a match
-- Periods/blocks
-- Positions
-- Tag categories
-- Match reports
-- Import external tag files from another app or browser
-- Heatmaps
-- Distance covered
-- Player reports
+## Current Stage
 
-## What not to do yet
-
-Do not build these in the first version:
-
-- Account system
-- Cloud sync
-- Mobile app
-- Browser tagging app
-- AI player tracking
-- Automatic heatmaps
-- Payment system
-- Team sharing
+The project is at Build 1.5.0c refreshed transparent branding assets and centered Home layout. Keep the app local-first and stable before adding advanced workflows such as real clip export, online sharing, parent/player accounts, reporting, AI analysis, cloud sync, advanced player stats, heatmaps, distance covered, periods, paid APIs, or imports.
