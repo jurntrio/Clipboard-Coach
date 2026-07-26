@@ -7,7 +7,8 @@ import { createClub, removeClubMembership, setClubMembership } from "../actions"
 type ProfileOption = { id: string; email: string; full_name: string | null };
 type Membership = { profile_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst" };
 type ClubTrainer = { id: string; profile_id: string | null; display_name: string; phone_number: string | null; invitation_status: string; profiles: { email: string } | { email: string }[] | null; club_trainer_teams: { club_teams: { name: string } | { name: string }[] | null }[] };
-type ClubRow = { id: string; name: string; rbfa_registration_number: string | null; memberships: Membership[]; trainers: ClubTrainer[] };
+type ClubTeam = { id: string; name: string };
+type ClubRow = { id: string; name: string; rbfa_registration_number: string | null; teams: ClubTeam[]; memberships: Membership[]; trainers: ClubTrainer[] };
 
 const memberRoleLabel: Record<Membership["role"], string> = { club_admin: "Club Admin", club_admin_viewer: "Club Admin (viewer)", analyst: "Analyst", trainer: "Trainer" };
 const memberRoleClass: Record<Membership["role"], string> = { club_admin: "bg-blue-500/15 text-blue-300", club_admin_viewer: "bg-blue-500/10 text-blue-200", analyst: "bg-cyan-500/15 text-cyan-300", trainer: "bg-accent/15 text-accent" };
@@ -50,12 +51,14 @@ function ClubRoles({ club, profiles, pending, run, readOnly }: { club: ClubRow; 
   const [analystId, setAnalystId] = useState("");
   const members = club.memberships.filter((item) => item.role === "club_admin" || item.role === "club_admin_viewer" || item.role === "analyst");
   const nameOf = (id: string) => { const profile = profiles.find((item) => item.id === id); return profile?.full_name || profile?.email || "Onbekende gebruiker"; };
+  const assignedTeamNames = new Set(club.trainers.flatMap((trainer) => trainer.club_trainer_teams.map((link) => relationValue(link.club_teams)?.name).filter(Boolean) as string[]));
   return <details className="group rounded-xl border border-border bg-card" open>
     <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5">
-      <div><h2 className="text-lg font-semibold text-textBright">{club.name}</h2><p className="text-xs text-textMuted">{club.rbfa_registration_number ? `RBFA ${club.rbfa_registration_number}` : "Geen stamnummer ingesteld"} · {club.trainers.length} trainer(s)</p></div>
+      <div><h2 className="text-lg font-semibold text-textBright">{club.name}</h2><p className="text-xs text-textMuted">{club.rbfa_registration_number ? `RBFA ${club.rbfa_registration_number}` : "Geen stamnummer ingesteld"} · {club.teams.length} ploeg(en) · {club.trainers.length} trainer(s)</p></div>
       <span className="text-accent transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
     </summary>
     <div className="border-t border-borderSubtle p-5">
+    {!!club.teams.length && <div className="mb-5 flex flex-wrap gap-2">{club.teams.map((team) => <span key={team.id} className={`rounded-full px-3 py-1 text-xs ${assignedTeamNames.has(team.name) ? "bg-accent/15 text-accent" : "bg-cardDeep text-textMuted"}`}>{team.name}{!assignedTeamNames.has(team.name) && " · geen trainer"}</span>)}</div>}
     <div className="mb-5 overflow-x-auto rounded-lg border border-borderSubtle">
       <table className="w-full min-w-[680px] text-sm">
         <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="px-3 py-2 text-left">Naam</th><th className="px-3 py-2 text-left">Ploeg(en)</th><th className="px-3 py-2 text-left">GSM</th><th className="px-3 py-2 text-left">E-mail</th></tr></thead>
