@@ -18,6 +18,11 @@ export default function LiveTagPage() {
   const [goalPromptTag, setGoalPromptTag] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loggingIn, setLoggingIn] = useState(false);
 
   useEffect(() => {
     void fetch(`/api/live-tag/${token}`).then(async (response) => {
@@ -26,15 +31,28 @@ export default function LiveTagPage() {
     }).then((data) => { setMatch(data.match); setPlayers(data.players); }).catch((error) => setMessage(error.message));
   }, [token]);
 
-  useEffect(() => {
+  async function detectLoggedInName() {
     const supabase = createClient();
-    void supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return;
-      const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", data.user.id).maybeSingle();
-      const name = profile?.full_name?.trim() || data.user.email?.split("@")[0] || "";
-      if (name) { setAutoName(name); setTaggerName(name); }
-    });
-  }, []);
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) return false;
+    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", data.user.id).maybeSingle();
+    const name = profile?.full_name?.trim() || data.user.email?.split("@")[0] || "";
+    if (name) { setAutoName(name); setTaggerName(name); }
+    return true;
+  }
+
+  useEffect(() => { void detectLoggedInName(); }, []);
+
+  async function handleInlineLogin(event: React.FormEvent) {
+    event.preventDefault();
+    setLoggingIn(true); setLoginError("");
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
+    setLoggingIn(false);
+    if (error) { setLoginError(error.message); return; }
+    setShowLogin(false); setLoginPassword("");
+    await detectLoggedInName();
+  }
 
   async function addTag(tagName: string, playerIdsOverride?: string[]) {
     setSaving(true); setMessage("");
@@ -76,6 +94,19 @@ export default function LiveTagPage() {
             {!autoName && <label className="block text-sm text-textSecondary">Jouw naam (optioneel)
               <input value={taggerName} onChange={(event) => setTaggerName(event.target.value)} className="mt-1 w-full rounded-xl border border-border bg-input px-4 py-3 text-textPrimary" placeholder="Naam tagger" />
             </label>}
+            {!autoName && (showLogin ? (
+              <form onSubmit={handleInlineLogin} className="mt-3 space-y-2 rounded-xl border border-border bg-cardDeep p-3">
+                <input type="email" required autoComplete="email" placeholder="E-mailadres" value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+                <input type="password" required autoComplete="current-password" placeholder="Wachtwoord" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+                {loginError && <p className="text-xs text-red-300">{loginError}</p>}
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => { setShowLogin(false); setLoginError(""); }} className="flex-1 rounded-lg bg-button px-3 py-2 text-xs text-textPrimary">Annuleren</button>
+                  <button type="submit" disabled={loggingIn} className="flex-1 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-page disabled:opacity-50">{loggingIn ? "Bezig…" : "Inloggen"}</button>
+                </div>
+              </form>
+            ) : (
+              <button type="button" onClick={() => setShowLogin(true)} className="mt-3 text-xs font-semibold text-accent hover:underline">Heb je een account? Inloggen</button>
+            ))}
           </div>
         </div>
         {message && <p className="mt-5 rounded-xl border border-border bg-card p-3 text-center text-sm" role="status">{message}</p>}
