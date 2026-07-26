@@ -251,6 +251,7 @@ function ClipPills({ clips, onClip, onDelete, canDelete, empty }: { clips: HubCl
 
 function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved }: { match: HubMatch | null; teams: Team[]; allPlayers: Player[]; standardTags: StandardTag[]; onClose: () => void; onSaved: () => void }) {
   const { t } = useI18n(); const supabase = createClient();
+  const [teamName, setTeamName] = useState(match?.team_a_name ?? "");
   const [teamId, setTeamId] = useState(match?.team_a_id ?? "");
   const [opponent, setOpponent] = useState(match?.team_b_name ?? "");
   const [date, setDate] = useState(match?.match_date ?? new Date().toISOString().slice(0, 10));
@@ -262,19 +263,44 @@ function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved 
   const [playersOpen, setPlayersOpen] = useState(false);
   const defaultTags = standardTags.filter((tag) => !["Start", "End"].includes(tag.name)).slice(0, 8).map((tag) => tag.name);
   const [tagNames, setTagNames] = useState<string[]>(match?.live_tag_names?.length ? match.live_tag_names : defaultTags);
+  const [addingTag, setAddingTag] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
   const [saving, setSaving] = useState(false); const [error, setError] = useState("");
   const teamPlayers = allPlayers.filter((player) => player.team_id === teamId);
   const canConfigureTags = status !== "finished" && (!date || date >= new Date().toISOString().slice(0, 10));
+  const suggestedTags = standardTags.filter((tag) => !["Start", "End"].includes(tag.name) && !tagNames.includes(tag.name));
+
+  function commitNewTag() {
+    const trimmed = newTagName.trim();
+    if (trimmed && !tagNames.includes(trimmed)) setTagNames((current) => [...current, trimmed]);
+    setNewTagName("");
+    setAddingTag(false);
+  }
+
+  function handleTeamNameChange(value: string) {
+    const matched = teams.find((team) => team.name.trim().toLowerCase() === value.trim().toLowerCase());
+    const matchedId = matched?.id ?? "";
+    if (matchedId !== teamId) setPlayerIds([]);
+    setTeamName(value);
+    setTeamId(matchedId);
+  }
 
   async function save() {
-    const team = teams.find((item) => item.id === teamId);
-    if (!team || !opponent.trim()) { setError(t("matchHub.required")); return; }
+    const homeTeamName = teamName.trim();
+    if (!homeTeamName || !opponent.trim()) { setError(t("matchHub.required")); return; }
     setSaving(true); setError("");
-    const payload = { team_a_id: team.id, team_a_name: team.name, team_b_id: null, team_b_name: opponent.trim(), match_date: date || null, start_time: time || null, status, score_a: scoreA === "" ? null : Number(scoreA), score_b: scoreB === "" ? null : Number(scoreB), player_ids: playerIds, live_tag_names: tagNames };
-    let result = match ? await supabase.from("matches").update(payload).eq("id", match.id) : await supabase.from("matches").insert(payload);
+    let coachId: string | null = null;
+    if (!match) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setSaving(false); setError(t("errors.sessionExpired")); return; }
+      coachId = user.id;
+    }
+    const matchedTeam = teams.find((team) => team.id === teamId);
+    const payload = { team_a_id: matchedTeam?.id ?? null, team_a_name: matchedTeam?.name ?? homeTeamName, team_b_id: null, team_b_name: opponent.trim(), match_date: date || null, start_time: time || null, status, score_a: scoreA === "" ? null : Number(scoreA), score_b: scoreB === "" ? null : Number(scoreB), player_ids: playerIds, live_tag_names: tagNames };
+    let result = match ? await supabase.from("matches").update(payload).eq("id", match.id) : await supabase.from("matches").insert({ ...payload, coach_id: coachId });
     if (result.error?.message.includes("schema cache")) {
-      const legacyPayload = { team_a_id: team.id, team_a_name: team.name, team_b_id: null, team_b_name: opponent.trim(), match_date: date || null, start_time: time || null };
-      result = match ? await supabase.from("matches").update(legacyPayload).eq("id", match.id) : await supabase.from("matches").insert(legacyPayload);
+      const legacyPayload = { team_a_id: payload.team_a_id, team_a_name: payload.team_a_name, team_b_id: null, team_b_name: opponent.trim(), match_date: date || null, start_time: time || null };
+      result = match ? await supabase.from("matches").update(legacyPayload).eq("id", match.id) : await supabase.from("matches").insert({ ...legacyPayload, coach_id: coachId });
     }
     if (!result.error && match && status === "finished") {
       await supabase.from("match_tag_links").update({ active: false }).eq("match_id", match.id);
@@ -283,7 +309,7 @@ function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved 
   }
 
   return <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/80 p-4" onClick={onClose}><div className="my-4 w-full max-w-2xl rounded-2xl border border-border bg-cardAlt p-5" onClick={(event) => event.stopPropagation()}><div className="mb-5 flex items-center justify-between"><div><h2 className="text-xl font-bold text-textBright">{match ? t("matchHub.edit") : t("matchHub.new")}</h2><p className="text-sm text-textMuted">{t("matchHub.prepare")}</p></div><button type="button" onClick={onClose} className="text-2xl text-textMuted">×</button></div>
-    <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm text-textSecondary">{t("matchHub.ownTeam")}<select value={teamId} onChange={(event) => { setTeamId(event.target.value); setPlayerIds([]); }} className={inputClass}><option value="">{t("matchHub.selectTeam")}</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label><label className="text-sm text-textSecondary">{t("matchHub.opponent")}<input value={opponent} onChange={(event) => setOpponent(event.target.value)} className={inputClass} /></label><label className="text-sm text-textSecondary">{t("matchHub.date")}<input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={inputClass} /></label><label className="text-sm text-textSecondary">{t("matchHub.kickoffTime")}<input type="time" value={time} onChange={(event) => setTime(event.target.value)} className={inputClass} /></label><label className="text-sm text-textSecondary">{t("matchHub.status")}<select value={status} onChange={(event) => setStatus(event.target.value as Match["status"])} className={inputClass}><option value="scheduled">{t("matchHub.scheduled")}</option><option value="live">{t("matchHub.live")}</option><option value="finished">{t("matchHub.finishedStatus")}</option></select></label><div className="grid grid-cols-2 gap-2"><label className="text-sm text-textSecondary">{t("matchHub.homeScore")}<input type="number" min="0" value={scoreA} onChange={(event) => setScoreA(event.target.value)} className={inputClass} /></label><label className="text-sm text-textSecondary">{t("matchHub.awayScore")}<input type="number" min="0" value={scoreB} onChange={(event) => setScoreB(event.target.value)} className={inputClass} /></label></div></div>
+    <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm text-textSecondary">{t("matchHub.homeTeam")}<input list="match-home-team-options" value={teamName} onChange={(event) => handleTeamNameChange(event.target.value)} placeholder={t("matchHub.homeTeamPlaceholder")} className={inputClass} /><datalist id="match-home-team-options">{teams.map((team) => <option key={team.id} value={team.name} />)}</datalist></label><label className="text-sm text-textSecondary">{t("matchHub.awayTeam")}<input value={opponent} onChange={(event) => setOpponent(event.target.value)} className={inputClass} /></label><label className="text-sm text-textSecondary">{t("matchHub.date")}<input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={inputClass} /></label><label className="text-sm text-textSecondary">{t("matchHub.kickoffTime")}<input type="time" value={time} onChange={(event) => setTime(event.target.value)} className={inputClass} /></label><label className="text-sm text-textSecondary">{t("matchHub.status")}<select value={status} onChange={(event) => setStatus(event.target.value as Match["status"])} className={inputClass}><option value="scheduled">{t("matchHub.scheduled")}</option><option value="live">{t("matchHub.live")}</option><option value="finished">{t("matchHub.finishedStatus")}</option></select></label><div className="grid grid-cols-2 gap-2"><label className="text-sm text-textSecondary">{t("matchHub.homeScore")}<input type="number" min="0" value={scoreA} onChange={(event) => setScoreA(event.target.value)} className={inputClass} /></label><label className="text-sm text-textSecondary">{t("matchHub.awayScore")}<input type="number" min="0" value={scoreB} onChange={(event) => setScoreB(event.target.value)} className={inputClass} /></label></div></div>
     <section className="mt-5">
       <button type="button" onClick={() => setPlayersOpen((current) => !current)} className="flex w-full items-center justify-between gap-2 text-left">
         <h3 className="text-sm font-semibold text-textBright">{t("matchHub.participatingPlayers")} <span className="font-normal text-textMuted">({playerIds.length}/{teamPlayers.length})</span></h3>
@@ -291,7 +317,34 @@ function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved 
       </button>
       {playersOpen && <div className="mt-2 flex max-h-52 flex-col gap-1 overflow-y-auto rounded-lg border border-borderSubtle p-2">{teamPlayers.length ? teamPlayers.map((player) => { const selected = playerIds.includes(player.id); return <label key={player.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-textPrimary hover:bg-cardHover"><input type="checkbox" checked={selected} onChange={() => setPlayerIds((current) => selected ? current.filter((id) => id !== player.id) : [...current, player.id])} className="h-4 w-4 accent-accent" />{player.jersey_number ? `${player.jersey_number} · ` : ""}{player.first_name} {player.last_name}</label>; }) : <p className="px-2 py-1.5 text-sm text-textMuted">{t("matchHub.chooseTeamFirst")}</p>}</div>}
     </section>
-    {canConfigureTags && <section className="mt-5"><h3 className="mb-2 text-sm font-semibold text-textBright">{t("matchHub.liveTagButtons")}</h3><div className="flex flex-wrap gap-2">{standardTags.filter((tag) => !["Start", "End"].includes(tag.name)).map((tag) => { const selected = tagNames.includes(tag.name); return <button key={tag.id} type="button" onClick={() => setTagNames((current) => selected ? current.filter((name) => name !== tag.name) : [...current, tag.name])} className={`rounded-lg border px-3 py-2 text-sm ${selected ? "border-accent bg-accentDim text-accent" : "border-borderButton bg-button text-textPrimary"}`}>{tag.name}</button>; })}</div></section>}
+    {canConfigureTags && <section className="mt-5">
+      <h3 className="mb-2 text-sm font-semibold text-textBright">{t("matchHub.liveTagButtons")}</h3>
+      <div className="flex flex-wrap items-center gap-2">
+        {tagNames.map((name) => (
+          <span key={name} className="inline-flex items-center overflow-hidden rounded-lg border border-accent bg-accentDim text-accent">
+            <span className="px-3 py-2 text-sm font-semibold">{name}</span>
+            <button type="button" onClick={() => setTagNames((current) => current.filter((item) => item !== name))} aria-label={t("matchHub.removeTag", { name })} title={t("matchHub.removeTag", { name })} className="grid h-full w-8 place-items-center border-l border-accent/40 hover:bg-accent hover:text-page">×</button>
+          </span>
+        ))}
+        {addingTag ? (
+          <input
+            autoFocus
+            value={newTagName}
+            onChange={(event) => setNewTagName(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitNewTag(); } if (event.key === "Escape") { setNewTagName(""); setAddingTag(false); } }}
+            onBlur={commitNewTag}
+            placeholder={t("matchHub.newTagPlaceholder")}
+            className="w-32 rounded-lg border border-accent bg-input px-3 py-2 text-sm text-textPrimary"
+          />
+        ) : (
+          <button type="button" onClick={() => setAddingTag(true)} aria-label={t("matchHub.addTag")} title={t("matchHub.addTag")} className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full border border-borderButton text-lg font-bold text-accent transition hover:border-accent">+</button>
+        )}
+      </div>
+      {!!suggestedTags.length && <div className="mt-3">
+        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-textMuted">{t("matchHub.suggestions")}</p>
+        <div className="flex flex-wrap gap-2">{suggestedTags.map((tag) => <button key={tag.id} type="button" onClick={() => setTagNames((current) => [...current, tag.name])} className="rounded-lg border border-borderButton bg-button px-3 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}</div>
+      </div>}
+    </section>}
     {error && <p className="mt-4 text-sm text-red-300">{error}</p>}<div className="mt-6 flex gap-3"><button type="button" onClick={onClose} className="flex-1 rounded-xl bg-button py-3 text-textPrimary">{t("common.cancel")}</button><button type="button" disabled={saving} onClick={() => void save()} className="flex-1 rounded-xl bg-accent py-3 font-bold text-page disabled:opacity-50">{saving ? t("common.saving") : t("common.save")}</button></div>
   </div></div>;
 }
