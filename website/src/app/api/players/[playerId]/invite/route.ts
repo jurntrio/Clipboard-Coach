@@ -39,8 +39,18 @@ export async function POST(request: Request, { params }: { params: { playerId: s
     const { data: membership } = await admin.from("player_team_memberships").select("club_player_id").eq("id", player.membership_id).maybeSingle();
     clubPlayerId = membership?.club_player_id ?? null;
   }
+
+  // contactLabel/contactPhone zijn puur metadata over wie deze specifieke link krijgt (bv.
+  // "Mama"/"Papa"), zodat een kind met meerdere ouders elk hun eigen, aparte link krijgt.
+  const body = await request.json().catch(() => null) as { contactLabel?: string; contactPhone?: string } | null;
+  const contactLabel = body?.contactLabel?.trim() || null;
+  const contactPhone = body?.contactPhone?.trim() || null;
+
   const { data: invite, error } = await admin.from("player_invites")
-    .insert(clubPlayerId ? { club_player_id: clubPlayerId, created_by: user.id } : { player_id: player.id, created_by: user.id })
+    .insert({
+      ...(clubPlayerId ? { club_player_id: clubPlayerId } : { player_id: player.id }),
+      created_by: user.id, contact_label: contactLabel, contact_phone: contactPhone,
+    })
     .select("token").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

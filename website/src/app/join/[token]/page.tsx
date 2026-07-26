@@ -12,7 +12,7 @@ export default function JoinPlayerPage() {
   const { locale, t } = useI18n();
   const { token } = useParams<{ token: string }>();
   const supabase = createClient();
-  const [invite, setInvite] = useState<{ playerName: string; teamName: string } | null>(null);
+  const [invite, setInvite] = useState<{ playerName: string; teamName: string; supportsAddress: boolean; existingAddress: { address: string; postalCode: string; city: string } | null } | null>(null);
   const [inviteError, setInviteError] = useState("");
   const [loadingInvite, setLoadingInvite] = useState(true);
   const [fullName, setFullName] = useState("");
@@ -22,6 +22,8 @@ export default function JoinPlayerPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [addressConfirmed, setAddressConfirmed] = useState(true);
+  const [addressDraft, setAddressDraft] = useState({ address: "", postalCode: "", city: "" });
 
   useEffect(() => {
     fetch(`/api/player-invites/${token}`)
@@ -29,6 +31,7 @@ export default function JoinPlayerPage() {
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || "Deze link is niet geldig.");
         setInvite(body);
+        if (body.existingAddress) setAddressDraft(body.existingAddress);
       })
       .catch((reason) => setInviteError(reason instanceof Error ? reason.message : "Deze link is niet geldig."))
       .finally(() => setLoadingInvite(false));
@@ -45,7 +48,10 @@ export default function JoinPlayerPage() {
       options: { data: {
         full_name: fullName, legal_accepted: true, legal_accepted_at: new Date().toISOString(),
         terms_version: TERMS_VERSION, privacy_version: PRIVACY_VERSION, legal_statement_version: LEGAL_STATEMENT_VERSION, legal_locale: locale,
-        player_invite_token: token
+        player_invite_token: token,
+        child_address: addressDraft.address.trim() || undefined,
+        child_postal_code: addressDraft.postalCode.trim() || undefined,
+        child_city: addressDraft.city.trim() || undefined
       } }
     });
     setLoading(false);
@@ -86,6 +92,34 @@ export default function JoinPlayerPage() {
                   <label className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.password")}</label>
                   <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} className="w-full px-4 py-3 bg-input text-textPrimary rounded-lg border border-border" required />
                 </div>
+                {invite?.supportsAddress && <div className="rounded-lg border border-border bg-cardDeep p-3 text-left">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-textMuted">{t("guardianInvite.addressSectionTitle")}</p>
+                  {invite?.existingAddress ? (
+                    <>
+                      <label className="mt-2 flex items-start gap-2 text-sm text-textSecondary">
+                        <input type="checkbox" checked={addressConfirmed} onChange={(event) => setAddressConfirmed(event.target.checked)} className="mt-1" />
+                        <span>{t("guardianInvite.addressStillCorrect")}: {invite.existingAddress.address}, {invite.existingAddress.postalCode} {invite.existingAddress.city}</span>
+                      </label>
+                      {!addressConfirmed && (
+                        <div className="mt-2 space-y-2">
+                          <input type="text" value={addressDraft.address} onChange={(event) => setAddressDraft((current) => ({ ...current, address: event.target.value }))} placeholder={t("guardianInvite.address")} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+                          <div className="flex gap-2">
+                            <input type="text" value={addressDraft.postalCode} onChange={(event) => setAddressDraft((current) => ({ ...current, postalCode: event.target.value }))} placeholder={t("guardianInvite.postalCode")} className="w-1/3 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+                            <input type="text" value={addressDraft.city} onChange={(event) => setAddressDraft((current) => ({ ...current, city: event.target.value }))} placeholder={t("guardianInvite.city")} className="flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="mt-2 space-y-2">
+                      <input type="text" value={addressDraft.address} onChange={(event) => setAddressDraft((current) => ({ ...current, address: event.target.value }))} placeholder={t("guardianInvite.address")} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+                      <div className="flex gap-2">
+                        <input type="text" value={addressDraft.postalCode} onChange={(event) => setAddressDraft((current) => ({ ...current, postalCode: event.target.value }))} placeholder={t("guardianInvite.postalCode")} className="w-1/3 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+                        <input type="text" value={addressDraft.city} onChange={(event) => setAddressDraft((current) => ({ ...current, city: event.target.value }))} placeholder={t("guardianInvite.city")} className="flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+                      </div>
+                    </div>
+                  )}
+                </div>}
                 <label className="flex items-start gap-3 rounded-lg border border-border bg-cardDeep p-3 text-sm leading-5 text-textSecondary">
                   <input type="checkbox" checked={legalAccepted} onChange={(event) => setLegalAccepted(event.target.checked)} className="mt-1" required />
                   <span>{t("auth.legalPrefix")} <Link href="/terms" target="_blank" className="font-semibold text-accent hover:underline">{t("legal.terms")}</Link>. {t("auth.legalPrivacyPrefix")} <Link href="/privacy" target="_blank" className="font-semibold text-accent hover:underline">{t("legal.privacy")}</Link>.</span>
