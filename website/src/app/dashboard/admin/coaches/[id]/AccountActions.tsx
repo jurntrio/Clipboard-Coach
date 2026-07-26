@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { banCoach, deleteCoach, setCoachPlan, unbanCoach } from "../../actions";
+import { banCoach, deleteCoach, setAdminViewer, setCoachPlan, unbanCoach } from "../../actions";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useI18n } from "@/i18n/client";
 
@@ -17,7 +17,7 @@ export function AccountActions({
   email: string;
   banned: boolean;
   plan: "free" | "pro";
-  accountRole: "platform_admin" | "club_admin" | "coach" | "assistant_coach" | "team_manager" | "analyst";
+  accountRole: "platform_admin" | "admin_viewer" | "club_admin" | "club_admin_viewer" | "coach" | "assistant_coach" | "team_manager" | "analyst" | "player_parent";
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +62,18 @@ export function AccountActions({
     setConfirmAction("delete");
   }
 
+  function handleAdminViewerToggle() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await setAdminViewer(coachId, accountRole !== "admin_viewer");
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t("admin.genericError"));
+      }
+    });
+  }
+
   function confirmDelete() {
     startTransition(async () => {
       try {
@@ -89,6 +101,13 @@ export function AccountActions({
           className="px-4 py-2 rounded-lg text-sm font-semibold border border-borderButton text-textPrimary hover:bg-cardHover disabled:opacity-50"
         >
           {banned ? t("admin.unblockAccount") : t("admin.blockAccount")}
+        </button>
+        <button
+          onClick={handleAdminViewerToggle}
+          disabled={isPending}
+          className="px-4 py-2 rounded-lg text-sm font-semibold border border-borderButton text-textPrimary hover:bg-cardHover disabled:opacity-50"
+        >
+          {accountRole === "admin_viewer" ? "Admin (viewer) verwijderen" : "Admin (viewer) maken"}
         </button>
         <button
           onClick={handleDelete}

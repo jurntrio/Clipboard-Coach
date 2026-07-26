@@ -30,6 +30,20 @@ import { GoalTagDialog, type GoalTagDetails } from "@/components/tags/GoalTagDia
 type MatchBlock = { id: string; sequence_order: number; label: string; videos: Video | null };
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
 
+const MAX_CLIP_SECONDS = 180;
+
+function drawingsSeconds(drawings: TagDrawing[] | undefined) {
+  return (drawings ?? []).reduce((sum, drawing) => sum + Math.max(1, drawing.duration_seconds), 0);
+}
+
+function formatClock(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
 function messageFrom(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
@@ -135,8 +149,9 @@ export default function MatchViewerPage() {
     }
     const savedDrawing = { id, key, url, video_time: drawingFrame.time, duration_seconds: durationSeconds, base_frame_url: baseFrameUrl, shapes, created_at: new Date().toISOString() };
     const drawings = drawingFrame.drawingId ? (tag.drawings ?? []).map((drawing) => drawing.id === id ? savedDrawing : drawing) : [...(tag.drawings ?? []), savedDrawing];
+    if (tag.end_time - tag.start_time + drawingsSeconds(drawings) > MAX_CLIP_SECONDS) throw new Error(t("tag.tooLong"));
     const { error: saveError } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
-    if (saveError) throw saveError;
+    if (saveError) throw saveError.message.includes("CLIP_TOO_LONG") ? new Error(t("tag.tooLong")) : saveError;
     setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
     setDrawingFrame(null);
   }
@@ -151,9 +166,10 @@ export default function MatchViewerPage() {
     const tag = tags.find((item) => item.id === displayTag.id);
     if (!tag) return;
     const drawings = (tag.drawings ?? []).map((drawing) => drawing.id === drawingId ? { ...drawing, duration_seconds: durationSeconds } : drawing);
-    setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
+    if (tag.end_time - tag.start_time + drawingsSeconds(drawings) > MAX_CLIP_SECONDS) { setError(t("tag.tooLong")); return; }
     const { error: updateError } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
-    if (updateError) setError(updateError.message);
+    if (updateError) { setError(updateError.message.includes("CLIP_TOO_LONG") ? t("tag.tooLong") : updateError.message); return; }
+    setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
   }
   const [playbackRate, setPlaybackRate] = useState(1);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -375,7 +391,7 @@ export default function MatchViewerPage() {
       assist_id: goal?.assistId ?? null
     });
     if (tagError) {
-      setError(tagError.message.includes("FREE_CLIP_LIMIT_REACHED") ? t("clip.freeLimit") : tagError.message);
+      setError(tagError.message.includes("FREE_CLIP_LIMIT_REACHED") ? t("clip.freeLimit") : tagError.message.includes("CLIP_TOO_LONG") ? t("tag.tooLong") : tagError.message);
       return;
     }
     const created = (Array.isArray(data) ? data[0] : data) as Tag | null;
@@ -416,8 +432,9 @@ export default function MatchViewerPage() {
     const startTime = Math.min(maximum, Math.max(0, combinedStart - offset));
     const requestedEnd = Math.min(maximum, Math.max(startTime, combinedEnd - offset));
     const endTime = isPeriodMarker(tag.name) ? startTime : requestedEnd;
+    if (endTime - startTime + drawingsSeconds(tag.drawings) > MAX_CLIP_SECONDS) { setError(t("tag.tooLong")); return; }
     const { error: updateError } = await supabase.from("tags").update({ start_time: startTime, end_time: endTime }).eq("id", tagId);
-    if (updateError) { setError(updateError.message); return; }
+    if (updateError) { setError(updateError.message.includes("CLIP_TOO_LONG") ? t("tag.tooLong") : updateError.message); return; }
     setTags((current) => current
       .map((item) => item.id === tagId ? { ...item, start_time: startTime, end_time: endTime } : item)
       .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
@@ -494,7 +511,10 @@ export default function MatchViewerPage() {
       <input ref={replaceInputRef} type="file" multiple={videos.length > 1} accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void replaceSelectedVideos(Array.from(event.target.files ?? []).map((file) => ({ file, handle: null }))); event.target.value = ""; }} />
       <div className="flex flex-1 min-h-0">
         <aside className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
-          <Link href="/dashboard" title={t("nav.home")} aria-label={t("nav.home")} className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt={t("nav.home")} width={28} height={28} /></Link>
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" title={t("nav.home")} aria-label={t("nav.home")} className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt={t("nav.home")} width={28} height={28} /></Link>
+            <span className="font-mono text-sm font-semibold text-textPrimary" aria-label={t("match.currentPosition")}>{formatClock(combinedTime)}</span>
+          </div>
           {match && <MatchDetailsCard match={match} videoCount={videos.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} onReplaceVideos={match.coach_id === currentUserId ? () => void chooseReplacementVideos() : undefined} onDeleteMatch={match.coach_id === currentUserId || isPlatformAdmin ? () => setConfirmDeleteMatch(true) : undefined} replacing={replacing} editable={canEditMatch} />}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
           <div><h3 className="mb-2 text-sm font-semibold text-textBright">{t("video.periodMarkers")}</h3><div className="space-y-2">{markerTags.map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div></div>

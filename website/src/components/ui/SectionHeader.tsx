@@ -12,7 +12,7 @@ export function SectionHeader({
 }: {
   title: string;
   subtitle?: string;
-  artworkSrc: string;
+  artworkSrc?: string;
   backHref?: string;
 }) {
   const { t } = useI18n();
@@ -30,7 +30,7 @@ export function SectionHeader({
         <h1 className="font-display uppercase text-2xl text-textBright">{title}</h1>
         {subtitle && <p className="text-textMuted text-sm">{subtitle}</p>}
       </div>
-      <Image src={artworkSrc} alt="" width={56} height={56} className="flex-shrink-0" />
+      {artworkSrc && <Image src={artworkSrc} alt="" width={56} height={56} className="flex-shrink-0" />}
     </header>
   );
 }

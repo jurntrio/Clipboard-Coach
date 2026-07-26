@@ -12,7 +12,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LinkStaffModal } from "@/components/teams/LinkStaffModal";
 import { useI18n } from "@/i18n/client";
 
-type TeamWithPlayers = Team & { players: Player[] };
+type TeamWithPlayers = Team & { players: Player[]; can_edit_roster?: boolean; club_managed?: boolean };
 type ClipSummary = {
   id: string;
   team_id: string | null;
@@ -30,6 +30,7 @@ export default function TeamsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [addPlayerTarget, setAddPlayerTarget] = useState<{ teamId: string; teamName: string; role: "player" | "staff" } | null>(null);
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [teamNameDraft, setTeamNameDraft] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "team" | "player" | "linked-staff"; id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -47,12 +48,10 @@ export default function TeamsPage() {
   }, []);
 
   async function loadTeams() {
-    const { data } = await supabase
-      .from("teams")
-      .select("*, players(*)")
-      .order("created_at", { ascending: false });
-
-    const loaded = (data as TeamWithPlayers[] | null) ?? [];
+    const response = await fetch("/api/teams");
+    if (!response.ok) return;
+    const body = await response.json() as { teams: TeamWithPlayers[] };
+    const loaded = body.teams ?? [];
     setTeams([...loaded].sort((a, b) => Number(a.name.trim().toUpperCase() === "EXTRA") - Number(b.name.trim().toUpperCase() === "EXTRA") || a.name.localeCompare(b.name)));
   }
 
@@ -137,6 +136,7 @@ export default function TeamsPage() {
 
         {teams.map((team) => {
           const ownsTeam = team.coach_id === currentUserId;
+          const canEditRoster = ownsTeam || team.can_edit_roster === true;
           const players = [...team.players].filter((p) => p.role !== "staff");
           const staff = [...team.players].filter((p) => p.role === "staff");
           const registeredStaff = linkedStaff.filter((member) => member.team_id === team.id);
@@ -163,6 +163,7 @@ export default function TeamsPage() {
                   <>
                     <div className="flex items-center gap-2.5">
                       <strong className="text-textCardTitle">{team.name}</strong>
+                      {team.club_managed && <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-300">{canEditRoster ? "Clubteam · bewerken toegestaan" : "Beheerd door club"}</span>}
                       <small className="text-textMuted text-sm">
                         {t("team.summary", { players: players.length, staff: staff.length + registeredStaff.length })}
                       </small>
@@ -181,22 +182,26 @@ export default function TeamsPage() {
                         {t("team.delete")}
                       </button>
                     </div>}
+                    <button type="button" onClick={() => setCollapsed((current) => ({ ...current, [team.id]: !current[team.id] }))} aria-label="Spelerslijst in- of uitklappen" className="ml-2 text-accent">
+                      <span className={`inline-block transition ${collapsed[team.id] ? "" : "rotate-90"}`}>▶</span>
+                    </button>
                   </>
                 )}
               </div>
 
+              {!collapsed[team.id] && <>
               <div className="flex flex-col gap-2.5 p-3.5">
                 {players.map((player) => (
-                  <PlayerCard key={player.id} player={player} clipCount={clipCountFor(team, player)} onDelete={() => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() })} />
+                  <PlayerCard key={player.id} player={player} clipCount={clipCountFor(team, player)} onDelete={canEditRoster ? () => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() }) : undefined} />
                 ))}
-                {ownsTeam && <button type="button" onClick={() => setAddPlayerTarget({ teamId: team.id, teamName: team.name, role: "player" })} className="min-h-14 rounded-lg border border-dashed border-accent/60 bg-accentDim px-4 py-3 text-left text-sm font-semibold text-accent hover:border-accent">+ {t("team.addPlayer").replace("+ ", "")}</button>}
+                {canEditRoster && <button type="button" onClick={() => setAddPlayerTarget({ teamId: team.id, teamName: team.name, role: "player" })} className="min-h-14 rounded-lg border border-dashed border-accent/60 bg-accentDim px-4 py-3 text-left text-sm font-semibold text-accent hover:border-accent">+ {t("team.addPlayer").replace("+ ", "")}</button>}
               </div>
 
               <div className="mt-1 pt-2.5 mx-3.5 mb-3.5 border-t border-borderSubtle">
                 <p className="text-textMuted text-xs font-bold uppercase tracking-wide mb-2">{t("team.staff")}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                   {staff.map((player) => (
-                    <PlayerCard key={player.id} player={player} clipCount={clipCountFor(team, player)} onDelete={() => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() })} />
+                    <PlayerCard key={player.id} player={player} clipCount={clipCountFor(team, player)} onDelete={canEditRoster ? () => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() }) : undefined} />
                   ))}
                   {registeredStaff.map((member) => <div key={member.id} className="relative flex min-h-24 flex-col items-center justify-center rounded-lg border border-accent/40 bg-accentDim p-3 text-center"><div className="grid h-10 w-10 place-items-center rounded-full bg-avatar font-bold text-accent">{member.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div><span className="mt-2 text-sm text-textCard">{member.full_name}</span><span className="text-[10px] uppercase tracking-wide text-accent">{t("team.registeredStaff")}</span>{member.removable && <button type="button" onClick={() => setDeleteTarget({ kind: "linked-staff", id: member.id, name: member.full_name })} className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-xs text-textMuted hover:bg-red-500/15 hover:text-red-400" aria-label={t("team.removeMessage", { name: member.full_name })}>{t("common.remove")}</button>}</div>)}
                   {ownsTeam && <AddPlayerTile
@@ -206,6 +211,7 @@ export default function TeamsPage() {
                   {ownsTeam && <button type="button" onClick={() => setLinkStaffTarget({ teamId: team.id, teamName: team.name })} className="min-h-24 rounded-lg border border-dashed border-accent/60 bg-accentDim p-3 text-sm font-semibold text-accent hover:border-accent">{t("team.linkRegistered")}</button>}
                 </div>
               </div>
+              </>}
             </article>
           );
         })}

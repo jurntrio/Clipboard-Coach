@@ -8,6 +8,7 @@ const nl = {
   "common.saving": "Opslaan…",
   "common.remove": "Verwijderen",
   "common.edit": "Bewerken",
+  "common.play": "afspelen",
   "common.help": "Hulp",
   "common.training": "Training",
   "common.admin": "Beheer",
@@ -27,6 +28,108 @@ const nl = {
   "matchHub.linkFailed": "De taglink kon niet worden gemaakt.",
   "matchHub.linkCopied": "De externe taglink staat op het klembord.",
   "matchHub.required": "Selecteer een team en vul de tegenstander in.",
+  "matchHub.allTeams": "Alle ploegen",
+  "matchHub.copyTagLink": "Taglink kopiëren",
+  "matchHub.addVideo": "Video toevoegen",
+  "matchHub.deleteMatch": "Wedstrijd verwijderen",
+  "matchHub.teamClips": "Clips voor de volledige ploeg",
+  "matchHub.noTeamClips": "Nog geen ploegclips",
+  "matchHub.colPlayer": "Speler",
+  "matchHub.colSelectedClips": "Geselecteerde clips",
+  "matchHub.colTaggedClips": "Individueel getagd",
+  "matchHub.colShare": "Deel",
+  "matchHub.shareAllWith": "Alle clips delen met {name}",
+  "matchHub.noPlayersAssigned": "Nog geen spelers aangeduid.",
+  "matchHub.ownTeam": "Eigen team",
+  "matchHub.selectTeam": "Selecteer team",
+  "matchHub.opponent": "Tegenstander",
+  "matchHub.date": "Datum",
+  "matchHub.kickoffTime": "Aanvangsuur",
+  "matchHub.status": "Status",
+  "matchHub.scheduled": "Gepland",
+  "matchHub.live": "Live",
+  "matchHub.finishedStatus": "Afgewerkt",
+  "matchHub.homeScore": "Score thuis",
+  "matchHub.awayScore": "Score uit",
+  "matchHub.participatingPlayers": "Spelers die deelnemen",
+  "matchHub.chooseTeamFirst": "Kies eerst een team.",
+  "matchHub.liveTagButtons": "Tagknoppen voor deze wedstrijd",
+  "matchHub.confirmDeleteClip": "Clip \"{name}\" definitief verwijderen?",
+  "matchHub.clipDeleteFailed": "De clip kon niet worden verwijderd.",
+  "matchHub.clipDeleted": "Clip \"{name}\" is verwijderd.",
+  "matchHub.confirmDeleteMatch": "Wedstrijd \"{name}\" en de gekoppelde gegevens definitief verwijderen?",
+  "matchHub.matchDeleteFailed": "De wedstrijd kon niet worden verwijderd.",
+  "matchHub.matchDeleted": "Wedstrijd \"{name}\" is verwijderd.",
+  "matchHub.noClipsToShare": "Er zijn nog geen clips om met {name} te delen.",
+  "matchHub.shareIntro": "Trainer {coach} heeft deze clips met je gedeeld van de wedstrijd {match}{dateSuffix}.",
+  "matchHub.shareDateSuffix": " op {date}",
+  "matchHub.shareTitle": "Clips van {match}",
+  "matchHub.defaultCoachName": "Je trainer",
+  "matchHub.lineupCount": "{count} spelers",
+  "clubTeams.heading": "Teams",
+  "clubTeams.subtitle": "Maak teams en spelerslijsten vooraf klaar en wijs coaches toe.",
+  "clubTeams.namePlaceholder": "Teamnaam",
+  "clubTeams.create": "Team aanmaken",
+  "clubTeams.saveFailed": "Wijziging kon niet worden bewaard.",
+  "clubTeams.coachesLabel": "Coaches: {names}",
+  "clubTeams.noCoachAssigned": "nog niemand toegewezen",
+  "clubTeams.noTeamsYet": "Deze club heeft nog geen teams.",
+  "clubTeams.readingFile": "Bestand lezen…",
+  "clubTeams.columnsNotFound": "Kolommen Voornaam en Naam werden niet gevonden.",
+  "clubTeams.noUsablePlayers": "Geen bruikbare spelers gevonden.",
+  "clubTeams.importedCount": "{count} spelers ingelezen. Controleer en bewaar de lijst.",
+  "clubTeams.fileReadFailed": "Bestand kon niet gelezen worden.",
+  "clubTeams.rosterSaveFailed": "Spelerslijst kon niet worden bewaard.",
+  "clubTeams.allSaved": "Alles bewaard — {count} spelers.",
+  "clubTeams.trainerCanEditRoster": "Trainer mag spelerslijst aanpassen",
+  "clubTeams.trainerCanEditRosterHelp": "Als dit uitstaat kan een toegewezen trainer de spelers wel bekijken en gebruiken, maar niet wijzigen.",
+  "clubTeams.assignCoaches": "Coaches toewijzen",
+  "clubTeams.notRegisteredYet": "nog te registreren",
+  "clubTeams.roster": "Spelerslijst",
+  "clubTeams.importHelp": "Importeer een ProSoccerData Excel-bestand of pas de lijst manueel aan.",
+  "clubTeams.choosePsdFile": "PSD-bestand kiezen",
+  "clubTeams.addPlayer": "Speler toevoegen",
+  "clubTeams.firstNamePlaceholder": "Voornaam",
+  "clubTeams.lastNamePlaceholder": "Naam",
+  "clubTeams.phonePlaceholder": "Gsm",
+  "clubTeams.saveHint": "Wijzigingen aan de spelerslijst worden pas bewaard wanneer je bovenaan op {save} klikt.",
+  "clubTeams.removeDisabledTooltip": "Verwijderen kan hier niet rechtstreeks — gebruik 'Synchroniseren' of 'Volledig vervangen' na een nieuwe import.",
+  "clubTeams.importMode.merge": "Toevoegen/bijwerken",
+  "clubTeams.importMode.sync": "Synchroniseren",
+  "clubTeams.importMode.replace": "Volledig vervangen",
+  "clubTeams.importModeHint.merge": "Bestaande spelers van dit team worden nooit verwijderd. Contactgegevens die botsen met een ander team worden nooit stilzwijgend overschreven — dat gaat naar de clubadmin.",
+  "clubTeams.importModeHint.sync": "Na een nieuwe import kan je zelf kiezen welke ontbrekende spelers het team verlaten.",
+  "clubTeams.importModeHint.replace": "Elke speler die niet in het geïmporteerde bestand staat, verlaat het team — enkel na expliciete bevestiging.",
+  "clubTeams.importPreview": "{new} nieuw · {updated} bijgewerkt · {missing} niet in bestand",
+  "clubTeams.syncMissingHeading": "Deze spelers staan niet in het geïmporteerde bestand. Vink aan wie het team mag verlaten.",
+  "clubTeams.replaceWarning": "Deze spelers staan niet in het geïmporteerde bestand en worden bij bevestigen uit het team verwijderd.",
+  "clubTeams.replaceConfirmLabel": "Ik bevestig dat deze {count} speler(s) volledig uit dit team verwijderd worden.",
+  "clubTeams.replaceConfirmRequired": "Bevestig eerst de volledige vervanging hierboven.",
+  "clubTeams.allSavedWithRemoved": "Alles bewaard — {count} spelers, {removed} verwijderd.",
+  "clubTeams.addExistingHeading": "Voeg een bestaande speler toe aan dit team",
+  "clubTeams.addExistingHelp": "Zoek een speler die al bij een ander team van deze club hoort.",
+  "clubTeams.addExistingSearchPlaceholder": "Zoek op naam…",
+  "clubTeams.currentlyOn": "speelt ook bij: {teams}",
+  "clubTeams.addToTeam": "Toevoegen aan dit team",
+  "clubTeams.addedToTeam": "{name} toegevoegd aan dit team.",
+  "clubTeams.unassignedPrimaryHeading": "Kies een primair team",
+  "clubTeams.unassignedPrimaryHelp": "Deze spelers spelen bij meerdere teams. Kies welk team hun primaire team is.",
+  "clubTeams.choosePrimary": "Kies {team}",
+  "settings.clipProfilesHelp": "Bepaal per tag hoeveel seconden vóór en na het tagmoment automatisch in de clip komen.",
+  "clipProfiles.tag": "Tag",
+  "clipProfiles.startOffset": "Start t.o.v. tag",
+  "clipProfiles.endOffset": "Einde t.o.v. tag",
+  "clipProfiles.action": "Actie",
+  "clipProfiles.seconds": "sec",
+  "clipProfiles.needTwoNumbers": "Vul twee geldige getallen in.",
+  "clipProfiles.startMustBeBeforeEnd": "De startwaarde moet kleiner dan of gelijk aan de eindwaarde zijn.",
+  "clipProfiles.savedNotice": "{name} is opgeslagen.",
+  "clipProfiles.noTagsYet": "Voeg eerst snelle tags toe in Instellingen.",
+  "playerPage.sharedClipsMatches": "Wedstrijden met gedeelde clips",
+  "playerPage.matchesPlayed": "Wedstrijden gespeeld",
+  "playerPage.goals": "Goals",
+  "playerPage.assists": "Assists",
+  "match.currentPosition": "Huidige positie in de video",
   "common.settings": "Instellingen",
   "common.exit": "Afmelden",
   "common.language": "Taal",
@@ -322,6 +425,7 @@ const nl = {
   ,"clip.freeUsed": "{used}/{limit} gratis clips gebruikt"
   ,"clip.proPlan": "Pro-abonnement · Onbeperkte clips ({count} gemaakt)"
   ,"clip.freeLimit": "Je hebt alle 20 clips van een gratis account gebruikt. Upgrade naar Pro om meer clips te maken."
+  ,"tag.tooLong": "Deze clip mag maximaal 3 minuten duren, tekeningen inbegrepen."
   ,"clip.reconnectAll": "Koppel alle bronvideo’s van deze wedstrijd opnieuw om clips te kunnen maken."
   ,"clip.reconnectOriginal": "Koppel de oorspronkelijke wedstrijdvideo opnieuw voordat je clips maakt."
   ,"clip.selectPerson": "Selecteer minstens één persoon of kies het volledige team."
@@ -404,6 +508,26 @@ const nl = {
   ,"admin.block": "Blokkeren"
   ,"admin.deleteTitle": "Account permanent verwijderen?"
   ,"admin.deleteMessage": "Hiermee verwijder je onmiddellijk {email}, inclusief alle teams, spelers, video’s en clips. Dit kan niet ongedaan worden gemaakt."
+  ,"admin.clubManagement": "Clubbeheer"
+  ,"admin.clubManagementSubtitle": "Bekijk bestaande clubs, voeg een club toe en wijs een Club Admin of Analyst toe."
+  ,"admin.viewClubs": "Clubs bekijken en toevoegen"
+  ,"admin.noRegistrationNumber": "Geen stamnummer"
+  ,"admin.trainerCount": "{count} trainer"
+  ,"admin.trainerCountPlural": "{count} trainers"
+  ,"admin.clubAdminCount": "{count} Club Admin"
+  ,"admin.clubAdminCountPlural": "{count} Club Admins"
+  ,"admin.colName": "Naam"
+  ,"admin.colTeams": "Ploeg(en)"
+  ,"admin.colPhone": "GSM"
+  ,"admin.colEmail": "E-mail"
+  ,"admin.notLinkedYet": "Nog te koppelen"
+  ,"admin.noneTrainersAssigned": "Nog geen trainers toegewezen."
+  ,"admin.noneClubs": "Nog geen clubs toegevoegd."
+  ,"admin.usersWithoutTeam": "Gebruikers zonder ploeg"
+  ,"admin.usersWithoutTeamSubtitle": "Deze gebruikers hebben nog geen gewone ploeg of clubploeg toegewezen gekregen."
+  ,"admin.assignTeam": "Ploeg toewijzen"
+  ,"admin.everyoneHasTeam": "Iedere gebruiker heeft minstens één ploeg."
+  ,"admin.colClub": "Club"
   ,"nav.home": "Home"
   ,"auth.inlineEmail": "E-mail"
   ,"auth.inlinePassword": "Wachtwoord"
@@ -566,6 +690,7 @@ const en: Record<MessageKey, string> = {
   "common.saving": "Saving…",
   "common.remove": "Remove",
   "common.edit": "Edit",
+  "common.play": "play",
   "common.help": "Help",
   "common.training": "Training",
   "common.admin": "Admin",
@@ -585,6 +710,108 @@ const en: Record<MessageKey, string> = {
   "matchHub.linkFailed": "The tagging link could not be created.",
   "matchHub.linkCopied": "The external tagging link was copied.",
   "matchHub.required": "Select a team and enter the opponent.",
+  "matchHub.allTeams": "All teams",
+  "matchHub.copyTagLink": "Copy tag link",
+  "matchHub.addVideo": "Add video",
+  "matchHub.deleteMatch": "Delete match",
+  "matchHub.teamClips": "Clips for the full team",
+  "matchHub.noTeamClips": "No team clips yet",
+  "matchHub.colPlayer": "Player",
+  "matchHub.colSelectedClips": "Selected clips",
+  "matchHub.colTaggedClips": "Individually tagged",
+  "matchHub.colShare": "Share",
+  "matchHub.shareAllWith": "Share all clips with {name}",
+  "matchHub.noPlayersAssigned": "No players assigned yet.",
+  "matchHub.ownTeam": "Own team",
+  "matchHub.selectTeam": "Select team",
+  "matchHub.opponent": "Opponent",
+  "matchHub.date": "Date",
+  "matchHub.kickoffTime": "Kick-off time",
+  "matchHub.status": "Status",
+  "matchHub.scheduled": "Scheduled",
+  "matchHub.live": "Live",
+  "matchHub.finishedStatus": "Finished",
+  "matchHub.homeScore": "Home score",
+  "matchHub.awayScore": "Away score",
+  "matchHub.participatingPlayers": "Players participating",
+  "matchHub.chooseTeamFirst": "Choose a team first.",
+  "matchHub.liveTagButtons": "Tag buttons for this game",
+  "matchHub.confirmDeleteClip": "Permanently delete clip \"{name}\"?",
+  "matchHub.clipDeleteFailed": "The clip could not be deleted.",
+  "matchHub.clipDeleted": "Clip \"{name}\" has been deleted.",
+  "matchHub.confirmDeleteMatch": "Permanently delete game \"{name}\" and its linked data?",
+  "matchHub.matchDeleteFailed": "The game could not be deleted.",
+  "matchHub.matchDeleted": "Game \"{name}\" has been deleted.",
+  "matchHub.noClipsToShare": "There are no clips yet to share with {name}.",
+  "matchHub.shareIntro": "Coach {coach} shared these clips with you from the game {match}{dateSuffix}.",
+  "matchHub.shareDateSuffix": " on {date}",
+  "matchHub.shareTitle": "Clips from {match}",
+  "matchHub.defaultCoachName": "Your coach",
+  "matchHub.lineupCount": "{count} players",
+  "clubTeams.heading": "Teams",
+  "clubTeams.subtitle": "Prepare teams and rosters in advance and assign coaches.",
+  "clubTeams.namePlaceholder": "Team name",
+  "clubTeams.create": "Create team",
+  "clubTeams.saveFailed": "The change could not be saved.",
+  "clubTeams.coachesLabel": "Coaches: {names}",
+  "clubTeams.noCoachAssigned": "no one assigned yet",
+  "clubTeams.noTeamsYet": "This club has no teams yet.",
+  "clubTeams.readingFile": "Reading file…",
+  "clubTeams.columnsNotFound": "The First name and Last name columns were not found.",
+  "clubTeams.noUsablePlayers": "No usable players found.",
+  "clubTeams.importedCount": "{count} players imported. Review and save the list.",
+  "clubTeams.fileReadFailed": "The file could not be read.",
+  "clubTeams.rosterSaveFailed": "The roster could not be saved.",
+  "clubTeams.allSaved": "Everything saved — {count} players.",
+  "clubTeams.trainerCanEditRoster": "Trainer may edit roster",
+  "clubTeams.trainerCanEditRosterHelp": "When this is off, an assigned trainer can view and use the players, but not edit them.",
+  "clubTeams.assignCoaches": "Assign coaches",
+  "clubTeams.notRegisteredYet": "not registered yet",
+  "clubTeams.roster": "Roster",
+  "clubTeams.importHelp": "Import a ProSoccerData Excel file or edit the list manually.",
+  "clubTeams.choosePsdFile": "Choose PSD file",
+  "clubTeams.addPlayer": "Add player",
+  "clubTeams.firstNamePlaceholder": "First name",
+  "clubTeams.lastNamePlaceholder": "Last name",
+  "clubTeams.phonePlaceholder": "Phone",
+  "clubTeams.saveHint": "Changes to the roster are only saved once you click {save} above.",
+  "clubTeams.removeDisabledTooltip": "Removal isn't supported directly here — use 'Sync' or 'Full replace' after a new import.",
+  "clubTeams.importMode.merge": "Add/update",
+  "clubTeams.importMode.sync": "Sync",
+  "clubTeams.importMode.replace": "Full replace",
+  "clubTeams.importModeHint.merge": "Existing players on this team are never removed. Contact details that conflict with another team are never silently overwritten — that goes to the club admin instead.",
+  "clubTeams.importModeHint.sync": "After a new import, you choose which missing players leave the team.",
+  "clubTeams.importModeHint.replace": "Any player not in the imported file leaves the team — only after explicit confirmation.",
+  "clubTeams.importPreview": "{new} new · {updated} updated · {missing} not in file",
+  "clubTeams.syncMissingHeading": "These players are not in the imported file. Check who may leave the team.",
+  "clubTeams.replaceWarning": "These players are not in the imported file and will be removed from the team on confirmation.",
+  "clubTeams.replaceConfirmLabel": "I confirm that these {count} player(s) will be fully removed from this team.",
+  "clubTeams.replaceConfirmRequired": "Confirm the full replacement above first.",
+  "clubTeams.allSavedWithRemoved": "Everything saved — {count} players, {removed} removed.",
+  "clubTeams.addExistingHeading": "Add an existing player to this team",
+  "clubTeams.addExistingHelp": "Search for a player who already belongs to another team at this club.",
+  "clubTeams.addExistingSearchPlaceholder": "Search by name…",
+  "clubTeams.currentlyOn": "also plays at: {teams}",
+  "clubTeams.addToTeam": "Add to this team",
+  "clubTeams.addedToTeam": "{name} added to this team.",
+  "clubTeams.unassignedPrimaryHeading": "Choose a primary team",
+  "clubTeams.unassignedPrimaryHelp": "These players play for multiple teams. Choose which team is their primary team.",
+  "clubTeams.choosePrimary": "Choose {team}",
+  "settings.clipProfilesHelp": "Determine how many seconds before and after the tag moment are automatically included in the clip, per tag.",
+  "clipProfiles.tag": "Tag",
+  "clipProfiles.startOffset": "Start vs. tag",
+  "clipProfiles.endOffset": "End vs. tag",
+  "clipProfiles.action": "Action",
+  "clipProfiles.seconds": "sec",
+  "clipProfiles.needTwoNumbers": "Enter two valid numbers.",
+  "clipProfiles.startMustBeBeforeEnd": "The start value must be less than or equal to the end value.",
+  "clipProfiles.savedNotice": "{name} has been saved.",
+  "clipProfiles.noTagsYet": "First add quick tags in Settings.",
+  "playerPage.sharedClipsMatches": "Games with shared clips",
+  "playerPage.matchesPlayed": "Games played",
+  "playerPage.goals": "Goals",
+  "playerPage.assists": "Assists",
+  "match.currentPosition": "Current position in the video",
   "common.settings": "Settings",
   "common.exit": "Sign out",
   "common.language": "Language",
@@ -880,6 +1107,7 @@ const en: Record<MessageKey, string> = {
   ,"clip.freeUsed": "{used}/{limit} free clips used"
   ,"clip.proPlan": "Pro plan · Unlimited clips ({count} created)"
   ,"clip.freeLimit": "You have used all 20 clips included with a free account. Upgrade to Pro to create more clips."
+  ,"tag.tooLong": "This clip can be at most 3 minutes long, including drawings."
   ,"clip.reconnectAll": "Reconnect all source videos used by this match to enable clip creation."
   ,"clip.reconnectOriginal": "Reconnect the original match video before making clips."
   ,"clip.selectPerson": "Select at least one person, or choose the full team."
@@ -962,6 +1190,26 @@ const en: Record<MessageKey, string> = {
   ,"admin.block": "Block"
   ,"admin.deleteTitle": "Permanently delete account?"
   ,"admin.deleteMessage": "This immediately deletes {email}, including all teams, players, videos and clips. This cannot be undone."
+  ,"admin.clubManagement": "Club management"
+  ,"admin.clubManagementSubtitle": "View existing clubs, add a club, and assign a Club Admin or Analyst."
+  ,"admin.viewClubs": "View and add clubs"
+  ,"admin.noRegistrationNumber": "No registration number"
+  ,"admin.trainerCount": "{count} trainer"
+  ,"admin.trainerCountPlural": "{count} trainers"
+  ,"admin.clubAdminCount": "{count} Club Admin"
+  ,"admin.clubAdminCountPlural": "{count} Club Admins"
+  ,"admin.colName": "Name"
+  ,"admin.colTeams": "Team(s)"
+  ,"admin.colPhone": "Phone"
+  ,"admin.colEmail": "Email"
+  ,"admin.notLinkedYet": "Not linked yet"
+  ,"admin.noneTrainersAssigned": "No trainers assigned yet."
+  ,"admin.noneClubs": "No clubs added yet."
+  ,"admin.usersWithoutTeam": "Users without a team"
+  ,"admin.usersWithoutTeamSubtitle": "These users have not been assigned a regular team or club team yet."
+  ,"admin.assignTeam": "Assign team"
+  ,"admin.everyoneHasTeam": "Every user has at least one team."
+  ,"admin.colClub": "Club"
   ,"nav.home": "Home"
   ,"auth.inlineEmail": "Email"
   ,"auth.inlinePassword": "Password"

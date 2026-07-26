@@ -20,14 +20,14 @@ export default async function AdminOverviewPage() {
 
   const totals = coaches.reduce(
     (acc, c) => ({
-      teams: acc.teams + c.teamCount,
       videos: acc.videos + c.videoCount,
       failed: acc.failed + c.failedVideoCount,
       clips: acc.clips + c.clipCount,
       storage: acc.storage + c.storageBytes
     }),
-    { teams: 0, videos: 0, failed: 0, clips: 0, storage: 0 }
+    { videos: 0, failed: 0, clips: 0, storage: 0 }
   );
+  const distinctTeamCount = new Set(coaches.flatMap((c) => c.teamNames)).size;
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -36,7 +36,7 @@ export default async function AdminOverviewPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3 mb-8">
         <StatTile label={t("admin.coaches")} value={coaches.length} />
         <StatTile label="Clubs" value={clubs?.length ?? 0} />
-        <StatTile label={t("common.teams")} value={totals.teams} />
+        <StatTile label={t("common.teams")} value={distinctTeamCount} />
         <StatTile label={t("admin.videos")} value={totals.videos} />
         <StatTile label={t("admin.failed")} value={totals.failed} warn={totals.failed > 0} />
         <StatTile label={t("common.clips")} value={totals.clips} />
@@ -46,16 +46,16 @@ export default async function AdminOverviewPage() {
       <section className="mb-8 rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-textBright">Clubbeheer</h2>
+            <h2 className="text-lg font-semibold text-textBright">{t("admin.clubManagement")}</h2>
             <p className="mt-1 text-sm text-textMuted">
-              Bekijk bestaande clubs, voeg een club toe en wijs een Club Admin of Analyst toe.
+              {t("admin.clubManagementSubtitle")}
             </p>
           </div>
           <Link
             href="/dashboard/admin/clubs"
             className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page hover:brightness-110"
           >
-            Clubs bekijken en toevoegen
+            {t("admin.viewClubs")}
           </Link>
         </div>
 
@@ -78,11 +78,11 @@ export default async function AdminOverviewPage() {
                   <div>
                     <div className="font-medium text-textPrimary">{club.name}</div>
                     <div className="mt-1 text-xs text-textMuted">
-                      {club.rbfa_registration_number ? `RBFA ${club.rbfa_registration_number}` : "Geen stamnummer"}
+                      {club.rbfa_registration_number ? `RBFA ${club.rbfa_registration_number}` : t("admin.noRegistrationNumber")}
                       {" · "}
-                      {trainers.length === 1 ? "1 trainer" : `${trainers.length} trainers`}
+                      {trainers.length === 1 ? t("admin.trainerCount", { count: trainers.length }) : t("admin.trainerCountPlural", { count: trainers.length })}
                       {" · "}
-                      {clubAdminCount === 1 ? "1 Club Admin" : `${clubAdminCount} Club Admins`}
+                      {clubAdminCount === 1 ? t("admin.clubAdminCount", { count: clubAdminCount }) : t("admin.clubAdminCountPlural", { count: clubAdminCount })}
                     </div>
                   </div>
                   <span className="text-accent transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
@@ -90,18 +90,18 @@ export default async function AdminOverviewPage() {
                 <div className="overflow-x-auto border-t border-borderSubtle">
                   <table className="w-full min-w-[680px] text-sm">
                     <thead className="text-xs uppercase text-textMuted">
-                      <tr><th className="px-4 py-2 text-left">Naam</th><th className="px-4 py-2 text-left">Ploeg(en)</th><th className="px-4 py-2 text-left">GSM</th><th className="px-4 py-2 text-left">E-mail</th></tr>
+                      <tr><th className="px-4 py-2 text-left">{t("admin.colName")}</th><th className="px-4 py-2 text-left">{t("admin.colTeams")}</th><th className="px-4 py-2 text-left">{t("admin.colPhone")}</th><th className="px-4 py-2 text-left">{t("admin.colEmail")}</th></tr>
                     </thead>
                     <tbody>
                       {trainers.map((trainer) => (
                         <tr key={trainer.id} className="border-t border-borderSubtle">
-                          <td className="px-4 py-2 text-textPrimary">{trainer.display_name}{trainer.invitation_status !== "linked" && <span className="ml-2 text-xs text-amber-300">Nog te koppelen</span>}</td>
+                          <td className="px-4 py-2 text-textPrimary">{trainer.display_name}{trainer.invitation_status !== "linked" && <span className="ml-2 text-xs text-amber-300">{t("admin.notLinkedYet")}</span>}</td>
                           <td className="px-4 py-2 text-textSecondary">{trainer.club_trainer_teams.map((link) => relationValue(link.club_teams)?.name).filter(Boolean).join(", ") || "—"}</td>
                           <td className="px-4 py-2 text-textSecondary">{trainer.phone_number || "—"}</td>
                           <td className="px-4 py-2 text-textSecondary">{relationValue(trainer.profiles)?.email || "—"}</td>
                         </tr>
                       ))}
-                      {!trainers.length && <tr><td colSpan={4} className="px-4 py-4 text-center text-textMuted">Nog geen trainers toegewezen.</td></tr>}
+                      {!trainers.length && <tr><td colSpan={4} className="px-4 py-4 text-center text-textMuted">{t("admin.noneTrainersAssigned")}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -110,7 +110,7 @@ export default async function AdminOverviewPage() {
           })}
           {!clubs?.length && (
             <div className="rounded-lg border border-dashed border-border px-4 py-5 text-sm text-textMuted">
-              Nog geen clubs toegevoegd.
+              {t("admin.noneClubs")}
             </div>
           )}
         </div>
@@ -119,8 +119,8 @@ export default async function AdminOverviewPage() {
       <section className="mb-8 rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-textBright">Gebruikers zonder ploeg</h2>
-            <p className="mt-1 text-sm text-textMuted">Deze gebruikers hebben nog geen gewone ploeg of clubploeg toegewezen gekregen.</p>
+            <h2 className="text-lg font-semibold text-textBright">{t("admin.usersWithoutTeam")}</h2>
+            <p className="mt-1 text-sm text-textMuted">{t("admin.usersWithoutTeamSubtitle")}</p>
           </div>
           <span className="rounded-full bg-amber-500/15 px-3 py-1 text-sm font-semibold text-amber-300">{coachesWithoutTeams.length}</span>
         </div>
@@ -128,10 +128,10 @@ export default async function AdminOverviewPage() {
           {coachesWithoutTeams.map((coach) => (
             <div key={coach.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <div><div className="font-medium text-textPrimary">{coach.full_name || coach.email}</div><div className="text-xs text-textMuted">{coach.email}</div></div>
-              <Link href={`/dashboard/admin/coaches/${coach.id}`} className="rounded-lg border border-borderButton px-3 py-2 text-sm text-textPrimary hover:border-accent hover:text-accent">Ploeg toewijzen</Link>
+              <Link href={`/dashboard/admin/coaches/${coach.id}`} className="rounded-lg border border-borderButton px-3 py-2 text-sm text-textPrimary hover:border-accent hover:text-accent">{t("admin.assignTeam")}</Link>
             </div>
           ))}
-          {!coachesWithoutTeams.length && <div className="px-4 py-5 text-center text-sm text-textMuted">Iedere gebruiker heeft minstens één ploeg.</div>}
+          {!coachesWithoutTeams.length && <div className="px-4 py-5 text-center text-sm text-textMuted">{t("admin.everyoneHasTeam")}</div>}
         </div>
       </section>
 
@@ -147,7 +147,7 @@ export default async function AdminOverviewPage() {
             <tr>
               <th className="text-left px-4 py-3">{t("admin.coach")}</th>
               <th className="text-left px-4 py-3">{t("admin.joined")}</th>
-              <th className="text-left px-4 py-3">Club</th>
+              <th className="text-left px-4 py-3">{t("admin.colClub")}</th>
               <th className="text-right px-4 py-3">{t("common.teams")}</th>
               <th className="text-right px-4 py-3">{t("admin.players")}</th>
               <th className="text-right px-4 py-3">{t("admin.videos")}</th>

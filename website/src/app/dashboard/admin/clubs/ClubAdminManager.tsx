@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import { createClub, removeClubMembership, setClubMembership } from "../actions";
 
 type ProfileOption = { id: string; email: string; full_name: string | null };
-type Membership = { profile_id: string; role: "trainer" | "club_admin" | "analyst" };
+type Membership = { profile_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst" };
 type ClubTrainer = { id: string; profile_id: string | null; display_name: string; phone_number: string | null; invitation_status: string; profiles: { email: string } | { email: string }[] | null; club_trainer_teams: { club_teams: { name: string } | { name: string }[] | null }[] };
 type ClubRow = { id: string; name: string; rbfa_registration_number: string | null; memberships: Membership[]; trainers: ClubTrainer[] };
 
-export function ClubAdminManager({ clubs, profiles }: { clubs: ClubRow[]; profiles: ProfileOption[] }) {
+const memberRoleLabel: Record<Membership["role"], string> = { club_admin: "Club Admin", club_admin_viewer: "Club Admin (viewer)", analyst: "Analyst", trainer: "Trainer" };
+const memberRoleClass: Record<Membership["role"], string> = { club_admin: "bg-blue-500/15 text-blue-300", club_admin_viewer: "bg-blue-500/10 text-blue-200", analyst: "bg-cyan-500/15 text-cyan-300", trainer: "bg-accent/15 text-accent" };
+
+export function ClubAdminManager({ clubs, profiles, readOnly }: { clubs: ClubRow[]; profiles: ProfileOption[]; readOnly?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState("");
@@ -26,7 +29,7 @@ export function ClubAdminManager({ clubs, profiles }: { clubs: ClubRow[]; profil
   }
 
   return <div className="space-y-6">
-    <section className="rounded-xl border border-border bg-card p-5">
+    {!readOnly && <section className="rounded-xl border border-border bg-card p-5">
       <h2 className="text-lg font-semibold text-textBright">Nieuwe club</h2>
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <label className="text-sm text-textSecondary">Clubnaam<input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} /></label>
@@ -34,17 +37,18 @@ export function ClubAdminManager({ clubs, profiles }: { clubs: ClubRow[]; profil
         <label className="text-sm text-textSecondary">Eerste clubadmin (optioneel)<select value={adminId} onChange={(e) => setAdminId(e.target.value)} className={inputClass}><option value="">Later toewijzen</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name || profile.email}</option>)}</select></label>
       </div>
       <button disabled={pending || !name.trim()} onClick={() => run(async () => { await createClub(name, rbfa, adminId); setName(""); setRbfa(""); setAdminId(""); })} className="mt-4 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">Club toevoegen</button>
-    </section>
+    </section>}
 
     {error && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
-    {clubs.map((club) => <ClubRoles key={club.id} club={club} profiles={profiles} pending={pending} run={run} />)}
+    {clubs.map((club) => <ClubRoles key={club.id} club={club} profiles={profiles} pending={pending} run={run} readOnly={readOnly} />)}
   </div>;
 }
 
-function ClubRoles({ club, profiles, pending, run }: { club: ClubRow; profiles: ProfileOption[]; pending: boolean; run: (action: () => Promise<void>) => void }) {
+function ClubRoles({ club, profiles, pending, run, readOnly }: { club: ClubRow; profiles: ProfileOption[]; pending: boolean; run: (action: () => Promise<void>) => void; readOnly?: boolean }) {
   const [clubAdminId, setClubAdminId] = useState("");
+  const [clubAdminViewerId, setClubAdminViewerId] = useState("");
   const [analystId, setAnalystId] = useState("");
-  const members = club.memberships.filter((item) => item.role === "club_admin" || item.role === "analyst");
+  const members = club.memberships.filter((item) => item.role === "club_admin" || item.role === "club_admin_viewer" || item.role === "analyst");
   const nameOf = (id: string) => { const profile = profiles.find((item) => item.id === id); return profile?.full_name || profile?.email || "Onbekende gebruiker"; };
   return <details className="group rounded-xl border border-border bg-card" open>
     <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5">
@@ -58,11 +62,12 @@ function ClubRoles({ club, profiles, pending, run }: { club: ClubRow; profiles: 
         <tbody>{club.trainers.map((trainer) => <tr key={trainer.id} className="border-t border-borderSubtle"><td className="px-3 py-2 text-textPrimary">{trainer.display_name}{trainer.invitation_status !== "linked" && <span className="ml-2 text-xs text-amber-300">Nog te koppelen</span>}</td><td className="px-3 py-2 text-textSecondary">{trainer.club_trainer_teams.map((link) => relationValue(link.club_teams)?.name).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-2 text-textSecondary">{trainer.phone_number || "—"}</td><td className="px-3 py-2 text-textSecondary">{relationValue(trainer.profiles)?.email || "—"}</td></tr>)}</tbody>
       </table>
     </div>
-    <div className="mt-4 space-y-2">{members.map((member) => <div key={member.profile_id} className="flex items-center justify-between rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2"><div><span className="text-sm text-textPrimary">{nameOf(member.profile_id)}</span><span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${member.role === "club_admin" ? "bg-blue-500/15 text-blue-300" : "bg-cyan-500/15 text-cyan-300"}`}>{member.role === "club_admin" ? "Club Admin" : "Analyst"}</span></div><button disabled={pending} onClick={() => run(() => removeClubMembership(club.id, member.profile_id))} className="text-xs text-red-300 hover:underline">Verwijderen</button></div>)}</div>
-    <div className="mt-4 grid gap-3 md:grid-cols-2">
+    <div className="mt-4 space-y-2">{members.map((member) => <div key={member.profile_id} className="flex items-center justify-between rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2"><div><span className="text-sm text-textPrimary">{nameOf(member.profile_id)}</span><span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${memberRoleClass[member.role]}`}>{memberRoleLabel[member.role]}</span></div>{!readOnly && <button disabled={pending} onClick={() => run(() => removeClubMembership(club.id, member.profile_id))} className="text-xs text-red-300 hover:underline">Verwijderen</button>}</div>)}</div>
+    {!readOnly && <div className="mt-4 grid gap-3 md:grid-cols-3">
       <RolePicker label="Club Admin toevoegen" value={clubAdminId} setValue={setClubAdminId} profiles={profiles} pending={pending} onAdd={() => run(async () => { await setClubMembership(club.id, clubAdminId, "club_admin"); setClubAdminId(""); })} />
+      <RolePicker label="Club Admin (viewer) toevoegen" value={clubAdminViewerId} setValue={setClubAdminViewerId} profiles={profiles} pending={pending} onAdd={() => run(async () => { await setClubMembership(club.id, clubAdminViewerId, "club_admin_viewer"); setClubAdminViewerId(""); })} />
       <RolePicker label="Analyst toevoegen" value={analystId} setValue={setAnalystId} profiles={profiles} pending={pending} onAdd={() => run(async () => { await setClubMembership(club.id, analystId, "analyst"); setAnalystId(""); })} />
-    </div>
+    </div>}
     </div>
   </details>;
 }

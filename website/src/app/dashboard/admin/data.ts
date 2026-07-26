@@ -140,7 +140,7 @@ export type CoachDetail = {
   clipCount: number;
   clipStorageBytes: number;
   clubOptions: { id: string; name: string; teams: { id: string; name: string }[] }[];
-  clubAssignment: { club_id: string; role: "trainer" | "club_admin" | "analyst"; team_ids: string[]; phone_number: string } | null;
+  clubAssignment: { club_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst"; team_ids: string[]; phone_number: string } | null;
 };
 
 export async function getCoachDetail(coachId: string): Promise<CoachDetail | null> {
@@ -180,7 +180,7 @@ export async function getCoachDetail(coachId: string): Promise<CoachDetail | nul
     clubOptions: (clubs ?? []).map((club) => ({ id: club.id, name: club.name, teams: (club.club_teams ?? []) as { id: string; name: string }[] })),
     clubAssignment: memberships?.[0] ? {
       club_id: memberships[0].club_id,
-      role: memberships[0].role as "trainer" | "club_admin" | "analyst",
+      role: memberships[0].role as "trainer" | "club_admin" | "club_admin_viewer" | "analyst",
       team_ids: clubTrainers?.find((trainer) => trainer.club_id === memberships[0].club_id)
         ?.club_trainer_teams.map((item) => item.club_team_id) ?? [],
       phone_number: clubTrainers?.find((trainer) => trainer.club_id === memberships[0].club_id)?.phone_number ?? ""

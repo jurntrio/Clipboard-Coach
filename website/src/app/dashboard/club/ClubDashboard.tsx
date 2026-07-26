@@ -1,21 +1,36 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { ClubTeamsManager } from "./ClubTeamsManager";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null };
-type Team = { id: string; club_id: string; name: string; age_category: string | null; level_or_competition: string | null; status: string; club_trainer_teams?: { trainer_id: string; role: string; status: string }[] };
+type Team = {
+  id: string;
+  club_id: string;
+  name: string;
+  status: string;
+  trainers_can_edit_roster: boolean;
+  club_trainer_teams?: { trainer_id: string; role: string; status: string }[];
+  teams?: { id: string; players: { id: string; first_name: string; last_name: string; date_of_birth: string | null; email: string | null; phone_numbers: string[]; role: "player" | "staff" }[] }[];
+};
 type Trainer = { id: string; club_id: string; profile_id: string | null; display_name: string; phone_number: string | null; invitation_status: string; profiles: { email: string } | null; club_trainer_teams: { club_team_id: string }[] };
-type Membership = { club_id: string; profile_id: string; role: "trainer" | "club_admin" | "analyst" };
+type Membership = { club_id: string; profile_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst" };
 type Match = { id: string; club_id: string; club_team_id: string | null; team_a_name: string; team_b_name: string; match_date: string | null; start_time: string | null; status: string; score_a: number | null; score_b: number | null; external_source: string | null };
 type Assignment = { id: string; match_id: string; trainer_id: string; visible: boolean; assignment_source: string };
-type Overview = { clubs: Club[]; teams: Team[]; trainers: Trainer[]; matches: Match[]; assignments: Assignment[]; memberships: Membership[] };
+type MigrationIssue = { id: string; clubId: string; clubPlayerId: string; playerName: string; seasonId: string | null; candidates: { teamId: string; teamName: string; membershipType: string }[] };
+type Overview = { clubs: Club[]; teams: Team[]; trainers: Trainer[]; matches: Match[]; assignments: Assignment[]; memberships: Membership[]; migrationIssues: MigrationIssue[] };
+
+const roleLabels: Record<Membership["role"], string> = { club_admin: "Club Admin", club_admin_viewer: "Club Admin (viewer)", analyst: "Analyst", trainer: "Trainer" };
+const roleBadgeClass: Record<Membership["role"], string> = { club_admin: "bg-blue-500/15 text-blue-300", club_admin_viewer: "bg-blue-500/10 text-blue-200", analyst: "bg-cyan-500/15 text-cyan-300", trainer: "bg-accent/15 text-accent" };
 
 export function ClubDashboard() {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState("");
   const [selectedClubId, setSelectedClubId] = useState("");
+  const [currentUserId, setCurrentUserId] = useState("");
+  const supabase = createClient();
 
   async function load() {
     await fetch("/api/club/overview").then(async (response) => {
@@ -28,13 +43,17 @@ export function ClubDashboard() {
 
   useEffect(() => {
     void load();
+    void supabase.auth.getUser().then(({ data: authData }) => setCurrentUserId(authData.user?.id ?? ""));
   }, []);
 
   const club = data?.clubs.find((item) => item.id === selectedClubId);
   const teams = useMemo(() => data?.teams.filter((item) => item.club_id === selectedClubId) ?? [], [data, selectedClubId]);
   const trainers = useMemo(() => data?.trainers.filter((item) => item.club_id === selectedClubId) ?? [], [data, selectedClubId]);
+  const migrationIssues = useMemo(() => data?.migrationIssues.filter((item) => item.clubId === selectedClubId) ?? [], [data, selectedClubId]);
   const matches = useMemo(() => data?.matches.filter((item) => item.club_id === selectedClubId) ?? [], [data, selectedClubId]);
   const teamNames = new Map(teams.map((team) => [team.id, team.name]));
+  const myMembership = data?.memberships.find((item) => item.club_id === selectedClubId && item.profile_id === currentUserId);
+  const readOnly = myMembership?.role === "club_admin_viewer";
 
   function isAssigned(match: Match, trainer: Trainer) {
     const explicit = data?.assignments.find((item) => item.match_id === match.id && item.trainer_id === trainer.id);
@@ -85,13 +104,13 @@ export function ClubDashboard() {
             <tbody>{trainers.map((trainer) => {
               const membership = data.memberships.find((item) => item.club_id === trainer.club_id && item.profile_id === trainer.profile_id);
               const role = membership?.role ?? "trainer";
-              return <tr key={trainer.id} className="border-t border-borderSubtle bg-card"><td className="px-3 py-3 font-medium text-textPrimary">{trainer.display_name}{trainer.invitation_status !== "linked" && <span className="ml-2 text-xs text-amber-300">Nog te koppelen</span>}</td><td className="px-3 py-3 text-textSecondary">{trainer.club_trainer_teams.map((link) => teamNames.get(link.club_team_id)).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-3 text-textSecondary">{trainer.phone_number || "—"}</td><td className="px-3 py-3 text-textSecondary">{trainer.profiles?.email || "—"}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${role === "club_admin" ? "bg-blue-500/15 text-blue-300" : role === "analyst" ? "bg-cyan-500/15 text-cyan-300" : "bg-accent/15 text-accent"}`}>{role === "club_admin" ? "Club Admin" : role === "analyst" ? "Analyst" : "Trainer"}</span></td></tr>;
+              return <tr key={trainer.id} className="border-t border-borderSubtle bg-card"><td className="px-3 py-3 font-medium text-textPrimary">{trainer.display_name}{trainer.invitation_status !== "linked" && <span className="ml-2 text-xs text-amber-300">Nog te koppelen</span>}</td><td className="px-3 py-3 text-textSecondary">{trainer.club_trainer_teams.map((link) => teamNames.get(link.club_team_id)).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-3 text-textSecondary">{trainer.phone_number || "—"}</td><td className="px-3 py-3 text-textSecondary">{trainer.profiles?.email || "—"}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${roleBadgeClass[role]}`}>{roleLabels[role]}</span></td></tr>;
             })}</tbody>
           </table>
         </div>
       </section>
 
-      <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} onChanged={load} />
+      <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} migrationIssues={migrationIssues} onChanged={load} readOnly={readOnly} />
 
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Wedstrijden toewijzen</h2>
@@ -124,7 +143,7 @@ export function ClubDashboard() {
                   <td className="sticky left-[260px] z-10 bg-card px-3 py-3 text-textSecondary">{match.club_team_id ? teamNames.get(match.club_team_id) || "–" : "Nog te koppelen"}</td>
                   {trainers.map((trainer) => {
                     const key = `${match.id}:${trainer.id}`;
-                    return <td key={trainer.id} className="w-11 min-w-11 px-1 py-3 text-center"><input aria-label={`${trainer.display_name} toegang tot ${match.team_a_name} - ${match.team_b_name}`} type="checkbox" checked={isAssigned(match, trainer)} disabled={saving === key} onChange={() => void toggle(match, trainer)} className="h-5 w-5 accent-accent" /></td>;
+                    return <td key={trainer.id} className="w-11 min-w-11 px-1 py-3 text-center"><input aria-label={`${trainer.display_name} toegang tot ${match.team_a_name} - ${match.team_b_name}`} type="checkbox" checked={isAssigned(match, trainer)} disabled={saving === key || readOnly} onChange={() => void toggle(match, trainer)} className="h-5 w-5 accent-accent disabled:opacity-60" /></td>;
                   })}
                 </tr>
               ))}</tbody>

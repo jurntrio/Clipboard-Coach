@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { Tag } from "@/types/database";
 import { formatTime } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
@@ -35,11 +36,15 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
   const clipTags = tags.filter((tag) => !isPeriodMarker(tag.name));
   const { laneByTag, laneCount } = arrangeInLanes(clipTags);
   const bandHeight = Math.max(32, 5 + laneCount * 27);
+  const [hoverRatio, setHoverRatio] = useState<number | null>(null);
+
+  function ratioFromEvent(event: React.MouseEvent<HTMLDivElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+  }
 
   function handleClick(event: React.MouseEvent<HTMLDivElement>) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-    onSeek(ratio * safeDuration);
+    onSeek(ratioFromEvent(event) * safeDuration);
   }
 
   return (
@@ -59,9 +64,23 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
           );
         })}
       </div>
-      <div className="relative h-5 cursor-pointer overflow-hidden rounded-md border border-border bg-input" onClick={handleClick} aria-label={t("timeline.match")}>
+      <div
+        className="relative h-5 cursor-pointer overflow-visible rounded-md border border-border bg-input"
+        onClick={handleClick}
+        onMouseMove={(event) => setHoverRatio(ratioFromEvent(event))}
+        onMouseLeave={() => setHoverRatio(null)}
+        aria-label={t("timeline.match")}
+      >
         <div className="absolute inset-y-0 left-0 bg-accent/20" style={{ width: `${Math.min(100, Math.max(0, (currentTime / safeDuration) * 100))}%` }} />
         <div className="absolute top-0 h-full w-0.5 bg-white" style={{ left: `${Math.min(100, Math.max(0, (currentTime / safeDuration) * 100))}%` }} />
+        {hoverRatio !== null && (
+          <>
+            <div className="pointer-events-none absolute top-0 h-full w-px bg-white/50" style={{ left: `${hoverRatio * 100}%` }} />
+            <div className="pointer-events-none absolute bottom-full z-10 -translate-x-1/2 rounded bg-cardDeep px-1.5 py-0.5 text-[10px] font-semibold text-textBright shadow" style={{ left: `${hoverRatio * 100}%` }}>
+              {formatTime(hoverRatio * safeDuration)}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="max-h-32 overflow-y-auto rounded-md border border-borderSubtle bg-cardDeep" aria-label={t("tag.bands")}>

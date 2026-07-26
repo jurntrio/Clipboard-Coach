@@ -4,6 +4,7 @@ import { ExitCard } from "@/components/ui/ExitCard";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { getServerI18n } from "@/i18n/server";
+import { ParentHome } from "@/components/parent/ParentHome";
 
 export default async function DashboardHomePage() {
   const { t } = getServerI18n();
@@ -19,15 +20,35 @@ export default async function DashboardHomePage() {
   const {
     data: { user }
   } = await supabase.auth.getUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle()
-    : { data: null };
+
+  const [{ data: profile }, { data: clubMembership }, { data: ownedTeam }, { data: guardianLink }] = user
+    ? await Promise.all([
+        supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle(),
+        supabase.from("club_memberships").select("id").eq("profile_id", user.id).eq("status", "active").limit(1).maybeSingle(),
+        supabase.from("teams").select("id").eq("coach_id", user.id).limit(1).maybeSingle(),
+        supabase.from("player_guardians").select("id").eq("profile_id", user.id).is("revoked_at", null).limit(1).maybeSingle()
+      ])
+    : [{ data: null }, { data: null }, { data: null }, { data: null }];
+
+  // account_role alleen is geen betrouwbare, exclusieve poort meer: een account kan tegelijk
+  // ouder van een kind bij club A zijn EN trainer bij club B (of allebei bij dezelfde club) --
+  // een gewoon seizoensverloop, geen edge case. isGuardian/hasOtherRole worden dus onafhankelijk
+  // van elkaar bepaald, op basis van de effectieve koppelingen, niet op 1 enkel rolveld.
+  const isGuardian = !!guardianLink;
+  const hasOtherRole = isAdminEmail(user?.email)
+    || profile?.account_role === "club_admin" || profile?.account_role === "club_admin_viewer" || profile?.account_role === "admin_viewer"
+    || !!clubMembership || !!ownedTeam;
+
+  if (isGuardian && !hasOtherRole) return <ParentHome />;
 
   const visibleCards = [...cards];
-  if (isAdminEmail(user?.email) || profile?.account_role === "club_admin") {
+  if (isGuardian) {
+    visibleCards.push({ href: "/dashboard/parent", label: "Ouderweergave", icon: "/branding/clips.png" });
+  }
+  if (isAdminEmail(user?.email) || profile?.account_role === "club_admin" || profile?.account_role === "club_admin_viewer") {
     visibleCards.push({ href: "/dashboard/club", label: "Clubbeheer", icon: "/branding/clubadmin.png" });
   }
-  if (isAdminEmail(user?.email)) {
+  if (isAdminEmail(user?.email) || profile?.account_role === "admin_viewer") {
     visibleCards.push({ href: "/dashboard/admin", label: t("common.admin"), icon: "/branding/admin.png" });
   }
 

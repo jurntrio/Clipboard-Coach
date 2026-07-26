@@ -40,11 +40,25 @@ export async function setCoachPlan(coachId: string, plan: "free" | "pro") {
   revalidatePath(`/dashboard/admin/coaches/${coachId}`);
 }
 
-export async function setAccountRole(coachId: string, accountRole: "coach" | "club_admin" | "analyst") {
+export async function setAccountRole(coachId: string, accountRole: "coach" | "club_admin" | "club_admin_viewer" | "analyst") {
   const platformAdmin = await requireAdmin();
   if (coachId === platformAdmin.id) throw new Error("The platform admin role cannot be changed.");
   const admin = createAdminClient();
   const { error } = await admin.from("profiles").update({ account_role: accountRole }).eq("id", coachId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/dashboard/admin");
+  revalidatePath(`/dashboard/admin/coaches/${coachId}`);
+}
+
+export async function setAdminViewer(coachId: string, isAdminViewer: boolean) {
+  const platformAdmin = await requireAdmin();
+  if (coachId === platformAdmin.id) throw new Error("The platform admin role cannot be changed.");
+  const admin = createAdminClient();
+  const { data: profile } = await admin.from("profiles").select("account_role").eq("id", coachId).maybeSingle();
+  if (!profile) throw new Error("Coach not found.");
+  const nextRole = isAdminViewer ? "admin_viewer" : profile.account_role === "admin_viewer" ? "coach" : profile.account_role;
+  const { error } = await admin.from("profiles").update({ account_role: nextRole }).eq("id", coachId);
   if (error) throw new Error(error.message);
 
   revalidatePath("/dashboard/admin");
@@ -66,7 +80,7 @@ export async function createClub(name: string, rbfaRegistrationNumber: string, c
   revalidatePath("/dashboard/admin/clubs");
 }
 
-export async function setClubMembership(clubId: string, profileId: string, role: "club_admin" | "analyst") {
+export async function setClubMembership(clubId: string, profileId: string, role: "club_admin" | "club_admin_viewer" | "analyst") {
   await requireAdmin();
   const admin = createAdminClient();
   const [{ data: club }, { data: profile }] = await Promise.all([
@@ -82,6 +96,8 @@ export async function setClubMembership(clubId: string, profileId: string, role:
   const { data: roles } = await admin.from("club_memberships").select("role").eq("profile_id", profileId);
   const accountRole = roles?.some((item) => item.role === "club_admin")
     ? "club_admin"
+    : roles?.some((item) => item.role === "club_admin_viewer")
+    ? "club_admin_viewer"
     : roles?.some((item) => item.role === "analyst") ? "analyst" : "coach";
   await admin.from("profiles").update({ account_role: accountRole }).eq("id", profileId);
   revalidatePath("/dashboard/admin");
@@ -97,6 +113,8 @@ export async function removeClubMembership(clubId: string, profileId: string) {
   const { data: remaining } = await admin.from("club_memberships").select("role").eq("profile_id", profileId);
   const nextRole = remaining?.some((item) => item.role === "club_admin")
     ? "club_admin"
+    : remaining?.some((item) => item.role === "club_admin_viewer")
+    ? "club_admin_viewer"
     : remaining?.some((item) => item.role === "analyst") ? "analyst" : "coach";
   await admin.from("profiles").update({ account_role: nextRole }).eq("id", profileId);
   revalidatePath("/dashboard/admin");
@@ -109,7 +127,7 @@ export async function updateTrainerAssignment(input: {
   fullName: string;
   phoneNumber: string;
   clubId: string;
-  role: "trainer" | "club_admin" | "analyst";
+  role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst";
   teamIds: string[];
 }) {
   const platformAdmin = await requireAdmin();

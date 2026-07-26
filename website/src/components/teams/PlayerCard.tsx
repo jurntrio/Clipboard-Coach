@@ -3,17 +3,17 @@ import { getPlayerDisplayName } from "@/lib/utils";
 import Link from "next/link";
 import { useI18n } from "@/i18n/client";
 
-export function PlayerCard({ player, clipCount, onDelete }: { player: Player; clipCount: number; onDelete: () => void }) {
+export function PlayerCard({ player, clipCount, onDelete }: { player: Player; clipCount: number; onDelete?: () => void }) {
   const { t } = useI18n();
   return (
     <div className="group relative rounded-lg border border-border bg-cardAlt transition hover:border-accent hover:bg-cardHover">
-      <button
+      {onDelete && <button
         onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDelete(); }}
         aria-label={t("team.removePlayer")}
         className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded px-2 py-1 text-lg leading-none text-textMuted opacity-100 hover:bg-red-500/15 hover:text-red-400 sm:opacity-0 sm:group-hover:opacity-100"
       >
         &times;
-      </button>
+      </button>}
       <Link href={`/dashboard/teams/players/${player.id}`} className="flex min-h-16 items-center gap-3 rounded-lg px-3 py-2.5 pr-12 focus:outline-none focus:ring-2 focus:ring-accent">
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-avatar text-sm font-bold text-accent">{player.initials}</div>
         <div className="min-w-0 flex-1">

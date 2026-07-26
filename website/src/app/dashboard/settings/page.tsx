@@ -8,7 +8,7 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { useI18n } from "@/i18n/client";
 import { PrivacyDataSection } from "@/components/settings/PrivacyDataSection";
-import Link from "next/link";
+import { ClipProfilesTable } from "@/components/settings/ClipProfilesTable";
 
 export default function SettingsPage() {
   const { t } = useI18n();
@@ -105,8 +105,8 @@ export default function SettingsPage() {
 
       <section className="mt-8">
         <h2 className="mb-2 font-semibold text-textBright">Clip Profiles</h2>
-        <p className="mb-3 text-sm text-textMuted">Bepaal per tag hoeveel seconden vóór en na het tagmoment automatisch in de clip komen.</p>
-        <Link href="/dashboard/settings/clip-profiles" className="inline-flex rounded-lg border border-accent bg-accentDim px-4 py-2 text-sm font-semibold text-accent hover:bg-cardHover">Clipprofielen beheren →</Link>
+        <p className="mb-3 text-sm text-textMuted">{t("settings.clipProfilesHelp")}</p>
+        <ClipProfilesTable />
       </section>
 
       <PrivacyDataSection />
