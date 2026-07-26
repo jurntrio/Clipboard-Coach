@@ -344,6 +344,7 @@ function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved 
         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-textMuted">{t("matchHub.suggestions")}</p>
         <div className="flex flex-wrap gap-2">{suggestedTags.map((tag) => <button key={tag.id} type="button" onClick={() => setTagNames((current) => [...current, tag.name])} className="rounded-lg border border-borderButton bg-button px-3 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}</div>
       </div>}
+      <Link href="/dashboard/settings#quick-tags" target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-xs font-semibold text-accent hover:underline">{t("matchHub.manageTagLibrary")} ↗</Link>
     </section>}
     {error && <p className="mt-4 text-sm text-red-300">{error}</p>}<div className="mt-6 flex gap-3"><button type="button" onClick={onClose} className="flex-1 rounded-xl bg-button py-3 text-textPrimary">{t("common.cancel")}</button><button type="button" disabled={saving} onClick={() => void save()} className="flex-1 rounded-xl bg-accent py-3 font-bold text-page disabled:opacity-50">{saving ? t("common.saving") : t("common.save")}</button></div>
   </div></div>;

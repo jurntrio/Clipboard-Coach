@@ -74,7 +74,7 @@ export default function SettingsPage() {
         <LanguageSwitcher />
       </section>
 
-      <section>
+      <section id="quick-tags">
         <h2 className="text-textBright font-semibold mb-2">{t("settings.quickTags")}</h2>
         <p className="text-textMuted text-sm mb-3">{t("settings.quickTagsHelp")}</p>
 
