@@ -18,7 +18,7 @@ export default async function SharePage({ params }: { params: { token: string } 
        clips (
          name, render_status, rendered_segments,
          videos ( video_url, title, home_team, away_team ),
-         clip_segments ( sequence_order, tags ( id, name, start_time, end_time, color ) )
+         clip_segments ( id, sequence_order, video_id, videos ( video_url ), tags ( id, name, start_time, end_time, color ) )
        )`
     )
     .eq("token", params.token)
@@ -37,8 +37,8 @@ export default async function SharePage({ params }: { params: { token: string } 
   const clip = shareLink.clips as any;
   const sourceSegments = (clip.clip_segments ?? [])
     .sort((a: any, b: any) => a.sequence_order - b.sequence_order)
-    .map((segment: any) => segment.tags)
-    .filter(Boolean);
+    .filter((segment: any) => !!segment.tags)
+    .map((segment: any) => ({ id: segment.id, name: segment.tags.name, color: segment.tags.color, start_time: segment.tags.start_time, end_time: segment.tags.end_time, url: segment.videos?.video_url }));
   const segments = clip.render_status === "ready" && clip.rendered_segments?.length
     ? clip.rendered_segments.map((segment: any) => ({
         id: segment.id,

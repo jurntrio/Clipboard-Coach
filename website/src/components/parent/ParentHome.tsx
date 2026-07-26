@@ -22,7 +22,7 @@ type PlayerClip = {
   audience_player_ids: string[]; render_status: string;
   rendered_segments: { id: string; url: string; name: string; color: string; duration: number; play_start?: number; mobile_compatible?: boolean }[];
   videos: { id: string; title: string | null; video_url: string; match_videos: { match_id: string; matches: { id: string; team_a_name: string; team_b_name: string; match_date: string | null; score_a: number | null; score_b: number | null } | null }[] } | null;
-  clip_segments: { sequence_order: number; tags: { id: string; name: string; start_time: number; end_time: number; color: string; player_ids: string[] } | null }[];
+  clip_segments: { id: string; sequence_order: number; video_id: string | null; videos: { video_url: string } | null; tags: { id: string; name: string; start_time: number; end_time: number; color: string; player_ids: string[] } | null }[];
 };
 
 export function ParentHome({ showBackLink }: { showBackLink?: boolean } = {}) {
@@ -112,7 +112,7 @@ function ChildSection({ child }: { child: Child }) {
       supabase.from("clips").select(`
         id, name, team_id, audience_type, audience_player_ids, render_status, rendered_segments,
         videos(id, title, video_url, match_videos(match_id, matches(id, team_a_name, team_b_name, match_date, score_a, score_b))),
-        clip_segments(sequence_order, tags(id, name, start_time, end_time, color, player_ids))
+        clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, start_time, end_time, color, player_ids))
       `).order("created_at", { ascending: false }),
       supabase.from("player_career_stats").select("goals, assists").in("player_id", child.playerIds)
     ]);
@@ -131,7 +131,7 @@ function ChildSection({ child }: { child: Child }) {
     if (clip.render_status === "ready" && clip.rendered_segments?.length) {
       return clip.rendered_segments.map((segment) => ({ id: segment.id, name: segment.name, color: segment.color, start_time: segment.play_start ?? 0, end_time: segment.duration, url: segment.url }));
     }
-    return [...clip.clip_segments].sort((a, b) => a.sequence_order - b.sequence_order).map((item) => item.tags).filter((tag): tag is NonNullable<typeof tag> => !!tag).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color, start_time: tag.start_time, end_time: tag.end_time }));
+    return [...clip.clip_segments].sort((a, b) => a.sequence_order - b.sequence_order).filter((item) => !!item.tags).map((item) => ({ id: item.id, name: item.tags!.name, color: item.tags!.color, start_time: item.tags!.start_time, end_time: item.tags!.end_time, url: item.videos?.video_url }));
   }
 
   const matchGroups = clips.reduce((groups, clip) => {

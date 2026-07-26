@@ -151,6 +151,7 @@ export type Video = {
   duration: number | null;
   file_size: number | null;
   active_player_ids: string[];
+  camera_number: number | null;
   status: "active" | "deleted";
   processing_status: "pending" | "processing" | "ready" | "failed";
   processing_error: string | null;
@@ -197,6 +198,7 @@ export type MatchVideo = {
   match_id: string;
   video_id: string;
   sequence_order: number;
+  is_primary: boolean;
   label: string;
   created_at: string;
 };
@@ -286,6 +288,7 @@ export type ClipSegment = {
   id: string;
   clip_id: string;
   tag_id: string;
+  video_id: string | null;
   sequence_order: number;
   created_at: string;
 };

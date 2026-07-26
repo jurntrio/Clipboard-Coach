@@ -47,7 +47,10 @@ type PlayerClip = {
     }[];
   } | null;
   clip_segments: {
+    id: string;
     sequence_order: number;
+    video_id: string | null;
+    videos: { video_url: string } | null;
     tags: { id: string; name: string; start_time: number; end_time: number; color: string; player_ids: string[] } | null;
   }[];
 };
@@ -161,7 +164,7 @@ export default function PlayerClipsPage() {
       supabase.from("clips").select(`
         id, name, created_at, team_id, audience_type, audience_player_ids, render_status, rendered_segments,
         videos(id, title, video_url, match_videos(match_id, matches(id, team_a_name, team_b_name, match_date, start_time, score_a, score_b))),
-        clip_segments(sequence_order, tags(id, name, start_time, end_time, color, player_ids))
+        clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, start_time, end_time, color, player_ids))
       `).order("created_at", { ascending: false }),
       supabase.from("player_career_stats").select("goals, assists").eq("player_id", playerId).maybeSingle()
     ]);
@@ -223,9 +226,8 @@ export default function PlayerClipsPage() {
 
     return [...clip.clip_segments]
       .sort((a, b) => a.sequence_order - b.sequence_order)
-      .map((segment) => segment.tags)
-      .filter((tag): tag is NonNullable<typeof tag> => !!tag)
-      .map((tag) => ({ id: tag.id, name: tag.name, color: tag.color, start_time: tag.start_time, end_time: tag.end_time }));
+      .filter((segment) => !!segment.tags)
+      .map((segment) => ({ id: segment.id, name: segment.tags!.name, color: segment.tags!.color, start_time: segment.tags!.start_time, end_time: segment.tags!.end_time, url: segment.videos?.video_url }));
   }
 
   async function shareClip(clip: PlayerClip) {

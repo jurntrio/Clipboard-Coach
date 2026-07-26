@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { inspectLocalVideo, type LocalVideoInfo } from "@/lib/media/local-clips";
 import { getRememberedLocalVideo, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
+import { EXTERNAL_RECORDING_CAMERAS, externalRecordingUrl } from "@/lib/external-recording";
 import type { Match, Team, Video } from "@/types/database";
 import { useI18n } from "@/i18n/client";
 import { localMediaMessages } from "@/i18n/local-media";
@@ -35,6 +36,9 @@ export function MatchLauncher() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [slots, setSlots] = useState<(SelectedVideo | null)[]>([null, null, null, null]);
+  const [videoSource, setVideoSource] = useState<"file" | "external">("file");
+  const [recordingId, setRecordingId] = useState("");
+  const [selectedCameras, setSelectedCameras] = useState<number[]>([]);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState("");
   const [teamAId, setTeamAId] = useState("");
@@ -222,6 +226,9 @@ export function MatchLauncher() {
 
   function resetDraft() {
     setSlots([null, null, null, null]);
+    setVideoSource("file");
+    setRecordingId("");
+    setSelectedCameras([]);
     setDate(new Date().toISOString().slice(0, 10));
     setStartTime("");
     setTeamAId("");
@@ -231,10 +238,15 @@ export function MatchLauncher() {
     setError("");
   }
 
+  function toggleCamera(cameraNumber: number) {
+    setSelectedCameras((current) => current.includes(cameraNumber) ? current.filter((n) => n !== cameraNumber) : [...current, cameraNumber]);
+  }
+
   async function createMatch(event: React.FormEvent) {
     event.preventDefault();
     const selected = slots.filter((slot): slot is SelectedVideo => !!slot);
-    if (!selected.length) return;
+    if (videoSource === "file" && !selected.length) return;
+    if (videoSource === "external" && (!recordingId.trim() || !selectedCameras.length)) return;
     setBusy(true);
     setError("");
 
@@ -258,35 +270,62 @@ export function MatchLauncher() {
       if (matchError) throw matchError;
       createdMatchId = match.id;
 
-      for (let index = 0; index < selected.length; index += 1) {
-        const selection = selected[index];
-        setStatus(t("match.savingVideo", { current: index + 1, total: selected.length }));
-        const fingerprint = await localVideoFingerprint(selection.file);
-        const { data: existing } = await supabase.from("videos").select("id")
-          .eq("coach_id", user.id).eq("video_key", `local/${fingerprint}`).eq("status", "active").maybeSingle();
-        let videoId = existing?.id;
-        if (!videoId) {
+      if (videoSource === "external") {
+        const trimmedRecordingId = recordingId.trim();
+        const cameras = [...selectedCameras].sort((a, b) => a - b);
+        for (let index = 0; index < cameras.length; index += 1) {
+          const cameraNumber = cameras[index];
+          setStatus(t("match.savingVideo", { current: index + 1, total: cameras.length }));
           const { data: video, error: videoError } = await supabase.from("videos").insert({
             coach_id: user.id,
             team_id: teamAId || null,
-            video_url: `local://${fingerprint}`,
-            video_key: `local/${fingerprint}`,
-            file_size: selection.file.size,
-            duration: Math.round(selection.info.duration),
+            video_url: externalRecordingUrl(trimmedRecordingId, cameraNumber),
+            video_key: `external/${trimmedRecordingId}/ch${cameraNumber}`,
+            camera_number: cameraNumber,
             processing_status: "ready",
-            title: selection.file.name.replace(/\.[^/.]+$/, "")
+            title: t("match.cameraLabel", { number: cameraNumber })
           }).select("id").single();
           if (videoError) throw videoError;
-          videoId = video.id;
+          const { error: linkError } = await supabase.from("match_videos").insert({
+            match_id: match.id,
+            video_id: video.id,
+            sequence_order: 0,
+            is_primary: index === 0,
+            label: t("match.cameraLabel", { number: cameraNumber })
+          });
+          if (linkError) throw linkError;
         }
-        await rememberLocalVideo(videoId, selection.file, selection.handle);
-        const { error: linkError } = await supabase.from("match_videos").insert({
-          match_id: match.id,
-          video_id: videoId,
-          sequence_order: index,
-          label: `Video ${index + 1}`
-        });
-        if (linkError) throw linkError;
+      } else {
+        for (let index = 0; index < selected.length; index += 1) {
+          const selection = selected[index];
+          setStatus(t("match.savingVideo", { current: index + 1, total: selected.length }));
+          const fingerprint = await localVideoFingerprint(selection.file);
+          const { data: existing } = await supabase.from("videos").select("id")
+            .eq("coach_id", user.id).eq("video_key", `local/${fingerprint}`).eq("status", "active").maybeSingle();
+          let videoId = existing?.id;
+          if (!videoId) {
+            const { data: video, error: videoError } = await supabase.from("videos").insert({
+              coach_id: user.id,
+              team_id: teamAId || null,
+              video_url: `local://${fingerprint}`,
+              video_key: `local/${fingerprint}`,
+              file_size: selection.file.size,
+              duration: Math.round(selection.info.duration),
+              processing_status: "ready",
+              title: selection.file.name.replace(/\.[^/.]+$/, "")
+            }).select("id").single();
+            if (videoError) throw videoError;
+            videoId = video.id;
+          }
+          await rememberLocalVideo(videoId, selection.file, selection.handle);
+          const { error: linkError } = await supabase.from("match_videos").insert({
+            match_id: match.id,
+            video_id: videoId,
+            sequence_order: index,
+            label: `Video ${index + 1}`
+          });
+          if (linkError) throw linkError;
+        }
       }
 
       router.push(`/dashboard/matches/${match.id}`);
@@ -372,15 +411,42 @@ export function MatchLauncher() {
             </section>
 
             <section className="rounded-xl border border-border bg-cardDeep p-4">
-              <div className="flex items-center justify-between"><div><h2 className="font-semibold text-textBright">{t("match.videos")}</h2><p className="text-xs text-textMuted mt-1">{t("match.playOrder")}</p></div><button type="button" onClick={() => setSlots((current) => [...current, null])} className="rounded-lg bg-button px-3 py-2 text-sm text-textPrimary">{t("match.addMore")}</button></div>
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {slots.map((slot, index) => <button key={index} type="button" disabled={busy} onClick={() => void selectSlot(index)} className={`min-h-24 rounded-xl border p-3 text-center ${slot ? "border-accent bg-accentDim" : "border-dashed border-borderButton bg-cardAlt"}`}><strong className="block truncate text-textBright">{slot?.file.name || "+"}</strong><span className="mt-1 block text-xs text-textMuted">{t("match.videoNumber", { number: index + 1 })}</span>{slot && <span className="mt-1 block text-xs text-textSecondary">{slot.info.videoCodec.toUpperCase()}</span>}</button>)}
+              <div className="flex items-center justify-between"><h2 className="font-semibold text-textBright">{t("match.videos")}</h2>
+                <div className="flex overflow-hidden rounded-lg border border-borderButton text-xs font-semibold">
+                  <button type="button" onClick={() => setVideoSource("file")} className={`px-3 py-1.5 ${videoSource === "file" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceFile")}</button>
+                  <button type="button" onClick={() => setVideoSource("external")} className={`px-3 py-1.5 ${videoSource === "external" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceExternal")}</button>
+                </div>
               </div>
+
+              {videoSource === "file" ? (
+                <>
+                  <div className="mt-1 flex items-center justify-between"><p className="text-xs text-textMuted">{t("match.playOrder")}</p><button type="button" onClick={() => setSlots((current) => [...current, null])} className="rounded-lg bg-button px-3 py-2 text-sm text-textPrimary">{t("match.addMore")}</button></div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {slots.map((slot, index) => <button key={index} type="button" disabled={busy} onClick={() => void selectSlot(index)} className={`min-h-24 rounded-xl border p-3 text-center ${slot ? "border-accent bg-accentDim" : "border-dashed border-borderButton bg-cardAlt"}`}><strong className="block truncate text-textBright">{slot?.file.name || "+"}</strong><span className="mt-1 block text-xs text-textMuted">{t("match.videoNumber", { number: index + 1 })}</span>{slot && <span className="mt-1 block text-xs text-textSecondary">{slot.info.videoCodec.toUpperCase()}</span>}</button>)}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="mt-1 text-xs text-textMuted">{t("match.recordingIdHelp")}</p>
+                  <label className="mt-3 block text-sm text-textSecondary">{t("match.recordingId")}
+                    <input type="text" inputMode="numeric" value={recordingId} onChange={(event) => setRecordingId(event.target.value)} placeholder="1391450" className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
+                  </label>
+                  <div className="mt-3">
+                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-textMuted">{t("match.camerasUsed")}</span>
+                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                      {EXTERNAL_RECORDING_CAMERAS.map((cameraNumber) => {
+                        const checked = selectedCameras.includes(cameraNumber);
+                        return <button key={cameraNumber} type="button" onClick={() => toggleCamera(cameraNumber)} className={`rounded-lg border py-2 text-center text-sm font-semibold ${checked ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-cardAlt text-textSecondary"}`}>{cameraNumber}</button>;
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
             </section>
 
             {status && <div className="rounded-lg border border-border bg-cardDeep p-3 text-sm text-textSecondary">{status}</div>}
             {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
-            <div className="flex gap-3"><button type="button" disabled={busy} onClick={() => setMode("recent")} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary">{t("match.back")}</button><button type="submit" disabled={busy || !slots.some(Boolean)} className="flex-1 rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{busy ? t("match.working") : t("match.createAction")}</button></div>
+            <div className="flex gap-3"><button type="button" disabled={busy} onClick={() => setMode("recent")} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary">{t("match.back")}</button><button type="submit" disabled={busy || (videoSource === "file" ? !slots.some(Boolean) : !recordingId.trim() || !selectedCameras.length)} className="flex-1 rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{busy ? t("match.working") : t("match.createAction")}</button></div>
           </form>
         )}
       </div>

@@ -18,7 +18,7 @@ type HubClip = {
   share_links: Array<{ token: string }>;
   rendered_segments: Array<{ id: string; url: string; name: string; color: string; duration: number; play_start?: number; mobile_compatible?: boolean }>;
   videos: { title: string | null; video_url: string } | null;
-  clip_segments: Array<{ sequence_order: number; tags: { id: string; name: string; color: string; start_time: number; end_time: number; player_ids: string[] } | null }>;
+  clip_segments: Array<{ id: string; sequence_order: number; video_id: string | null; videos: { video_url: string } | null; tags: { id: string; name: string; color: string; start_time: number; end_time: number; player_ids: string[] } | null }>;
 };
 
 const inputClass = "mt-1 w-full rounded-xl border border-border bg-input px-3 py-2.5 text-textPrimary";
@@ -54,7 +54,7 @@ export default function MatchesHubPage() {
       supabase.from("teams").select("*").not("name", "ilike", "EXTRA").order("name"),
       supabase.from("players").select("*").neq("role", "staff").order("last_name"),
       supabase.from("standard_tags").select("*").order("created_at"),
-      supabase.from("clips").select("id, coach_id, video_id, name, render_status, audience_type, audience_player_ids, rendered_segments, share_links(token), videos(title, video_url), clip_segments(sequence_order, tags(id, name, color, start_time, end_time, player_ids))").order("created_at", { ascending: false })
+      supabase.from("clips").select("id, coach_id, video_id, name, render_status, audience_type, audience_player_ids, rendered_segments, share_links(token), videos(title, video_url), clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))").order("created_at", { ascending: false })
     ]);
     setMatches((matchData as HubMatch[] | null) ?? []);
     setTeams(teamData ?? []); setPlayers(playerData ?? []); setStandardTags(tagData ?? []);
@@ -97,8 +97,8 @@ export default function MatchesHubPage() {
     if (clip.render_status === "ready" && clip.rendered_segments?.length) return clip.rendered_segments.map((segment) => ({
       id: segment.id, name: segment.name, color: segment.color, start_time: segment.play_start ?? 0, end_time: segment.duration, url: segment.url
     }));
-    return [...clip.clip_segments].sort((a, b) => a.sequence_order - b.sequence_order).map((item) => item.tags).filter((tag): tag is NonNullable<typeof tag> => !!tag).map((tag) => ({
-      id: tag.id, name: tag.name, color: tag.color, start_time: tag.start_time, end_time: tag.end_time
+    return [...clip.clip_segments].sort((a, b) => a.sequence_order - b.sequence_order).filter((item) => !!item.tags).map((item) => ({
+      id: item.id, name: item.tags!.name, color: item.tags!.color, start_time: item.tags!.start_time, end_time: item.tags!.end_time, url: item.videos?.video_url
     }));
   }
 

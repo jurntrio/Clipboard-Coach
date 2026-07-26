@@ -22,6 +22,7 @@ export function ClipBuilder({
   localFile,
   localFilesByVideoId,
   localSourcesReady,
+  siblingCamerasByVideoId,
   matchLabel,
   onClipCreated
 }: {
@@ -35,6 +36,7 @@ export function ClipBuilder({
   localFile: File | null;
   localFilesByVideoId?: Record<string, File>;
   localSourcesReady?: boolean;
+  siblingCamerasByVideoId?: Record<string, { id: string; camera_number: number | null; label: string }[]>;
   matchLabel?: string;
   onClipCreated: () => void;
 }) {
@@ -43,6 +45,7 @@ export function ClipBuilder({
     const tag = tags.find((item) => item.id === id);
     return tag ? !isPeriodMarker(tag.name) : false;
   });
+  const clipCandidateTags = tags.filter((tag) => clipTagIds.includes(tag.id) && !isPeriodMarker(tag.name));
   const [clipName, setClipName] = useState("");
   const [audienceType, setAudienceType] = useState<ClipAudienceType>("full_team");
   const [audiencePlayerIds, setAudiencePlayerIds] = useState<string[]>([]);
@@ -59,10 +62,23 @@ export function ClipBuilder({
   const [newExtraName, setNewExtraName] = useState("");
   const [addingPerson, setAddingPerson] = useState(false);
   const [clipAllowance, setClipAllowance] = useState<{ plan: "free" | "pro"; used: number; exempt: boolean } | null>(null);
+  const [cameraSelectionByTag, setCameraSelectionByTag] = useState<Record<string, string[]>>({});
   const supabase = createClient();
   const { t } = useI18n();
   const freeClipLimit = 20;
   const clipLimitReached = !clipAllowance?.exempt && clipAllowance?.plan === "free" && clipAllowance.used >= freeClipLimit;
+
+  function selectedCamerasForTag(tag: Tag) {
+    return cameraSelectionByTag[tag.id] ?? [tag.video_id];
+  }
+
+  function toggleTagCamera(tag: Tag, cameraVideoId: string) {
+    setCameraSelectionByTag((current) => {
+      const existing = current[tag.id] ?? [tag.video_id];
+      const next = existing.includes(cameraVideoId) ? existing.filter((id) => id !== cameraVideoId) : [...existing, cameraVideoId];
+      return { ...current, [tag.id]: next.length ? next : existing };
+    });
+  }
 
   useEffect(() => setTeamPlayers(players), [players]);
   useEffect(() => setSelectedTeamId(teamId ?? ""), [teamId]);
@@ -114,6 +130,12 @@ export function ClipBuilder({
     }
 
     const orderedTags = tags.filter((tag) => clipTagIds.includes(tag.id) && !isPeriodMarker(tag.name));
+    const expandedSegments = orderedTags.flatMap((tag) => {
+      const siblings = siblingCamerasByVideoId?.[tag.video_id] ?? [];
+      if (siblings.length < 2) return [{ tag, videoId: tag.video_id }];
+      const chosen = new Set(selectedCamerasForTag(tag));
+      return siblings.filter((camera) => chosen.has(camera.id)).map((camera) => ({ tag, videoId: camera.id }));
+    });
     let resolvedClipName = clipName.trim();
     if (!resolvedClipName && orderedTags.length === 1) {
       resolvedClipName = orderedTags[0].name;
@@ -131,7 +153,7 @@ export function ClipBuilder({
         name: resolvedClipName,
         audience_type: audienceType,
         audience_player_ids: audienceType === "specific_players" ? audiencePlayerIds : [],
-        render_status: localFile ? "rendering" : "metadata_only"
+        render_status: "rendering"
       })
       .select()
       .single();
@@ -139,9 +161,10 @@ export function ClipBuilder({
     if (!error && clip) {
       setClipAllowance((current) => current ? { ...current, used: current.used + 1 } : current);
       // Order segments by the tag's position in the timeline, not selection order.
-      const segments = orderedTags.map((tag, index) => ({
+      const segments = expandedSegments.map(({ tag, videoId }, index) => ({
         clip_id: clip.id,
         tag_id: tag.id,
+        video_id: videoId,
         sequence_order: index
       }));
 
@@ -151,19 +174,19 @@ export function ClipBuilder({
       } else if (localFile) {
         try {
           const renderedSegments = [];
-          for (let index = 0; index < orderedTags.length; index += 1) {
-            const tag = orderedTags[index];
-            const baseProgress = index / orderedTags.length;
-            const unit = 1 / orderedTags.length;
-            setStatus(t("clip.makingSegment", { current: index + 1, total: orderedTags.length }));
-            const sourceFile = localFilesByVideoId?.[tag.video_id] ?? localFile;
+          for (let index = 0; index < expandedSegments.length; index += 1) {
+            const { tag, videoId } = expandedSegments[index];
+            const baseProgress = index / expandedSegments.length;
+            const unit = 1 / expandedSegments.length;
+            setStatus(t("clip.makingSegment", { current: index + 1, total: expandedSegments.length }));
+            const sourceFile = localFilesByVideoId?.[videoId] ?? localFile;
             if (!sourceFile) throw new Error(t("clip.reconnectSegment", { current: index + 1 }));
             const rendered = await remuxLocalSegment(sourceFile, tag.start_time, tag.end_time, (value) => {
               setProgress(baseProgress + unit * value * 0.55);
             }, localMediaMessages(t));
 
             try {
-              setStatus(t("clip.uploadingSegment", { current: index + 1, total: orderedTags.length }));
+              setStatus(t("clip.uploadingSegment", { current: index + 1, total: expandedSegments.length }));
               const key = `clips/${user.id}/${clip.id}/${index + 1}-${crypto.randomUUID()}.mp4`;
               const url = await uploadBlobToR2(rendered.file, key, "video/mp4", (value) => {
                 setProgress(baseProgress + unit * (0.55 + value * 0.45));
@@ -211,6 +234,7 @@ export function ClipBuilder({
           setClipName("");
           setAudiencePlayerIds([]);
           setAudienceType("full_team");
+          setCameraSelectionByTag({});
           onClipCreated();
           setOpen(false);
         } catch (renderError) {
@@ -220,11 +244,24 @@ export function ClipBuilder({
           setStatus("");
         }
       } else {
-        setClipName("");
-        setAudiencePlayerIds([]);
-        setAudienceType("full_team");
-        onClipCreated();
-        setOpen(false);
+        try {
+          const processResponse = await fetch(`/api/clips/${clip.id}/process`, { method: "POST" });
+          if (!processResponse.ok) {
+            const body = await processResponse.json().catch(() => null) as { error?: string } | null;
+            throw new Error(body?.error || t("clip.conversionFailed"));
+          }
+          setClipName("");
+          setAudiencePlayerIds([]);
+          setAudienceType("full_team");
+          setCameraSelectionByTag({});
+          onClipCreated();
+          setOpen(false);
+        } catch (renderError) {
+          const message = renderError instanceof Error ? renderError.message : t("clip.creationFailed");
+          await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", clip.id);
+          setErrorMessage(message);
+          setStatus("");
+        }
       }
     } else if (error) {
       setErrorMessage(error.message.includes("FREE_CLIP_LIMIT_REACHED")
@@ -330,6 +367,29 @@ export function ClipBuilder({
             <label className="block text-sm text-textSecondary">{t("clip.name")}
               <input type="text" placeholder={clipTagIds.length === 1 ? tags.find((tag) => tag.id === clipTagIds[0])?.name || t("tag.name") : `Clip 01 ${matchLabel?.trim() || t("clip.match")}`} value={clipName} onChange={(event) => setClipName(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
             </label>
+
+            {clipCandidateTags.some((tag) => (siblingCamerasByVideoId?.[tag.video_id]?.length ?? 0) > 1) && (
+              <div className="mt-4 space-y-3 rounded-lg border border-border bg-cardDeep p-3">
+                <h3 className="text-sm font-semibold text-textPrimary">{t("clip.camerasPerTag")}</h3>
+                {clipCandidateTags.map((tag) => {
+                  const siblings = siblingCamerasByVideoId?.[tag.video_id] ?? [];
+                  if (siblings.length < 2) return null;
+                  const selected = selectedCamerasForTag(tag);
+                  return (
+                    <div key={tag.id}>
+                      <p className="mb-1.5 text-xs font-semibold text-textSecondary">{tag.name}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {siblings.map((camera) => {
+                          const checked = selected.includes(camera.id);
+                          return <button key={camera.id} type="button" onClick={() => toggleTagCamera(tag, camera.id)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${checked ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary hover:bg-cardHover"}`}>{camera.label}</button>;
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="text-[11px] text-textMuted">{t("clip.camerasPerTagHelp")}</p>
+              </div>
+            )}
 
             <div className="mt-4 space-y-3">
               <label className="block text-sm text-textSecondary">{t("clip.team")}
