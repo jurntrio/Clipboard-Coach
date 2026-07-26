@@ -663,14 +663,18 @@ export default function MatchViewerPage() {
   }
 
   function liveTagElapsedSeconds(liveTag: LiveMatchTag) {
-    if (!match?.match_date || !match.recording_start_time) return null;
-    const recordingStart = new Date(`${match.match_date}T${match.recording_start_time}`);
-    if (Number.isNaN(recordingStart.getTime())) return null;
+    if (!match?.match_date) return null;
     // The recording's real start time is the true anchor for a live tag's timestamp - the
     // scheduled kickoff time is only an estimate and the camera is rarely started at that exact
-    // instant. live_tag_offset_seconds is a small fine-tune (e.g. average phone-grab delay).
-    const secondsSinceRecordingStart = (new Date(liveTag.occurred_at).getTime() - recordingStart.getTime()) / 1000;
-    return Math.max(0, secondsSinceRecordingStart + (match.live_tag_offset_seconds ?? 0));
+    // instant - but fall back to it so a tag still gets placed (roughly) even before "Start van
+    // de opname" has been filled in. live_tag_offset_seconds is a small fine-tune (e.g. average
+    // phone-grab delay), or a manual correction via the recalibrate button.
+    const anchorTime = match.recording_start_time ?? match.start_time;
+    if (!anchorTime) return null;
+    const anchor = new Date(`${match.match_date}T${anchorTime}`);
+    if (Number.isNaN(anchor.getTime())) return null;
+    const secondsSinceAnchor = (new Date(liveTag.occurred_at).getTime() - anchor.getTime()) / 1000;
+    return Math.max(0, secondsSinceAnchor + (match.live_tag_offset_seconds ?? 0));
   }
 
   async function confirmLiveTagCalibration() {
