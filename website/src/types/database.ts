@@ -167,11 +167,13 @@ export type Match = {
   team_b_name: string;
   match_date: string | null;
   start_time: string | null;
+  recording_start_time: string | null;
   status: "scheduled" | "live" | "finished";
   score_a: number | null;
   score_b: number | null;
   player_ids: string[];
   live_tag_names: string[];
+  live_tag_offset_seconds: number;
   last_opened_at: string;
   created_at: string;
   updated_at: string;
@@ -190,6 +192,7 @@ export type LiveMatchTag = {
   tagger_name: string | null;
   occurred_at: string;
   reviewed_at: string | null;
+  tag_id: string | null;
   created_at: string;
 };
 

@@ -85,9 +85,11 @@ export default function MatchViewerPage() {
   const [attachRecordingId, setAttachRecordingId] = useState("");
   const [attachCameras, setAttachCameras] = useState<number[]>([]);
   const [attaching, setAttaching] = useState(false);
+  const [calibratingLiveTagId, setCalibratingLiveTagId] = useState<string | null>(null);
   const lastPlaybackTimeRef = useRef(0);
   const handledDrawingIdsRef = useRef(new Set<string>());
   const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const materializingLiveTagIdsRef = useRef(new Set<string>());
 
   useEffect(() => () => { if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current); }, []);
 
@@ -589,10 +591,84 @@ export default function MatchViewerPage() {
   }
 
   function liveTagElapsedSeconds(liveTag: LiveMatchTag) {
-    if (!match?.match_date || !match.start_time) return null;
-    const kickoff = new Date(`${match.match_date}T${match.start_time}`);
-    if (Number.isNaN(kickoff.getTime())) return null;
-    return Math.max(0, (new Date(liveTag.occurred_at).getTime() - kickoff.getTime()) / 1000);
+    if (!match?.match_date || !match.recording_start_time) return null;
+    const recordingStart = new Date(`${match.match_date}T${match.recording_start_time}`);
+    if (Number.isNaN(recordingStart.getTime())) return null;
+    // The recording's real start time is the true anchor for a live tag's timestamp - the
+    // scheduled kickoff time is only an estimate and the camera is rarely started at that exact
+    // instant. live_tag_offset_seconds is a small fine-tune (e.g. average phone-grab delay).
+    const secondsSinceRecordingStart = (new Date(liveTag.occurred_at).getTime() - recordingStart.getTime()) / 1000;
+    return Math.max(0, secondsSinceRecordingStart + (match.live_tag_offset_seconds ?? 0));
+  }
+
+  async function confirmLiveTagCalibration() {
+    const liveTag = liveTags.find((item) => item.id === calibratingLiveTagId);
+    setCalibratingLiveTagId(null);
+    if (!liveTag || !match) return;
+    const currentComputed = liveTagElapsedSeconds(liveTag);
+    if (currentComputed === null) return;
+    const delta = combinedTime - currentComputed;
+    if (Math.abs(delta) < 0.01) return;
+    const newOffset = (match.live_tag_offset_seconds ?? 0) + delta;
+    setError("");
+    const { error: matchError } = await supabase.from("matches").update({ live_tag_offset_seconds: newOffset }).eq("id", matchId);
+    if (matchError) { setError(matchError.message); return; }
+    setMatch((current) => current ? { ...current, live_tag_offset_seconds: newOffset } : current);
+
+    const materializedTagIds = new Set(liveTags.filter((item) => item.tag_id).map((item) => item.tag_id as string));
+    for (const tag of tags.filter((item) => materializedTagIds.has(item.id))) {
+      const sourceVideo = videos.find((video) => video.id === tag.video_id);
+      const maximum = sourceVideo?.duration ?? Number.POSITIVE_INFINITY;
+      const newStart = Math.min(maximum, Math.max(0, tag.start_time + delta));
+      const newEnd = Math.min(maximum, Math.max(newStart, tag.end_time + delta));
+      const newOccurred = Math.min(maximum, Math.max(0, tag.occurred_at_seconds + delta));
+      await supabase.from("tags").update({ start_time: newStart, end_time: newEnd, occurred_at_seconds: newOccurred }).eq("id", tag.id);
+    }
+    await loadMatch();
+  }
+
+  useEffect(() => {
+    if (!match || match.coach_id !== currentUserId || !videos.length) return;
+    const pending = liveTags.filter((liveTag) => !liveTag.tag_id && !materializingLiveTagIdsRef.current.has(liveTag.id));
+    if (!pending.length) return;
+    void materializeLiveTags(pending);
+  }, [match, currentUserId, videos, liveTags]);
+
+  async function materializeLiveTags(pending: LiveMatchTag[]) {
+    for (const liveTag of pending) {
+      materializingLiveTagIdsRef.current.add(liveTag.id);
+      const elapsed = liveTagElapsedSeconds(liveTag);
+      if (elapsed === null) continue;
+      let targetIndex = videos.length - 1;
+      for (let index = 0; index < videos.length; index += 1) {
+        const start = offsets.map.get(videos[index].id) ?? 0;
+        const end = start + (videos[index].duration ?? 0);
+        if (elapsed < end || index === videos.length - 1) { targetIndex = index; break; }
+      }
+      const targetVideo = videos[targetIndex];
+      const localTime = Math.max(0, elapsed - (offsets.map.get(targetVideo.id) ?? 0));
+      const profile = standardTags.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
+      const startOffset = profile?.start_offset_seconds ?? -5;
+      const endOffset = profile?.end_offset_seconds ?? 5;
+      const maxDuration = targetVideo.duration ?? Number.POSITIVE_INFINITY;
+      const startTime = Math.max(0, localTime + startOffset);
+      const endTime = Math.min(maxDuration, Math.max(startTime, localTime + endOffset));
+      const playerIds = liveTag.player_ids?.length ? liveTag.player_ids : targetVideo.active_player_ids;
+      const { data: createdTag, error: tagError } = await supabase.from("tags").insert({
+        video_id: targetVideo.id,
+        name: liveTag.tag_name,
+        occurred_at_seconds: localTime,
+        start_time: startTime,
+        end_time: endTime,
+        color: getTagColor(liveTag.tag_name),
+        player_ids: playerIds
+      }).select().single();
+      if (tagError || !createdTag) continue;
+      const { error: linkError } = await supabase.from("live_match_tags").update({ tag_id: createdTag.id }).eq("id", liveTag.id);
+      if (linkError) continue;
+      setTags((current) => [...current, createdTag].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+      setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, tag_id: createdTag.id } : item));
+    }
   }
 
   function seekTo(time: number) {
@@ -775,6 +851,15 @@ export default function MatchViewerPage() {
           {!!liveTags.length && <section className="min-h-0">
             <h3 className="mb-1 font-semibold text-textBright">{t("liveTags.title")}</h3>
             <p className="mb-2 text-xs text-textMuted">{t("liveTags.subtitle")}</p>
+            {calibratingLiveTagId && (
+              <div className="mb-2 rounded-lg border border-accent bg-accentDim p-2.5">
+                <p className="text-xs font-semibold text-textBright">{t("liveTags.calibrateHelp", { name: liveTags.find((item) => item.id === calibratingLiveTagId)?.tag_name ?? "" })}</p>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={() => setCalibratingLiveTagId(null)} className="flex-1 rounded-lg bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary">{t("common.cancel")}</button>
+                  <button type="button" onClick={() => void confirmLiveTagCalibration()} className="flex-1 rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page">{t("liveTags.calibrateConfirm")}</button>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               {liveTags.map((liveTag) => {
                 const elapsed = liveTagElapsedSeconds(liveTag);
@@ -784,6 +869,7 @@ export default function MatchViewerPage() {
                     <p className="truncate text-sm font-semibold text-textPrimary">{liveTag.tag_name}</p>
                     <p className="truncate text-xs text-textMuted">{liveTag.tagger_name ? t("liveTags.by", { name: liveTag.tagger_name }) : t("liveTags.byUnknown")}{elapsed !== null ? ` · ${formatClock(elapsed)}` : ""}</p>
                   </div>
+                  <button type="button" onClick={() => setCalibratingLiveTagId(liveTag.id)} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">🎯</button>
                   {elapsed !== null && <button type="button" onClick={() => seekTo(elapsed)} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.goTo")}</button>}
                 </div>;
               })}
