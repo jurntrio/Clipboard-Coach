@@ -7,6 +7,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
 import { PlayerClipsShareDialog } from "@/components/clips/PlayerClipsShareDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { buildPublicShareUrl } from "@/lib/share-url";
 import { useI18n } from "@/i18n/client";
 import type { Match, Player, StandardTag, Team } from "@/types/database";
@@ -46,6 +47,10 @@ export default function MatchesHubPage() {
   const [isAdminViewer, setIsAdminViewer] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [teamFilterOpen, setTeamFilterOpen] = useState(false);
+  const [deleteClipTarget, setDeleteClipTarget] = useState<HubClip | null>(null);
+  const [deletingClip, setDeletingClip] = useState(false);
+  const [deleteMatchTarget, setDeleteMatchTarget] = useState<HubMatch | null>(null);
+  const [deletingMatch, setDeletingMatch] = useState(false);
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -117,20 +122,28 @@ export default function MatchesHubPage() {
     setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token) });
   }
 
-  async function deleteClip(clip: HubClip) {
-    if (!window.confirm(t("matchHub.confirmDeleteClip", { name: clip.name }))) return;
+  async function confirmDeleteClip() {
+    const clip = deleteClipTarget;
+    if (!clip) return;
+    setDeletingClip(true);
     const response = await fetch(`/api/clips/${clip.id}`, { method: "DELETE" });
     const body = await response.json().catch(() => null) as { error?: string } | null;
+    setDeletingClip(false);
+    setDeleteClipTarget(null);
     if (!response.ok) { setNotice(body?.error || t("matchHub.clipDeleteFailed")); return; }
     if (selectedClip?.id === clip.id) setSelectedClip(null);
     setNotice(t("matchHub.clipDeleted", { name: clip.name }));
     await load();
   }
 
-  async function deleteMatch(match: HubMatch) {
-    if (!window.confirm(t("matchHub.confirmDeleteMatch", { name: `${match.team_a_name} - ${match.team_b_name}` }))) return;
+  async function confirmDeleteMatch() {
+    const match = deleteMatchTarget;
+    if (!match) return;
+    setDeletingMatch(true);
     const response = await fetch(`/api/matches/${match.id}`, { method: "DELETE" });
     const body = await response.json().catch(() => null) as { error?: string } | null;
+    setDeletingMatch(false);
+    setDeleteMatchTarget(null);
     if (!response.ok) { setNotice(body?.error || t("matchHub.matchDeleteFailed")); return; }
     setExpandedId(null);
     setNotice(t("matchHub.matchDeleted", { name: `${match.team_a_name} - ${match.team_b_name}` }));
@@ -193,13 +206,15 @@ export default function MatchesHubPage() {
       </div>
       {notice && <button type="button" onClick={() => setNotice("")} className="mb-5 w-full rounded-xl border border-accent/30 bg-accentDim p-3 text-left text-sm text-textPrimary">{notice}</button>}
 
-      <MatchSection title={t("matchHub.upcoming")} matches={upcoming} empty={t("matchHub.noUpcoming")} allowTagging={canManageMatches} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onDeleteMatch={deleteMatch} onDeleteClip={deleteClip} onTagLink={createTagLink} onClip={setSelectedClip} />
-      <div className="mt-8"><MatchSection title={t("matchHub.finished")} matches={finished} empty={t("matchHub.noFinished")} allowTagging={false} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onDeleteMatch={deleteMatch} onDeleteClip={deleteClip} onTagLink={createTagLink} onClip={setSelectedClip} /></div>
+      <MatchSection title={t("matchHub.upcoming")} matches={upcoming} empty={t("matchHub.noUpcoming")} allowTagging={canManageMatches} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onDeleteMatch={setDeleteMatchTarget} onDeleteClip={setDeleteClipTarget} onTagLink={createTagLink} onClip={setSelectedClip} />
+      <div className="mt-8"><MatchSection title={t("matchHub.finished")} matches={finished} empty={t("matchHub.noFinished")} allowTagging={false} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onDeleteMatch={setDeleteMatchTarget} onDeleteClip={setDeleteClipTarget} onTagLink={createTagLink} onClip={setSelectedClip} /></div>
 
       {(createOpen || editingMatch) && <MatchEditor match={editingMatch} teams={teams} allPlayers={players} standardTags={standardTags} onClose={() => { setCreateOpen(false); setEditingMatch(null); }} onSaved={async () => { setCreateOpen(false); setEditingMatch(null); await load(); }} />}
       {selectedClip && <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos?.video_url ?? ""} segments={playbackSegments(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} />}
       {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} onClose={() => setShareDialog(null)} />}
       {playerShare && <PlayerClipsShareDialog {...playerShare} onClose={() => setPlayerShare(null)} />}
+      <ConfirmDialog open={!!deleteClipTarget} title={t("matchHub.deleteClipTitle")} message={t("matchHub.confirmDeleteClip", { name: deleteClipTarget?.name ?? "" })} busy={deletingClip} onCancel={() => setDeleteClipTarget(null)} onConfirm={() => void confirmDeleteClip()} />
+      <ConfirmDialog open={!!deleteMatchTarget} title={t("matchHub.deleteMatchTitle")} message={t("matchHub.confirmDeleteMatch", { name: deleteMatchTarget ? `${deleteMatchTarget.team_a_name} - ${deleteMatchTarget.team_b_name}` : "" })} busy={deletingMatch} onCancel={() => setDeleteMatchTarget(null)} onConfirm={() => void confirmDeleteMatch()} />
     </main>
   );
 }
