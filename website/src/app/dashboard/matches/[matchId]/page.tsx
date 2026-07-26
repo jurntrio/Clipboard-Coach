@@ -741,8 +741,16 @@ export default function MatchViewerPage() {
           player_ids: playerIds
         }).select().single();
         if (tagError || !createdTag) { setError(messageFrom(tagError, "Could not create tag from live tag.")); continue; }
-        const { error: linkError } = await supabase.from("live_match_tags").update({ tag_id: createdTag.id }).eq("id", liveTag.id);
+        // Claim atomically: only succeeds if nobody else (another reload, a race) has already
+        // linked this live tag. If we lose the race, delete the duplicate tag we just made
+        // instead of leaving it orphaned in the tagged-clips list.
+        const { data: claimedRows, error: linkError } = await supabase.from("live_match_tags")
+          .update({ tag_id: createdTag.id })
+          .eq("id", liveTag.id)
+          .is("tag_id", null)
+          .select("id");
         if (linkError) { setError(messageFrom(linkError, "Could not link live tag to its new tag.")); continue; }
+        if (!claimedRows?.length) { await supabase.from("tags").delete().eq("id", createdTag.id); continue; }
         setTags((current) => [...current, createdTag].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
         setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, tag_id: createdTag.id } : item));
       } finally {
