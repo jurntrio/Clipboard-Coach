@@ -66,7 +66,10 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label htmlFor="login-password" className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.password")}</label>
+              <div className="flex items-baseline justify-between mb-1">
+                <label htmlFor="login-password" className="block font-mono text-xs uppercase tracking-widest text-textMuted">{t("auth.password")}</label>
+                <Link href="/forgot-password" className="font-mono text-xs text-accent hover:underline">{t("auth.forgotPassword")}</Link>
+              </div>
               <input
                 id="login-password"
                 name="password"
@@ -106,7 +109,6 @@ export default function LoginPage() {
         {showHelp && (
           <div className="mt-2 bg-cardAlt border border-border rounded-xl p-4 text-textSecondary text-sm space-y-2">
             <p>{t("auth.confirmationHelp")}</p>
-            <p>{t("auth.resetUnavailable")}</p>
           </div>
         )}
         <div className="mt-4 flex justify-center"><LanguageSwitcher compact /></div><div className="mt-4"><LegalLinks /></div>

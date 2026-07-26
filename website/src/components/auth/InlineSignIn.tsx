@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/i18n/client";
 
@@ -56,6 +57,7 @@ export function InlineSignIn() {
       >
         {loading ? t("auth.signingIn") : t("auth.signIn")}
       </button>
+      <Link href="/forgot-password" className="text-xs text-accent hover:underline">{t("auth.forgotPassword")}</Link>
       {error && <p className="w-full text-red-400 text-xs">{error}</p>}
     </form>
   );
