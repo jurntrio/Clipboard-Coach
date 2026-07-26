@@ -637,37 +637,41 @@ export default function MatchViewerPage() {
   async function materializeLiveTags(pending: LiveMatchTag[]) {
     for (const liveTag of pending) {
       materializingLiveTagIdsRef.current.add(liveTag.id);
-      const elapsed = liveTagElapsedSeconds(liveTag);
-      if (elapsed === null) continue;
-      let targetIndex = videos.length - 1;
-      for (let index = 0; index < videos.length; index += 1) {
-        const start = offsets.map.get(videos[index].id) ?? 0;
-        const end = start + (videos[index].duration ?? 0);
-        if (elapsed < end || index === videos.length - 1) { targetIndex = index; break; }
+      try {
+        const elapsed = liveTagElapsedSeconds(liveTag);
+        if (elapsed === null) continue;
+        let targetIndex = videos.length - 1;
+        for (let index = 0; index < videos.length; index += 1) {
+          const start = offsets.map.get(videos[index].id) ?? 0;
+          const end = start + (videos[index].duration ?? 0);
+          if (elapsed < end || index === videos.length - 1) { targetIndex = index; break; }
+        }
+        const targetVideo = videos[targetIndex];
+        const localTime = Math.max(0, elapsed - (offsets.map.get(targetVideo.id) ?? 0));
+        const profile = standardTags.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
+        const startOffset = profile?.start_offset_seconds ?? -5;
+        const endOffset = profile?.end_offset_seconds ?? 5;
+        const maxDuration = targetVideo.duration ?? Number.POSITIVE_INFINITY;
+        const startTime = Math.max(0, localTime + startOffset);
+        const endTime = Math.min(maxDuration, Math.max(startTime, localTime + endOffset));
+        const playerIds = liveTag.player_ids?.length ? liveTag.player_ids : targetVideo.active_player_ids;
+        const { data: createdTag, error: tagError } = await supabase.from("tags").insert({
+          video_id: targetVideo.id,
+          name: liveTag.tag_name,
+          occurred_at_seconds: localTime,
+          start_time: startTime,
+          end_time: endTime,
+          color: getTagColor(liveTag.tag_name),
+          player_ids: playerIds
+        }).select().single();
+        if (tagError || !createdTag) { setError(messageFrom(tagError, "Could not create tag from live tag.")); continue; }
+        const { error: linkError } = await supabase.from("live_match_tags").update({ tag_id: createdTag.id }).eq("id", liveTag.id);
+        if (linkError) { setError(messageFrom(linkError, "Could not link live tag to its new tag.")); continue; }
+        setTags((current) => [...current, createdTag].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+        setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, tag_id: createdTag.id } : item));
+      } finally {
+        materializingLiveTagIdsRef.current.delete(liveTag.id);
       }
-      const targetVideo = videos[targetIndex];
-      const localTime = Math.max(0, elapsed - (offsets.map.get(targetVideo.id) ?? 0));
-      const profile = standardTags.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
-      const startOffset = profile?.start_offset_seconds ?? -5;
-      const endOffset = profile?.end_offset_seconds ?? 5;
-      const maxDuration = targetVideo.duration ?? Number.POSITIVE_INFINITY;
-      const startTime = Math.max(0, localTime + startOffset);
-      const endTime = Math.min(maxDuration, Math.max(startTime, localTime + endOffset));
-      const playerIds = liveTag.player_ids?.length ? liveTag.player_ids : targetVideo.active_player_ids;
-      const { data: createdTag, error: tagError } = await supabase.from("tags").insert({
-        video_id: targetVideo.id,
-        name: liveTag.tag_name,
-        occurred_at_seconds: localTime,
-        start_time: startTime,
-        end_time: endTime,
-        color: getTagColor(liveTag.tag_name),
-        player_ids: playerIds
-      }).select().single();
-      if (tagError || !createdTag) continue;
-      const { error: linkError } = await supabase.from("live_match_tags").update({ tag_id: createdTag.id }).eq("id", liveTag.id);
-      if (linkError) continue;
-      setTags((current) => [...current, createdTag].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
-      setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, tag_id: createdTag.id } : item));
     }
   }
 
