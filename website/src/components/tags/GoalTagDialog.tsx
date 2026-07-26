@@ -25,7 +25,7 @@ export function GoalTagDialog({ players, onCancel, onConfirm }: {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onCancel]);
 
-  const canConfirm = eventType === "goal_against" || (eventType === "goal_for" && !!scorerId);
+  const canConfirm = eventType !== null;
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-black/80 p-4" onClick={onCancel}>
       <section role="dialog" aria-modal="true" aria-labelledby="goal-dialog-title" onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl border border-borderButton bg-cardAlt p-6 shadow-2xl">
@@ -44,7 +44,7 @@ export function GoalTagDialog({ players, onCancel, onConfirm }: {
           <div className="mt-5 space-y-4 border-t border-border pt-5">
             <label className="block text-sm text-textSecondary">Doelpuntenmaker
               <select autoFocus value={scorerId} onChange={(event) => { setScorerId(event.target.value); if (assistId === event.target.value) setAssistId(""); }} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2.5 text-textPrimary">
-                <option value="">Selecteer een speler</option>
+                <option value="">Onbekend / later invullen</option>
                 {players.map((player) => <option key={player.id} value={player.id}>{getPlayerDisplayName(player)}</option>)}
               </select>
             </label>

@@ -45,6 +45,78 @@ function formatClock(totalSeconds: number) {
   return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function parseClockTime(value: string): number | null {
+  const parts = value.trim().split(":").map(Number);
+  if (!value.trim() || parts.some((part) => !Number.isFinite(part) || part < 0)) return null;
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2 && parts[1] < 60) return parts[0] * 60 + parts[1];
+  if (parts.length === 3 && parts[1] < 60 && parts[2] < 60) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return null;
+}
+
+function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleReviewed, onSeek, onCalibrate, onUpdateTimes, t }: {
+  liveTag: LiveMatchTag;
+  materializedTag: Tag | undefined;
+  elapsed: number | null;
+  reviewed: boolean;
+  onToggleReviewed: () => void;
+  onSeek: (time: number) => void;
+  onCalibrate: () => void;
+  onUpdateTimes: (startTime: number, endTime: number) => void;
+  t: ReturnType<typeof useI18n>["t"];
+}) {
+  const [startDraft, setStartDraft] = useState(materializedTag ? formatTime(materializedTag.start_time) : "");
+  const [endDraft, setEndDraft] = useState(materializedTag ? formatTime(materializedTag.end_time) : "");
+
+  useEffect(() => { if (materializedTag) setStartDraft(formatTime(materializedTag.start_time)); }, [materializedTag?.start_time]);
+  useEffect(() => { if (materializedTag) setEndDraft(formatTime(materializedTag.end_time)); }, [materializedTag?.end_time]);
+
+  function saveTimes() {
+    if (!materializedTag) return;
+    const parsedStart = parseClockTime(startDraft);
+    const parsedEnd = parseClockTime(endDraft);
+    if (parsedStart === null || parsedEnd === null) {
+      setStartDraft(formatTime(materializedTag.start_time));
+      setEndDraft(formatTime(materializedTag.end_time));
+      return;
+    }
+    const safeEnd = Math.max(parsedStart, parsedEnd);
+    setStartDraft(formatTime(parsedStart));
+    setEndDraft(formatTime(safeEnd));
+    onUpdateTimes(parsedStart, safeEnd);
+  }
+
+  const timeInput = "w-[58px] rounded border border-border bg-input px-1.5 py-1 text-center text-[11px] text-textPrimary focus:border-accent focus:outline-none";
+
+  return (
+    <div className={`rounded-lg border border-border bg-cardDeep px-3 py-2 ${reviewed ? "opacity-50" : ""}`}>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" checked={reviewed} onChange={onToggleReviewed} title={t("liveTags.reviewed")} className="h-4 w-4 flex-shrink-0 accent-accent" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-textPrimary">{liveTag.tag_name}</p>
+          <p className="truncate text-xs text-textMuted">{liveTag.tagger_name ? t("liveTags.by", { name: liveTag.tagger_name }) : t("liveTags.byUnknown")}</p>
+        </div>
+        <button type="button" onClick={onCalibrate} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">🎯</button>
+        {elapsed !== null && <button type="button" onClick={() => onSeek(elapsed)} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.goTo")}</button>}
+      </div>
+      {materializedTag ? (
+        <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-textMuted">
+          <label className="flex items-center gap-1">
+            <span>{t("tag.start")}</span>
+            <input value={startDraft} onChange={(event) => setStartDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="numeric" />
+          </label>
+          <label className="flex items-center gap-1">
+            <span>{t("tag.end")}</span>
+            <input value={endDraft} onChange={(event) => setEndDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="numeric" />
+          </label>
+        </div>
+      ) : elapsed !== null && (
+        <p className="mt-1 text-right text-[10px] text-textMuted">{formatClock(elapsed)}</p>
+      )}
+    </div>
+  );
+}
+
 function messageFrom(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
@@ -867,15 +939,19 @@ export default function MatchViewerPage() {
             <div className="space-y-2">
               {liveTags.map((liveTag) => {
                 const elapsed = liveTagElapsedSeconds(liveTag);
-                return <div key={liveTag.id} className={`flex items-center gap-2 rounded-lg border border-border bg-cardDeep px-3 py-2 ${liveTag.reviewed_at ? "opacity-50" : ""}`}>
-                  <input type="checkbox" checked={!!liveTag.reviewed_at} onChange={() => void toggleLiveTagReviewed(liveTag)} title={t("liveTags.reviewed")} className="h-4 w-4 flex-shrink-0 accent-accent" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-textPrimary">{liveTag.tag_name}</p>
-                    <p className="truncate text-xs text-textMuted">{liveTag.tagger_name ? t("liveTags.by", { name: liveTag.tagger_name }) : t("liveTags.byUnknown")}{elapsed !== null ? ` · ${formatClock(elapsed)}` : ""}</p>
-                  </div>
-                  <button type="button" onClick={() => setCalibratingLiveTagId(liveTag.id)} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">🎯</button>
-                  {elapsed !== null && <button type="button" onClick={() => seekTo(elapsed)} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.goTo")}</button>}
-                </div>;
+                const materializedTag = liveTag.tag_id ? displayTags.find((tag) => tag.id === liveTag.tag_id) : undefined;
+                return <LiveTagRow
+                  key={liveTag.id}
+                  liveTag={liveTag}
+                  materializedTag={materializedTag}
+                  elapsed={elapsed}
+                  reviewed={!!liveTag.reviewed_at}
+                  onToggleReviewed={() => void toggleLiveTagReviewed(liveTag)}
+                  onSeek={seekTo}
+                  onCalibrate={() => setCalibratingLiveTagId(liveTag.id)}
+                  onUpdateTimes={(startTime, endTime) => { if (liveTag.tag_id) void updateTag(liveTag.tag_id, startTime, endTime); }}
+                  t={t}
+                />;
               })}
             </div>
           </section>}
