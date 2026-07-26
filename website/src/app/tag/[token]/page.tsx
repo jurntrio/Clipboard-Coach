@@ -36,18 +36,22 @@ export default function LiveTagPage() {
 
   if (!match) return <main className="grid min-h-screen place-items-center bg-page p-6 text-textPrimary">{message || "Wedstrijd laden…"}</main>;
   return (
-    <main className="min-h-screen bg-page px-4 py-6 text-textPrimary">
-      <div className="mx-auto max-w-lg">
-        <header className="mb-6 rounded-2xl border border-border bg-card p-5">
+    <main className="min-h-screen bg-page px-4 py-6 text-textPrimary lg:px-8 lg:py-10">
+      <div className="mx-auto max-w-lg lg:max-w-5xl">
+        <header className="mb-6 rounded-2xl border border-border bg-card p-5 lg:mb-8">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">Live taggen</p>
-          <h1 className="mt-2 text-2xl font-bold text-textBright">{match.team_a_name} – {match.team_b_name}</h1>
+          <h1 className="mt-2 text-2xl font-bold text-textBright lg:text-3xl">{match.team_a_name} – {match.team_b_name}</h1>
           <p className="mt-1 text-sm text-textMuted">{match.match_date}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p>
         </header>
-        <label className="mb-5 block text-sm text-textSecondary">Jouw naam (optioneel)
-          <input value={taggerName} onChange={(event) => setTaggerName(event.target.value)} className="mt-1 w-full rounded-xl border border-border bg-input px-4 py-3 text-textPrimary" placeholder="Naam tagger" />
-        </label>
-        {!!players.length && <section className="mb-6"><h2 className="mb-2 text-sm font-semibold text-textBright">Speler aanduiden</h2><div className="flex flex-wrap gap-2">{players.map((player) => { const selected = selectedPlayerIds.includes(player.id); return <button key={player.id} type="button" onClick={() => setSelectedPlayerIds((current) => selected ? current.filter((id) => id !== player.id) : [...current, player.id])} className={`rounded-full border px-3 py-2 text-sm ${selected ? "border-accent bg-accentDim text-accent" : "border-borderButton bg-button"}`}>{player.jersey_number ? `${player.jersey_number} · ` : ""}{player.first_name} {player.last_name}</button>; })}</div></section>}
-        <section><h2 className="mb-3 text-sm font-semibold text-textBright">Moment toevoegen</h2><div className="grid grid-cols-2 gap-3">{match.live_tag_names.map((name) => <button key={name} type="button" disabled={saving} onClick={() => void addTag(name)} className="min-h-20 rounded-2xl border border-accent/40 bg-accentDim px-4 py-4 text-lg font-bold text-textBright active:scale-95 disabled:opacity-50">{name}</button>)}</div></section>
+        <div className="lg:grid lg:grid-cols-[300px_1fr] lg:gap-8">
+          <div className="lg:sticky lg:top-10 lg:self-start">
+            <label className="mb-5 block text-sm text-textSecondary lg:mb-6">Jouw naam (optioneel)
+              <input value={taggerName} onChange={(event) => setTaggerName(event.target.value)} className="mt-1 w-full rounded-xl border border-border bg-input px-4 py-3 text-textPrimary" placeholder="Naam tagger" />
+            </label>
+            {!!players.length && <section className="mb-6 lg:mb-0"><h2 className="mb-2 text-sm font-semibold text-textBright">Speler aanduiden</h2><div className="flex flex-wrap gap-2">{players.map((player) => { const selected = selectedPlayerIds.includes(player.id); return <button key={player.id} type="button" onClick={() => setSelectedPlayerIds((current) => selected ? current.filter((id) => id !== player.id) : [...current, player.id])} className={`rounded-full border px-3 py-2 text-sm ${selected ? "border-accent bg-accentDim text-accent" : "border-borderButton bg-button"}`}>{player.jersey_number ? `${player.jersey_number} · ` : ""}{player.first_name} {player.last_name}</button>; })}</div></section>}
+          </div>
+          <section><h2 className="mb-3 text-sm font-semibold text-textBright">Moment toevoegen</h2><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">{match.live_tag_names.map((name) => <button key={name} type="button" disabled={saving} onClick={() => void addTag(name)} className="min-h-20 rounded-2xl border border-accent/40 bg-accentDim px-4 py-4 text-lg font-bold text-textBright transition active:scale-95 disabled:opacity-50 lg:min-h-28 lg:text-xl lg:hover:border-accent lg:hover:bg-accentDim/80">{name}</button>)}</div></section>
+        </div>
         {message && <p className="mt-5 rounded-xl border border-border bg-card p-3 text-center text-sm" role="status">{message}</p>}
       </div>
     </main>

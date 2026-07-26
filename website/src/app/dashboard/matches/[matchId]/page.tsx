@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
 import { formatTime, getTagColor } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
-import type { Match, Player, StandardTag, Tag, TagDrawing, Video } from "@/types/database";
+import type { LiveMatchTag, Match, Player, StandardTag, Tag, TagDrawing, Video } from "@/types/database";
 import { VideoPlayer } from "@/components/video-player/VideoPlayer";
 import { PlaybackControls } from "@/components/video-player/PlaybackControls";
 import { Timeline } from "@/components/video-player/Timeline";
@@ -67,6 +67,7 @@ export default function MatchViewerPage() {
   const [files, setFiles] = useState<Record<string, File>>({});
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [liveTags, setLiveTags] = useState<LiveMatchTag[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [extraPlayers, setExtraPlayers] = useState<Player[]>([]);
@@ -235,6 +236,8 @@ export default function MatchViewerPage() {
     const { data: profile } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
     setCanEditMatch(loaded.coach_id === user.id || profile?.account_role === "club_admin");
     setMatch(loaded);
+    const { data: liveTagData } = await supabase.from("live_match_tags").select("*").eq("match_id", matchId).order("occurred_at");
+    setLiveTags(liveTagData ?? []);
     const loadedVideos = loaded.match_videos.map((block) => block.videos).filter((video): video is Video => !!video);
     if (loadedVideos.length) {
       const [{ data: tagData }, remembered] = await Promise.all([
@@ -451,6 +454,20 @@ export default function MatchViewerPage() {
     setSelectedTagIds((current) => current.filter((id) => id !== tagId));
   }
 
+  async function toggleLiveTagReviewed(liveTag: LiveMatchTag) {
+    const reviewedAt = liveTag.reviewed_at ? null : new Date().toISOString();
+    setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, reviewed_at: reviewedAt } : item));
+    const { error: updateError } = await supabase.from("live_match_tags").update({ reviewed_at: reviewedAt }).eq("id", liveTag.id);
+    if (updateError) setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, reviewed_at: liveTag.reviewed_at } : item));
+  }
+
+  function liveTagElapsedSeconds(liveTag: LiveMatchTag) {
+    if (!match?.match_date || !match.start_time) return null;
+    const kickoff = new Date(`${match.match_date}T${match.start_time}`);
+    if (Number.isNaN(kickoff.getTime())) return null;
+    return Math.max(0, (new Date(liveTag.occurred_at).getTime() - kickoff.getTime()) / 1000);
+  }
+
   function seekTo(time: number) {
     if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current);
     drawingTimerRef.current = null;
@@ -558,6 +575,23 @@ export default function MatchViewerPage() {
         </main>
 
         <aside className="w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
+          {!!liveTags.length && <section className="min-h-0">
+            <h3 className="mb-1 font-semibold text-textBright">{t("liveTags.title")}</h3>
+            <p className="mb-2 text-xs text-textMuted">{t("liveTags.subtitle")}</p>
+            <div className="space-y-2">
+              {liveTags.map((liveTag) => {
+                const elapsed = liveTagElapsedSeconds(liveTag);
+                return <div key={liveTag.id} className={`flex items-center gap-2 rounded-lg border border-border bg-cardDeep px-3 py-2 ${liveTag.reviewed_at ? "opacity-50" : ""}`}>
+                  <input type="checkbox" checked={!!liveTag.reviewed_at} onChange={() => void toggleLiveTagReviewed(liveTag)} title={t("liveTags.reviewed")} className="h-4 w-4 flex-shrink-0 accent-accent" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-textPrimary">{liveTag.tag_name}</p>
+                    <p className="truncate text-xs text-textMuted">{liveTag.tagger_name ? t("liveTags.by", { name: liveTag.tagger_name }) : t("liveTags.byUnknown")}{elapsed !== null ? ` · ${formatClock(elapsed)}` : ""}</p>
+                  </div>
+                  {elapsed !== null && <button type="button" onClick={() => seekTo(elapsed)} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.goTo")}</button>}
+                </div>;
+              })}
+            </div>
+          </section>}
           <section className="min-h-0">
             <h3 className="mb-2 font-semibold text-textBright">{t("video.taggedClips")}</h3>
             <TagList tags={displayTags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={(id) => void deleteTag(id)} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={combinedTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />

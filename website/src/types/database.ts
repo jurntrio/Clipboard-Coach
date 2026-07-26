@@ -180,6 +180,18 @@ export type Match = {
   external_match_id: string | null;
 };
 
+export type LiveMatchTag = {
+  id: string;
+  match_id: string;
+  link_id: string | null;
+  tag_name: string;
+  player_ids: string[];
+  tagger_name: string | null;
+  occurred_at: string;
+  reviewed_at: string | null;
+  created_at: string;
+};
+
 export type MatchVideo = {
   id: string;
   match_id: string;
