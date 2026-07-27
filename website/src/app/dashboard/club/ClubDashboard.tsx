@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ClubTeamsManager } from "./ClubTeamsManager";
 
-type Club = { id: string; name: string; rbfa_registration_number: string | null };
+type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean };
 type Team = {
   id: string;
   club_id: string;
@@ -79,6 +79,25 @@ export function ClubDashboard() {
     } : current);
   }
 
+  async function setClipAdvertising(enabled: boolean) {
+    if (!club || readOnly) return;
+    const key = `clips:${club.id}`;
+    setSaving(key);
+    setError("");
+    const response = await fetch("/api/club/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clubId: club.id, clipAdvertisingEnabled: enabled })
+    });
+    const body = await response.json();
+    setSaving("");
+    if (!response.ok) return setError(body.error || "Clipinstellingen konden niet worden bewaard.");
+    setData((current) => current ? {
+      ...current,
+      clubs: current.clubs.map((item) => item.id === club.id ? { ...item, clip_advertising_enabled: enabled } : item)
+    } : current);
+  }
+
   if (error) return <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div>;
   if (!data) return <div className="text-textMuted">Clubgegevens laden…</div>;
   if (!data.clubs.length) return <div className="text-textMuted">Je bent nog niet aan een club gekoppeld.</div>;
@@ -111,6 +130,24 @@ export function ClubDashboard() {
       </section>
 
       <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} migrationIssues={migrationIssues} onChanged={load} readOnly={readOnly} />
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-xl font-semibold text-textBright">Clips</h2>
+        <p className="mt-1 text-sm text-textMuted">Bepaal wat er onderaan de publieke gedeelde clips van deze club verschijnt.</p>
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-borderSubtle bg-cardDeep p-4">
+          <input
+            type="checkbox"
+            checked={club?.clip_advertising_enabled !== false}
+            disabled={readOnly || saving === `clips:${club?.id}`}
+            onChange={(event) => void setClipAdvertising(event.target.checked)}
+            className="mt-0.5 h-5 w-5 accent-accent disabled:opacity-60"
+          />
+          <span>
+            <span className="block font-semibold text-textPrimary">Voeg reclame toe</span>
+            <span className="mt-1 block text-sm text-textMuted">Toon de vaste sponsorafbeelding onder de video op gedeelde clippagina’s.</span>
+          </span>
+        </label>
+      </section>
 
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Wedstrijden toewijzen</h2>

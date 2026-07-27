@@ -36,6 +36,7 @@ export type Club = {
   external_club_id: string | null;
   external_sync_status: string | null;
   last_synced_at: string | null;
+  clip_advertising_enabled: boolean;
   created_at: string;
   updated_at: string;
 };

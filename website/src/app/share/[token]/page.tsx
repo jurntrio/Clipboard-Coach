@@ -16,7 +16,7 @@ export default async function SharePage({ params }: { params: { token: string } 
     .select(
       `id, view_count, expires_at,
        clips (
-         name, render_status, rendered_segments,
+         name, team_id, render_status, rendered_segments,
          videos ( video_url, title, home_team, away_team ),
          clip_segments ( id, sequence_order, video_id, videos ( video_url ), tags ( id, name, start_time, end_time, color ) )
        )`
@@ -57,28 +57,29 @@ export default async function SharePage({ params }: { params: { token: string } 
         source_end: segment.source_end
       }))
     : sourceSegments;
-  const publicClipName = /^Clip \(\d+ tags?\)$/i.test(clip.name) ? t("public.sharedClip") : clip.name;
   const hasOnlineSegments = clip.render_status === "ready" && segments.length > 0 && segments.every((segment: any) => typeof segment.url === "string" && /^https?:\/\//.test(segment.url));
+  let showAdvertising = true;
+  if (clip.team_id) {
+    const { data: team } = await supabase.from("teams").select("club_team_id").eq("id", clip.team_id).maybeSingle();
+    if (team?.club_team_id) {
+      const { data: clubTeam } = await supabase.from("club_teams").select("club_id").eq("id", team.club_team_id).maybeSingle();
+      if (clubTeam?.club_id) {
+        const { data: club } = await supabase.from("clubs").select("clip_advertising_enabled").eq("id", clubTeam.club_id).maybeSingle();
+        showAdvertising = club?.clip_advertising_enabled !== false;
+      }
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-page">
+    <div className="flex min-h-screen flex-col bg-page">
       <header className="border-b border-border bg-black/80 px-4 py-5">
-        <div className="mx-auto flex max-w-4xl justify-center">
+        <div className="mx-auto flex max-w-6xl justify-center">
           <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={480} height={150} className="h-auto w-full max-w-md" priority />
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-textBright">{publicClipName}</h1>
-          {(clip.videos?.home_team || clip.videos?.away_team) && (
-            <p className="text-textMuted">
-              {clip.videos?.home_team} vs {clip.videos?.away_team}
-            </p>
-          )}
-        </div>
-
-        <div className="bg-card rounded-xl overflow-hidden border border-border">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center px-4 py-6">
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
           {hasOnlineSegments ? (
             <ShareClipPlayer videoUrl={clip.videos?.video_url} segments={segments} />
           ) : (
@@ -87,10 +88,21 @@ export default async function SharePage({ params }: { params: { token: string } 
             </div>
           )}
         </div>
-      </div>
+        {showAdvertising && (
+          <div className="mt-5 overflow-hidden rounded-xl border border-border bg-white">
+            <Image
+              src="/branding/clip-sponsors.png"
+              alt="Sponsors"
+              width={2048}
+              height={768}
+              className="h-auto w-full"
+            />
+          </div>
+        )}
+      </main>
 
-      <footer className="border-t border-border bg-black/50 px-4 py-8 text-center">
-        <div className="mx-auto flex max-w-4xl flex-col items-center">
+      <footer className="mt-auto border-t border-border bg-black px-4 py-8 text-center">
+        <div className="mx-auto flex max-w-6xl flex-col items-center">
           <Image src="/branding/logo.png" alt="" width={48} height={48} className="mb-3 h-12 w-12" />
           <p className="text-sm font-semibold text-textPrimary">{t("public.madeWith")}</p>
           <p className="mt-1 text-xs text-textMuted">{t("public.tagline")}</p>
