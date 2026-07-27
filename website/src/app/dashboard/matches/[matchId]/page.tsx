@@ -54,7 +54,7 @@ function parseClockTime(value: string): number | null {
   return null;
 }
 
-function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleReviewed, onSeek, onCalibrate, onUpdateTimes, t }: {
+function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleReviewed, onSeek, onCalibrate, onUpdateTimes, onDelete, t }: {
   liveTag: LiveMatchTag;
   materializedTag: Tag | undefined;
   elapsed: number | null;
@@ -63,6 +63,7 @@ function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleRevie
   onSeek: (time: number) => void;
   onCalibrate: () => void;
   onUpdateTimes: (startTime: number, endTime: number) => void;
+  onDelete: () => void;
   t: ReturnType<typeof useI18n>["t"];
 }) {
   const [startDraft, setStartDraft] = useState(materializedTag ? formatTime(materializedTag.start_time) : "");
@@ -98,6 +99,7 @@ function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleRevie
         </div>
         <button type="button" onClick={onCalibrate} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">🎯</button>
         {elapsed !== null && <button type="button" onClick={() => onSeek(elapsed)} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.goTo")}</button>}
+        <button type="button" onClick={onDelete} title={t("liveTags.delete")} aria-label={t("liveTags.delete")} className="flex-shrink-0 px-1 text-sm text-textMuted hover:text-red-400">&times;</button>
       </div>
       {materializedTag ? (
         <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-textMuted">
@@ -655,6 +657,13 @@ export default function MatchViewerPage() {
     setSelectedTagIds((current) => current.filter((id) => id !== tagId));
   }
 
+  async function deleteLiveTag(liveTag: LiveMatchTag) {
+    if (liveTag.tag_id) await deleteTag(liveTag.tag_id);
+    const { error: deleteError } = await supabase.from("live_match_tags").delete().eq("id", liveTag.id);
+    if (deleteError) { setError(deleteError.message); return; }
+    setLiveTags((current) => current.filter((item) => item.id !== liveTag.id));
+  }
+
   async function toggleLiveTagReviewed(liveTag: LiveMatchTag) {
     const reviewedAt = liveTag.reviewed_at ? null : new Date().toISOString();
     setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, reviewed_at: reviewedAt } : item));
@@ -962,6 +971,7 @@ export default function MatchViewerPage() {
                   onSeek={seekTo}
                   onCalibrate={() => setCalibratingLiveTagId(liveTag.id)}
                   onUpdateTimes={(startTime, endTime) => { if (liveTag.tag_id) void updateTag(liveTag.tag_id, startTime, endTime); }}
+                  onDelete={() => void deleteLiveTag(liveTag)}
                   t={t}
                 />;
               })}
