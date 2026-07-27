@@ -146,7 +146,9 @@ export function ClipBuilder({
       if (siblings.length < 2) return [{ tag, videoId: tag.video_id }];
       const chosen = new Set(selectedCamerasForTag(tag));
       return siblings.filter((camera) => chosen.has(camera.id)).map((camera) => ({ tag, videoId: camera.id }));
-    });
+    }).filter((segment, index, allSegments) =>
+      allSegments.findIndex((candidate) => candidate.tag.id === segment.tag.id && candidate.videoId === segment.videoId) === index
+    );
     let resolvedClipName = clipName.trim();
     if (!resolvedClipName && orderedTags.length === 1) {
       resolvedClipName = orderedTags[0].name;
