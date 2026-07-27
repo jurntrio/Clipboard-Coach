@@ -334,7 +334,21 @@ export default function MatchViewerPage() {
   const displayTags = useMemo(() => tags.map((tag) => {
     const offset = offsets.map.get(tag.video_id) ?? 0;
     return { ...tag, start_time: tag.start_time + offset, end_time: tag.end_time + offset };
-  }), [offsets, tags]);
+  }).sort((a, b) =>
+    a.start_time - b.start_time ||
+    a.end_time - b.end_time ||
+    a.created_at.localeCompare(b.created_at)
+  ), [offsets, tags]);
+  const sortedLiveTags = useMemo(() => {
+    const displayedTagById = new Map(displayTags.map((tag) => [tag.id, tag]));
+    return [...liveTags].sort((a, b) => {
+      const aTime = (a.tag_id ? displayedTagById.get(a.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(a);
+      const bTime = (b.tag_id ? displayedTagById.get(b.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(b);
+      if (aTime === null) return bTime === null ? a.occurred_at.localeCompare(b.occurred_at) : 1;
+      if (bTime === null) return -1;
+      return aTime - bTime || a.occurred_at.localeCompare(b.occurred_at);
+    });
+  }, [displayTags, liveTags, match]);
   const markerTags = ["Start", "End"] as const;
   const clipTags = standardTags.filter((tag) => !isPeriodMarker(tag.name));
 
@@ -981,7 +995,7 @@ export default function MatchViewerPage() {
               </div>
             )}
             <div className="space-y-2">
-              {liveTags.map((liveTag) => {
+              {sortedLiveTags.map((liveTag) => {
                 const elapsed = liveTagElapsedSeconds(liveTag);
                 const materializedTag = liveTag.tag_id ? displayTags.find((tag) => tag.id === liveTag.tag_id) : undefined;
                 return <LiveTagRow
