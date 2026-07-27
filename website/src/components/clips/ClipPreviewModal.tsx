@@ -34,6 +34,7 @@ export function ClipPreviewModal({
   const { t } = useI18n();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const continuePlayingRef = useRef(true);
+  const changingSegmentRef = useRef(false);
   const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drawingActiveRef = useRef(false);
   const shownDrawingIdsRef = useRef(new Set<string>());
@@ -54,7 +55,7 @@ export function ClipPreviewModal({
   }, [segmentIndex]);
 
   function handleTimeUpdate(event: React.SyntheticEvent<HTMLVideoElement>) {
-    if (!segment) return;
+    if (!segment || changingSegmentRef.current) return;
     const drawing = segment.drawings?.find((item) => !shownDrawingIdsRef.current.has(item.id) && event.currentTarget.currentTime >= item.at_time - 0.08);
     if (drawing && !activeDrawing) {
       shownDrawingIdsRef.current.add(drawing.id);
@@ -71,6 +72,7 @@ export function ClipPreviewModal({
     }
     if (event.currentTarget.currentTime >= segment.end_time) {
       if (segmentIndex < segments.length - 1) {
+        changingSegmentRef.current = true;
         continuePlayingRef.current = !event.currentTarget.paused || continuePlayingRef.current;
         setSegmentIndex((current) => current + 1);
       } else {
@@ -89,7 +91,8 @@ export function ClipPreviewModal({
   }
 
   function handleEnded() {
-    if (segmentIndex < segments.length - 1) {
+    if (segmentIndex < segments.length - 1 && !changingSegmentRef.current) {
+      changingSegmentRef.current = true;
       continuePlayingRef.current = true;
       setSegmentIndex((current) => current + 1);
     }
@@ -98,10 +101,12 @@ export function ClipPreviewModal({
   function handleLoadedMetadata(event: React.SyntheticEvent<HTMLVideoElement>) {
     if (!segment) return;
     event.currentTarget.currentTime = segment.start_time;
+    changingSegmentRef.current = false;
     if (continuePlayingRef.current) event.currentTarget.play().catch(() => undefined);
   }
 
   function selectSegment(index: number) {
+    changingSegmentRef.current = index !== segmentIndex;
     continuePlayingRef.current = true;
     setSegmentIndex(index);
   }
@@ -126,7 +131,6 @@ export function ClipPreviewModal({
 
         <div className="relative bg-black">
           <video
-            key={`${segment?.id ?? "source"}:${currentSource}`}
             ref={videoRef}
             src={currentSource}
             controls
