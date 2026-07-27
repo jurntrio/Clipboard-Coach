@@ -20,7 +20,11 @@ async function downloadRemoteFile(url: string, destPath: string) {
 }
 
 type RemoteSegmentRow = {
+  id: string;
   sequence_order: number;
+  render_status: "pending" | "rendering" | "ready" | "failed";
+  rendered_segment: RenderedRemoteSegment | null;
+  render_attempts: number;
   videos: { video_url: string } | null;
   tags: {
     name: string;
@@ -32,6 +36,25 @@ type RemoteSegmentRow = {
   } | null;
 };
 
+type RenderedRemoteSegment = {
+  id: string;
+  url: string;
+  key: string;
+  name: string;
+  color: string;
+  file_size: number;
+  duration: number;
+  play_start: number;
+  source_start: number;
+  source_end: number;
+  drawing_time_base: "clip";
+  drawings: [];
+  video_codec: "avc";
+  mobile_compatible: true;
+  clip_segment_id: string;
+  sequence_order: number;
+};
+
 /**
  * Renders a clip whose segments live on a remote source (not previously uploaded to R2 by the
  * browser) from each source video's URL. Each distinct source is downloaded to local disk once
@@ -40,15 +63,17 @@ type RemoteSegmentRow = {
  */
 export async function processRemoteClip(clipId: string) {
   let workDir: string | null = null;
+  let activeSegmentId: string | null = null;
 
   try {
     workDir = await fsp.mkdtemp(path.join(os.tmpdir(), `cc-remote-clip-${clipId}-`));
     const { data: clip, error: clipError } = await supabase.from("clips").select("coach_id").eq("id", clipId).single();
     if (clipError || !clip) throw clipError ?? new Error("Clip not found");
+    await supabase.from("clips").update({ render_status: "rendering", render_error: null }).eq("id", clipId);
 
     const { data: segmentRows, error: segmentsError } = await supabase
       .from("clip_segments")
-      .select("sequence_order, videos(video_url), tags(name, color, start_time, end_time, drawings, videos(video_url))")
+      .select("id, sequence_order, render_status, rendered_segment, render_attempts, videos(video_url), tags(name, color, start_time, end_time, drawings, videos(video_url))")
       .eq("clip_id", clipId)
       .order("sequence_order");
     if (segmentsError) throw segmentsError;
@@ -65,9 +90,21 @@ export async function processRemoteClip(clipId: string) {
       return localPath;
     }
 
-    const rendered = [];
+    const rendered: RenderedRemoteSegment[] = [];
     for (let index = 0; index < segments.length; index += 1) {
       const segment = segments[index];
+      if (segment.render_status === "ready" && segment.rendered_segment?.url) {
+        rendered.push(segment.rendered_segment);
+        continue;
+      }
+      activeSegmentId = segment.id;
+      const { error: startError } = await supabase.from("clip_segments").update({
+        render_status: "rendering",
+        render_error: null,
+        render_attempts: (segment.render_attempts ?? 0) + 1,
+        render_started_at: new Date().toISOString()
+      }).eq("id", segment.id);
+      if (startError) throw startError;
       const tag = segment.tags!;
       const sourceUrl = segment.videos?.video_url ?? tag.videos?.video_url;
       if (!sourceUrl) throw new Error(`Segment ${index} has no source video`);
@@ -91,7 +128,7 @@ export async function processRemoteClip(clipId: string) {
       const url = await uploadFile(key, outputPath, "video/mp4");
       const stat = await fsp.stat(outputPath);
       const duration = await probeDurationSeconds(outputPath);
-      rendered.push({
+      const renderedSegment: RenderedRemoteSegment = {
         id: randomUUID(),
         url,
         key,
@@ -105,17 +142,31 @@ export async function processRemoteClip(clipId: string) {
         drawing_time_base: "clip",
         drawings: [],
         video_codec: "avc",
-        mobile_compatible: true
-      });
+        mobile_compatible: true,
+        clip_segment_id: segment.id,
+        sequence_order: segment.sequence_order
+      };
+      const { error: persistError } = await supabase.from("clip_segments").update({
+        render_status: "ready",
+        rendered_segment: renderedSegment,
+        render_error: null,
+        render_completed_at: new Date().toISOString()
+      }).eq("id", segment.id);
+      if (persistError) throw persistError;
+      rendered.push(renderedSegment);
+      activeSegmentId = null;
     }
 
     const { error: updateError } = await supabase
       .from("clips")
-      .update({ rendered_segments: rendered, render_status: "ready", render_error: null })
+      .update({ rendered_segments: rendered.sort((a, b) => a.sequence_order - b.sequence_order), render_status: "ready", render_error: null })
       .eq("id", clipId);
     if (updateError) throw updateError;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (activeSegmentId) {
+      await supabase.from("clip_segments").update({ render_status: "failed", render_error: message }).eq("id", activeSegmentId);
+    }
     await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", clipId);
     throw error;
   } finally {

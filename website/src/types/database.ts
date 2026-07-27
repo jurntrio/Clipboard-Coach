@@ -294,6 +294,12 @@ export type ClipSegment = {
   tag_id: string;
   video_id: string | null;
   sequence_order: number;
+  render_status: "pending" | "rendering" | "ready" | "failed";
+  rendered_segment: Record<string, unknown> | null;
+  render_error: string | null;
+  render_attempts: number;
+  render_started_at: string | null;
+  render_completed_at: string | null;
   created_at: string;
 };
 
