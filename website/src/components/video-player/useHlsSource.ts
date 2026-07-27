@@ -14,7 +14,10 @@ export function useHlsSource(videoRef: React.RefObject<HTMLVideoElement | null>,
     const supportsNativeHls = video.canPlayType("application/vnd.apple.mpegurl") !== "";
 
     if (!isHls || supportsNativeHls) {
-      video.src = src;
+      const resolvedSource = new URL(src, window.location.href).href;
+      if (video.currentSrc !== resolvedSource && video.src !== resolvedSource) {
+        video.src = src;
+      }
       return;
     }
 
@@ -24,7 +27,10 @@ export function useHlsSource(videoRef: React.RefObject<HTMLVideoElement | null>,
     import("hls.js").then(({ default: Hls }) => {
       if (cancelled) return;
       if (!Hls.isSupported()) {
-        video.src = src;
+        const resolvedSource = new URL(src, window.location.href).href;
+        if (video.currentSrc !== resolvedSource && video.src !== resolvedSource) {
+          video.src = src;
+        }
         return;
       }
       hlsInstance = new Hls();

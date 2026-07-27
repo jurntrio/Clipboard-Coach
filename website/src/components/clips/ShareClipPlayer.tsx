@@ -51,7 +51,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
       pendingLocalTimeRef.current = null;
       if (continuePlayingRef.current) player.play().catch(() => { setPlaying(false); setPlaybackError(t("clip.playFailed")); });
     }
-  }, [segmentIndex, segment]);
+  }, [segmentIndex, segment?.id, segment?.start_time, currentSource]);
 
   function handleLoadedMetadata() {
     const player = videoRef.current;
