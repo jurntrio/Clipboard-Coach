@@ -114,10 +114,15 @@ export function TagList({ tags, selectedTagIds, onToggleSelect, onSeek, onDelete
 }) {
   const { t } = useI18n();
   if (tags.length === 0) return <p className="text-sm text-textMuted">{t("tag.none")}</p>;
+  const sortedTags = [...tags].sort((a, b) =>
+    a.start_time - b.start_time ||
+    a.end_time - b.end_time ||
+    a.created_at.localeCompare(b.created_at)
+  );
 
   return (
     <div className="flex flex-col gap-1 overflow-y-auto">
-      {tags.map((tag) => <TagRow key={tag.id} tag={tag} selected={selectedTagIds.includes(tag.id)} onToggleSelect={onToggleSelect} onSeek={onSeek} onDelete={onDelete} onUpdate={onUpdate} onRename={onRename} onDraw={onDraw} currentTime={currentTime} onDrawingDurationChange={onDrawingDurationChange} onOpenDrawing={onOpenDrawing} />)}
+      {sortedTags.map((tag) => <TagRow key={tag.id} tag={tag} selected={selectedTagIds.includes(tag.id)} onToggleSelect={onToggleSelect} onSeek={onSeek} onDelete={onDelete} onUpdate={onUpdate} onRename={onRename} onDraw={onDraw} currentTime={currentTime} onDrawingDurationChange={onDrawingDurationChange} onOpenDrawing={onOpenDrawing} />)}
     </div>
   );
 }
