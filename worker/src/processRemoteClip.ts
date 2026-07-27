@@ -1,10 +1,23 @@
-import fs from "node:fs/promises";
+import fs from "node:fs";
+import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import { randomUUID } from "node:crypto";
 import { buildMobileMp4WithDrawings, probeDurationSeconds } from "./hlsPipeline";
 import { downloadToFile, uploadFile } from "./r2";
 import { supabase } from "./supabase";
+
+// ffmpeg's HTTP protocol handler segfaults reading these sources directly
+// (confirmed: identical -ss/-i args crash over the network but succeed
+// against a local copy of the exact same file) - likely because these are
+// raw multi-GB (>4GB) camera recordings, a known trigger for demuxer bugs.
+// Downloading first sidesteps ffmpeg's network code path entirely.
+async function downloadRemoteFile(url: string, destPath: string) {
+  const response = await fetch(url);
+  if (!response.ok || !response.body) throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
+  await pipeline(response.body as unknown as NodeJS.ReadableStream, fs.createWriteStream(destPath));
+}
 
 type RemoteSegmentRow = {
   sequence_order: number;
@@ -21,14 +34,15 @@ type RemoteSegmentRow = {
 
 /**
  * Renders a clip whose segments live on a remote source (not previously uploaded to R2 by the
- * browser) directly from each source video's URL. ffmpeg seeks via HTTP range requests, so only
- * the needed portion of the (possibly multi-GB) source is ever read.
+ * browser) from each source video's URL. Each distinct source is downloaded to local disk once
+ * (see downloadRemoteFile above) and ffmpeg runs against that local copy - passing the remote
+ * URL straight to ffmpeg reliably segfaults on these multi-GB recordings.
  */
 export async function processRemoteClip(clipId: string) {
   let workDir: string | null = null;
 
   try {
-    workDir = await fs.mkdtemp(path.join(os.tmpdir(), `cc-remote-clip-${clipId}-`));
+    workDir = await fsp.mkdtemp(path.join(os.tmpdir(), `cc-remote-clip-${clipId}-`));
     const { data: clip, error: clipError } = await supabase.from("clips").select("coach_id").eq("id", clipId).single();
     if (clipError || !clip) throw clipError ?? new Error("Clip not found");
 
@@ -41,16 +55,27 @@ export async function processRemoteClip(clipId: string) {
     const segments = ((segmentRows ?? []) as unknown as RemoteSegmentRow[]).filter((segment) => !!segment.tags);
     if (!segments.length) throw new Error("Clip has no segments");
 
+    const localSourcesByUrl = new Map<string, string>();
+    async function localSourcePath(sourceUrl: string, index: number) {
+      const cached = localSourcesByUrl.get(sourceUrl);
+      if (cached) return cached;
+      const localPath = path.join(workDir!, `source-${index}-${randomUUID()}.mp4`);
+      await downloadRemoteFile(sourceUrl, localPath);
+      localSourcesByUrl.set(sourceUrl, localPath);
+      return localPath;
+    }
+
     const rendered = [];
     for (let index = 0; index < segments.length; index += 1) {
       const segment = segments[index];
       const tag = segment.tags!;
       const sourceUrl = segment.videos?.video_url ?? tag.videos?.video_url;
       if (!sourceUrl) throw new Error(`Segment ${index} has no source video`);
+      const localSource = await localSourcePath(sourceUrl, index);
 
       const outputPath = path.join(workDir, `${index}-mobile.mp4`);
       const segmentWorkDir = path.join(workDir, `${index}-parts`);
-      await fs.mkdir(segmentWorkDir, { recursive: true });
+      await fsp.mkdir(segmentWorkDir, { recursive: true });
 
       const drawingInputs = [];
       for (const [drawingIndex, drawing] of (tag.drawings ?? []).entries()) {
@@ -60,11 +85,11 @@ export async function processRemoteClip(clipId: string) {
         drawingInputs.push({ imagePath, atSeconds: drawing.video_time - tag.start_time, durationSeconds: drawing.duration_seconds });
       }
 
-      await buildMobileMp4WithDrawings(sourceUrl, outputPath, drawingInputs, segmentWorkDir, tag.start_time, tag.end_time - tag.start_time);
+      await buildMobileMp4WithDrawings(localSource, outputPath, drawingInputs, segmentWorkDir, tag.start_time, tag.end_time - tag.start_time);
 
       const key = `clips/${clip.coach_id}/${clipId}/${index}-${randomUUID()}-mobile.mp4`;
       const url = await uploadFile(key, outputPath, "video/mp4");
-      const stat = await fs.stat(outputPath);
+      const stat = await fsp.stat(outputPath);
       const duration = await probeDurationSeconds(outputPath);
       rendered.push({
         id: randomUUID(),
@@ -94,6 +119,6 @@ export async function processRemoteClip(clipId: string) {
     await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", clipId);
     throw error;
   } finally {
-    if (workDir) await fs.rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+    if (workDir) await fsp.rm(workDir, { recursive: true, force: true }).catch(() => undefined);
   }
 }

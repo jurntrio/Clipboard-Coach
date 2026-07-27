@@ -4,6 +4,11 @@ import { supabase } from "./supabase";
 type ResourceKind = "video" | "clip";
 const LOCK_TTL_MINUTES = 60;
 
+// ffmpeg jobs are CPU/IO heavy; running several at once has caused ffmpeg to
+// die immediately with no useful stderr. Chain them onto one queue so only
+// one job's ffmpeg process runs at a time, regardless of resource kind/id.
+let jobQueue: Promise<void> = Promise.resolve();
+
 export async function startLockedJob(resourceKind: ResourceKind, resourceId: string, job: () => Promise<void>) {
   const lockToken = randomUUID();
   const now = new Date();
@@ -26,7 +31,8 @@ export async function startLockedJob(resourceKind: ResourceKind, resourceId: str
   if (error?.code === "23505") return false;
   if (error) throw error;
 
-  void job()
+  jobQueue = jobQueue
+    .then(() => job())
     .catch((jobError) => console.error(`[worker] ${resourceKind} job ${resourceId} failed:`, jobError))
     .finally(async () => {
       const { error: releaseError } = await supabase

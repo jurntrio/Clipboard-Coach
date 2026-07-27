@@ -33,6 +33,29 @@ type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
 
 const MAX_CLIP_SECONDS = 180;
 
+// Same offset logic as the `offsets` useMemo below, but self-contained so it can run inside
+// loadMatch() right after a fetch, before `match` state (and the memo derived from it) exists yet.
+function computeVideoOffsets(matchVideos: MatchBlock[]): Map<string, number> {
+  const sortedBlocks = [...matchVideos].sort((a, b) => a.sequence_order - b.sequence_order);
+  const primaryBlocks = sortedBlocks.filter((block) => block.is_primary);
+  const camerasByBlockOrder = new Map<number, MatchBlock[]>();
+  for (const block of sortedBlocks) {
+    if (!block.videos) continue;
+    const list = camerasByBlockOrder.get(block.sequence_order) ?? [];
+    list.push(block);
+    camerasByBlockOrder.set(block.sequence_order, list);
+  }
+  const map = new Map<string, number>();
+  let offset = 0;
+  for (const block of primaryBlocks) {
+    if (!block.videos) continue;
+    const cameras = camerasByBlockOrder.get(block.sequence_order) ?? [block];
+    for (const cameraBlock of cameras) if (cameraBlock.videos) map.set(cameraBlock.videos.id, offset);
+    offset += block.videos.duration ?? 0;
+  }
+  return map;
+}
+
 function drawingsSeconds(drawings: TagDrawing[] | undefined) {
   return (drawings ?? []).reduce((sum, drawing) => sum + Math.max(1, drawing.duration_seconds), 0);
 }
@@ -358,8 +381,8 @@ export default function MatchViewerPage() {
         supabase.from("tags").select("*").in("video_id", loadedVideos.map((video) => video.id)),
         Promise.all(loadedVideos.map(async (video) => [video.id, await getRememberedLocalVideo(video.id)] as const))
       ]);
-      const order = new Map(loadedVideos.map((video, index) => [video.id, index]));
-      setTags((tagData ?? []).sort((a, b) => (order.get(a.video_id) ?? 0) - (order.get(b.video_id) ?? 0) || a.start_time - b.start_time));
+      const freshOffsets = computeVideoOffsets(loaded.match_videos);
+      setTags((tagData ?? []).sort((a, b) => (freshOffsets.get(a.video_id) ?? 0) + a.start_time - ((freshOffsets.get(b.video_id) ?? 0) + b.start_time)));
       setFiles(Object.fromEntries(remembered.filter((entry): entry is readonly [string, File] => !!entry[1])));
     }
   }
