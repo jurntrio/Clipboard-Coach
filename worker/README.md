@@ -25,6 +25,16 @@ viewer can stream and scrub reliably, then deletes the original from R2.
 While processing is running, the coach can already scrub/tag the raw
 upload — the swap to the compressed proxy happens invisibly once it's done.
 
+## Remote clip extraction
+
+Remote MP4 sources that advertise `Accept-Ranges: bytes` are read through a loopback-only range
+proxy. FFmpeg then transfers only the MP4 index and media bytes around each requested tag instead
+of downloading the complete multi-gigabyte camera recording. Completed segments are persisted
+individually, so interrupted jobs resume from the first unfinished segment.
+
+If a source does not support byte ranges or range extraction fails, the worker falls back once per
+camera to the original full-file download path.
+
 ## Clip retention
 
 Shared clips are retained for 365 days. The worker runs a cleanup on startup

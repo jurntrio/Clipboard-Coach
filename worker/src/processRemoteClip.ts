@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { buildMobileMp4WithDrawings, probeDurationSeconds } from "./hlsPipeline";
 import { downloadToFile, uploadFile } from "./r2";
 import { supabase } from "./supabase";
+import { createRemoteRangeProxy, type RemoteRangeProxy } from "./remoteRangeProxy";
 
 // ffmpeg's HTTP protocol handler segfaults reading these sources directly
 // (confirmed: identical -ss/-i args crash over the network but succeed
@@ -57,13 +58,16 @@ type RenderedRemoteSegment = {
 
 /**
  * Renders a clip whose segments live on a remote source (not previously uploaded to R2 by the
- * browser) from each source video's URL. Each distinct source is downloaded to local disk once
- * (see downloadRemoteFile above) and ffmpeg runs against that local copy - passing the remote
- * URL straight to ffmpeg reliably segfaults on these multi-GB recordings.
+ * browser) from each source video's URL. A localhost proxy preserves the source's HTTP byte-range
+ * semantics while isolating ffmpeg from the multi-GB remote URL that previously made it segfault.
+ * Only the MP4 index and bytes around the requested tag are transferred. A full local download
+ * remains available as a per-camera fallback.
  */
 export async function processRemoteClip(clipId: string) {
   let workDir: string | null = null;
   let activeSegmentId: string | null = null;
+  const rangeProxiesByUrl = new Map<string, RemoteRangeProxy>();
+  const fallbackSourcesByUrl = new Map<string, string>();
 
   try {
     workDir = await fsp.mkdtemp(path.join(os.tmpdir(), `cc-remote-clip-${clipId}-`));
@@ -80,13 +84,19 @@ export async function processRemoteClip(clipId: string) {
     const segments = ((segmentRows ?? []) as unknown as RemoteSegmentRow[]).filter((segment) => !!segment.tags);
     if (!segments.length) throw new Error("Clip has no segments");
 
-    const localSourcesByUrl = new Map<string, string>();
-    async function localSourcePath(sourceUrl: string, index: number) {
-      const cached = localSourcesByUrl.get(sourceUrl);
+    async function rangeSource(sourceUrl: string) {
+      const cached = rangeProxiesByUrl.get(sourceUrl);
+      if (cached) return cached.inputUrl;
+      const proxy = await createRemoteRangeProxy(sourceUrl);
+      rangeProxiesByUrl.set(sourceUrl, proxy);
+      return proxy.inputUrl;
+    }
+    async function fallbackSource(sourceUrl: string, index: number) {
+      const cached = fallbackSourcesByUrl.get(sourceUrl);
       if (cached) return cached;
       const localPath = path.join(workDir!, `source-${index}-${randomUUID()}.mp4`);
       await downloadRemoteFile(sourceUrl, localPath);
-      localSourcesByUrl.set(sourceUrl, localPath);
+      fallbackSourcesByUrl.set(sourceUrl, localPath);
       return localPath;
     }
 
@@ -108,7 +118,6 @@ export async function processRemoteClip(clipId: string) {
       const tag = segment.tags!;
       const sourceUrl = segment.videos?.video_url ?? tag.videos?.video_url;
       if (!sourceUrl) throw new Error(`Segment ${index} has no source video`);
-      const localSource = await localSourcePath(sourceUrl, index);
 
       const outputPath = path.join(workDir, `${index}-mobile.mp4`);
       const segmentWorkDir = path.join(workDir, `${index}-parts`);
@@ -122,7 +131,20 @@ export async function processRemoteClip(clipId: string) {
         drawingInputs.push({ imagePath, atSeconds: drawing.video_time - tag.start_time, durationSeconds: drawing.duration_seconds });
       }
 
-      await buildMobileMp4WithDrawings(localSource, outputPath, drawingInputs, segmentWorkDir, tag.start_time, tag.end_time - tag.start_time);
+      let usedRangeExtraction = false;
+      if (!fallbackSourcesByUrl.has(sourceUrl)) {
+        try {
+          const proxyInput = await rangeSource(sourceUrl);
+          await buildMobileMp4WithDrawings(proxyInput, outputPath, drawingInputs, segmentWorkDir, tag.start_time, tag.end_time - tag.start_time);
+          usedRangeExtraction = true;
+        } catch (rangeError) {
+          console.warn(`[worker] range extraction unavailable for clip ${clipId} segment ${segment.id}; using full-download fallback`);
+        }
+      }
+      if (!usedRangeExtraction) {
+        const localSource = await fallbackSource(sourceUrl, index);
+        await buildMobileMp4WithDrawings(localSource, outputPath, drawingInputs, segmentWorkDir, tag.start_time, tag.end_time - tag.start_time);
+      }
 
       const key = `clips/${clip.coach_id}/${clipId}/${index}-${randomUUID()}-mobile.mp4`;
       const url = await uploadFile(key, outputPath, "video/mp4");
@@ -162,6 +184,9 @@ export async function processRemoteClip(clipId: string) {
       .update({ rendered_segments: rendered.sort((a, b) => a.sequence_order - b.sequence_order), render_status: "ready", render_error: null })
       .eq("id", clipId);
     if (updateError) throw updateError;
+    for (const proxy of rangeProxiesByUrl.values()) {
+      console.log(`[worker] clip ${clipId} range source complete: ${proxy.stats.requestCount} requests, ${Math.round(proxy.stats.transferredBytes / 1048576)} MiB`);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (activeSegmentId) {
@@ -170,6 +195,7 @@ export async function processRemoteClip(clipId: string) {
     await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", clipId);
     throw error;
   } finally {
+    await Promise.all([...rangeProxiesByUrl.values()].map((proxy) => proxy.close().catch(() => undefined)));
     if (workDir) await fsp.rm(workDir, { recursive: true, force: true }).catch(() => undefined);
   }
 }
