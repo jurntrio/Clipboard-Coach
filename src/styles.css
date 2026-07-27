@@ -3317,3 +3317,42 @@ select:focus {
   background: #2a1010;
   border-color: #ff4444;
 }
+
+.confirmDeleteModal {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.confirmDeleteHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.confirmDeleteIcon {
+  display: grid;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 68, 68, 0.14);
+  color: #ff6b6b;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.confirmDeleteHeader div {
+  display: grid;
+  gap: 6px;
+}
+
+.confirmDeleteButton {
+  border-color: #b52b2b;
+  background: #b52b2b;
+  color: #fff;
+}
+
+.confirmDeleteButton:hover {
+  border-color: #d83a3a;
+  background: #d83a3a;
+}

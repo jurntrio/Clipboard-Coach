@@ -709,6 +709,7 @@ function App() {
   const [isPreviousVideosModalOpen, setIsPreviousVideosModalOpen] = useState(false);
   const [isClipBuilderOpen, setIsClipBuilderOpen] = useState(false);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [pendingClipDeleteId, setPendingClipDeleteId] = useState<string | null>(null);
   const [clipDraft, setClipDraft] = useState<{
     name: string;
     selectedTagIds: string[];
@@ -2908,11 +2909,8 @@ function App() {
   }
 
   async function deleteClipRecord(clipId: string) {
-    if (!window.confirm("Delete this clip record? Source video and tags will stay saved.")) {
-      return;
-    }
-
     const nextStore = { ...store, clips: store.clips.filter((clip) => clip.id !== clipId) };
+    setPendingClipDeleteId(null);
     setSelectedClipId((current) => (current === clipId ? null : current));
     await persistStore(nextStore);
   }
@@ -3881,7 +3879,7 @@ function App() {
                 >
                   {isSavingClipAs ? "Saving..." : "Save As..."}
                 </button>
-                <button type="button" onClick={() => deleteClipRecord(selectedClip.id)}>
+                <button type="button" className="dangerButton" onClick={() => setPendingClipDeleteId(selectedClip.id)}>
                   Delete Clip
                 </button>
               </div>
@@ -5240,11 +5238,42 @@ function App() {
                   />
                 )
                 : renderHome();
+  const pendingClipDelete = store.clips.find((clip) => clip.id === pendingClipDeleteId) ?? null;
 
   return (
     <>
       {currentScreen}
       {renderMatchModal()}
+      {pendingClipDelete ? (
+        <div className="modalBackdrop" role="presentation" onClick={() => setPendingClipDeleteId(null)}>
+          <section
+            className="tagModal confirmDeleteModal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-clip-title"
+            aria-describedby="delete-clip-message"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="confirmDeleteHeader">
+              <span className="confirmDeleteIcon" aria-hidden="true">!</span>
+              <div>
+                <h2 id="delete-clip-title">Delete Clip?</h2>
+                <p id="delete-clip-message">
+                  Delete “{pendingClipDelete.name}”? The source video and tags will stay saved.
+                </p>
+              </div>
+            </div>
+            <div className="modalActions">
+              <button type="button" onClick={() => setPendingClipDeleteId(null)}>
+                Cancel
+              </button>
+              <button className="confirmDeleteButton" type="button" onClick={() => void deleteClipRecord(pendingClipDelete.id)}>
+                Delete Clip
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </>
   );
 }
