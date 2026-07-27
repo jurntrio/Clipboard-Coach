@@ -14,7 +14,7 @@ import type { Match, Player, StandardTag, Team } from "@/types/database";
 
 type HubMatch = Match & { match_videos: { video_id: string }[] };
 type HubClip = {
-  id: string; coach_id: string; video_id: string; name: string; render_status: string; audience_type: "full_team" | "selected_players" | "specific_players";
+  id: string; coach_id: string; video_id: string; name: string; render_status: string; created_at: string; audience_type: "full_team" | "selected_players" | "specific_players";
   audience_player_ids: string[];
   share_links: Array<{ token: string }>;
   rendered_segments: Array<{ id: string; url: string; name: string; color: string; duration: number; play_start?: number; mobile_compatible?: boolean }>;
@@ -59,7 +59,7 @@ export default function MatchesHubPage() {
       supabase.from("teams").select("*").not("name", "ilike", "EXTRA").order("name"),
       supabase.from("players").select("*").neq("role", "staff").order("last_name"),
       supabase.from("standard_tags").select("*").order("created_at"),
-      supabase.from("clips").select("id, coach_id, video_id, name, render_status, audience_type, audience_player_ids, rendered_segments, share_links(token), videos(title, video_url), clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))").order("created_at", { ascending: false })
+      supabase.from("clips").select("id, coach_id, video_id, name, render_status, created_at, audience_type, audience_player_ids, rendered_segments, share_links(token), videos(title, video_url), clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))").order("created_at", { ascending: false })
     ]);
     setMatches((matchData as HubMatch[] | null) ?? []);
     setTeams(teamData ?? []); setPlayers(playerData ?? []); setStandardTags(tagData ?? []);
@@ -244,7 +244,12 @@ function MatchSection({ title, matches, empty, allowTagging, canManage, currentU
         </div>
         {lineup.length ? <div className="flex flex-col gap-2">{lineup.map((player) => {
           const selectedClips = matchClips.filter((clip) => clip.audience_type !== "full_team" && clip.audience_player_ids?.includes(player.id));
-          const taggedClips = matchClips.filter((clip) => clip.clip_segments.some((segment) => segment.tags?.player_ids.includes(player.id)));
+          const selectedClipIds = new Set(selectedClips.map((clip) => clip.id));
+          const taggedClips = matchClips.filter((clip) =>
+            clip.audience_type !== "full_team" &&
+            !selectedClipIds.has(clip.id) &&
+            clip.clip_segments.some((segment) => segment.tags?.player_ids.includes(player.id))
+          );
           const playerShareClips = [...teamClips, ...selectedClips, ...taggedClips];
           return <div key={player.id} className="grid gap-3 rounded-xl border border-border bg-cardDeep px-3 py-3 md:grid-cols-[minmax(190px,1.2fr)_minmax(160px,1fr)_minmax(160px,1fr)_52px] md:items-center">
             <div className="flex min-w-0 items-center gap-3"><span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-button text-xs font-bold text-accent">{player.jersey_number ?? player.initials}</span><span className="truncate text-sm text-textPrimary">{player.first_name} {player.last_name}</span></div>
@@ -261,7 +266,23 @@ function MatchSection({ title, matches, empty, allowTagging, canManage, currentU
 function ClipPills({ clips, onClip, onDelete, canDelete, empty }: { clips: HubClip[]; onClip: (clip: HubClip) => void; onDelete?: (clip: HubClip) => void; canDelete?: (clip: HubClip) => boolean; empty?: string }) {
   const { t } = useI18n();
   if (!clips.length) return <span className="text-xs text-textMuted">{empty ?? "—"}</span>;
-  return <div className="flex flex-wrap gap-1.5">{clips.map((clip, index) => <span key={clip.id} className="inline-flex items-center overflow-hidden rounded-full border border-accent/40 bg-accentDim"><button type="button" disabled={clip.render_status === "rendering"} onClick={() => onClip(clip)} title={clip.name} aria-label={`${clip.name} ${t("common.play")}`} className="flex h-8 min-w-10 items-center justify-center gap-1 px-2 text-xs font-bold text-accent hover:bg-accent hover:text-page disabled:cursor-wait disabled:opacity-50"><span aria-hidden="true">▶</span><span>{index + 1}</span></button>{onDelete && canDelete?.(clip) && <button type="button" onClick={() => onDelete(clip)} title={`${clip.name} ${t("common.remove")}`} aria-label={`${clip.name} ${t("common.remove")}`} className="grid h-8 w-7 place-items-center border-l border-red-500/30 text-sm text-red-300 hover:bg-red-500/20">×</button>}</span>)}</div>;
+  return <div className="flex flex-wrap gap-1.5">{clips.map((clip, index) => {
+    const processing = clip.render_status === "rendering";
+    const elapsedMinutes = Math.max(0, Math.floor((Date.now() - new Date(clip.created_at).getTime()) / 60000));
+    const estimatedTotalMinutes = Math.max(5, 3 + clip.clip_segments.length * 2);
+    const remainingMinutes = Math.max(1, estimatedTotalMinutes - elapsedMinutes);
+    const progress = Math.min(90, Math.max(8, Math.round((elapsedMinutes / estimatedTotalMinutes) * 100)));
+    return <span key={clip.id} className="inline-flex flex-col overflow-hidden rounded-xl border border-accent/40 bg-accentDim">
+      <span className="inline-flex">
+        <button type="button" disabled={processing} onClick={() => onClip(clip)} title={clip.name} aria-label={`${clip.name} ${t("common.play")}`} className="flex h-8 min-w-10 items-center justify-center gap-1 px-2 text-xs font-bold text-accent hover:bg-accent hover:text-page disabled:cursor-wait disabled:opacity-70"><span aria-hidden="true">{processing ? "…" : "▶"}</span><span>{index + 1}</span></button>
+        {onDelete && canDelete?.(clip) && <button type="button" onClick={() => onDelete(clip)} title={`${clip.name} ${t("common.remove")}`} aria-label={`${clip.name} ${t("common.remove")}`} className="grid h-8 w-7 place-items-center border-l border-red-500/30 text-sm text-red-300 hover:bg-red-500/20">×</button>}
+      </span>
+      {processing && <span className="border-t border-accent/20 px-2 py-1 text-[9px] font-semibold text-textMuted" title={t("clip.estimateHelp")}>
+        {t("clip.estimatedRemaining", { minutes: remainingMinutes })}
+        <span className="mt-1 block h-1 overflow-hidden rounded-full bg-button"><span className="block h-full bg-accent transition-[width]" style={{ width: `${progress}%` }} /></span>
+      </span>}
+    </span>;
+  })}</div>;
 }
 
 function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved }: { match: HubMatch | null; teams: Team[]; allPlayers: Player[]; standardTags: StandardTag[]; onClose: () => void; onSaved: () => void }) {

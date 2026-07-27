@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { ClipAudienceType, Player, Tag, Team } from "@/types/database";
-import { getPlayerDisplayName } from "@/lib/utils";
+import { formatTime, getPlayerDisplayName } from "@/lib/utils";
 import { remuxLocalSegment } from "@/lib/media/local-clips";
 import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
 import { isPeriodMarker } from "@/lib/tags";
@@ -45,7 +45,10 @@ export function ClipBuilder({
     const tag = tags.find((item) => item.id === id);
     return tag ? !isPeriodMarker(tag.name) : false;
   });
-  const clipCandidateTags = tags.filter((tag) => clipTagIds.includes(tag.id) && !isPeriodMarker(tag.name));
+  const [orderedClipTagIds, setOrderedClipTagIds] = useState<string[]>([]);
+  const clipCandidateTags = orderedClipTagIds
+    .map((id) => tags.find((tag) => tag.id === id))
+    .filter((tag): tag is Tag => !!tag && !isPeriodMarker(tag.name));
   const [clipName, setClipName] = useState("");
   const [audienceType, setAudienceType] = useState<ClipAudienceType>("full_team");
   const [audiencePlayerIds, setAudiencePlayerIds] = useState<string[]>([]);
@@ -83,6 +86,12 @@ export function ClipBuilder({
   useEffect(() => setTeamPlayers(players), [players]);
   useEffect(() => setSelectedTeamId(teamId ?? ""), [teamId]);
   useEffect(() => setExtraPeople(extraPlayers), [extraPlayers]);
+  useEffect(() => {
+    setOrderedClipTagIds((current) => [
+      ...current.filter((id) => clipTagIds.includes(id)),
+      ...clipTagIds.filter((id) => !current.includes(id))
+    ]);
+  }, [selectedTagIds, tags]);
   useEffect(() => {
     let active = true;
     const loadClipAllowance = async () => {
@@ -129,7 +138,9 @@ export function ClipBuilder({
       return;
     }
 
-    const orderedTags = tags.filter((tag) => clipTagIds.includes(tag.id) && !isPeriodMarker(tag.name));
+    const orderedTags = orderedClipTagIds
+      .map((id) => tags.find((tag) => tag.id === id))
+      .filter((tag): tag is Tag => !!tag && !isPeriodMarker(tag.name));
     const expandedSegments = orderedTags.flatMap((tag) => {
       const siblings = siblingCamerasByVideoId?.[tag.video_id] ?? [];
       if (siblings.length < 2) return [{ tag, videoId: tag.video_id }];
@@ -280,6 +291,17 @@ export function ClipBuilder({
     setAudienceType("specific_players");
   }
 
+  function moveClipTag(tagId: string, direction: -1 | 1) {
+    setOrderedClipTagIds((current) => {
+      const index = current.indexOf(tagId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
   function recipientButton(player: Player, belongsToTeam: boolean) {
     const selected = audienceType === "full_team" ? belongsToTeam : audiencePlayerIds.includes(player.id);
     return <button type="button" key={player.id} onClick={() => toggleRecipient(player.id)} className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm ${selected ? "border-accent bg-accentDim text-textPrimary" : "border-borderButton bg-button text-textSecondary hover:border-accent"}`}><input type="checkbox" tabIndex={-1} readOnly checked={selected} /><span>{getPlayerDisplayName(player)}</span></button>;
@@ -367,6 +389,24 @@ export function ClipBuilder({
             <label className="block text-sm text-textSecondary">{t("clip.name")}
               <input type="text" placeholder={clipTagIds.length === 1 ? tags.find((tag) => tag.id === clipTagIds[0])?.name || t("tag.name") : `Clip 01 ${matchLabel?.trim() || t("clip.match")}`} value={clipName} onChange={(event) => setClipName(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
             </label>
+
+            <div className="mt-4 rounded-lg border border-border bg-cardDeep p-3">
+              <h3 className="text-sm font-semibold text-textPrimary">{t("clip.segmentOrder")}</h3>
+              <p className="mb-2 mt-1 text-[11px] text-textMuted">{t("clip.segmentOrderHelp")}</p>
+              <ol className="space-y-1.5">
+                {clipCandidateTags.map((tag, index) => (
+                  <li key={tag.id} className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-card px-2.5 py-2">
+                    <span className="w-5 text-center text-xs font-bold text-accent">{index + 1}</span>
+                    <span className="min-w-0 flex-1">
+                      <strong className="block truncate text-xs text-textPrimary">{tag.name}</strong>
+                      <small className="text-[10px] text-textMuted">{formatTime(tag.start_time)}–{formatTime(tag.end_time)}</small>
+                    </span>
+                    <button type="button" disabled={index === 0 || saving} onClick={() => moveClipTag(tag.id, -1)} aria-label={t("clip.moveUp", { name: tag.name })} title={t("clip.moveUp", { name: tag.name })} className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm text-textPrimary disabled:opacity-25">↑</button>
+                    <button type="button" disabled={index === clipCandidateTags.length - 1 || saving} onClick={() => moveClipTag(tag.id, 1)} aria-label={t("clip.moveDown", { name: tag.name })} title={t("clip.moveDown", { name: tag.name })} className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm text-textPrimary disabled:opacity-25">↓</button>
+                  </li>
+                ))}
+              </ol>
+            </div>
 
             {clipCandidateTags.some((tag) => (siblingCamerasByVideoId?.[tag.video_id]?.length ?? 0) > 1) && (
               <div className="mt-4 space-y-3 rounded-lg border border-border bg-cardDeep p-3">
