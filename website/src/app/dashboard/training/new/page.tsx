@@ -9,7 +9,7 @@ export default async function NewTrainingPage() {
   const admin = createAdminClient();
 
   let trainerName = "";
-  let teamOptions: { id: string; name: string; assigned: boolean }[] = [];
+  let teamOptions: { id: string; name: string; assigned: boolean; clubLogoUrl: string | null }[] = [];
   let trainerOptions: string[] = [];
 
   if (user) {
@@ -33,9 +33,23 @@ export default async function NewTrainingPage() {
         ? admin.from("club_trainers").select("display_name").in("club_id", clubIds).order("display_name")
         : Promise.resolve({ data: [] })
     ]);
+    let clubs: { id: string; name: string; logo_url?: string | null }[] = [];
+    if (clubIds.length) {
+      const withLogo = await admin.from("clubs").select("id, name, logo_url").in("id", clubIds);
+      if (withLogo.error) {
+        const fallback = await admin.from("clubs").select("id, name").in("id", clubIds);
+        clubs = fallback.data ?? [];
+      } else {
+        clubs = withLogo.data ?? [];
+      }
+    }
     const assignedIds = new Set((assignments ?? []).map(item => item.club_team_id));
+    const clubLogos = new Map(clubs.map(club => [
+      club.id,
+      club.logo_url || (club.name.trim().toLocaleLowerCase().includes("torhout") ? "/branding/clubs/km-torhout.png" : null)
+    ]));
     teamOptions = (clubTeams ?? [])
-      .map(item => ({ id: item.id, name: item.name, assigned: assignedIds.has(item.id) }))
+      .map(item => ({ id: item.id, name: item.name, assigned: assignedIds.has(item.id), clubLogoUrl: clubLogos.get(item.club_id) ?? null }))
       .sort((a, b) => Number(b.assigned) - Number(a.assigned) || a.name.localeCompare(b.name));
     trainerOptions = [...new Set([trainerName, ...(clubTrainers ?? []).map(item => item.display_name).filter(Boolean)])];
   }

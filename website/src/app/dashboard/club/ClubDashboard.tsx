@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ClubTeamsManager } from "./ClubTeamsManager";
+import { ClubLogoUploader } from "@/components/clubs/ClubLogoUploader";
 
-type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean };
+type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; logo_url?: string | null };
 type Team = {
   id: string;
   club_id: string;
@@ -153,6 +154,11 @@ export function ClubDashboard() {
             RBFA {club?.rbfa_registration_number ? `stamnummer ${club.rbfa_registration_number}` : "nog te configureren"}
           </span>
         </div>
+        {club && <div className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-4">
+          <h3 className="mb-3 font-semibold text-textBright">Clublogo</h3>
+          <ClubLogoUploader clubId={club.id} clubName={club.name} logoUrl={club.logo_url || (club.name.toLocaleLowerCase().includes("torhout") ? "/branding/clubs/km-torhout.png" : null)} readOnly={readOnly}
+            onChanged={logoUrl => setData(current => current ? { ...current, clubs: current.clubs.map(item => item.id === club.id ? { ...item, logo_url: logoUrl } : item) } : current)} />
+        </div>}
         <div className="mt-4 overflow-x-auto rounded-xl border border-borderSubtle">
           <table className="w-full min-w-[780px] text-sm">
             <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="px-3 py-3 text-left">Naam</th><th className="px-3 py-3 text-left">Team(s)</th><th className="px-3 py-3 text-left">Gsm</th><th className="px-3 py-3 text-left">E-mail</th><th className="px-3 py-3 text-left">Rol</th></tr></thead>

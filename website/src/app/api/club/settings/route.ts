@@ -34,6 +34,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ club });
   }
 
+  if (body.logoUrl === null || (typeof body.logoUrl === "string" && (
+    body.logoUrl.startsWith("/branding/clubs/") ||
+    body.logoUrl.startsWith(`${process.env.R2_PUBLIC_URL?.replace(/\/$/, "")}/clubs/${body.clubId}/`)
+  ))) {
+    const { data: club, error } = await admin.from("clubs")
+      .update({ logo_url: body.logoUrl || null })
+      .eq("id", body.clubId)
+      .select("id, logo_url")
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ club });
+  }
+
   const settings = body.trainingSettings;
   const validTrainingPolicy = ["automatic", "approval_required", "personal_only"].includes(settings?.newTrainingPolicy);
   const validVersionPolicy = ["automatic", "approval_required"].includes(settings?.newVersionPolicy);

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isAdminEmail } from "@/lib/auth/admin";
 import { getUploadUrl, getPublicUrl } from "@/lib/r2/upload";
 
 export async function POST(request: Request) {
@@ -15,9 +17,18 @@ export async function POST(request: Request) {
 
     const { key, contentType } = await request.json();
 
+    const clubLogoMatch = typeof key === "string" ? key.match(/^clubs\/([0-9a-f-]{36})\/logo-[a-zA-Z0-9.-]+$/) : null;
+    let clubLogoAllowed = false;
+    if (clubLogoMatch && ["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
+      const admin = createAdminClient();
+      const { data: membership } = await admin.from("club_memberships").select("role, status")
+        .eq("club_id", clubLogoMatch[1]).eq("profile_id", user.id).maybeSingle();
+      clubLogoAllowed = isAdminEmail(user.email) || (membership?.role === "club_admin" && membership.status === "active");
+    }
+
     if (
       typeof key !== "string" ||
-      !(key.startsWith(`videos/${user.id}/`) || key.startsWith(`clips/${user.id}/`) || key.startsWith(`drawings/${user.id}/`)) ||
+      !(key.startsWith(`videos/${user.id}/`) || key.startsWith(`clips/${user.id}/`) || key.startsWith(`drawings/${user.id}/`) || clubLogoAllowed) ||
       typeof contentType !== "string" ||
       !contentType
     ) {

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const ASSET_ROOT = "/branding/Training";
 const FIELD_SRC = `${ASSET_ROOT}/11vs11.jpg`;
@@ -138,6 +138,115 @@ function smoothPath(points: { x: number; y: number }[]) {
     pathData += ` C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${p2.x} ${p2.y}`;
   }
   return pathData;
+}
+
+function paginatePrintBlocks(blocks: Block[], measuredHeights: Record<string, number>) {
+  if (!blocks.length) return [[null] as (Block | null)[]];
+  const printableBodyHeight = 960;
+  const minimumDrawingHeight = 270;
+  const pages: (Block | null)[][] = [];
+  let current: Block[] = [];
+  let usedHeight = 0;
+  for (const block of blocks) {
+    const requiredHeight = Math.max(minimumDrawingHeight, measuredHeights[block.id] ?? minimumDrawingHeight);
+    if (current.length && (current.length >= 3 || usedHeight + requiredHeight > printableBodyHeight)) {
+      pages.push(current);
+      current = [];
+      usedHeight = 0;
+    }
+    current.push(block);
+    usedHeight += requiredHeight;
+  }
+  if (current.length) pages.push(current);
+  return pages;
+}
+
+function PrintPreview({ name, team, clubLogoUrl, date, playerCount, keeperCount, trainers, themes, material, blocks, onClose }: {
+  name: string; team: string; date: string; playerCount: number; keeperCount: number;
+  clubLogoUrl: string | null; trainers: string[]; themes: string[]; material: string; blocks: Block[]; onClose: () => void;
+}) {
+  const activeBlocks = blocks.filter(block => block.active);
+  const measurementRefs = useRef(new Map<string, HTMLDivElement>());
+  const [pages, setPages] = useState<(Block | null)[][]>(() => paginatePrintBlocks(activeBlocks, {}));
+  useLayoutEffect(() => {
+    const heights: Record<string, number> = {};
+    for (const block of activeBlocks) {
+      const element = measurementRefs.current.get(block.id);
+      if (element) heights[block.id] = Math.ceil(element.getBoundingClientRect().height) + 22;
+    }
+    setPages(paginatePrintBlocks(activeBlocks, heights));
+  }, [blocks]);
+  const formattedDate = date ? new Intl.DateTimeFormat("nl-BE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${date}T12:00:00`)) : "—";
+  return <div className="training-print-overlay fixed inset-0 z-[120] overflow-auto bg-black/80 p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Afdrukvoorbeeld training">
+    <div aria-hidden="true" className="pointer-events-none fixed -left-[10000px] top-0 w-[500px] bg-white text-[#182019]">
+      {activeBlocks.map(block => <div key={block.id} ref={element => {
+        if (element) measurementRefs.current.set(block.id, element);
+        else measurementRefs.current.delete(block.id);
+      }} className="py-2">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-black">{block.label || "Oefening"}</h2><span className="text-xs font-bold">{block.minutes} min.</span>
+        </div>
+        <div className="mt-1 space-y-2">
+          <PrintText label="Organisatie" value={block.organisation} compact />
+          <PrintText label="Verloop" value={block.flow} compact />
+          <PrintText label="Coaching" value={block.coaching} compact />
+        </div>
+      </div>)}
+    </div>
+    <div className="training-print-toolbar sticky top-0 z-10 mx-auto mb-4 flex max-w-[1188px] items-center justify-between gap-3 rounded-xl bg-[#101713] px-4 py-3 text-white shadow-xl">
+      <div><strong>Afdrukvoorbeeld</strong><p className="text-xs text-white/60">A4 staand · maximaal drie oefeningen per pagina</p></div>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => window.print()} className="rounded-lg bg-[#71d52b] px-4 py-2 text-sm font-black text-[#101713]">Afdrukken</button>
+        <button type="button" onClick={onClose} className="rounded-lg border border-white/30 px-4 py-2 text-sm font-bold">Sluiten</button>
+      </div>
+    </div>
+    <div className="mx-auto grid max-w-[840px] gap-5">
+      {pages.map((pageBlocks, pageIndex) => <article key={`page-${pageIndex}`} className="training-print-page flex aspect-[210/297] flex-col overflow-hidden bg-white p-[3.5%] text-[#182019] shadow-2xl">
+        <header className="border-b-2 border-[#169447] pb-2">
+          <div className="flex items-stretch gap-3">
+            {clubLogoUrl && <Image src={clubLogoUrl} alt="" width={58} height={58} className="h-[58px] w-[58px] shrink-0 self-center object-contain" unoptimized />}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-5">
+                <div className="min-w-0"><p className="text-[8px] font-black uppercase tracking-[.18em] text-[#169447]">Clipboard Coach</p><h1 className="truncate text-base font-black">{name || "Nieuwe training"}</h1></div>
+                <div className="text-right text-[9px] text-[#66706b]"><strong className="block text-[11px] text-[#182019]">{team || "Vrije ploeg"}</strong>{formattedDate}</div>
+              </div>
+              <dl className="mt-1.5 grid grid-cols-4 gap-x-3 text-[8px] leading-tight">
+                <div><dt className="font-bold uppercase text-[#66706b]">Spelers</dt><dd>{playerCount} + {keeperCount} keepers</dd></div>
+                <div><dt className="font-bold uppercase text-[#66706b]">Trainer(s)</dt><dd>{trainers.join(", ") || "—"}</dd></div>
+                <div><dt className="font-bold uppercase text-[#66706b]">Thema&apos;s</dt><dd>{themes.join(", ") || "—"}</dd></div>
+                <div><dt className="font-bold uppercase text-[#66706b]">Materiaal</dt><dd>{material || "—"}</dd></div>
+              </dl>
+            </div>
+          </div>
+        </header>
+        <div className="mt-2 grid min-h-0 flex-1 gap-2" style={{ gridTemplateRows: `repeat(${pageBlocks.length}, minmax(0, 1fr))` }}>
+          {pageBlocks.map(block => block ? <section key={block.id} className="grid min-h-0 grid-cols-[38%_1fr] gap-4 overflow-hidden border-b border-[#dbe2de] pb-2 last:border-b-0">
+            <div className="flex min-h-0 items-center justify-center overflow-hidden">
+              <div className="h-full max-w-full overflow-hidden border border-[#cad4ce] bg-white" style={{ aspectRatio: "414 / 612" }}>
+                <Pitch items={block.items} lines={block.lines} areas={block.areas} dribbles={block.dribbles} preview />
+              </div>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-2"><span className="rounded bg-[#169447] px-2 py-1 text-[10px] font-black text-white">{block.code}</span><h2 className="truncate text-base font-black">{block.label || "Oefening"}</h2></div>
+                <span className="whitespace-nowrap text-xs font-bold">{block.minutes} min.</span>
+              </div>
+              <div className="mt-1 space-y-2">
+                <PrintText label="Organisatie" value={block.organisation} compact />
+                <PrintText label="Verloop" value={block.flow} compact />
+                <PrintText label="Coaching" value={block.coaching} compact />
+              </div>
+            </div>
+          </section> : <div key="empty" className="grid h-3/4 place-items-center text-[#66706b]">Geen actieve oefeningen om af te drukken.</div>)}
+        </div>
+        <footer className="mt-1 flex justify-between border-t border-[#dbe2de] pt-1 text-[8px] text-[#7a857f]"><span>{name || "Training"}</span><span>Pagina {pageIndex + 1} van {pages.length}</span></footer>
+      </article>)}
+    </div>
+  </div>;
+}
+
+function PrintText({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
+  return <section className={compact ? "" : "mt-4"}><h3 className={`${compact ? "text-[9px]" : "text-xs"} font-black uppercase tracking-wide text-[#169447]`}>{label}</h3><p className={`${compact ? "mt-0.5 text-[10px] leading-snug" : "mt-1 text-sm leading-relaxed"} whitespace-pre-wrap text-[#2e3832]`}>{value || "—"}</p></section>;
 }
 
 function Pitch({ items, lines, areas, dribbles, preview = false, onOpen, selectedId, selectedDrawing, drawingInteractive = true, onSelect, onDeleteItem, onSelectDrawing, onDrawingPointerDown, onDrawingPointerMove, onMove, onResize, onRotate, pendingLine, pendingLineStyle, pendingArea, pendingAreaStyle = "outline", pendingDribble, hoverPoint, drawingColor = "#111111" }: {
@@ -294,7 +403,7 @@ function Pitch({ items, lines, areas, dribbles, preview = false, onOpen, selecte
 
 export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainerOptions = [] }: {
   initialTrainer?: string;
-  teamOptions?: { id: string; name: string; assigned: boolean }[];
+  teamOptions?: { id: string; name: string; assigned: boolean; clubLogoUrl: string | null }[];
   trainerOptions?: string[];
 }) {
   const editorFieldRef = useRef<HTMLDivElement>(null);
@@ -317,6 +426,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   const [drawColor, setDrawColor] = useState("#111111");
   const [showColorPanel, setShowColorPanel] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [name, setName] = useState("Nieuwe training");
   const [team, setTeam] = useState(teamOptions[0]?.name ?? "");
   const [customTeam, setCustomTeam] = useState(false);
@@ -331,6 +441,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   const activeBlock = activeIndex === null ? null : blocks[activeIndex];
   const selectedItem = activeBlock?.items.find(item => item.id === selectedId) ?? null;
   const totalMinutes = blocks.reduce((sum, block) => sum + (block.active ? block.minutes : 0), 0);
+  const clubLogoUrl = customTeam ? null : teamOptions.find(option => option.name === team)?.clubLogoUrl ?? null;
   const byColor = (families: readonly (readonly [string, string])[]) =>
     colors.flatMap(color => families.map(([file, label]) => ({
       src: path(`${file}${color.file}.png`), label: `${label} ${color.label}`
@@ -371,6 +482,8 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
         setBlocks(draft.blocks.map((block: Block, index: number) => ({
           ...block,
           id: block.id ?? `restored-phase-${index}`,
+          label: block.title?.trim() || block.label,
+          title: "",
           lines: (block.lines ?? []).map(line => ({ ...line, color: line.color ?? "#111111" })),
           areas: (block.areas ?? []).map(area => ({ ...area, style: area.style ?? "fill" })),
           dribbles: block.dribbles ?? []
@@ -420,6 +533,15 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
     window.addEventListener("keydown", cancelActiveTool);
     return () => window.removeEventListener("keydown", cancelActiveTool);
   }, [activeIndex, areaMode, areaPoints, areaStyle, blocks, drawColor, dribbleMode, dribblePoints, numberLines]);
+
+  useEffect(() => {
+    if (!showPrintPreview) return;
+    function closePrintPreview(event: KeyboardEvent) {
+      if (event.key === "Escape") setShowPrintPreview(false);
+    }
+    window.addEventListener("keydown", closePrintPreview);
+    return () => window.removeEventListener("keydown", closePrintPreview);
+  }, [showPrintPreview]);
 
   function updateBlock(index: number, patch: Partial<Block>) {
     setBlocks(current => current.map((block, i) => i === index ? { ...block, ...patch } : block));
@@ -694,6 +816,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
           <span className="text-sm text-textSecondary">{status}</span>
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-accentDim px-4 py-2 text-sm font-black text-accent">Totale duur: {totalMinutes} minuten</span>
+            <button type="button" onClick={() => setShowPrintPreview(true)} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-bold text-textPrimary">Afdrukvoorbeeld</button>
             <button type="button" onClick={saveDraft} className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page">Opslaan</button>
           </div>
         </div>
@@ -710,6 +833,11 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
                   aria-label="Naam trainingsvak" className="min-w-48 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-2 font-bold text-textBright outline-none hover:border-border focus:border-accent focus:bg-input" />
               </div>
               <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-textSecondary">
+                  <input type="number" min={0} value={block.minutes} onChange={event => updateBlock(index, { minutes: Number(event.target.value) })}
+                    aria-label={`Minuten ${block.label}`} className="w-16 rounded border border-border bg-input px-2 py-1.5 text-right text-sm text-textBright outline-none focus:border-accent" />
+                  min.
+                </label>
                 <button type="button" onClick={() => moveBlock(index, -1)} disabled={index === 0} title="Vak omhoog" aria-label="Trainingsvak omhoog"
                   className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm font-black text-textPrimary disabled:cursor-not-allowed disabled:opacity-30">↑</button>
                 <button type="button" onClick={() => moveBlock(index, 1)} disabled={index === blocks.length - 1} title="Vak omlaag" aria-label="Trainingsvak omlaag"
@@ -726,9 +854,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
                 <button type="button" onClick={() => openEditor(index)}
                   className="mt-2 w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-black text-page">Tekenen</button>
               </div>
-              <div className="grid content-start gap-3 sm:grid-cols-[1fr_120px]">
-                <Meta label="Titel oefening"><input value={block.title} onChange={e => updateBlock(index, { title: e.target.value })} className={inputClass} placeholder="Bijv. 4v4 + 3 neutrale spelers" /></Meta>
-                <Meta label="Minuten"><input type="number" min={0} value={block.minutes} onChange={e => updateBlock(index, { minutes: Number(e.target.value) })} className={inputClass} /></Meta>
+              <div className="grid content-start gap-3">
                 <Meta label="Organisatie" wide><textarea value={block.organisation} onChange={e => updateBlock(index, { organisation: e.target.value })} rows={3} className={inputClass} /></Meta>
                 <Meta label="Verloop" wide><textarea value={block.flow} onChange={e => updateBlock(index, { flow: e.target.value })} rows={3} className={inputClass} /></Meta>
                 <Meta label="Coaching" wide><textarea value={block.coaching} onChange={e => updateBlock(index, { coaching: e.target.value })} rows={3} className={inputClass} /></Meta>
@@ -741,6 +867,9 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
           + Trainingsvak toevoegen
         </button>
       </section>
+
+      {showPrintPreview && <PrintPreview name={name} team={team} clubLogoUrl={clubLogoUrl} date={date} playerCount={playerCount} keeperCount={keeperCount}
+        trainers={trainers} themes={themes} material={material} blocks={blocks} onClose={() => setShowPrintPreview(false)} />}
 
       {activeBlock && activeIndex !== null && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label={`Tekening ${activeBlock.label}`}>
