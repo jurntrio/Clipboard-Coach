@@ -18,7 +18,9 @@ export default async function AdminOverviewPage() {
       .order("name")
   ]);
   const { locale, t } = getServerI18n();
-  const coachesWithoutTeams = coaches.filter((coach) => coach.teamCount === 0);
+  const coachesWithoutTeams = coaches.filter((coach) =>
+    coach.teamCount === 0 && (coach.membershipRoles.length === 0 || coach.membershipRoles.includes("trainer"))
+  );
   const coachesById = new Map(coaches.map((coach) => [coach.id, coach]));
 
   const totals = coaches.reduce(

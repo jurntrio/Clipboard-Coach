@@ -44,12 +44,13 @@ export async function PUT(request: Request) {
   const permissions = Array.isArray(body.permissions)
     ? body.permissions.filter((key: unknown): key is string => typeof key === "string" && permissionKeys.has(key as never))
     : [];
+  if (!permissions.includes("intradesk.view")) permissions.push("intradesk.view");
   const { error: membershipError } = await admin.from("club_memberships").update({
     function_role: body.functionRole, custom_role_name: customRoleName, team_scope: body.teamScope
   }).eq("club_id", body.clubId).eq("profile_id", body.profileId);
   if (membershipError) return NextResponse.json({ error: membershipError.message }, { status: 400 });
   await admin.from("club_member_team_access").delete().eq("club_id", body.clubId).eq("profile_id", body.profileId);
-  if (body.teamScope === "selected" && teamIds.length) {
+  if ((body.teamScope === "selected" || body.teamScope === "assigned") && teamIds.length) {
     const { error } = await admin.from("club_member_team_access").insert(teamIds.map((clubTeamId: string) => ({
       club_id: body.clubId, profile_id: body.profileId, club_team_id: clubTeamId
     })));

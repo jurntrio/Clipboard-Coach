@@ -13,6 +13,7 @@ export type CoachOverview = Profile & {
   clubNames: string[];
   teamNames: string[];
   functionRoles: string[];
+  membershipRoles: string[];
 };
 
 type StoredClipSegment = { file_size?: number | null };
@@ -55,8 +56,8 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
       admin.from("players").select("id, team_id"),
       admin.from("videos").select("id, coach_id, video_url, file_size, processing_status").eq("status", "active"),
       admin.from("clips").select("id, coach_id, rendered_segments"),
-      admin.from("club_memberships").select("profile_id, role, function_role, custom_role_name, clubs(name, club_teams(name))"),
-      admin.from("club_trainers").select("profile_id, clubs(name), club_trainer_teams(club_teams(name))").not("profile_id", "is", null)
+      admin.from("club_memberships").select("profile_id, role, function_role, custom_role_name, clubs(name, club_teams(id, name, teams(players(id))))"),
+      admin.from("club_trainers").select("profile_id, clubs(name), club_trainer_teams(club_teams(id, name, teams(players(id))))").not("profile_id", "is", null)
     ]);
 
   const authById = new Map(authUsers?.users.map((u) => [u.id, u]) ?? []);
@@ -72,6 +73,11 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
       .flatMap((trainer) => trainer.club_trainer_teams ?? [])
       .map((link) => relatedName(link.club_teams))
       .filter((name): name is string => !!name);
+    const assignedClubTeams = (clubTrainers ?? [])
+      .filter((trainer) => trainer.profile_id === profile.id)
+      .flatMap((trainer) => trainer.club_trainer_teams ?? [])
+      .map((link) => relatedRecord(link.club_teams))
+      .filter((team): team is Record<string, unknown> => !!team);
     const trainerClubNames = (clubTrainers ?? [])
       .filter((trainer) => trainer.profile_id === profile.id)
       .map((trainer) => relatedName(trainer.clubs))
@@ -84,14 +90,38 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
         const clubTeams = club && Array.isArray(club.club_teams) ? club.club_teams : [];
         return clubTeams.map((team) => relatedName(team)).filter((name): name is string => !!name);
       });
-    const teamNames = Array.from(new Set([...legacyTeamNames, ...assignedClubTeamNames, ...fullClubAccessTeamNames]));
+    const fullClubAccessTeams = profileMemberships
+      .filter((membership) => membership.role === "club_admin" || membership.role === "club_admin_viewer" || membership.role === "analyst")
+      .flatMap((membership) => {
+        const club = relatedRecord(membership.clubs);
+        return club && Array.isArray(club.club_teams)
+          ? club.club_teams.map(relatedRecord).filter((team): team is Record<string, unknown> => !!team)
+          : [];
+      });
+    const isClubMember = profileMemberships.length > 0 || trainerClubNames.length > 0;
+    const accessibleClubTeams = Array.from(new Map(
+      [...assignedClubTeams, ...fullClubAccessTeams].map((team) => [String(team.id), team])
+    ).values());
+    const teamNames = isClubMember
+      ? Array.from(new Set([...assignedClubTeamNames, ...fullClubAccessTeamNames]))
+      : Array.from(new Set(legacyTeamNames));
+    const clubPlayerIds = new Set(accessibleClubTeams.flatMap((clubTeam) => {
+      const linkedTeams = Array.isArray(clubTeam.teams) ? clubTeam.teams : [];
+      return linkedTeams.flatMap((linkedTeam) => {
+        const team = relatedRecord(linkedTeam);
+        const linkedPlayers = team && Array.isArray(team.players) ? team.players : [];
+        return linkedPlayers.map((player) => relatedRecord(player)?.id).filter((id): id is string => typeof id === "string");
+      });
+    }));
 
     return {
       ...profile,
       banned_until: (auth as any)?.banned_until ?? null,
       last_sign_in_at: auth?.last_sign_in_at ?? null,
       teamCount: teamNames.length,
-      playerCount: (players ?? []).filter((p) => coachIdByTeamId.get(p.team_id) === profile.id).length,
+      playerCount: isClubMember
+        ? clubPlayerIds.size
+        : (players ?? []).filter((p) => coachIdByTeamId.get(p.team_id) === profile.id).length,
       videoCount: coachVideos.length,
       failedVideoCount: coachVideos.filter((v) => v.processing_status === "failed").length,
       clipCount: (clips ?? []).filter((c) => c.coach_id === profile.id).length,
@@ -107,7 +137,8 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
         membership.function_role === "custom" && membership.custom_role_name
           ? membership.custom_role_name
           : membership.function_role || membership.role
-      )))
+      ))),
+      membershipRoles: Array.from(new Set(profileMemberships.map((membership) => membership.role)))
     };
   });
 }

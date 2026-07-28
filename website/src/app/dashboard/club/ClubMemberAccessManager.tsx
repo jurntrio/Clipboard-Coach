@@ -8,7 +8,10 @@ type Member = {
   club_id: string; profile_id: string; role: string; function_role?: string;
   custom_role_name?: string | null; team_scope?: TeamScope;
 };
-type Trainer = { profile_id: string | null; display_name: string; profiles: { email: string } | null };
+type Trainer = {
+  profile_id: string | null; display_name: string; profiles: { email: string } | null;
+  club_trainer_teams?: { club_team_id: string; status?: string }[];
+};
 type Permission = { profile_id: string; permission_key: string; enabled: boolean };
 type TeamAccess = { profile_id: string; club_team_id: string };
 
@@ -23,6 +26,7 @@ export function ClubMemberAccessManager({ clubId, members, trainers, teams, perm
       const trainer = trainers.find((item) => item.profile_id === member.profile_id);
       return <MemberEditor key={member.profile_id} clubId={clubId} member={member}
         name={trainer?.display_name || trainer?.profiles?.email || member.profile_id}
+        assignedTeamIds={(trainer?.club_trainer_teams ?? []).filter((item) => item.status !== "inactive").map((item) => item.club_team_id)}
         teams={teams} permissions={permissions.filter((item) => item.profile_id === member.profile_id)}
         teamAccess={teamAccess.filter((item) => item.profile_id === member.profile_id)}
         readOnly={readOnly || ["club_admin", "club_admin_viewer"].includes(member.role)} onChanged={onChanged} />;
@@ -30,21 +34,32 @@ export function ClubMemberAccessManager({ clubId, members, trainers, teams, perm
   </section>;
 }
 
-function MemberEditor({ clubId, member, name, teams, permissions, teamAccess, readOnly, onChanged }: {
+function MemberEditor({ clubId, member, name, teams, permissions, teamAccess, assignedTeamIds, readOnly, onChanged }: {
   clubId: string; member: Member; name: string; teams: Team[]; permissions: Permission[];
-  teamAccess: TeamAccess[]; readOnly: boolean; onChanged: () => Promise<void>;
+  teamAccess: TeamAccess[]; assignedTeamIds: string[]; readOnly: boolean; onChanged: () => Promise<void>;
 }) {
   const [functionRole, setFunctionRole] = useState(member.function_role || member.role || "trainer");
   const [customRoleName, setCustomRoleName] = useState(member.custom_role_name || "");
   const [teamScope, setTeamScope] = useState<TeamScope>(member.team_scope || (["club_admin", "club_admin_viewer"].includes(member.role) ? "all" : "assigned"));
   const [teamIds, setTeamIds] = useState(() => new Set(teamAccess.map((item) => item.club_team_id)));
-  const [permissionKeys, setPermissionKeys] = useState(() => new Set(permissions.filter((item) => item.enabled).map((item) => item.permission_key)));
+  const defaultTrainerPermissions = ["video.view", "games.tag_link.create", "games.tag", "training.view", "intradesk.view", "clips.share"];
+  const [permissionKeys, setPermissionKeys] = useState(() => new Set([
+    ...permissions.filter((item) => item.enabled).map((item) => item.permission_key),
+    "intradesk.view",
+    ...(member.role === "trainer" && !permissions.length ? defaultTrainerPermissions : [])
+  ]));
   const [status, setStatus] = useState("");
   useEffect(() => {
     setFunctionRole(member.function_role || member.role || "trainer");
     setCustomRoleName(member.custom_role_name || "");
     setTeamScope(member.team_scope || (["club_admin", "club_admin_viewer"].includes(member.role) ? "all" : "assigned"));
-  }, [member]);
+    setTeamIds(new Set(teamAccess.map((item) => item.club_team_id)));
+    setPermissionKeys(new Set([
+      ...permissions.filter((item) => item.enabled).map((item) => item.permission_key),
+      "intradesk.view",
+      ...(member.role === "trainer" && !permissions.length ? defaultTrainerPermissions : [])
+    ]));
+  }, [member, permissions, teamAccess]);
 
   function toggle(setter: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) {
     setter((current) => {
@@ -78,8 +93,19 @@ function MemberEditor({ clubId, member, name, teams, permissions, teamAccess, re
         </select></label>
       </div>
       {functionRole === "custom" && <label className="block text-sm text-textSecondary">Naam aangepaste rol<input value={customRoleName} disabled={readOnly} onChange={(event) => setCustomRoleName(event.target.value)} className={inputClass} /></label>}
-      {teamScope === "selected" && <div><h4 className="text-sm font-semibold text-textPrimary">Geselecteerde teams</h4><div className="mt-2 grid gap-2 sm:grid-cols-2">{teams.map((team) => <label key={team.id} className="flex items-center gap-2 text-sm text-textSecondary"><input type="checkbox" checked={teamIds.has(team.id)} disabled={readOnly} onChange={() => toggle(setTeamIds, team.id)} className="accent-accent" />{team.name}</label>)}</div></div>}
-      <div><h4 className="text-sm font-semibold text-textPrimary">Rechten</h4><div className="mt-2 grid gap-2 md:grid-cols-2">{CLUB_PERMISSION_OPTIONS.map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-textSecondary"><input type="checkbox" checked={permissionKeys.has(key)} disabled={readOnly} onChange={() => toggle(setPermissionKeys, key)} className="accent-accent" />{label}</label>)}</div></div>
+      <div className="rounded-lg border border-border p-3">
+        <h4 className="text-sm font-semibold text-textPrimary">Eigen/toegewezen teams</h4>
+        <p className="mt-1 text-sm text-textSecondary">{teams.filter((team) => assignedTeamIds.includes(team.id)).map((team) => team.name).join(", ") || "Nog geen team toegewezen"}</p>
+      </div>
+      {(teamScope === "assigned" || teamScope === "selected") && <div>
+        <h4 className="text-sm font-semibold text-textPrimary">{teamScope === "assigned" ? "Extra teams bekijken" : "Geselecteerde teams"}</h4>
+        <p className="mt-1 text-xs text-textMuted">Vink hier bijkomende teams aan naast de eigen/toegewezen ploeg(en).</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">{teams.filter((team) => !assignedTeamIds.includes(team.id)).map((team) => <label key={team.id} className="flex items-center gap-2 text-sm text-textSecondary"><input type="checkbox" checked={teamIds.has(team.id)} disabled={readOnly} onChange={() => toggle(setTeamIds, team.id)} className="accent-accent" />{team.name}</label>)}</div>
+      </div>}
+      <div><h4 className="text-sm font-semibold text-textPrimary">Rechten</h4><div className="mt-2 grid gap-2 md:grid-cols-2">{CLUB_PERMISSION_OPTIONS.map(([key, label]) => {
+        const alwaysEnabled = key === "intradesk.view";
+        return <label key={key} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-textSecondary"><input type="checkbox" checked={alwaysEnabled || permissionKeys.has(key)} disabled={readOnly || alwaysEnabled} onChange={() => toggle(setPermissionKeys, key)} className="accent-accent" />{label}{alwaysEnabled && <span className="ml-auto text-xs text-accent">altijd</span>}</label>;
+      })}</div></div>
       {!readOnly && <button type="button" onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page">Instellingen opslaan</button>}
       {status && <span className="ml-3 text-sm text-accent">{status}</span>}
     </div>

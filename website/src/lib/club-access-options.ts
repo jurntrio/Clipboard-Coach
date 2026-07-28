@@ -13,7 +13,7 @@ export const CLUB_FUNCTION_ROLES = [
 ] as const;
 
 export const CLUB_PERMISSION_OPTIONS = [
-  ["teams.view", "Teams bekijken"], ["teams.manage", "Teams en spelers beheren"], ["teams.import", "PSD/Excel importeren"],
+  ["teams.view", "Andere teams buiten de eigen ploeg(en) bekijken"], ["teams.manage", "Teams en spelers beheren"], ["teams.import", "PSD/Excel importeren"],
   ["video.view", "Video Viewer gebruiken"],
   ["games.view", "Games bekijken"], ["games.create", "Wedstrijden aanmaken en aanpassen"],
   ["games.view_counts", "Kijkcijfers bekijken"], ["games.tag_link.create", "Taglink aanmaken en delen"], ["games.tag", "Wedstrijden taggen"],
