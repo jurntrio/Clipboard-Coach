@@ -5,6 +5,7 @@ import { getCoachOverviews, isBanned } from "./data";
 import { PlanBadge } from "./PlanBadge";
 import { getServerI18n } from "@/i18n/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { AdminClubModuleToggles } from "./AdminClubModuleToggles";
 
 export default async function AdminOverviewPage() {
   const admin = createAdminClient();
@@ -12,7 +13,7 @@ export default async function AdminOverviewPage() {
     getCoachOverviews(),
     admin
       .from("clubs")
-      .select("id, name, rbfa_registration_number, club_memberships(profile_id, role), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))")
+      .select("id, name, rbfa_registration_number, club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))")
       .order("name")
   ]);
   const { locale, t } = getServerI18n();
@@ -87,6 +88,11 @@ export default async function AdminOverviewPage() {
                   </div>
                   <span className="text-accent transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
                 </summary>
+                <AdminClubModuleToggles
+                  clubId={club.id}
+                  clubName={club.name}
+                  entitlements={(club.club_module_entitlements ?? []) as { module_key: string; enabled: boolean }[]}
+                />
                 <div className="overflow-x-auto border-t border-borderSubtle">
                   <table className="w-full min-w-[680px] text-sm">
                     <thead className="text-xs uppercase text-textMuted">

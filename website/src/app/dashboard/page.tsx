@@ -9,14 +9,21 @@ import { getClubContext } from "@/lib/auth/active-club";
 
 export default async function DashboardHomePage() {
   const { t } = getServerI18n();
-  const cards = [
-    { href: "/dashboard/teams", label: t("common.teams"), icon: "/branding/teams.png", module: "teams" },
-    { href: "/dashboard/videos", label: t("common.videoViewer"), icon: "/branding/video-viewer.png", module: "video_viewer" },
-    { href: "/dashboard/clips", label: t("common.matches"), icon: "/branding/games.png", module: "matches" },
-    { href: "/dashboard/training", label: t("common.training"), icon: "/branding/training.png", module: "training" },
-    { href: "/dashboard/intradesk", label: "Intradesk", icon: "/branding/intradesk.png", module: "intradesk" },
-    { href: "/dashboard/settings", label: t("common.settings"), icon: "/branding/settings.png", module: null },
-    { href: "/dashboard/help", label: t("common.help"), icon: "/branding/help.png", module: null }
+  const bundledCards = [
+    { href: "/dashboard/training", label: t("common.training"), icon: "/branding/training.png", modules: ["training", "intradesk"] },
+    { href: "/dashboard/videos", label: "Videoanalyse", icon: "/branding/video-viewer.png", modules: ["video_viewer", "matches", "clips"] },
+    { href: "/dashboard/teams", label: "Club & Teams", icon: "/branding/teams.png", modules: ["teams", "club_management", "attendance"] },
+    { href: "/dashboard/settings", label: t("common.settings"), icon: "/branding/settings.png", modules: null },
+    { href: "/dashboard/help", label: t("common.help"), icon: "/branding/help.png", modules: null }
+  ];
+  const platformAdminCards = [
+    { href: "/dashboard/teams", label: t("common.teams"), icon: "/branding/teams.png", modules: null },
+    { href: "/dashboard/videos", label: t("common.videoViewer"), icon: "/branding/video-viewer.png", modules: null },
+    { href: "/dashboard/clips", label: "Matches & Clips", icon: "/branding/clips.png", modules: null },
+    { href: "/dashboard/training", label: t("common.training"), icon: "/branding/training.png", modules: null },
+    { href: "/dashboard/intradesk", label: "Intradesk", icon: "/branding/intradesk.png", modules: null },
+    { href: "/dashboard/settings", label: t("common.settings"), icon: "/branding/settings.png", modules: null },
+    { href: "/dashboard/help", label: t("common.help"), icon: "/branding/help.png", modules: null }
   ];
   const supabase = createClient();
   const {
@@ -44,21 +51,22 @@ export default async function DashboardHomePage() {
   if (isGuardian && !hasOtherRole) return <ParentHome />;
 
   const clubContext = await getClubContext();
+  const cards = clubContext.isPlatformAdmin ? platformAdminCards : bundledCards;
   const clubIds = clubContext.activeClubId ? [clubContext.activeClubId] : [];
   const { data: entitlements } = clubIds.length
     ? await supabase.from("club_module_entitlements").select("module_key, enabled").in("club_id", clubIds)
     : { data: null };
-  const constrainedByClub = clubIds.length > 0 && !isAdminEmail(user?.email);
+  const constrainedByClub = clubIds.length > 0 && !clubContext.isPlatformAdmin;
   const enabledModules = new Set((entitlements ?? []).filter((item) => item.enabled).map((item) => item.module_key));
-  const visibleCards = cards.filter((card) => !card.module || !constrainedByClub || enabledModules.has(card.module));
+  const visibleCards = cards.filter((card) => !card.modules || !constrainedByClub || card.modules.some((module) => enabledModules.has(module)));
   if (isGuardian) {
-    visibleCards.push({ href: "/dashboard/parent", label: "Ouderweergave", icon: "/branding/clips.png", module: null });
+    visibleCards.push({ href: "/dashboard/parent", label: "Ouderweergave", icon: "/branding/clips.png", modules: null });
   }
   if (isAdminEmail(user?.email) || profile?.account_role === "club_admin" || profile?.account_role === "club_admin_viewer") {
-    if (!constrainedByClub || enabledModules.has("club_management")) visibleCards.push({ href: "/dashboard/club", label: "Clubbeheer", icon: "/branding/clubadmin.png", module: null });
+    if (!constrainedByClub || enabledModules.has("club_management")) visibleCards.push({ href: "/dashboard/club", label: "Clubbeheer", icon: "/branding/clubadmin.png", modules: null });
   }
   if (isAdminEmail(user?.email) || profile?.account_role === "admin_viewer") {
-    visibleCards.push({ href: "/dashboard/admin", label: t("common.admin"), icon: "/branding/admin.png", module: null });
+    visibleCards.push({ href: "/dashboard/admin", label: t("common.admin"), icon: "/branding/admin.png", modules: null });
   }
 
   return (
