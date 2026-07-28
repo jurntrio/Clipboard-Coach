@@ -1,40 +1,73 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { ClubTeamsManager } from "./ClubTeamsManager";
+import { ClubLogoUploader } from "@/components/clubs/ClubLogoUploader";
+import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 
-type Club = { id: string; name: string; rbfa_registration_number: string | null };
-type Team = { id: string; club_id: string; name: string; age_category: string | null; level_or_competition: string | null; status: string; club_trainer_teams?: { trainer_id: string; role: string; status: string }[] };
+type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null };
+type Team = {
+  id: string;
+  club_id: string;
+  name: string;
+  status: string;
+  trainers_can_edit_roster: boolean;
+  club_trainer_teams?: { trainer_id: string; role: string; status: string }[];
+  teams?: { id: string; players: { id: string; first_name: string; last_name: string; date_of_birth: string | null; email: string | null; phone_numbers: string[]; role: "player" | "staff" }[] }[];
+};
 type Trainer = { id: string; club_id: string; profile_id: string | null; display_name: string; phone_number: string | null; invitation_status: string; profiles: { email: string } | null; club_trainer_teams: { club_team_id: string }[] };
-type Membership = { club_id: string; profile_id: string; role: "trainer" | "club_admin" | "analyst" };
+type Membership = { club_id: string; profile_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst" };
 type Match = { id: string; club_id: string; club_team_id: string | null; team_a_name: string; team_b_name: string; match_date: string | null; start_time: string | null; status: string; score_a: number | null; score_b: number | null; external_source: string | null };
 type Assignment = { id: string; match_id: string; trainer_id: string; visible: boolean; assignment_source: string };
-type Overview = { clubs: Club[]; teams: Team[]; trainers: Trainer[]; matches: Match[]; assignments: Assignment[]; memberships: Membership[] };
+type MigrationIssue = { id: string; clubId: string; clubPlayerId: string; playerName: string; seasonId: string | null; candidates: { teamId: string; teamName: string; membershipType: string }[] };
+type ModuleEntitlement = { club_id: string; module_key: string; enabled: boolean };
+type TrainingSettings = {
+  club_id: string; new_training_policy: "automatic" | "approval_required" | "personal_only";
+  new_version_policy: "automatic" | "approval_required"; trainers_can_create_versions: boolean;
+  trainers_can_download: boolean; age_category_required: boolean; change_note_required: boolean;
+};
+type Overview = { clubs: Club[]; teams: Team[]; trainers: Trainer[]; matches: Match[]; assignments: Assignment[]; memberships: Membership[]; moduleEntitlements: ModuleEntitlement[]; trainingSettings: TrainingSettings[]; migrationIssues: MigrationIssue[] };
+
+const roleLabels: Record<Membership["role"], string> = { club_admin: "Club Admin", club_admin_viewer: "Club Admin (viewer)", analyst: "Analyst", trainer: "Trainer" };
+const roleBadgeClass: Record<Membership["role"], string> = { club_admin: "bg-blue-500/15 text-blue-300", club_admin_viewer: "bg-blue-500/10 text-blue-200", analyst: "bg-cyan-500/15 text-cyan-300", trainer: "bg-accent/15 text-accent" };
 
 export function ClubDashboard() {
+  const { activeClubId } = useActiveClub();
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState("");
   const [selectedClubId, setSelectedClubId] = useState("");
+  const [currentUserId, setCurrentUserId] = useState("");
+  const supabase = createClient();
 
   async function load() {
     await fetch("/api/club/overview").then(async (response) => {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Clubgegevens konden niet geladen worden.");
       setData(body);
-      setSelectedClubId((current) => current || body.clubs?.[0]?.id || "");
+      setSelectedClubId(activeClubId || body.clubs?.[0]?.id || "");
     }).catch((reason) => setError(reason.message));
   }
 
   useEffect(() => {
     void load();
+    void supabase.auth.getUser().then(({ data: authData }) => setCurrentUserId(authData.user?.id ?? ""));
   }, []);
+  useEffect(() => {
+    if (activeClubId) setSelectedClubId(activeClubId);
+  }, [activeClubId]);
 
   const club = data?.clubs.find((item) => item.id === selectedClubId);
   const teams = useMemo(() => data?.teams.filter((item) => item.club_id === selectedClubId) ?? [], [data, selectedClubId]);
   const trainers = useMemo(() => data?.trainers.filter((item) => item.club_id === selectedClubId) ?? [], [data, selectedClubId]);
+  const migrationIssues = useMemo(() => data?.migrationIssues.filter((item) => item.clubId === selectedClubId) ?? [], [data, selectedClubId]);
   const matches = useMemo(() => data?.matches.filter((item) => item.club_id === selectedClubId) ?? [], [data, selectedClubId]);
   const teamNames = new Map(teams.map((team) => [team.id, team.name]));
+  const myMembership = data?.memberships.find((item) => item.club_id === selectedClubId && item.profile_id === currentUserId);
+  const readOnly = myMembership?.role === "club_admin_viewer";
+  const moduleEnabled = (key: string) => data?.moduleEntitlements.find((item) => item.club_id === selectedClubId && item.module_key === key)?.enabled !== false;
+  const trainingSettings = data?.trainingSettings.find((item) => item.club_id === selectedClubId);
 
   function isAssigned(match: Match, trainer: Trainer) {
     const explicit = data?.assignments.find((item) => item.match_id === match.id && item.trainer_id === trainer.id);
@@ -60,18 +93,81 @@ export function ClubDashboard() {
     } : current);
   }
 
+  async function setClipAdvertising(enabled: boolean) {
+    if (!club || readOnly) return;
+    const key = `clips:${club.id}`;
+    setSaving(key);
+    setError("");
+    const response = await fetch("/api/club/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clubId: club.id, clipAdvertisingEnabled: enabled })
+    });
+    const body = await response.json();
+    setSaving("");
+    if (!response.ok) return setError(body.error || "Clipinstellingen konden niet worden bewaard.");
+    setData((current) => current ? {
+      ...current,
+      clubs: current.clubs.map((item) => item.id === club.id ? { ...item, clip_advertising_enabled: enabled } : item)
+    } : current);
+  }
+
+  async function setClipViewRole(role: string, enabled: boolean) {
+    if (!club || readOnly || role === "club_admin") return;
+    const current = club.clip_view_count_roles ?? ["club_admin"];
+    const roles = enabled ? [...new Set([...current, role])] : current.filter((item) => item !== role);
+    setSaving("clip-view-roles");
+    setError("");
+    const response = await fetch("/api/club/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clubId: club.id, clipViewCountRoles: roles })
+    });
+    const body = await response.json();
+    setSaving("");
+    if (!response.ok) return setError(body.error || "Rechten voor kijkcijfers konden niet worden bewaard.");
+    setData((currentData) => currentData ? {
+      ...currentData,
+      clubs: currentData.clubs.map((item) => item.id === club.id
+        ? { ...item, clip_view_count_roles: body.club.clip_view_count_roles }
+        : item)
+    } : currentData);
+  }
+
+  async function saveTrainingSettings(next: TrainingSettings) {
+    if (readOnly) return;
+    setSaving("training-settings");
+    setError("");
+    const response = await fetch("/api/club/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clubId: selectedClubId,
+        trainingSettings: {
+          newTrainingPolicy: next.new_training_policy,
+          newVersionPolicy: next.new_version_policy,
+          trainersCanCreateVersions: next.trainers_can_create_versions,
+          trainersCanDownload: next.trainers_can_download,
+          ageCategoryRequired: next.age_category_required,
+          changeNoteRequired: next.change_note_required
+        }
+      })
+    });
+    const body = await response.json();
+    setSaving("");
+    if (!response.ok) return setError(body.error || "Traininginstellingen konden niet worden bewaard.");
+    setData((current) => current ? {
+      ...current,
+      trainingSettings: [...current.trainingSettings.filter((item) => item.club_id !== selectedClubId), body.trainingSettings]
+    } : current);
+  }
+
   if (error) return <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div>;
   if (!data) return <div className="text-textMuted">Clubgegevens laden…</div>;
   if (!data.clubs.length) return <div className="text-textMuted">Je bent nog niet aan een club gekoppeld.</div>;
 
   return (
     <div className="space-y-6">
-      {data.clubs.length > 1 && (
-        <select value={selectedClubId} onChange={(event) => setSelectedClubId(event.target.value)} className="rounded-lg border border-border bg-card px-3 py-2">
-          {data.clubs.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-      )}
-
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h2 className="text-xl font-semibold text-textBright">{club?.name}</h2><p className="text-sm text-textMuted">Clubtrainers en hun standaardploegen</p></div>
@@ -79,21 +175,69 @@ export function ClubDashboard() {
             RBFA {club?.rbfa_registration_number ? `stamnummer ${club.rbfa_registration_number}` : "nog te configureren"}
           </span>
         </div>
+        {club && <div className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-4">
+          <h3 className="mb-3 font-semibold text-textBright">Clublogo</h3>
+          <ClubLogoUploader clubId={club.id} clubName={club.name} logoUrl={club.logo_url ?? null} readOnly={readOnly}
+            onChanged={logoUrl => setData(current => current ? { ...current, clubs: current.clubs.map(item => item.id === club.id ? { ...item, logo_url: logoUrl } : item) } : current)} />
+        </div>}
         <div className="mt-4 overflow-x-auto rounded-xl border border-borderSubtle">
           <table className="w-full min-w-[780px] text-sm">
             <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="px-3 py-3 text-left">Naam</th><th className="px-3 py-3 text-left">Team(s)</th><th className="px-3 py-3 text-left">Gsm</th><th className="px-3 py-3 text-left">E-mail</th><th className="px-3 py-3 text-left">Rol</th></tr></thead>
             <tbody>{trainers.map((trainer) => {
               const membership = data.memberships.find((item) => item.club_id === trainer.club_id && item.profile_id === trainer.profile_id);
               const role = membership?.role ?? "trainer";
-              return <tr key={trainer.id} className="border-t border-borderSubtle bg-card"><td className="px-3 py-3 font-medium text-textPrimary">{trainer.display_name}{trainer.invitation_status !== "linked" && <span className="ml-2 text-xs text-amber-300">Nog te koppelen</span>}</td><td className="px-3 py-3 text-textSecondary">{trainer.club_trainer_teams.map((link) => teamNames.get(link.club_team_id)).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-3 text-textSecondary">{trainer.phone_number || "—"}</td><td className="px-3 py-3 text-textSecondary">{trainer.profiles?.email || "—"}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${role === "club_admin" ? "bg-blue-500/15 text-blue-300" : role === "analyst" ? "bg-cyan-500/15 text-cyan-300" : "bg-accent/15 text-accent"}`}>{role === "club_admin" ? "Club Admin" : role === "analyst" ? "Analyst" : "Trainer"}</span></td></tr>;
+              return <tr key={trainer.id} className="border-t border-borderSubtle bg-card"><td className="px-3 py-3 font-medium text-textPrimary">{trainer.display_name}{trainer.invitation_status !== "linked" && <span className="ml-2 text-xs text-amber-300">Nog te koppelen</span>}</td><td className="px-3 py-3 text-textSecondary">{trainer.club_trainer_teams.map((link) => teamNames.get(link.club_team_id)).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-3 text-textSecondary">{trainer.phone_number || "—"}</td><td className="px-3 py-3 text-textSecondary">{trainer.profiles?.email || "—"}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${roleBadgeClass[role]}`}>{roleLabels[role]}</span></td></tr>;
             })}</tbody>
           </table>
         </div>
       </section>
 
-      <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} onChanged={load} />
+      {moduleEnabled("teams") && <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} migrationIssues={migrationIssues} onChanged={load} readOnly={readOnly} />}
 
-      <section className="rounded-xl border border-border bg-card p-5">
+      {(moduleEnabled("training") || moduleEnabled("intradesk")) && trainingSettings && (
+        <TrainingModuleSettings settings={trainingSettings} saving={saving === "training-settings"} readOnly={readOnly} onSave={saveTrainingSettings} />
+      )}
+
+      {moduleEnabled("clips") && <section className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-xl font-semibold text-textBright">Clips</h2>
+        <p className="mt-1 text-sm text-textMuted">Bepaal wat er onderaan de publieke gedeelde clips van deze club verschijnt.</p>
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-borderSubtle bg-cardDeep p-4">
+          <input
+            type="checkbox"
+            checked={club?.clip_advertising_enabled !== false}
+            disabled={readOnly || saving === `clips:${club?.id}`}
+            onChange={(event) => void setClipAdvertising(event.target.checked)}
+            className="mt-0.5 h-5 w-5 accent-accent disabled:opacity-60"
+          />
+          <span>
+            <span className="block font-semibold text-textPrimary">Voeg reclame toe</span>
+            <span className="mt-1 block text-sm text-textMuted">Toon de vaste sponsorafbeelding onder de video op gedeelde clippagina’s.</span>
+          </span>
+        </label>
+        <div className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-4">
+          <h3 className="font-semibold text-textPrimary">Wie mag kijkcijfers zien?</h3>
+          <p className="mt-1 text-sm text-textMuted">Bepaal welke rollen het aantal geopende gedeelde clips in Matches zien. Clubadmins behouden altijd toegang.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {([
+              ["club_admin", "Clubadmins"],
+              ["club_admin_viewer", "Clubadmin-viewers"],
+              ["analyst", "Analisten"],
+              ["trainer", "Trainers en assistenten"]
+            ] as const).map(([role, label]) => (
+              <label key={role} className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm text-textPrimary">
+                <input type="checkbox"
+                  checked={role === "club_admin" || (club?.clip_view_count_roles ?? ["club_admin"]).includes(role)}
+                  disabled={readOnly || role === "club_admin" || saving === "clip-view-roles"}
+                  onChange={(event) => void setClipViewRole(role, event.target.checked)}
+                  className="h-4 w-4 accent-accent disabled:opacity-60" />
+                <span>{label}{role === "club_admin" && <span className="ml-1 text-xs text-textMuted">· altijd</span>}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </section>}
+
+      {moduleEnabled("matches") && <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Wedstrijden toewijzen</h2>
         <p className="mt-1 text-sm text-textMuted">De ploegtoewijzing wordt automatisch aangevinkt. Elke wijziging hieronder is een handmatige override.</p>
         {matches.length ? (
@@ -124,14 +268,53 @@ export function ClubDashboard() {
                   <td className="sticky left-[260px] z-10 bg-card px-3 py-3 text-textSecondary">{match.club_team_id ? teamNames.get(match.club_team_id) || "–" : "Nog te koppelen"}</td>
                   {trainers.map((trainer) => {
                     const key = `${match.id}:${trainer.id}`;
-                    return <td key={trainer.id} className="w-11 min-w-11 px-1 py-3 text-center"><input aria-label={`${trainer.display_name} toegang tot ${match.team_a_name} - ${match.team_b_name}`} type="checkbox" checked={isAssigned(match, trainer)} disabled={saving === key} onChange={() => void toggle(match, trainer)} className="h-5 w-5 accent-accent" /></td>;
+                    return <td key={trainer.id} className="w-11 min-w-11 px-1 py-3 text-center"><input aria-label={`${trainer.display_name} toegang tot ${match.team_a_name} - ${match.team_b_name}`} type="checkbox" checked={isAssigned(match, trainer)} disabled={saving === key || readOnly} onChange={() => void toggle(match, trainer)} className="h-5 w-5 accent-accent disabled:opacity-60" /></td>;
                   })}
                 </tr>
               ))}</tbody>
             </table>
           </div>
         ) : <div className="mt-4 rounded-lg border border-dashed border-border p-8 text-center text-textMuted">Nog geen clubwedstrijden gekoppeld. De structuur staat klaar voor RBFA-import en handmatig gekoppelde wedstrijden.</div>}
-      </section>
+      </section>}
     </div>
   );
+}
+
+function TrainingModuleSettings({ settings, saving, readOnly, onSave }: {
+  settings: TrainingSettings; saving: boolean; readOnly: boolean;
+  onSave: (settings: TrainingSettings) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(settings);
+  useEffect(() => setDraft(settings), [settings]);
+  const toggle = (key: keyof TrainingSettings) => setDraft((current) => ({ ...current, [key]: !current[key] }));
+  return <section className="rounded-xl border border-border bg-card p-5">
+    <h2 className="text-xl font-semibold text-textBright">Training & Intradesk</h2>
+    <p className="mt-1 text-sm text-textMuted">Bepaal hoe nieuwe clubtrainingen en nieuwe versies gepubliceerd worden.</p>
+    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      <label className="text-sm text-textSecondary">Nieuwe trainingen
+        <select value={draft.new_training_policy} disabled={readOnly} onChange={(event) => setDraft((current) => ({ ...current, new_training_policy: event.target.value as TrainingSettings["new_training_policy"] }))} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary">
+          <option value="automatic">Automatisch goedkeuren en publiceren in Intradesk</option>
+          <option value="approval_required">Eerst laten goedkeuren door een clubadmin</option>
+          <option value="personal_only">Niet automatisch in Intradesk opnemen</option>
+        </select>
+      </label>
+      <label className="text-sm text-textSecondary">Nieuwe versies
+        <select value={draft.new_version_policy} disabled={readOnly} onChange={(event) => setDraft((current) => ({ ...current, new_version_policy: event.target.value as TrainingSettings["new_version_policy"] }))} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary">
+          <option value="automatic">Automatisch publiceren</option>
+          <option value="approval_required">Eerst laten goedkeuren</option>
+        </select>
+      </label>
+    </div>
+    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      {([
+        ["trainers_can_create_versions", "Trainers mogen nieuwe versies maken"],
+        ["trainers_can_download", "Trainers mogen clubtrainingen downloaden"],
+        ["age_category_required", "Leeftijdscategorie is verplicht"],
+        ["change_note_required", "Wijzigingsnotitie is verplicht"]
+      ] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 text-sm text-textPrimary">
+        <input type="checkbox" checked={draft[key]} disabled={readOnly} onChange={() => toggle(key)} className="h-4 w-4 accent-accent" />{label}
+      </label>)}
+    </div>
+    {!readOnly && <button type="button" disabled={saving} onClick={() => void onSave(draft)} className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:opacity-50">{saving ? "Opslaan…" : "Instellingen opslaan"}</button>}
+  </section>;
 }

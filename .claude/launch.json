@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "website", "run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "club-app",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "club-app", "run", "dev"],
+      "port": 3100
     }
   ]
 }

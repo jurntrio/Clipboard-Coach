@@ -3,6 +3,7 @@ import express from "express";
 import { env } from "./env";
 import { processVideo } from "./processVideo";
 import { processClip } from "./processClip";
+import { processRemoteClip } from "./processRemoteClip";
 import { cleanupExpiredClips } from "./cleanupExpiredClips";
 import { startLockedJob } from "./jobLock";
 
@@ -30,11 +31,11 @@ app.post("/process", async (req, res) => {
 app.post("/process-clip", async (req, res) => {
   const auth = req.header("authorization");
   if (auth !== `Bearer ${env.workerSharedSecret}`) return res.status(401).json({ error: "Unauthorized" });
-  const { clipId } = req.body ?? {};
+  const { clipId, mode } = req.body ?? {};
   if (typeof clipId !== "string") return res.status(400).json({ error: "clipId is required" });
 
   try {
-    const started = await startLockedJob("clip", clipId, () => processClip(clipId));
+    const started = await startLockedJob("clip", clipId, () => mode === "remote" ? processRemoteClip(clipId) : processClip(clipId));
     return res.status(202).json({ accepted: started, alreadyProcessing: !started });
   } catch (error) {
     console.error(`[worker] could not acquire clip lock ${clipId}:`, error);

@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { useI18n } from "@/i18n/client";
 import { PrivacyDataSection } from "@/components/settings/PrivacyDataSection";
+import { ClipProfilesTable } from "@/components/settings/ClipProfilesTable";
 
 export default function SettingsPage() {
   const { t } = useI18n();
@@ -73,7 +74,7 @@ export default function SettingsPage() {
         <LanguageSwitcher />
       </section>
 
-      <section>
+      <section id="quick-tags">
         <h2 className="text-textBright font-semibold mb-2">{t("settings.quickTags")}</h2>
         <p className="text-textMuted text-sm mb-3">{t("settings.quickTagsHelp")}</p>
 
@@ -100,6 +101,12 @@ export default function SettingsPage() {
             {t("settings.add")}
           </button>
         </form>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="mb-2 font-semibold text-textBright">Clip Profiles</h2>
+        <p className="mb-3 text-sm text-textMuted">{t("settings.clipProfilesHelp")}</p>
+        <ClipProfilesTable />
       </section>
 
       <PrivacyDataSection />

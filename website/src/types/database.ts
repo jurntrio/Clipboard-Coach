@@ -4,7 +4,7 @@ export type Profile = {
   full_name: string | null;
   plan: "free" | "pro";
   clips_created_total: number;
-  account_role: "platform_admin" | "club_admin" | "coach" | "assistant_coach" | "team_manager" | "analyst";
+  account_role: "platform_admin" | "admin_viewer" | "club_admin" | "club_admin_viewer" | "coach" | "assistant_coach" | "team_manager" | "analyst" | "player_parent";
   clip_limit_exempt: boolean;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
@@ -15,7 +15,8 @@ export type Profile = {
 
 export type Team = {
   id: string;
-  coach_id: string;
+  coach_id: string | null;
+  club_team_id: string | null;
   name: string;
   age_group: string | null;
   club_name: string | null;
@@ -35,6 +36,8 @@ export type Club = {
   external_club_id: string | null;
   external_sync_status: string | null;
   last_synced_at: string | null;
+  clip_advertising_enabled: boolean;
+  clip_view_count_roles: string[];
   created_at: string;
   updated_at: string;
 };
@@ -46,6 +49,7 @@ export type ClubTeam = {
   normalized_name: string;
   age_category: string | null;
   level_or_competition: string | null;
+  trainers_can_edit_roster: boolean;
   status: "active" | "inactive" | "pending" | "rejected" | "archived" | "merged";
   merged_into_id: string | null;
   external_provider: string | null;
@@ -54,6 +58,70 @@ export type ClubTeam = {
   last_synced_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ClubSeason = {
+  id: string;
+  club_id: string;
+  name: string;
+  starts_on: string;
+  ends_on: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type ClubPlayer = {
+  id: string;
+  club_id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string | null;
+  email: string | null;
+  phone: string | null;
+  phone_2: string | null;
+  phone_2_name: string | null;
+  phone_3: string | null;
+  phone_3_name: string | null;
+  address: string | null;
+  postal_code: string | null;
+  city: string | null;
+  match_key: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PlayerTeamMembership = {
+  id: string;
+  club_player_id: string;
+  team_id: string;
+  season_id: string;
+  membership_type: "primary" | "secondary" | "guest";
+  status: "active" | "inactive" | "ended";
+  joined_at: string;
+  left_at: string | null;
+  valid_from: string | null;
+  valid_until: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClubPlayerMigrationIssue = {
+  id: string;
+  club_id: string;
+  legacy_player_id: string | null;
+  candidate_club_player_id: string | null;
+  issue_type:
+    | "duplicate_membership"
+    | "missing_date_of_birth"
+    | "possible_name_match"
+    | "conflicting_contact_data"
+    | "unassigned_primary_team";
+  issue_key: string;
+  details: Record<string, unknown>;
+  status: "open" | "resolved" | "ignored";
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
 };
 
 export type Player = {
@@ -68,6 +136,7 @@ export type Player = {
   phone_numbers: string[];
   jersey_number: number | null;
   role: "player" | "staff";
+  membership_id: string | null;
   created_at: string;
 };
 
@@ -84,6 +153,7 @@ export type Video = {
   duration: number | null;
   file_size: number | null;
   active_player_ids: string[];
+  camera_number: number | null;
   status: "active" | "deleted";
   processing_status: "pending" | "processing" | "ready" | "failed";
   processing_error: string | null;
@@ -99,11 +169,13 @@ export type Match = {
   team_b_name: string;
   match_date: string | null;
   start_time: string | null;
+  recording_start_time: string | null;
   status: "scheduled" | "live" | "finished";
   score_a: number | null;
   score_b: number | null;
   player_ids: string[];
   live_tag_names: string[];
+  live_tag_offset_seconds: number;
   last_opened_at: string;
   created_at: string;
   updated_at: string;
@@ -113,11 +185,25 @@ export type Match = {
   external_match_id: string | null;
 };
 
+export type LiveMatchTag = {
+  id: string;
+  match_id: string;
+  link_id: string | null;
+  tag_name: string;
+  player_ids: string[];
+  tagger_name: string | null;
+  occurred_at: string;
+  reviewed_at: string | null;
+  tag_id: string | null;
+  created_at: string;
+};
+
 export type MatchVideo = {
   id: string;
   match_id: string;
   video_id: string;
   sequence_order: number;
+  is_primary: boolean;
   label: string;
   created_at: string;
 };
@@ -128,8 +214,11 @@ export type Tag = {
   name: string;
   start_time: number;
   end_time: number;
+  occurred_at_seconds: number;
   color: string;
   player_ids: string[];
+  event_type: "goal_for" | "goal_against" | null;
+  event_metadata: Record<string, unknown>;
   drawings: TagDrawing[];
   created_at: string;
 };
@@ -150,7 +239,15 @@ export type StandardTag = {
   coach_id: string;
   name: string;
   is_protected: boolean;
+  start_offset_seconds: number;
+  end_offset_seconds: number;
   created_at: string;
+};
+
+export type PlayerCareerStats = {
+  player_id: string;
+  goals: number;
+  assists: number;
 };
 
 export type ClipAudienceType = "full_team" | "selected_players" | "specific_players";
@@ -196,7 +293,14 @@ export type ClipSegment = {
   id: string;
   clip_id: string;
   tag_id: string;
+  video_id: string | null;
   sequence_order: number;
+  render_status: "pending" | "rendering" | "ready" | "failed";
+  rendered_segment: Record<string, unknown> | null;
+  render_error: string | null;
+  render_attempts: number;
+  render_started_at: string | null;
+  render_completed_at: string | null;
   created_at: string;
 };
 

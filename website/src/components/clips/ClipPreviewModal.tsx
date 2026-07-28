@@ -33,6 +33,8 @@ export function ClipPreviewModal({
 }) {
   const { t } = useI18n();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const continuePlayingRef = useRef(true);
+  const changingSegmentRef = useRef(false);
   const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drawingActiveRef = useRef(false);
   const shownDrawingIdsRef = useRef(new Set<string>());
@@ -40,13 +42,6 @@ export function ClipPreviewModal({
   const [activeDrawing, setActiveDrawing] = useState<NonNullable<ClipSegmentPlayback["drawings"]>[number] | null>(null);
   const segment = segments[segmentIndex];
   const currentSource = segment?.url || videoUrl;
-
-  useEffect(() => {
-    const player = videoRef.current;
-    if (!player || !segment) return;
-    player.currentTime = segment.start_time;
-    player.play().catch(() => undefined);
-  }, [segmentIndex, segment]);
 
   useEffect(() => () => {
     if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current);
@@ -60,7 +55,7 @@ export function ClipPreviewModal({
   }, [segmentIndex]);
 
   function handleTimeUpdate(event: React.SyntheticEvent<HTMLVideoElement>) {
-    if (!segment) return;
+    if (!segment || changingSegmentRef.current) return;
     const drawing = segment.drawings?.find((item) => !shownDrawingIdsRef.current.has(item.id) && event.currentTarget.currentTime >= item.at_time - 0.08);
     if (drawing && !activeDrawing) {
       shownDrawingIdsRef.current.add(drawing.id);
@@ -77,8 +72,11 @@ export function ClipPreviewModal({
     }
     if (event.currentTarget.currentTime >= segment.end_time) {
       if (segmentIndex < segments.length - 1) {
-        setSegmentIndex(segmentIndex + 1);
+        changingSegmentRef.current = true;
+        continuePlayingRef.current = !event.currentTarget.paused || continuePlayingRef.current;
+        setSegmentIndex((current) => current + 1);
       } else {
+        continuePlayingRef.current = false;
         event.currentTarget.pause();
       }
     }
@@ -93,7 +91,24 @@ export function ClipPreviewModal({
   }
 
   function handleEnded() {
-    if (segmentIndex < segments.length - 1) setSegmentIndex((current) => current + 1);
+    if (segmentIndex < segments.length - 1 && !changingSegmentRef.current) {
+      changingSegmentRef.current = true;
+      continuePlayingRef.current = true;
+      setSegmentIndex((current) => current + 1);
+    }
+  }
+
+  function handleLoadedMetadata(event: React.SyntheticEvent<HTMLVideoElement>) {
+    if (!segment) return;
+    event.currentTarget.currentTime = segment.start_time;
+    changingSegmentRef.current = false;
+    if (continuePlayingRef.current) event.currentTarget.play().catch(() => undefined);
+  }
+
+  function selectSegment(index: number) {
+    changingSegmentRef.current = index !== segmentIndex;
+    continuePlayingRef.current = true;
+    setSegmentIndex(index);
   }
 
   return (
@@ -120,7 +135,7 @@ export function ClipPreviewModal({
             src={currentSource}
             controls
             className="w-full bg-black"
-            onLoadedMetadata={(event) => { event.currentTarget.currentTime = segment?.start_time ?? 0; }}
+            onLoadedMetadata={handleLoadedMetadata}
             onTimeUpdate={handleTimeUpdate}
             onSeeked={handleSeeked}
             onEnded={handleEnded}
@@ -132,7 +147,7 @@ export function ClipPreviewModal({
           {segments.map((seg, index) => (
             <button
               key={seg.id}
-              onClick={() => setSegmentIndex(index)}
+              onClick={() => selectSegment(index)}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${
                 index === segmentIndex ? "bg-accentDim" : "hover:bg-cardHover"
               }`}

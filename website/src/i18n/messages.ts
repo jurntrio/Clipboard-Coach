@@ -8,6 +8,7 @@ const nl = {
   "common.saving": "Opslaan…",
   "common.remove": "Verwijderen",
   "common.edit": "Bewerken",
+  "common.play": "afspelen",
   "common.help": "Hulp",
   "common.training": "Training",
   "common.admin": "Beheer",
@@ -27,6 +28,115 @@ const nl = {
   "matchHub.linkFailed": "De taglink kon niet worden gemaakt.",
   "matchHub.linkCopied": "De externe taglink staat op het klembord.",
   "matchHub.required": "Selecteer een team en vul de tegenstander in.",
+  "matchHub.allTeams": "Alle ploegen",
+  "matchHub.copyTagLink": "Taglink kopiëren",
+  "matchHub.addVideo": "Video toevoegen",
+  "matchHub.deleteMatch": "Wedstrijd verwijderen",
+  "matchHub.teamClips": "Clips voor de volledige ploeg",
+  "matchHub.noTeamClips": "Nog geen ploegclips",
+  "matchHub.colPlayer": "Speler",
+  "matchHub.colSelectedClips": "Geselecteerde clips",
+  "matchHub.colTaggedClips": "Individueel getagd",
+  "matchHub.colShare": "Deel",
+  "matchHub.shareAllWith": "Alle clips delen met {name}",
+  "matchHub.noPlayersAssigned": "Nog geen spelers aangeduid.",
+  "matchHub.homeTeam": "Thuisploeg",
+  "matchHub.homeTeamPlaceholder": "Typ of kies een team",
+  "matchHub.awayTeam": "Bezoekers",
+  "matchHub.date": "Datum",
+  "matchHub.kickoffTime": "Aanvangsuur",
+  "matchHub.status": "Status",
+  "matchHub.scheduled": "Gepland",
+  "matchHub.live": "Live",
+  "matchHub.finishedStatus": "Afgewerkt",
+  "matchHub.homeScore": "Score thuis",
+  "matchHub.awayScore": "Score uit",
+  "matchHub.participatingPlayers": "Spelers die deelnemen",
+  "matchHub.chooseTeamFirst": "Kies eerst een team.",
+  "matchHub.liveTagButtons": "Tagknoppen voor deze wedstrijd",
+  "matchHub.removeTag": "{name} verwijderen",
+  "matchHub.addTag": "Tag toevoegen",
+  "matchHub.newTagPlaceholder": "Nieuwe tag",
+  "matchHub.suggestions": "Suggesties",
+  "matchHub.manageTagLibrary": "Tagbibliotheek beheren",
+  "matchHub.deleteClipTitle": "Clip verwijderen",
+  "matchHub.confirmDeleteClip": "Clip \"{name}\" definitief verwijderen?",
+  "matchHub.clipDeleteFailed": "De clip kon niet worden verwijderd.",
+  "matchHub.clipDeleted": "Clip \"{name}\" is verwijderd.",
+  "matchHub.deleteMatchTitle": "Wedstrijd verwijderen",
+  "matchHub.confirmDeleteMatch": "Wedstrijd \"{name}\" en de gekoppelde gegevens definitief verwijderen?",
+  "matchHub.matchDeleteFailed": "De wedstrijd kon niet worden verwijderd.",
+  "matchHub.matchDeleted": "Wedstrijd \"{name}\" is verwijderd.",
+  "matchHub.noClipsToShare": "Er zijn nog geen clips om met {name} te delen.",
+  "matchHub.shareIntro": "Trainer {coach} heeft deze clips met je gedeeld van de wedstrijd {match}{dateSuffix}.",
+  "matchHub.shareDateSuffix": " op {date}",
+  "matchHub.shareTitle": "Clips van {match}",
+  "matchHub.defaultCoachName": "Je trainer",
+  "matchHub.lineupCount": "{count} spelers",
+  "clubTeams.heading": "Teams",
+  "clubTeams.subtitle": "Maak teams en spelerslijsten vooraf klaar en wijs coaches toe.",
+  "clubTeams.namePlaceholder": "Teamnaam",
+  "clubTeams.create": "Team aanmaken",
+  "clubTeams.saveFailed": "Wijziging kon niet worden bewaard.",
+  "clubTeams.coachesLabel": "Coaches: {names}",
+  "clubTeams.noCoachAssigned": "nog niemand toegewezen",
+  "clubTeams.noTeamsYet": "Deze club heeft nog geen teams.",
+  "clubTeams.readingFile": "Bestand lezen…",
+  "clubTeams.columnsNotFound": "Kolommen Voornaam en Naam werden niet gevonden.",
+  "clubTeams.noUsablePlayers": "Geen bruikbare spelers gevonden.",
+  "clubTeams.importedCount": "{count} spelers ingelezen. Controleer en bewaar de lijst.",
+  "clubTeams.fileReadFailed": "Bestand kon niet gelezen worden.",
+  "clubTeams.rosterSaveFailed": "Spelerslijst kon niet worden bewaard.",
+  "clubTeams.allSaved": "Alles bewaard — {count} spelers.",
+  "clubTeams.trainerCanEditRoster": "Trainer mag spelerslijst aanpassen",
+  "clubTeams.trainerCanEditRosterHelp": "Als dit uitstaat kan een toegewezen trainer de spelers wel bekijken en gebruiken, maar niet wijzigen.",
+  "clubTeams.assignCoaches": "Coaches toewijzen",
+  "clubTeams.notRegisteredYet": "nog te registreren",
+  "clubTeams.roster": "Spelerslijst",
+  "clubTeams.importHelp": "Importeer een ProSoccerData Excel-bestand of pas de lijst manueel aan.",
+  "clubTeams.choosePsdFile": "PSD-bestand kiezen",
+  "clubTeams.addPlayer": "Speler toevoegen",
+  "clubTeams.firstNamePlaceholder": "Voornaam",
+  "clubTeams.lastNamePlaceholder": "Naam",
+  "clubTeams.phonePlaceholder": "Gsm",
+  "clubTeams.saveHint": "Wijzigingen aan de spelerslijst worden pas bewaard wanneer je bovenaan op {save} klikt.",
+  "clubTeams.removeDisabledTooltip": "Verwijderen kan hier niet rechtstreeks — gebruik 'Synchroniseren' of 'Volledig vervangen' na een nieuwe import.",
+  "clubTeams.importMode.merge": "Toevoegen/bijwerken",
+  "clubTeams.importMode.sync": "Synchroniseren",
+  "clubTeams.importMode.replace": "Volledig vervangen",
+  "clubTeams.importModeHint.merge": "Bestaande spelers van dit team worden nooit verwijderd. Contactgegevens die botsen met een ander team worden nooit stilzwijgend overschreven — dat gaat naar de clubadmin.",
+  "clubTeams.importModeHint.sync": "Na een nieuwe import kan je zelf kiezen welke ontbrekende spelers het team verlaten.",
+  "clubTeams.importModeHint.replace": "Elke speler die niet in het geïmporteerde bestand staat, verlaat het team — enkel na expliciete bevestiging.",
+  "clubTeams.importPreview": "{new} nieuw · {updated} bijgewerkt · {missing} niet in bestand",
+  "clubTeams.syncMissingHeading": "Deze spelers staan niet in het geïmporteerde bestand. Vink aan wie het team mag verlaten.",
+  "clubTeams.replaceWarning": "Deze spelers staan niet in het geïmporteerde bestand en worden bij bevestigen uit het team verwijderd.",
+  "clubTeams.replaceConfirmLabel": "Ik bevestig dat deze {count} speler(s) volledig uit dit team verwijderd worden.",
+  "clubTeams.replaceConfirmRequired": "Bevestig eerst de volledige vervanging hierboven.",
+  "clubTeams.allSavedWithRemoved": "Alles bewaard — {count} spelers, {removed} verwijderd.",
+  "clubTeams.addExistingHeading": "Voeg een bestaande speler toe aan dit team",
+  "clubTeams.addExistingHelp": "Zoek een speler die al bij een ander team van deze club hoort.",
+  "clubTeams.addExistingSearchPlaceholder": "Zoek op naam…",
+  "clubTeams.currentlyOn": "speelt ook bij: {teams}",
+  "clubTeams.addToTeam": "Toevoegen aan dit team",
+  "clubTeams.addedToTeam": "{name} toegevoegd aan dit team.",
+  "clubTeams.unassignedPrimaryHeading": "Kies een primair team",
+  "clubTeams.unassignedPrimaryHelp": "Deze spelers spelen bij meerdere teams. Kies welk team hun primaire team is.",
+  "clubTeams.choosePrimary": "Kies {team}",
+  "settings.clipProfilesHelp": "Bepaal per tag hoeveel seconden vóór en na het tagmoment automatisch in de clip komen.",
+  "clipProfiles.tag": "Tag",
+  "clipProfiles.startOffset": "Start t.o.v. tag",
+  "clipProfiles.endOffset": "Einde t.o.v. tag",
+  "clipProfiles.action": "Actie",
+  "clipProfiles.seconds": "sec",
+  "clipProfiles.needTwoNumbers": "Vul twee geldige getallen in.",
+  "clipProfiles.startMustBeBeforeEnd": "De startwaarde moet kleiner dan of gelijk aan de eindwaarde zijn.",
+  "clipProfiles.savedNotice": "{name} is opgeslagen.",
+  "clipProfiles.noTagsYet": "Voeg eerst snelle tags toe in Instellingen.",
+  "playerPage.sharedClipsMatches": "Wedstrijden met gedeelde clips",
+  "playerPage.matchesPlayed": "Wedstrijden gespeeld",
+  "playerPage.goals": "Goals",
+  "playerPage.assists": "Assists",
+  "match.currentPosition": "Huidige positie in de video",
   "common.settings": "Instellingen",
   "common.exit": "Afmelden",
   "common.language": "Taal",
@@ -79,8 +189,24 @@ const nl = {
   "auth.welcomeBackIntro": "Welkom terug. Ga verder waar je gebleven was.",
   "auth.yourPassword": "Je wachtwoord",
   "auth.needSignInHelp": "Hulp nodig bij aanmelden?",
-  "auth.resetUnavailable": "Wachtwoordherstel is nog niet beschikbaar. Vraag voorlopig aan de beheerder van je account om het wachtwoord via Supabase te herstellen.",
   "auth.adultAgreement": "Ik ben minstens 18 jaar, ben bevoegd om voor mijn organisatie te handelen en ga akkoord met de Gebruiksvoorwaarden. Ik heb de Privacyverklaring gelezen.",
+  "auth.forgotPassword": "Wachtwoord vergeten?",
+  "auth.forgotPasswordTitle": "Wachtwoord vergeten",
+  "auth.forgotPasswordIntro": "Vul je e-mailadres in en we sturen je een link om een nieuw wachtwoord in te stellen.",
+  "auth.sendResetLink": "Verstuur resetlink",
+  "auth.sendingResetLink": "Versturen…",
+  "auth.resetLinkSent": "Check je e-mail",
+  "auth.resetLinkSentIntro": "Als dat adres bij een account hoort, hebben we er een resetlink naartoe gestuurd. Controleer ook je spammap.",
+  "auth.backToLogin": "Terug naar aanmelden",
+  "auth.resetPasswordTitle": "Nieuw wachtwoord instellen",
+  "auth.resetPasswordIntro": "Kies een nieuw wachtwoord voor je account.",
+  "auth.newPassword": "Nieuw wachtwoord",
+  "auth.confirmPassword": "Bevestig wachtwoord",
+  "auth.passwordsDontMatch": "De wachtwoorden komen niet overeen.",
+  "auth.updatePassword": "Wachtwoord instellen",
+  "auth.updatingPassword": "Bezig…",
+  "auth.resetLinkInvalid": "Deze link is ongeldig of verlopen. Vraag een nieuwe resetlink aan.",
+  "auth.requestNewLink": "Nieuwe resetlink aanvragen",
   "settings.appearance": "Weergave",
   "settings.appearanceHelp": "Kies hoe Clipboard Coach Studio er op dit apparaat uitziet.",
   "settings.languageHelp": "Kies de taal van de interface op dit apparaat.",
@@ -202,6 +328,8 @@ const nl = {
   ,"match.teamB": "Team B"
   ,"match.date": "Datum"
   ,"match.startTime": "Starttijd"
+  ,"match.recordingStartTime": "Start van de opname"
+  ,"match.recordingStartTimeHelp": "Wanneer de camera begon op te nemen (niet de aftrap). Gebruikt om live tags op de juiste plek te zetten."
   ,"match.videoManagement": "Videobeheer"
   ,"match.attendance": "Aanwezigheidslijst"
   ,"match.noAttendancePlayers": "Selecteer eerst een eigen team om spelers toe te voegen."
@@ -239,6 +367,17 @@ const nl = {
   ,"match.videos": "Wedstrijdvideo’s"
   ,"match.playOrder": "Ze worden automatisch in deze volgorde afgespeeld."
   ,"match.addMore": "Meer toevoegen"
+  ,"match.sourceFile": "Bestand kiezen"
+  ,"match.sourceExternal": "Externe opname"
+  ,"match.recordingId": "Opnamenummer"
+  ,"match.recordingIdHelp": "Voer het opnamenummer van de 360-camera-opname in (bv. 1391450) en duid aan welke camera's gefilmd hebben."
+  ,"match.camerasUsed": "Gebruikte camera's"
+  ,"match.cameraLabel": "Camera {number}"
+  ,"match.cameraSwitch": "Camera wisselen"
+  ,"match.camera": "Camera"
+  ,"match.attachVideos": "Video's toevoegen"
+  ,"match.attachVideosHelp": "Deze wedstrijd heeft nog geen video. Voeg een externe opname of bestand toe."
+  ,"match.attachAction": "Toevoegen"
   ,"match.back": "Terug"
   ,"match.working": "Bezig…"
   ,"match.createAction": "Wedstrijd aanmaken"
@@ -251,6 +390,16 @@ const nl = {
   ,"video.selectOriginal": "Oorspronkelijke video selecteren"
   ,"video.taggedClips": "Getagde clips"
   ,"video.match": "Wedstrijd"
+  ,"liveTags.title": "Live tags"
+  ,"liveTags.subtitle": "Momenten die tijdens de wedstrijd via de taglink zijn binnengekomen."
+  ,"liveTags.by": "door {name}"
+  ,"liveTags.byUnknown": "door onbekende tagger"
+  ,"liveTags.goTo": "Ga naar moment"
+  ,"liveTags.calibrate": "Herijken"
+  ,"liveTags.calibrateHelp": "Speel naar het echte moment van '{name}' en bevestig dan."
+  ,"liveTags.calibrateConfirm": "Bevestig op huidige positie"
+  ,"liveTags.reviewed": "Verwerkt"
+  ,"liveTags.delete": "Live tag verwijderen"
   ,"match.deleteNamed": "{name} verwijderen"
   ,"match.deleteNamedMessage": "{name} en de exclusief gekoppelde video’s, tags en clips verwijderen? Dit kan niet ongedaan worden gemaakt."
   ,"match.autoReconnectUnavailable": "Automatisch opnieuw verbinden is niet beschikbaar in deze browser. Open Clipboard Coach in Chrome of Edge en kies ‘Toestaan bij elk bezoek’."
@@ -283,7 +432,16 @@ const nl = {
   ,"drawing.saveFailed": "De tekening kon niet worden opgeslagen."
   ,"clip.create": "Clip maken"
   ,"clip.selected": "{count} cliptags geselecteerd"
+  ,"clip.segmentOrder": "Volgorde van de clipmomenten"
+  ,"clip.segmentOrderHelp": "Gebruik de pijlen om te bepalen in welke volgorde de momenten in de samengestelde clip komen."
+  ,"clip.moveUp": "{name} omhoog zetten"
+  ,"clip.moveDown": "{name} omlaag zetten"
+  ,"clip.estimatedRemaining": "Schatting: nog ±{minutes} min"
+  ,"clip.estimateHelp": "Dit is een schatting op basis van het aantal fragmenten. Grote videobestanden en meerdere camera's kunnen langer duren."
+  ,"clip.renderProgress": "{completed} van {total} fragmenten klaar"
   ,"clip.chooseAudience": "Kies wie deze clip kan terugvinden."
+  ,"clip.camerasPerTag": "Camera's per tag"
+  ,"clip.camerasPerTagHelp": "Elke aangeduide camera wordt een afzonderlijk fragment. Kies dus alleen Camera 1 als je elk moment maar één keer wilt zien."
   ,"clip.name": "Clipnaam"
   ,"clip.selectTeam": "Selecteer een team"
   ,"clip.fullTeam": "Volledig geselecteerd team"
@@ -322,6 +480,7 @@ const nl = {
   ,"clip.freeUsed": "{used}/{limit} gratis clips gebruikt"
   ,"clip.proPlan": "Pro-abonnement · Onbeperkte clips ({count} gemaakt)"
   ,"clip.freeLimit": "Je hebt alle 20 clips van een gratis account gebruikt. Upgrade naar Pro om meer clips te maken."
+  ,"tag.tooLong": "Deze clip mag maximaal 3 minuten duren, tekeningen inbegrepen."
   ,"clip.reconnectAll": "Koppel alle bronvideo’s van deze wedstrijd opnieuw om clips te kunnen maken."
   ,"clip.reconnectOriginal": "Koppel de oorspronkelijke wedstrijdvideo opnieuw voordat je clips maakt."
   ,"clip.selectPerson": "Selecteer minstens één persoon of kies het volledige team."
@@ -404,6 +563,26 @@ const nl = {
   ,"admin.block": "Blokkeren"
   ,"admin.deleteTitle": "Account permanent verwijderen?"
   ,"admin.deleteMessage": "Hiermee verwijder je onmiddellijk {email}, inclusief alle teams, spelers, video’s en clips. Dit kan niet ongedaan worden gemaakt."
+  ,"admin.clubManagement": "Clubbeheer"
+  ,"admin.clubManagementSubtitle": "Bekijk bestaande clubs, voeg een club toe en wijs een Club Admin of Analyst toe."
+  ,"admin.viewClubs": "Clubs bekijken en toevoegen"
+  ,"admin.noRegistrationNumber": "Geen stamnummer"
+  ,"admin.trainerCount": "{count} trainer"
+  ,"admin.trainerCountPlural": "{count} trainers"
+  ,"admin.clubAdminCount": "{count} Club Admin"
+  ,"admin.clubAdminCountPlural": "{count} Club Admins"
+  ,"admin.colName": "Naam"
+  ,"admin.colTeams": "Ploeg(en)"
+  ,"admin.colPhone": "GSM"
+  ,"admin.colEmail": "E-mail"
+  ,"admin.notLinkedYet": "Nog te koppelen"
+  ,"admin.noneTrainersAssigned": "Nog geen trainers toegewezen."
+  ,"admin.noneClubs": "Nog geen clubs toegevoegd."
+  ,"admin.usersWithoutTeam": "Gebruikers zonder ploeg"
+  ,"admin.usersWithoutTeamSubtitle": "Deze gebruikers hebben nog geen gewone ploeg of clubploeg toegewezen gekregen."
+  ,"admin.assignTeam": "Ploeg toewijzen"
+  ,"admin.everyoneHasTeam": "Iedere gebruiker heeft minstens één ploeg."
+  ,"admin.colClub": "Club"
   ,"nav.home": "Home"
   ,"auth.inlineEmail": "E-mail"
   ,"auth.inlinePassword": "Wachtwoord"
@@ -554,6 +733,41 @@ const nl = {
   ,"onboarding.teamRequired": "Kies een team of geef aan dat je team ontbreekt."
   ,"onboarding.teamNameRequired": "Vul een teamnaam in."
   ,"onboarding.similarConfirm": "Bevestig eerst dat je de gelijkende bestaande club hebt gecontroleerd."
+  ,"guardianInvite.contacts": "Contactpersonen"
+  ,"guardianInvite.contactNamePlaceholder": "Naam (bv. Mama)"
+  ,"guardianInvite.contactPhonePlaceholder": "Gsm-nummer"
+  ,"guardianInvite.addContact": "Nog een contactpersoon toevoegen"
+  ,"guardianInvite.generateLink": "Genereer link"
+  ,"guardianInvite.generating": "Bezig…"
+  ,"guardianInvite.linkedGuardians": "Gekoppelde ouders/voogden"
+  ,"guardianInvite.noneLinkedYet": "Nog niemand gekoppeld."
+  ,"guardianInvite.pendingInvites": "Openstaande uitnodigingen"
+  ,"guardianInvite.createdOn": "Aangemaakt op {date}, verloopt op {expiry}"
+  ,"guardianInvite.copyLink": "Link kopiëren"
+  ,"guardianInvite.cancel": "Annuleren"
+  ,"guardianInvite.revoke": "Intrekken"
+  ,"guardianInvite.since": "sinds {date}"
+  ,"guardianInvite.revokedOn": "ingetrokken op {date}"
+  ,"guardianInvite.unknownAccount": "Onbekend account"
+  ,"guardianInvite.modalTitle": "Uitnodigingslink"
+  ,"guardianInvite.modalBody": "Stuur deze link door aan de contactpersoon. Wie hiermee registreert, ziet enkel de wedstrijden en clips van {name}."
+  ,"guardianInvite.copied": "Gekopieerd!"
+  ,"guardianInvite.copyButton": "Kopiëren"
+  ,"guardianInvite.childInfo": "Gegevens van het kind"
+  ,"guardianInvite.address": "Adres"
+  ,"guardianInvite.postalCode": "Postcode"
+  ,"guardianInvite.city": "Gemeente"
+  ,"guardianInvite.childPhone": "Telefoon (kind)"
+  ,"guardianInvite.childEmail": "E-mail (kind)"
+  ,"guardianInvite.noAddressYet": "Nog geen adres ingevuld."
+  ,"guardianInvite.save": "Opslaan"
+  ,"guardianInvite.saving": "Bezig met opslaan…"
+  ,"guardianInvite.saved": "Opgeslagen."
+  ,"guardianInvite.scopeCurrentSeason": "dit seizoen"
+  ,"guardianInvite.scopeFromAcceptance": "vanaf aanvaarding"
+  ,"guardianInvite.scopeAllHistory": "volledige geschiedenis"
+  ,"guardianInvite.addressStillCorrect": "Deze gegevens kloppen nog"
+  ,"guardianInvite.addressSectionTitle": "Adres van het kind"
 } as const;
 
 type MessageKey = keyof typeof nl;
@@ -566,6 +780,7 @@ const en: Record<MessageKey, string> = {
   "common.saving": "Saving…",
   "common.remove": "Remove",
   "common.edit": "Edit",
+  "common.play": "play",
   "common.help": "Help",
   "common.training": "Training",
   "common.admin": "Admin",
@@ -585,6 +800,115 @@ const en: Record<MessageKey, string> = {
   "matchHub.linkFailed": "The tagging link could not be created.",
   "matchHub.linkCopied": "The external tagging link was copied.",
   "matchHub.required": "Select a team and enter the opponent.",
+  "matchHub.allTeams": "All teams",
+  "matchHub.copyTagLink": "Copy tag link",
+  "matchHub.addVideo": "Add video",
+  "matchHub.deleteMatch": "Delete match",
+  "matchHub.teamClips": "Clips for the full team",
+  "matchHub.noTeamClips": "No team clips yet",
+  "matchHub.colPlayer": "Player",
+  "matchHub.colSelectedClips": "Selected clips",
+  "matchHub.colTaggedClips": "Individually tagged",
+  "matchHub.colShare": "Share",
+  "matchHub.shareAllWith": "Share all clips with {name}",
+  "matchHub.noPlayersAssigned": "No players assigned yet.",
+  "matchHub.homeTeam": "Home team",
+  "matchHub.homeTeamPlaceholder": "Type or choose a team",
+  "matchHub.awayTeam": "Away team",
+  "matchHub.date": "Date",
+  "matchHub.kickoffTime": "Kick-off time",
+  "matchHub.status": "Status",
+  "matchHub.scheduled": "Scheduled",
+  "matchHub.live": "Live",
+  "matchHub.finishedStatus": "Finished",
+  "matchHub.homeScore": "Home score",
+  "matchHub.awayScore": "Away score",
+  "matchHub.participatingPlayers": "Players participating",
+  "matchHub.chooseTeamFirst": "Choose a team first.",
+  "matchHub.liveTagButtons": "Tag buttons for this game",
+  "matchHub.removeTag": "Remove {name}",
+  "matchHub.addTag": "Add tag",
+  "matchHub.newTagPlaceholder": "New tag",
+  "matchHub.suggestions": "Suggestions",
+  "matchHub.manageTagLibrary": "Manage tag library",
+  "matchHub.deleteClipTitle": "Delete clip",
+  "matchHub.confirmDeleteClip": "Permanently delete clip \"{name}\"?",
+  "matchHub.clipDeleteFailed": "The clip could not be deleted.",
+  "matchHub.clipDeleted": "Clip \"{name}\" has been deleted.",
+  "matchHub.deleteMatchTitle": "Delete match",
+  "matchHub.confirmDeleteMatch": "Permanently delete game \"{name}\" and its linked data?",
+  "matchHub.matchDeleteFailed": "The game could not be deleted.",
+  "matchHub.matchDeleted": "Game \"{name}\" has been deleted.",
+  "matchHub.noClipsToShare": "There are no clips yet to share with {name}.",
+  "matchHub.shareIntro": "Coach {coach} shared these clips with you from the game {match}{dateSuffix}.",
+  "matchHub.shareDateSuffix": " on {date}",
+  "matchHub.shareTitle": "Clips from {match}",
+  "matchHub.defaultCoachName": "Your coach",
+  "matchHub.lineupCount": "{count} players",
+  "clubTeams.heading": "Teams",
+  "clubTeams.subtitle": "Prepare teams and rosters in advance and assign coaches.",
+  "clubTeams.namePlaceholder": "Team name",
+  "clubTeams.create": "Create team",
+  "clubTeams.saveFailed": "The change could not be saved.",
+  "clubTeams.coachesLabel": "Coaches: {names}",
+  "clubTeams.noCoachAssigned": "no one assigned yet",
+  "clubTeams.noTeamsYet": "This club has no teams yet.",
+  "clubTeams.readingFile": "Reading file…",
+  "clubTeams.columnsNotFound": "The First name and Last name columns were not found.",
+  "clubTeams.noUsablePlayers": "No usable players found.",
+  "clubTeams.importedCount": "{count} players imported. Review and save the list.",
+  "clubTeams.fileReadFailed": "The file could not be read.",
+  "clubTeams.rosterSaveFailed": "The roster could not be saved.",
+  "clubTeams.allSaved": "Everything saved — {count} players.",
+  "clubTeams.trainerCanEditRoster": "Trainer may edit roster",
+  "clubTeams.trainerCanEditRosterHelp": "When this is off, an assigned trainer can view and use the players, but not edit them.",
+  "clubTeams.assignCoaches": "Assign coaches",
+  "clubTeams.notRegisteredYet": "not registered yet",
+  "clubTeams.roster": "Roster",
+  "clubTeams.importHelp": "Import a ProSoccerData Excel file or edit the list manually.",
+  "clubTeams.choosePsdFile": "Choose PSD file",
+  "clubTeams.addPlayer": "Add player",
+  "clubTeams.firstNamePlaceholder": "First name",
+  "clubTeams.lastNamePlaceholder": "Last name",
+  "clubTeams.phonePlaceholder": "Phone",
+  "clubTeams.saveHint": "Changes to the roster are only saved once you click {save} above.",
+  "clubTeams.removeDisabledTooltip": "Removal isn't supported directly here — use 'Sync' or 'Full replace' after a new import.",
+  "clubTeams.importMode.merge": "Add/update",
+  "clubTeams.importMode.sync": "Sync",
+  "clubTeams.importMode.replace": "Full replace",
+  "clubTeams.importModeHint.merge": "Existing players on this team are never removed. Contact details that conflict with another team are never silently overwritten — that goes to the club admin instead.",
+  "clubTeams.importModeHint.sync": "After a new import, you choose which missing players leave the team.",
+  "clubTeams.importModeHint.replace": "Any player not in the imported file leaves the team — only after explicit confirmation.",
+  "clubTeams.importPreview": "{new} new · {updated} updated · {missing} not in file",
+  "clubTeams.syncMissingHeading": "These players are not in the imported file. Check who may leave the team.",
+  "clubTeams.replaceWarning": "These players are not in the imported file and will be removed from the team on confirmation.",
+  "clubTeams.replaceConfirmLabel": "I confirm that these {count} player(s) will be fully removed from this team.",
+  "clubTeams.replaceConfirmRequired": "Confirm the full replacement above first.",
+  "clubTeams.allSavedWithRemoved": "Everything saved — {count} players, {removed} removed.",
+  "clubTeams.addExistingHeading": "Add an existing player to this team",
+  "clubTeams.addExistingHelp": "Search for a player who already belongs to another team at this club.",
+  "clubTeams.addExistingSearchPlaceholder": "Search by name…",
+  "clubTeams.currentlyOn": "also plays at: {teams}",
+  "clubTeams.addToTeam": "Add to this team",
+  "clubTeams.addedToTeam": "{name} added to this team.",
+  "clubTeams.unassignedPrimaryHeading": "Choose a primary team",
+  "clubTeams.unassignedPrimaryHelp": "These players play for multiple teams. Choose which team is their primary team.",
+  "clubTeams.choosePrimary": "Choose {team}",
+  "settings.clipProfilesHelp": "Determine how many seconds before and after the tag moment are automatically included in the clip, per tag.",
+  "clipProfiles.tag": "Tag",
+  "clipProfiles.startOffset": "Start vs. tag",
+  "clipProfiles.endOffset": "End vs. tag",
+  "clipProfiles.action": "Action",
+  "clipProfiles.seconds": "sec",
+  "clipProfiles.needTwoNumbers": "Enter two valid numbers.",
+  "clipProfiles.startMustBeBeforeEnd": "The start value must be less than or equal to the end value.",
+  "clipProfiles.savedNotice": "{name} has been saved.",
+  "clipProfiles.noTagsYet": "First add quick tags in Settings.",
+  "playerPage.sharedClipsMatches": "Games with shared clips",
+  "playerPage.matchesPlayed": "Games played",
+  "playerPage.goals": "Goals",
+  "playerPage.assists": "Assists",
+  "match.currentPosition": "Current position in the video",
   "common.settings": "Settings",
   "common.exit": "Sign out",
   "common.language": "Language",
@@ -637,8 +961,24 @@ const en: Record<MessageKey, string> = {
   "auth.welcomeBackIntro": "Welcome back. Pick up where you left off.",
   "auth.yourPassword": "Your password",
   "auth.needSignInHelp": "Need help signing in?",
-  "auth.resetUnavailable": "Password reset isn't available yet — for now, ask whoever manages your account to reset it from Supabase.",
   "auth.adultAgreement": "I am at least 18 years old, am authorized to act for my organization, and agree to the Terms. I have read the Privacy Policy.",
+  "auth.forgotPassword": "Forgot password?",
+  "auth.forgotPasswordTitle": "Forgot password",
+  "auth.forgotPasswordIntro": "Enter your email address and we'll send you a link to set a new password.",
+  "auth.sendResetLink": "Send reset link",
+  "auth.sendingResetLink": "Sending…",
+  "auth.resetLinkSent": "Check your email",
+  "auth.resetLinkSentIntro": "If that address belongs to an account, we've sent a reset link to it. Check your spam folder too.",
+  "auth.backToLogin": "Back to sign in",
+  "auth.resetPasswordTitle": "Set a new password",
+  "auth.resetPasswordIntro": "Choose a new password for your account.",
+  "auth.newPassword": "New password",
+  "auth.confirmPassword": "Confirm password",
+  "auth.passwordsDontMatch": "Passwords don't match.",
+  "auth.updatePassword": "Set password",
+  "auth.updatingPassword": "Working…",
+  "auth.resetLinkInvalid": "This link is invalid or has expired. Request a new reset link.",
+  "auth.requestNewLink": "Request a new reset link",
   "settings.appearance": "Appearance",
   "settings.appearanceHelp": "Choose how Clipboard Coach Studio looks on this device.",
   "settings.languageHelp": "Choose the interface language on this device.",
@@ -760,6 +1100,8 @@ const en: Record<MessageKey, string> = {
   ,"match.teamB": "Team B"
   ,"match.date": "Date"
   ,"match.startTime": "Start time"
+  ,"match.recordingStartTime": "Recording start time"
+  ,"match.recordingStartTimeHelp": "When the camera started recording (not kickoff). Used to place live tags correctly."
   ,"match.videoManagement": "Video management"
   ,"match.attendance": "Attendance list"
   ,"match.noAttendancePlayers": "Select a home team first to add players."
@@ -797,6 +1139,17 @@ const en: Record<MessageKey, string> = {
   ,"match.videos": "Match videos"
   ,"match.playOrder": "They play automatically in this order."
   ,"match.addMore": "Add more"
+  ,"match.sourceFile": "Choose file"
+  ,"match.sourceExternal": "External recording"
+  ,"match.recordingId": "Recording number"
+  ,"match.recordingIdHelp": "Enter the 360 camera recording number (e.g. 1391450) and tick which cameras filmed."
+  ,"match.camerasUsed": "Cameras used"
+  ,"match.cameraLabel": "Camera {number}"
+  ,"match.cameraSwitch": "Switch camera"
+  ,"match.camera": "Camera"
+  ,"match.attachVideos": "Add videos"
+  ,"match.attachVideosHelp": "This match has no video yet. Add an external recording or a file."
+  ,"match.attachAction": "Attach"
   ,"match.back": "Back"
   ,"match.working": "Working…"
   ,"match.createAction": "Create match"
@@ -809,6 +1162,16 @@ const en: Record<MessageKey, string> = {
   ,"video.selectOriginal": "Select original video"
   ,"video.taggedClips": "Tagged clips"
   ,"video.match": "Match"
+  ,"liveTags.title": "Live tags"
+  ,"liveTags.subtitle": "Moments captured during the match via the tag link."
+  ,"liveTags.by": "by {name}"
+  ,"liveTags.byUnknown": "by unknown tagger"
+  ,"liveTags.goTo": "Go to moment"
+  ,"liveTags.calibrate": "Recalibrate"
+  ,"liveTags.calibrateHelp": "Play to the real moment of '{name}' and confirm."
+  ,"liveTags.calibrateConfirm": "Confirm at current position"
+  ,"liveTags.reviewed": "Processed"
+  ,"liveTags.delete": "Delete live tag"
   ,"match.deleteNamed": "Delete {name}"
   ,"match.deleteNamedMessage": "Delete {name}, its exclusively linked videos, tags and clips? This cannot be undone."
   ,"match.autoReconnectUnavailable": "Automatic reconnect is not available in this browser. Open Clipboard Coach in Chrome or Edge and choose ‘Allow on every visit’."
@@ -841,7 +1204,16 @@ const en: Record<MessageKey, string> = {
   ,"drawing.saveFailed": "Could not save the drawing."
   ,"clip.create": "Create clip"
   ,"clip.selected": "{count} clip tag(s) selected"
+  ,"clip.segmentOrder": "Clip moment order"
+  ,"clip.segmentOrderHelp": "Use the arrows to choose the order of the moments in the combined clip."
+  ,"clip.moveUp": "Move {name} up"
+  ,"clip.moveDown": "Move {name} down"
+  ,"clip.estimatedRemaining": "Estimate: ±{minutes} min left"
+  ,"clip.estimateHelp": "This is an estimate based on the number of segments. Large video files and multiple cameras can take longer."
+  ,"clip.renderProgress": "{completed} of {total} segments ready"
   ,"clip.chooseAudience": "Choose who can find this clip."
+  ,"clip.camerasPerTag": "Cameras per tag"
+  ,"clip.camerasPerTagHelp": "Every selected camera becomes a separate segment. Select only Camera 1 if you want to see each moment once."
   ,"clip.name": "Clip name"
   ,"clip.selectTeam": "Select a team"
   ,"clip.fullTeam": "Full selected team"
@@ -880,6 +1252,7 @@ const en: Record<MessageKey, string> = {
   ,"clip.freeUsed": "{used}/{limit} free clips used"
   ,"clip.proPlan": "Pro plan · Unlimited clips ({count} created)"
   ,"clip.freeLimit": "You have used all 20 clips included with a free account. Upgrade to Pro to create more clips."
+  ,"tag.tooLong": "This clip can be at most 3 minutes long, including drawings."
   ,"clip.reconnectAll": "Reconnect all source videos used by this match to enable clip creation."
   ,"clip.reconnectOriginal": "Reconnect the original match video before making clips."
   ,"clip.selectPerson": "Select at least one person, or choose the full team."
@@ -962,6 +1335,26 @@ const en: Record<MessageKey, string> = {
   ,"admin.block": "Block"
   ,"admin.deleteTitle": "Permanently delete account?"
   ,"admin.deleteMessage": "This immediately deletes {email}, including all teams, players, videos and clips. This cannot be undone."
+  ,"admin.clubManagement": "Club management"
+  ,"admin.clubManagementSubtitle": "View existing clubs, add a club, and assign a Club Admin or Analyst."
+  ,"admin.viewClubs": "View and add clubs"
+  ,"admin.noRegistrationNumber": "No registration number"
+  ,"admin.trainerCount": "{count} trainer"
+  ,"admin.trainerCountPlural": "{count} trainers"
+  ,"admin.clubAdminCount": "{count} Club Admin"
+  ,"admin.clubAdminCountPlural": "{count} Club Admins"
+  ,"admin.colName": "Name"
+  ,"admin.colTeams": "Team(s)"
+  ,"admin.colPhone": "Phone"
+  ,"admin.colEmail": "Email"
+  ,"admin.notLinkedYet": "Not linked yet"
+  ,"admin.noneTrainersAssigned": "No trainers assigned yet."
+  ,"admin.noneClubs": "No clubs added yet."
+  ,"admin.usersWithoutTeam": "Users without a team"
+  ,"admin.usersWithoutTeamSubtitle": "These users have not been assigned a regular team or club team yet."
+  ,"admin.assignTeam": "Assign team"
+  ,"admin.everyoneHasTeam": "Every user has at least one team."
+  ,"admin.colClub": "Club"
   ,"nav.home": "Home"
   ,"auth.inlineEmail": "Email"
   ,"auth.inlinePassword": "Password"
@@ -1112,6 +1505,41 @@ const en: Record<MessageKey, string> = {
   ,"onboarding.teamRequired": "Choose a team or indicate that it is missing."
   ,"onboarding.teamNameRequired": "Enter a team name."
   ,"onboarding.similarConfirm": "Confirm that you checked the similar existing club first."
+  ,"guardianInvite.contacts": "Contacts"
+  ,"guardianInvite.contactNamePlaceholder": "Name (e.g. Mum)"
+  ,"guardianInvite.contactPhonePlaceholder": "Mobile number"
+  ,"guardianInvite.addContact": "Add another contact"
+  ,"guardianInvite.generateLink": "Generate link"
+  ,"guardianInvite.generating": "Working…"
+  ,"guardianInvite.linkedGuardians": "Linked parents/guardians"
+  ,"guardianInvite.noneLinkedYet": "No one linked yet."
+  ,"guardianInvite.pendingInvites": "Pending invitations"
+  ,"guardianInvite.createdOn": "Created on {date}, expires on {expiry}"
+  ,"guardianInvite.copyLink": "Copy link"
+  ,"guardianInvite.cancel": "Cancel"
+  ,"guardianInvite.revoke": "Revoke"
+  ,"guardianInvite.since": "since {date}"
+  ,"guardianInvite.revokedOn": "revoked on {date}"
+  ,"guardianInvite.unknownAccount": "Unknown account"
+  ,"guardianInvite.modalTitle": "Invitation link"
+  ,"guardianInvite.modalBody": "Send this link to the contact. Whoever signs up with it will only see the matches and clips of {name}."
+  ,"guardianInvite.copied": "Copied!"
+  ,"guardianInvite.copyButton": "Copy"
+  ,"guardianInvite.childInfo": "Child's information"
+  ,"guardianInvite.address": "Address"
+  ,"guardianInvite.postalCode": "Postal code"
+  ,"guardianInvite.city": "City"
+  ,"guardianInvite.childPhone": "Phone (child)"
+  ,"guardianInvite.childEmail": "Email (child)"
+  ,"guardianInvite.noAddressYet": "No address on file yet."
+  ,"guardianInvite.save": "Save"
+  ,"guardianInvite.saving": "Saving…"
+  ,"guardianInvite.saved": "Saved."
+  ,"guardianInvite.scopeCurrentSeason": "this season"
+  ,"guardianInvite.scopeFromAcceptance": "from acceptance"
+  ,"guardianInvite.scopeAllHistory": "full history"
+  ,"guardianInvite.addressStillCorrect": "This information is still correct"
+  ,"guardianInvite.addressSectionTitle": "Child's address"
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { nl, en };

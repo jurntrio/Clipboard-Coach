@@ -8,6 +8,7 @@ import { PlanBadge } from "../../PlanBadge";
 import { AccountActions } from "./AccountActions";
 import { TrainerAssignmentEditor } from "./TrainerAssignmentEditor";
 import { getServerI18n } from "@/i18n/server";
+import { requireAdminOrViewer } from "@/lib/auth/admin";
 
 const statusStyles: Record<string, string> = {
   ready: "bg-accent/15 text-accent",
@@ -17,6 +18,7 @@ const statusStyles: Record<string, string> = {
 };
 
 export default async function AdminCoachDetailPage({ params }: { params: { id: string } }) {
+  const { isFullAdmin } = await requireAdminOrViewer();
   const coach = await getCoachDetail(params.id);
   if (!coach) notFound();
   const { locale, t } = getServerI18n();
@@ -42,10 +44,10 @@ export default async function AdminCoachDetailPage({ params }: { params: { id: s
             {!coach.email_confirmed_at && <> · {t("admin.emailUnconfirmed")}</>}
           </p>
         </div>
-        <AccountActions coachId={coach.profile.id} email={coach.profile.email} banned={blocked} plan={coach.profile.plan} accountRole={coach.profile.account_role} />
+        {isFullAdmin && <AccountActions coachId={coach.profile.id} email={coach.profile.email} banned={blocked} plan={coach.profile.plan} accountRole={coach.profile.account_role} />}
       </div>
 
-      <TrainerAssignmentEditor profileId={coach.profile.id} fullName={coach.profile.full_name || ""} clubs={coach.clubOptions} assignment={coach.clubAssignment} />
+      <TrainerAssignmentEditor profileId={coach.profile.id} fullName={coach.profile.full_name || ""} clubs={coach.clubOptions} assignment={coach.clubAssignment} readOnly={!isFullAdmin} />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
         <SummaryTile label={t("common.teams")} value={coach.teams.length} />

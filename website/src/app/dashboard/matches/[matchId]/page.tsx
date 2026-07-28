@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
 import { formatTime, getTagColor } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
-import type { Match, Player, StandardTag, Tag, TagDrawing, Video } from "@/types/database";
+import type { LiveMatchTag, Match, Player, StandardTag, Tag, TagDrawing, Video } from "@/types/database";
 import { VideoPlayer } from "@/components/video-player/VideoPlayer";
 import { PlaybackControls } from "@/components/video-player/PlaybackControls";
 import { Timeline } from "@/components/video-player/Timeline";
@@ -24,9 +24,123 @@ import { ActiveDrawingOverlay } from "@/components/video-player/ActiveDrawingOve
 import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
 import { useI18n } from "@/i18n/client";
 import { localMediaMessages } from "@/i18n/local-media";
+import { getTagEventKind } from "@/lib/tag-events";
+import { GoalTagDialog, type GoalTagDetails } from "@/components/tags/GoalTagDialog";
+import { EXTERNAL_RECORDING_CAMERAS, externalRecordingUrl } from "@/lib/external-recording";
 
-type MatchBlock = { id: string; sequence_order: number; label: string; videos: Video | null };
+type MatchBlock = { id: string; sequence_order: number; label: string; is_primary: boolean; videos: Video | null };
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
+
+const MAX_CLIP_SECONDS = 180;
+
+// Same offset logic as the `offsets` useMemo below, but self-contained so it can run inside
+// loadMatch() right after a fetch, before `match` state (and the memo derived from it) exists yet.
+function computeVideoOffsets(matchVideos: MatchBlock[]): Map<string, number> {
+  const sortedBlocks = [...matchVideos].sort((a, b) => a.sequence_order - b.sequence_order);
+  const primaryBlocks = sortedBlocks.filter((block) => block.is_primary);
+  const camerasByBlockOrder = new Map<number, MatchBlock[]>();
+  for (const block of sortedBlocks) {
+    if (!block.videos) continue;
+    const list = camerasByBlockOrder.get(block.sequence_order) ?? [];
+    list.push(block);
+    camerasByBlockOrder.set(block.sequence_order, list);
+  }
+  const map = new Map<string, number>();
+  let offset = 0;
+  for (const block of primaryBlocks) {
+    if (!block.videos) continue;
+    const cameras = camerasByBlockOrder.get(block.sequence_order) ?? [block];
+    for (const cameraBlock of cameras) if (cameraBlock.videos) map.set(cameraBlock.videos.id, offset);
+    offset += block.videos.duration ?? 0;
+  }
+  return map;
+}
+
+function drawingsSeconds(drawings: TagDrawing[] | undefined) {
+  return (drawings ?? []).reduce((sum, drawing) => sum + Math.max(1, drawing.duration_seconds), 0);
+}
+
+function formatClock(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function parseClockTime(value: string): number | null {
+  const parts = value.trim().split(":").map(Number);
+  if (!value.trim() || parts.some((part) => !Number.isFinite(part) || part < 0)) return null;
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2 && parts[1] < 60) return parts[0] * 60 + parts[1];
+  if (parts.length === 3 && parts[1] < 60 && parts[2] < 60) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return null;
+}
+
+function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleReviewed, onSeek, onCalibrate, onUpdateTimes, onDelete, t }: {
+  liveTag: LiveMatchTag;
+  materializedTag: Tag | undefined;
+  elapsed: number | null;
+  reviewed: boolean;
+  onToggleReviewed: () => void;
+  onSeek: (time: number) => void;
+  onCalibrate: () => void;
+  onUpdateTimes: (startTime: number, endTime: number) => void;
+  onDelete: () => void;
+  t: ReturnType<typeof useI18n>["t"];
+}) {
+  const [startDraft, setStartDraft] = useState(materializedTag ? formatTime(materializedTag.start_time) : "");
+  const [endDraft, setEndDraft] = useState(materializedTag ? formatTime(materializedTag.end_time) : "");
+
+  useEffect(() => { if (materializedTag) setStartDraft(formatTime(materializedTag.start_time)); }, [materializedTag?.start_time]);
+  useEffect(() => { if (materializedTag) setEndDraft(formatTime(materializedTag.end_time)); }, [materializedTag?.end_time]);
+
+  function saveTimes() {
+    if (!materializedTag) return;
+    const parsedStart = parseClockTime(startDraft);
+    const parsedEnd = parseClockTime(endDraft);
+    if (parsedStart === null || parsedEnd === null) {
+      setStartDraft(formatTime(materializedTag.start_time));
+      setEndDraft(formatTime(materializedTag.end_time));
+      return;
+    }
+    const safeEnd = Math.max(parsedStart, parsedEnd);
+    setStartDraft(formatTime(parsedStart));
+    setEndDraft(formatTime(safeEnd));
+    onUpdateTimes(parsedStart, safeEnd);
+  }
+
+  const timeInput = "w-[58px] rounded border border-border bg-input px-1.5 py-1 text-center text-[11px] text-textPrimary focus:border-accent focus:outline-none";
+
+  return (
+    <div className={`rounded-lg border border-border bg-cardDeep px-3 py-2 ${reviewed ? "opacity-50" : ""}`}>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" checked={reviewed} onChange={onToggleReviewed} title={t("liveTags.reviewed")} className="h-4 w-4 flex-shrink-0 accent-accent" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-textPrimary">{liveTag.tag_name}</p>
+          <p className="truncate text-xs text-textMuted">{liveTag.tagger_name ? t("liveTags.by", { name: liveTag.tagger_name }) : t("liveTags.byUnknown")}</p>
+        </div>
+        <button type="button" onClick={onCalibrate} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">🎯</button>
+        {elapsed !== null && <button type="button" onClick={() => onSeek(elapsed)} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.goTo")}</button>}
+        <button type="button" onClick={onDelete} title={t("liveTags.delete")} aria-label={t("liveTags.delete")} className="flex-shrink-0 px-1 text-sm text-textMuted hover:text-red-400">&times;</button>
+      </div>
+      {materializedTag ? (
+        <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-textMuted">
+          <label className="flex items-center gap-1">
+            <span>{t("tag.start")}</span>
+            <input value={startDraft} onChange={(event) => setStartDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="numeric" />
+          </label>
+          <label className="flex items-center gap-1">
+            <span>{t("tag.end")}</span>
+            <input value={endDraft} onChange={(event) => setEndDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="numeric" />
+          </label>
+        </div>
+      ) : elapsed !== null && (
+        <p className="mt-1 text-right text-[10px] text-textMuted">{formatClock(elapsed)}</p>
+      )}
+    </div>
+  );
+}
 
 function messageFrom(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -44,6 +158,7 @@ export default function MatchViewerPage() {
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
   const reconnectVideoRef = useRef<Video | null>(null);
   const reconnectAllRef = useRef(false);
+  const attachInputRef = useRef<HTMLInputElement | null>(null);
   const pendingSeekRef = useRef<number | null>(null);
   const autoPlayRef = useRef(false);
   const [match, setMatch] = useState<MatchWithBlocks | null>(null);
@@ -51,6 +166,7 @@ export default function MatchViewerPage() {
   const [files, setFiles] = useState<Record<string, File>>({});
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [liveTags, setLiveTags] = useState<LiveMatchTag[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [extraPlayers, setExtraPlayers] = useState<Player[]>([]);
@@ -61,9 +177,16 @@ export default function MatchViewerPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [drawingFrame, setDrawingFrame] = useState<{ image: string; time: number; tagId: string | null; drawingId: string | null; key?: string; initialShapes?: WebDrawingShape[]; durationSeconds?: number } | null>(null);
   const [playingDrawing, setPlayingDrawing] = useState<TagDrawing | null>(null);
+  const [pendingGoal, setPendingGoal] = useState<{ video: Video; label: string; localTime: number } | null>(null);
+  const [attachSource, setAttachSource] = useState<"file" | "external">("external");
+  const [attachRecordingId, setAttachRecordingId] = useState("");
+  const [attachCameras, setAttachCameras] = useState<number[]>([]);
+  const [attaching, setAttaching] = useState(false);
+  const [calibratingLiveTagId, setCalibratingLiveTagId] = useState<string | null>(null);
   const lastPlaybackTimeRef = useRef(0);
   const handledDrawingIdsRef = useRef(new Set<string>());
   const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const materializingLiveTagIdsRef = useRef(new Set<string>());
 
   useEffect(() => () => { if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current); }, []);
 
@@ -132,8 +255,9 @@ export default function MatchViewerPage() {
     }
     const savedDrawing = { id, key, url, video_time: drawingFrame.time, duration_seconds: durationSeconds, base_frame_url: baseFrameUrl, shapes, created_at: new Date().toISOString() };
     const drawings = drawingFrame.drawingId ? (tag.drawings ?? []).map((drawing) => drawing.id === id ? savedDrawing : drawing) : [...(tag.drawings ?? []), savedDrawing];
+    if (tag.end_time - tag.start_time + drawingsSeconds(drawings) > MAX_CLIP_SECONDS) throw new Error(t("tag.tooLong"));
     const { error: saveError } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
-    if (saveError) throw saveError;
+    if (saveError) throw saveError.message.includes("CLIP_TOO_LONG") ? new Error(t("tag.tooLong")) : saveError;
     setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
     setDrawingFrame(null);
   }
@@ -148,9 +272,10 @@ export default function MatchViewerPage() {
     const tag = tags.find((item) => item.id === displayTag.id);
     if (!tag) return;
     const drawings = (tag.drawings ?? []).map((drawing) => drawing.id === drawingId ? { ...drawing, duration_seconds: durationSeconds } : drawing);
-    setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
+    if (tag.end_time - tag.start_time + drawingsSeconds(drawings) > MAX_CLIP_SECONDS) { setError(t("tag.tooLong")); return; }
     const { error: updateError } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
-    if (updateError) setError(updateError.message);
+    if (updateError) { setError(updateError.message.includes("CLIP_TOO_LONG") ? t("tag.tooLong") : updateError.message); return; }
+    setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
   }
   const [playbackRate, setPlaybackRate] = useState(1);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -161,23 +286,69 @@ export default function MatchViewerPage() {
   const [deletingMatch, setDeletingMatch] = useState(false);
 
   const blocks = useMemo(() => [...(match?.match_videos ?? [])].sort((a, b) => a.sequence_order - b.sequence_order), [match]);
-  const videos = useMemo(() => blocks.map((block) => block.videos).filter((video): video is Video => !!video), [blocks]);
+  const primaryBlocks = useMemo(() => blocks.filter((block) => block.is_primary), [blocks]);
+  const videos = useMemo(() => primaryBlocks.map((block) => block.videos).filter((video): video is Video => !!video), [primaryBlocks]);
+  const videoById = useMemo(() => {
+    const map = new Map<string, Video>();
+    for (const block of blocks) if (block.videos) map.set(block.videos.id, block.videos);
+    return map;
+  }, [blocks]);
+  const camerasByBlockOrder = useMemo(() => {
+    const map = new Map<number, MatchBlock[]>();
+    for (const block of blocks) {
+      if (!block.videos) continue;
+      const list = map.get(block.sequence_order) ?? [];
+      list.push(block);
+      map.set(block.sequence_order, list);
+    }
+    for (const list of map.values()) list.sort((a, b) => (a.videos?.camera_number ?? 0) - (b.videos?.camera_number ?? 0));
+    return map;
+  }, [blocks]);
   const offsets = useMemo(() => {
     const map = new Map<string, number>();
     let offset = 0;
-    for (const video of videos) {
-      map.set(video.id, offset);
-      offset += video.duration ?? 0;
+    for (const block of primaryBlocks) {
+      if (!block.videos) continue;
+      const cameras = camerasByBlockOrder.get(block.sequence_order) ?? [block];
+      for (const cameraBlock of cameras) if (cameraBlock.videos) map.set(cameraBlock.videos.id, offset);
+      offset += block.videos.duration ?? 0;
     }
     return { map, total: offset };
-  }, [videos]);
-  const currentVideo = videos[currentIndex] ?? null;
+  }, [primaryBlocks, camerasByBlockOrder]);
+  const siblingCamerasByVideoId = useMemo(() => {
+    const map: Record<string, { id: string; camera_number: number | null; label: string }[]> = {};
+    for (const cameras of camerasByBlockOrder.values()) {
+      if (cameras.length < 2) continue;
+      const entries = cameras.filter((block): block is MatchBlock & { videos: Video } => !!block.videos)
+        .map((block) => ({ id: block.videos.id, camera_number: block.videos.camera_number, label: block.label }));
+      for (const block of cameras) if (block.videos) map[block.videos.id] = entries;
+    }
+    return map;
+  }, [camerasByBlockOrder]);
+  const [preferredCameraNumber, setPreferredCameraNumber] = useState<number | null>(null);
+  const currentBlockCameras = camerasByBlockOrder.get(primaryBlocks[currentIndex]?.sequence_order ?? -1) ?? [];
+  const activeCameraBlock = currentBlockCameras.find((block) => block.videos?.camera_number === preferredCameraNumber) ?? primaryBlocks[currentIndex] ?? null;
+  const currentVideo = activeCameraBlock?.videos ?? videos[currentIndex] ?? null;
   const currentFile = currentVideo ? files[currentVideo.id] : null;
   const localFilesReady = videos.filter((video) => isLocalVideoUrl(video.video_url)).every((video) => !!files[video.id]);
   const displayTags = useMemo(() => tags.map((tag) => {
     const offset = offsets.map.get(tag.video_id) ?? 0;
     return { ...tag, start_time: tag.start_time + offset, end_time: tag.end_time + offset };
-  }), [offsets, tags]);
+  }).sort((a, b) =>
+    a.start_time - b.start_time ||
+    a.end_time - b.end_time ||
+    a.created_at.localeCompare(b.created_at)
+  ), [offsets, tags]);
+  const sortedLiveTags = useMemo(() => {
+    const displayedTagById = new Map(displayTags.map((tag) => [tag.id, tag]));
+    return [...liveTags].sort((a, b) => {
+      const aTime = (a.tag_id ? displayedTagById.get(a.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(a);
+      const bTime = (b.tag_id ? displayedTagById.get(b.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(b);
+      if (aTime === null) return bTime === null ? a.occurred_at.localeCompare(b.occurred_at) : 1;
+      if (bTime === null) return -1;
+      return aTime - bTime || a.occurred_at.localeCompare(b.occurred_at);
+    });
+  }, [displayTags, liveTags, match]);
   const markerTags = ["Start", "End"] as const;
   const clipTags = standardTags.filter((tag) => !isPeriodMarker(tag.name));
 
@@ -208,7 +379,7 @@ export default function MatchViewerPage() {
   async function loadMatch() {
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error: loadError } = await supabase.from("matches")
-      .select("*, match_videos(id, sequence_order, label, videos(*))")
+      .select("*, match_videos(id, sequence_order, label, is_primary, videos(*))")
       .eq("id", matchId).single();
     if (loadError || !data) { setError(loadError?.message || t("match.notFound")); return; }
     const loaded = data as unknown as MatchWithBlocks;
@@ -216,14 +387,16 @@ export default function MatchViewerPage() {
     const { data: profile } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
     setCanEditMatch(loaded.coach_id === user.id || profile?.account_role === "club_admin");
     setMatch(loaded);
+    const { data: liveTagData } = await supabase.from("live_match_tags").select("*").eq("match_id", matchId).order("occurred_at");
+    setLiveTags(liveTagData ?? []);
     const loadedVideos = loaded.match_videos.map((block) => block.videos).filter((video): video is Video => !!video);
     if (loadedVideos.length) {
       const [{ data: tagData }, remembered] = await Promise.all([
         supabase.from("tags").select("*").in("video_id", loadedVideos.map((video) => video.id)),
         Promise.all(loadedVideos.map(async (video) => [video.id, await getRememberedLocalVideo(video.id)] as const))
       ]);
-      const order = new Map(loadedVideos.map((video, index) => [video.id, index]));
-      setTags((tagData ?? []).sort((a, b) => (order.get(a.video_id) ?? 0) - (order.get(b.video_id) ?? 0) || a.start_time - b.start_time));
+      const freshOffsets = computeVideoOffsets(loaded.match_videos);
+      setTags((tagData ?? []).sort((a, b) => (freshOffsets.get(a.video_id) ?? 0) + a.start_time - ((freshOffsets.get(b.video_id) ?? 0) + b.start_time)));
       setFiles(Object.fromEntries(remembered.filter((entry): entry is readonly [string, File] => !!entry[1])));
     }
   }
@@ -350,6 +523,95 @@ export default function MatchViewerPage() {
     }
   }
 
+  function toggleAttachCamera(cameraNumber: number) {
+    setAttachCameras((current) => current.includes(cameraNumber) ? current.filter((n) => n !== cameraNumber) : [...current, cameraNumber]);
+  }
+
+  async function attachExternalRecording() {
+    const trimmedRecordingId = attachRecordingId.trim();
+    if (!trimmedRecordingId || !attachCameras.length || !currentUserId) return;
+    setAttaching(true);
+    setError("");
+    try {
+      const cameras = [...attachCameras].sort((a, b) => a - b);
+      for (let index = 0; index < cameras.length; index += 1) {
+        const cameraNumber = cameras[index];
+        const { data: video, error: videoError } = await supabase.from("videos").insert({
+          coach_id: currentUserId,
+          team_id: match?.team_a_id ?? null,
+          video_url: externalRecordingUrl(trimmedRecordingId, cameraNumber),
+          video_key: `external/${trimmedRecordingId}/ch${cameraNumber}`,
+          camera_number: cameraNumber,
+          processing_status: "ready",
+          title: t("match.cameraLabel", { number: cameraNumber })
+        }).select("id").single();
+        if (videoError) throw videoError;
+        const { error: linkError } = await supabase.from("match_videos").insert({
+          match_id: matchId,
+          video_id: video.id,
+          sequence_order: 0,
+          is_primary: index === 0,
+          label: t("match.cameraLabel", { number: cameraNumber })
+        });
+        if (linkError) throw linkError;
+      }
+      setAttachRecordingId("");
+      setAttachCameras([]);
+      await loadMatch();
+    } catch (attachError) {
+      setError(messageFrom(attachError, t("match.createFailed")));
+    } finally {
+      setAttaching(false);
+    }
+  }
+
+  async function attachLocalFiles(selections: { file: File; handle: FileSystemFileHandle | null }[]) {
+    if (!selections.length || !currentUserId) return;
+    setAttaching(true);
+    setError("");
+    try {
+      for (let index = 0; index < selections.length; index += 1) {
+        const selection = selections[index];
+        const [info, fingerprint] = await Promise.all([inspectLocalVideo(selection.file, localMediaMessages(t)), localVideoFingerprint(selection.file)]);
+        const { data: video, error: videoError } = await supabase.from("videos").insert({
+          coach_id: currentUserId,
+          team_id: match?.team_a_id ?? null,
+          video_url: `local://${fingerprint}`,
+          video_key: `local/${fingerprint}`,
+          file_size: selection.file.size,
+          duration: Math.round(info.duration),
+          processing_status: "ready",
+          title: selection.file.name.replace(/\.[^/.]+$/, "")
+        }).select("id").single();
+        if (videoError) throw videoError;
+        await rememberLocalVideo(video.id, selection.file, selection.handle);
+        const { error: linkError } = await supabase.from("match_videos").insert({
+          match_id: matchId,
+          video_id: video.id,
+          sequence_order: index,
+          label: `Video ${index + 1}`
+        });
+        if (linkError) throw linkError;
+      }
+      await loadMatch();
+    } catch (attachError) {
+      setError(messageFrom(attachError, t("match.createFailed")));
+    } finally {
+      setAttaching(false);
+    }
+  }
+
+  async function chooseLocalFilesToAttach() {
+    const picker = (window as unknown as { showOpenFilePicker?: (options: unknown) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker;
+    if (!picker) { attachInputRef.current?.click(); return; }
+    try {
+      const handles = await picker({ multiple: true, types: [{ description: "Match videos", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
+      await attachLocalFiles(await Promise.all(handles.map(async (handle) => ({ file: await handle.getFile(), handle }))));
+    } catch (pickerError) {
+      if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) setError(messageFrom(pickerError, "The local videos could not be opened."));
+    }
+  }
+
   async function deleteMatch() {
     setDeletingMatch(true);
     const response = await fetch(`/api/matches/${matchId}`, { method: "DELETE" });
@@ -358,15 +620,45 @@ export default function MatchViewerPage() {
     router.push("/dashboard");
   }
 
+  async function persistProfiledTag(video: Video, label: string, localTime: number, goal?: GoalTagDetails) {
+    const selectedPlayers = match?.player_ids?.length ? match.player_ids : players.map((player) => player.id);
+    const { data, error: tagError } = await supabase.rpc("create_profiled_tag", {
+      target_video_id: video.id,
+      target_match_id: matchId,
+      tag_name: label.trim(),
+      tag_moment: localTime,
+      tag_color: getTagColor(label),
+      selected_player_ids: selectedPlayers,
+      tag_event_type: goal?.eventType ?? null,
+      scorer_id: goal?.scorerId ?? null,
+      assist_id: goal?.assistId ?? null
+    });
+    if (tagError) {
+      setError(tagError.message.includes("FREE_CLIP_LIMIT_REACHED") ? t("clip.freeLimit") : tagError.message.includes("CLIP_TOO_LONG") ? t("tag.tooLong") : tagError.message);
+      return;
+    }
+    const created = (Array.isArray(data) ? data[0] : data) as Tag | null;
+    if (created) setTags((current) => [...current, created].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+  }
+
   async function addTag(label: string) {
     if (!currentVideo || !label.trim()) return;
     const localTime = videoRef.current?.currentTime ?? Math.max(0, combinedTime - (offsets.map.get(currentVideo.id) ?? 0));
     const marker = isPeriodMarker(label);
+    if (!marker && getTagEventKind(label) === "goal") {
+      setPendingGoal({ video: currentVideo, label, localTime });
+      return;
+    }
+    if (!marker) {
+      await persistProfiledTag(currentVideo, label, localTime);
+      return;
+    }
     const { data, error: tagError } = await supabase.from("tags").insert({
       video_id: currentVideo.id,
       name: label.trim(),
+      occurred_at_seconds: localTime,
       start_time: localTime,
-      end_time: marker ? localTime : Math.min(currentVideo.duration ?? Number.POSITIVE_INFINITY, localTime + 5),
+      end_time: localTime,
       color: getTagColor(label),
       player_ids: currentVideo.active_player_ids
     }).select().single();
@@ -383,8 +675,9 @@ export default function MatchViewerPage() {
     const startTime = Math.min(maximum, Math.max(0, combinedStart - offset));
     const requestedEnd = Math.min(maximum, Math.max(startTime, combinedEnd - offset));
     const endTime = isPeriodMarker(tag.name) ? startTime : requestedEnd;
+    if (endTime - startTime + drawingsSeconds(tag.drawings) > MAX_CLIP_SECONDS) { setError(t("tag.tooLong")); return; }
     const { error: updateError } = await supabase.from("tags").update({ start_time: startTime, end_time: endTime }).eq("id", tagId);
-    if (updateError) { setError(updateError.message); return; }
+    if (updateError) { setError(updateError.message.includes("CLIP_TOO_LONG") ? t("tag.tooLong") : updateError.message); return; }
     setTags((current) => current
       .map((item) => item.id === tagId ? { ...item, start_time: startTime, end_time: endTime } : item)
       .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
@@ -399,6 +692,117 @@ export default function MatchViewerPage() {
     await supabase.from("tags").delete().eq("id", tagId);
     setTags((current) => current.filter((tag) => tag.id !== tagId));
     setSelectedTagIds((current) => current.filter((id) => id !== tagId));
+  }
+
+  async function deleteLiveTag(liveTag: LiveMatchTag) {
+    if (liveTag.tag_id) await deleteTag(liveTag.tag_id);
+    const { error: deleteError } = await supabase.from("live_match_tags").delete().eq("id", liveTag.id);
+    if (deleteError) { setError(deleteError.message); return; }
+    setLiveTags((current) => current.filter((item) => item.id !== liveTag.id));
+  }
+
+  async function toggleLiveTagReviewed(liveTag: LiveMatchTag) {
+    const reviewedAt = liveTag.reviewed_at ? null : new Date().toISOString();
+    setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, reviewed_at: reviewedAt } : item));
+    const { error: updateError } = await supabase.from("live_match_tags").update({ reviewed_at: reviewedAt }).eq("id", liveTag.id);
+    if (updateError) setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, reviewed_at: liveTag.reviewed_at } : item));
+  }
+
+  function liveTagElapsedSeconds(liveTag: LiveMatchTag) {
+    if (!match?.match_date) return null;
+    // The recording's real start time is the true anchor for a live tag's timestamp - the
+    // scheduled kickoff time is only an estimate and the camera is rarely started at that exact
+    // instant - but fall back to it so a tag still gets placed (roughly) even before "Start van
+    // de opname" has been filled in. live_tag_offset_seconds is a small fine-tune (e.g. average
+    // phone-grab delay), or a manual correction via the recalibrate button.
+    const anchorTime = match.recording_start_time ?? match.start_time;
+    if (!anchorTime) return null;
+    const anchor = new Date(`${match.match_date}T${anchorTime}`);
+    if (Number.isNaN(anchor.getTime())) return null;
+    const secondsSinceAnchor = (new Date(liveTag.occurred_at).getTime() - anchor.getTime()) / 1000;
+    return Math.max(0, secondsSinceAnchor + (match.live_tag_offset_seconds ?? 0));
+  }
+
+  async function confirmLiveTagCalibration() {
+    const liveTag = liveTags.find((item) => item.id === calibratingLiveTagId);
+    setCalibratingLiveTagId(null);
+    if (!liveTag || !match) return;
+    const currentComputed = liveTagElapsedSeconds(liveTag);
+    if (currentComputed === null) return;
+    const delta = combinedTime - currentComputed;
+    if (Math.abs(delta) < 0.01) return;
+    const newOffset = (match.live_tag_offset_seconds ?? 0) + delta;
+    setError("");
+    const { error: matchError } = await supabase.from("matches").update({ live_tag_offset_seconds: newOffset }).eq("id", matchId);
+    if (matchError) { setError(matchError.message); return; }
+    setMatch((current) => current ? { ...current, live_tag_offset_seconds: newOffset } : current);
+
+    const materializedTagIds = new Set(liveTags.filter((item) => item.tag_id).map((item) => item.tag_id as string));
+    for (const tag of tags.filter((item) => materializedTagIds.has(item.id))) {
+      const sourceVideo = videos.find((video) => video.id === tag.video_id);
+      const maximum = sourceVideo?.duration ?? Number.POSITIVE_INFINITY;
+      const newStart = Math.min(maximum, Math.max(0, tag.start_time + delta));
+      const newEnd = Math.min(maximum, Math.max(newStart, tag.end_time + delta));
+      const newOccurred = Math.min(maximum, Math.max(0, tag.occurred_at_seconds + delta));
+      await supabase.from("tags").update({ start_time: newStart, end_time: newEnd, occurred_at_seconds: newOccurred }).eq("id", tag.id);
+    }
+    await loadMatch();
+  }
+
+  useEffect(() => {
+    if (!match || match.coach_id !== currentUserId || !videos.length) return;
+    const pending = liveTags.filter((liveTag) => !liveTag.tag_id && !materializingLiveTagIdsRef.current.has(liveTag.id));
+    if (!pending.length) return;
+    void materializeLiveTags(pending);
+  }, [match, currentUserId, videos, liveTags]);
+
+  async function materializeLiveTags(pending: LiveMatchTag[]) {
+    for (const liveTag of pending) {
+      materializingLiveTagIdsRef.current.add(liveTag.id);
+      try {
+        const elapsed = liveTagElapsedSeconds(liveTag);
+        if (elapsed === null) continue;
+        let targetIndex = videos.length - 1;
+        for (let index = 0; index < videos.length; index += 1) {
+          const start = offsets.map.get(videos[index].id) ?? 0;
+          const end = start + (videos[index].duration ?? 0);
+          if (elapsed < end || index === videos.length - 1) { targetIndex = index; break; }
+        }
+        const targetVideo = videos[targetIndex];
+        const localTime = Math.max(0, elapsed - (offsets.map.get(targetVideo.id) ?? 0));
+        const profile = standardTags.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
+        const startOffset = profile?.start_offset_seconds ?? -5;
+        const endOffset = profile?.end_offset_seconds ?? 5;
+        const maxDuration = targetVideo.duration ?? Number.POSITIVE_INFINITY;
+        const startTime = Math.max(0, localTime + startOffset);
+        const endTime = Math.min(maxDuration, Math.max(startTime, localTime + endOffset));
+        const playerIds = liveTag.player_ids?.length ? liveTag.player_ids : targetVideo.active_player_ids;
+        const { data: createdTag, error: tagError } = await supabase.from("tags").insert({
+          video_id: targetVideo.id,
+          name: liveTag.tag_name,
+          occurred_at_seconds: localTime,
+          start_time: startTime,
+          end_time: endTime,
+          color: getTagColor(liveTag.tag_name),
+          player_ids: playerIds
+        }).select().single();
+        if (tagError || !createdTag) { setError(messageFrom(tagError, "Could not create tag from live tag.")); continue; }
+        // Claim atomically: only succeeds if nobody else (another reload, a race) has already
+        // linked this live tag. If we lose the race, delete the duplicate tag we just made
+        // instead of leaving it orphaned in the tagged-clips list.
+        const { data: claimedRows, error: linkError } = await supabase.from("live_match_tags")
+          .update({ tag_id: createdTag.id })
+          .eq("id", liveTag.id)
+          .is("tag_id", null)
+          .select("id");
+        if (linkError) { setError(messageFrom(linkError, "Could not link live tag to its new tag.")); continue; }
+        if (!claimedRows?.length) { await supabase.from("tags").delete().eq("id", createdTag.id); continue; }
+        setTags((current) => [...current, createdTag].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+        setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, tag_id: createdTag.id } : item));
+      } finally {
+        materializingLiveTagIdsRef.current.delete(liveTag.id);
+      }
+    }
   }
 
   function seekTo(time: number) {
@@ -423,7 +827,7 @@ export default function MatchViewerPage() {
     } else setCurrentIndex(targetIndex);
   }
 
-  function onVideoReady() {
+  function onVideoReady(duration?: number) {
     if (videoRef.current) videoRef.current.playbackRate = playbackRate;
     if (pendingSeekRef.current !== null && videoRef.current) {
       videoRef.current.currentTime = pendingSeekRef.current;
@@ -433,6 +837,15 @@ export default function MatchViewerPage() {
       autoPlayRef.current = false;
       void videoRef.current?.play().catch(() => undefined);
     }
+    if (currentVideo && currentVideo.duration == null && Number.isFinite(duration) && (duration ?? 0) > 0) {
+      const roundedDuration = Math.round(duration!);
+      const videoId = currentVideo.id;
+      void supabase.from("videos").update({ duration: roundedDuration }).eq("id", videoId);
+      setMatch((current) => current ? {
+        ...current,
+        match_videos: current.match_videos.map((block) => block.videos?.id === videoId ? { ...block, videos: block.videos ? { ...block.videos, duration: roundedDuration } : block.videos } : block)
+      } : current);
+    }
   }
 
   function playNext() {
@@ -440,6 +853,13 @@ export default function MatchViewerPage() {
     pendingSeekRef.current = 0;
     autoPlayRef.current = true;
     setCurrentIndex((index) => index + 1);
+  }
+
+  function switchCamera(cameraNumber: number | null) {
+    const player = videoRef.current;
+    pendingSeekRef.current = player?.currentTime ?? 0;
+    autoPlayRef.current = !!player && !player.paused;
+    setPreferredCameraNumber(cameraNumber);
   }
 
   function togglePlayback() {
@@ -459,10 +879,14 @@ export default function MatchViewerPage() {
     <div className="flex flex-col h-screen">
       <input ref={reconnectInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void handleFallbackSelection(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
       <input ref={replaceInputRef} type="file" multiple={videos.length > 1} accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void replaceSelectedVideos(Array.from(event.target.files ?? []).map((file) => ({ file, handle: null }))); event.target.value = ""; }} />
+      <input ref={attachInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void attachLocalFiles(Array.from(event.target.files ?? []).map((file) => ({ file, handle: null }))); event.target.value = ""; }} />
       <div className="flex flex-1 min-h-0">
         <aside className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
-          <Link href="/dashboard" title={t("nav.home")} aria-label={t("nav.home")} className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt={t("nav.home")} width={28} height={28} /></Link>
-          {match && <MatchDetailsCard match={match} videoCount={videos.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} onReplaceVideos={match.coach_id === currentUserId ? () => void chooseReplacementVideos() : undefined} onDeleteMatch={match.coach_id === currentUserId || isPlatformAdmin ? () => setConfirmDeleteMatch(true) : undefined} replacing={replacing} editable={canEditMatch} />}
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" title={t("nav.home")} aria-label={t("nav.home")} className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt={t("nav.home")} width={28} height={28} /></Link>
+            <span className="font-mono text-sm font-semibold text-textPrimary" aria-label={t("match.currentPosition")}>{formatClock(combinedTime)}</span>
+          </div>
+          {match && <MatchDetailsCard match={match} videoCount={blocks.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} onReplaceVideos={match.coach_id === currentUserId && videos.every((video) => isLocalVideoUrl(video.video_url)) ? () => void chooseReplacementVideos() : undefined} onDeleteMatch={match.coach_id === currentUserId || isPlatformAdmin ? () => setConfirmDeleteMatch(true) : undefined} replacing={replacing} editable={canEditMatch} />}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
           <div><h3 className="mb-2 text-sm font-semibold text-textBright">{t("video.periodMarkers")}</h3><div className="space-y-2">{markerTags.map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div></div>
           {displayTags.some((tag) => isPeriodMarker(tag.name)) && (
@@ -484,7 +908,41 @@ export default function MatchViewerPage() {
         </aside>
 
         <main className="min-h-0 min-w-0 flex-1 flex flex-col p-4 gap-3">
-          {currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">{t("match.reconnect", { number: currentIndex + 1 })}</h2><p className="text-textMuted text-sm mt-2">{t("match.reconnectHelp")}</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">{t("match.browserReconnect")}</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("match.reconnectAll")}</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">{t("match.onlyVideo", { number: currentIndex + 1 })}</button></div></div></div> : <div className="relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={playNext} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={displayTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /></div>}
+          {!videos.length ? (
+            <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center">
+              {match?.coach_id === currentUserId ? (
+                <div className="w-full max-w-md text-left">
+                  <h2 className="text-textBright text-lg font-semibold text-center">{t("match.attachVideos")}</h2>
+                  <p className="text-textMuted text-sm mt-2 text-center">{t("match.attachVideosHelp")}</p>
+                  <div className="mt-4 flex justify-center overflow-hidden rounded-lg border border-borderButton text-xs font-semibold">
+                    <button type="button" onClick={() => setAttachSource("external")} className={`px-3 py-1.5 ${attachSource === "external" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceExternal")}</button>
+                    <button type="button" onClick={() => setAttachSource("file")} className={`px-3 py-1.5 ${attachSource === "file" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceFile")}</button>
+                  </div>
+                  {attachSource === "external" ? (
+                    <div className="mt-4">
+                      <label className="block text-sm text-textSecondary">{t("match.recordingId")}
+                        <input type="text" inputMode="numeric" value={attachRecordingId} onChange={(event) => setAttachRecordingId(event.target.value)} placeholder="1391450" className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
+                      </label>
+                      <div className="mt-3">
+                        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-textMuted">{t("match.camerasUsed")}</span>
+                        <div className="grid grid-cols-7 gap-2">
+                          {EXTERNAL_RECORDING_CAMERAS.map((cameraNumber) => {
+                            const checked = attachCameras.includes(cameraNumber);
+                            return <button key={cameraNumber} type="button" onClick={() => toggleAttachCamera(cameraNumber)} className={`rounded-lg border py-2 text-center text-sm font-semibold ${checked ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-cardAlt text-textSecondary"}`}>{cameraNumber}</button>;
+                          })}
+                        </div>
+                      </div>
+                      <button type="button" disabled={attaching || !attachRecordingId.trim() || !attachCameras.length} onClick={() => void attachExternalRecording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <button type="button" disabled={attaching} onClick={() => void chooseLocalFilesToAttach()} className="w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
+                    </div>
+                  )}
+                </div>
+              ) : <p className="text-textMuted">{t("video.noVideo")}</p>}
+            </div>
+          ) : currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">{t("match.reconnect", { number: currentIndex + 1 })}</h2><p className="text-textMuted text-sm mt-2">{t("match.reconnectHelp")}</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">{t("match.browserReconnect")}</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("match.reconnectAll")}</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">{t("match.onlyVideo", { number: currentIndex + 1 })}</button></div></div></div> : <div className="relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={playNext} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={displayTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /></div>}
           <div className="flex min-h-12 overflow-hidden rounded-lg border border-border bg-cardDeep" aria-label={t("match.videoSequence")}>
             {videos.map((video, index) => (
               <button
@@ -500,19 +958,71 @@ export default function MatchViewerPage() {
               </button>
             ))}
           </div>
+          {currentBlockCameras.length > 1 && (
+            <div className="flex min-h-10 items-center gap-1 overflow-x-auto rounded-lg border border-border bg-cardDeep px-2 py-1.5" aria-label={t("match.cameraSwitch")}>
+              <span className="mr-1 flex-shrink-0 text-xs font-semibold text-textMuted">{t("match.camera")}</span>
+              {currentBlockCameras.map((block) => {
+                const cameraNumber = block.videos?.camera_number ?? null;
+                const active = activeCameraBlock?.id === block.id;
+                return (
+                  <button
+                    key={block.id}
+                    type="button"
+                    onClick={() => switchCamera(cameraNumber)}
+                    className={`flex-shrink-0 rounded-lg border px-3 py-1 text-xs font-semibold ${active ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary hover:bg-cardHover"}`}
+                  >
+                    {cameraNumber ?? "?"}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <Timeline duration={offsets.total} currentTime={combinedTime} tags={displayTags} onSeek={seekTo} />
           {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
         </main>
 
         <aside className="w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
+          {!!liveTags.length && <section className="min-h-0">
+            <h3 className="mb-1 font-semibold text-textBright">{t("liveTags.title")}</h3>
+            <p className="mb-2 text-xs text-textMuted">{t("liveTags.subtitle")}</p>
+            {calibratingLiveTagId && (
+              <div className="mb-2 rounded-lg border border-accent bg-accentDim p-2.5">
+                <p className="text-xs font-semibold text-textBright">{t("liveTags.calibrateHelp", { name: liveTags.find((item) => item.id === calibratingLiveTagId)?.tag_name ?? "" })}</p>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={() => setCalibratingLiveTagId(null)} className="flex-1 rounded-lg bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary">{t("common.cancel")}</button>
+                  <button type="button" onClick={() => void confirmLiveTagCalibration()} className="flex-1 rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page">{t("liveTags.calibrateConfirm")}</button>
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              {sortedLiveTags.map((liveTag) => {
+                const elapsed = liveTagElapsedSeconds(liveTag);
+                const materializedTag = liveTag.tag_id ? displayTags.find((tag) => tag.id === liveTag.tag_id) : undefined;
+                return <LiveTagRow
+                  key={liveTag.id}
+                  liveTag={liveTag}
+                  materializedTag={materializedTag}
+                  elapsed={elapsed}
+                  reviewed={!!liveTag.reviewed_at}
+                  onToggleReviewed={() => void toggleLiveTagReviewed(liveTag)}
+                  onSeek={seekTo}
+                  onCalibrate={() => setCalibratingLiveTagId(liveTag.id)}
+                  onUpdateTimes={(startTime, endTime) => { if (liveTag.tag_id) void updateTag(liveTag.tag_id, startTime, endTime); }}
+                  onDelete={() => void deleteLiveTag(liveTag)}
+                  t={t}
+                />;
+              })}
+            </div>
+          </section>}
           <section className="min-h-0">
             <h3 className="mb-2 font-semibold text-textBright">{t("video.taggedClips")}</h3>
             <TagList tags={displayTags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={(id) => void deleteTag(id)} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={combinedTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
           </section>
-          {videos[0] && <ClipBuilder videoId={videos[0].id} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} extraPlayers={extraPlayers} localVideo localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} matchLabel={`${match?.team_a_name || t("match.teamA")} - ${match?.team_b_name || t("match.teamB")}`} onClipCreated={() => setSelectedTagIds([])} />}
+          {videos[0] && <ClipBuilder videoId={videos[0].id} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} extraPlayers={extraPlayers} localVideo={isLocalVideoUrl(videos[0].video_url)} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={`${match?.team_a_name || t("match.teamA")} - ${match?.team_b_name || t("match.teamB")}`} onClipCreated={() => setSelectedTagIds([])} />}
         </aside>
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}
+      {pendingGoal && <GoalTagDialog players={players} onCancel={() => setPendingGoal(null)} onConfirm={async (details) => { const pending = pendingGoal; setPendingGoal(null); await persistProfiledTag(pending.video, pending.label, pending.localTime, details); }} />}
       <ConfirmDialog open={confirmDeleteMatch} title={t("match.deleteTitle")} message={t("match.deleteMessage")} busy={deletingMatch} onCancel={() => setConfirmDeleteMatch(false)} onConfirm={() => void deleteMatch()} />
     </div>
   );

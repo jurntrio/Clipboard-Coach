@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { CLUB_MODULE_BUNDLES, CLUB_MODULES, type ClubModuleBundleKey, type ClubModuleKey } from "@/lib/club-modules";
 
 // A ~100 year ban is the conventional way to permanently block a Supabase
 // auth user; there is no dedicated "disabled" flag on auth.users.
@@ -40,11 +41,25 @@ export async function setCoachPlan(coachId: string, plan: "free" | "pro") {
   revalidatePath(`/dashboard/admin/coaches/${coachId}`);
 }
 
-export async function setAccountRole(coachId: string, accountRole: "coach" | "club_admin" | "analyst") {
+export async function setAccountRole(coachId: string, accountRole: "coach" | "club_admin" | "club_admin_viewer" | "analyst") {
   const platformAdmin = await requireAdmin();
   if (coachId === platformAdmin.id) throw new Error("The platform admin role cannot be changed.");
   const admin = createAdminClient();
   const { error } = await admin.from("profiles").update({ account_role: accountRole }).eq("id", coachId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/dashboard/admin");
+  revalidatePath(`/dashboard/admin/coaches/${coachId}`);
+}
+
+export async function setAdminViewer(coachId: string, isAdminViewer: boolean) {
+  const platformAdmin = await requireAdmin();
+  if (coachId === platformAdmin.id) throw new Error("The platform admin role cannot be changed.");
+  const admin = createAdminClient();
+  const { data: profile } = await admin.from("profiles").select("account_role").eq("id", coachId).maybeSingle();
+  if (!profile) throw new Error("Coach not found.");
+  const nextRole = isAdminViewer ? "admin_viewer" : profile.account_role === "admin_viewer" ? "coach" : profile.account_role;
+  const { error } = await admin.from("profiles").update({ account_role: nextRole }).eq("id", coachId);
   if (error) throw new Error(error.message);
 
   revalidatePath("/dashboard/admin");
@@ -66,7 +81,7 @@ export async function createClub(name: string, rbfaRegistrationNumber: string, c
   revalidatePath("/dashboard/admin/clubs");
 }
 
-export async function setClubMembership(clubId: string, profileId: string, role: "club_admin" | "analyst") {
+export async function setClubMembership(clubId: string, profileId: string, role: "club_admin" | "club_admin_viewer" | "analyst") {
   await requireAdmin();
   const admin = createAdminClient();
   const [{ data: club }, { data: profile }] = await Promise.all([
@@ -82,6 +97,8 @@ export async function setClubMembership(clubId: string, profileId: string, role:
   const { data: roles } = await admin.from("club_memberships").select("role").eq("profile_id", profileId);
   const accountRole = roles?.some((item) => item.role === "club_admin")
     ? "club_admin"
+    : roles?.some((item) => item.role === "club_admin_viewer")
+    ? "club_admin_viewer"
     : roles?.some((item) => item.role === "analyst") ? "analyst" : "coach";
   await admin.from("profiles").update({ account_role: accountRole }).eq("id", profileId);
   revalidatePath("/dashboard/admin");
@@ -97,6 +114,8 @@ export async function removeClubMembership(clubId: string, profileId: string) {
   const { data: remaining } = await admin.from("club_memberships").select("role").eq("profile_id", profileId);
   const nextRole = remaining?.some((item) => item.role === "club_admin")
     ? "club_admin"
+    : remaining?.some((item) => item.role === "club_admin_viewer")
+    ? "club_admin_viewer"
     : remaining?.some((item) => item.role === "analyst") ? "analyst" : "coach";
   await admin.from("profiles").update({ account_role: nextRole }).eq("id", profileId);
   revalidatePath("/dashboard/admin");
@@ -104,12 +123,55 @@ export async function removeClubMembership(clubId: string, profileId: string) {
   revalidatePath(`/dashboard/admin/coaches/${profileId}`);
 }
 
+export async function setClubModuleEntitlement(clubId: string, moduleKey: ClubModuleKey, enabled: boolean) {
+  const platformAdmin = await requireAdmin();
+  if (!CLUB_MODULES.some((module) => module.key === moduleKey)) throw new Error("Onbekende clubmodule.");
+  const admin = createAdminClient();
+  const { data: club } = await admin.from("clubs").select("id").eq("id", clubId).maybeSingle();
+  if (!club) throw new Error("Club niet gevonden.");
+  const { error } = await admin.from("club_module_entitlements").upsert({
+    club_id: clubId,
+    module_key: moduleKey,
+    enabled,
+    updated_by: platformAdmin.id,
+    updated_at: new Date().toISOString()
+  }, { onConflict: "club_id,module_key" });
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/admin/clubs");
+  revalidatePath("/dashboard/club");
+}
+
+export async function setClubModuleBundle(clubId: string, bundleKey: ClubModuleBundleKey, enabled: boolean) {
+  const platformAdmin = await requireAdmin();
+  const bundle = CLUB_MODULE_BUNDLES.find((item) => item.key === bundleKey);
+  if (!bundle) throw new Error("Onbekende clubmodule.");
+  const admin = createAdminClient();
+  const { data: club } = await admin.from("clubs").select("id").eq("id", clubId).maybeSingle();
+  if (!club) throw new Error("Club niet gevonden.");
+  const timestamp = new Date().toISOString();
+  const { error } = await admin.from("club_module_entitlements").upsert(
+    bundle.modules.map((moduleKey) => ({
+      club_id: clubId,
+      module_key: moduleKey,
+      enabled,
+      updated_by: platformAdmin.id,
+      updated_at: timestamp
+    })),
+    { onConflict: "club_id,module_key" }
+  );
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/admin/clubs");
+  revalidatePath("/dashboard/club");
+}
+
 export async function updateTrainerAssignment(input: {
   profileId: string;
   fullName: string;
   phoneNumber: string;
   clubId: string;
-  role: "trainer" | "club_admin" | "analyst";
+  role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst";
   teamIds: string[];
 }) {
   const platformAdmin = await requireAdmin();
@@ -172,13 +234,17 @@ export async function updateTrainerAssignment(input: {
 }
 
 // Deletes the auth user, which cascades (via FK on delete cascade) through
-// profiles -> teams/videos/clips/standard_tags and everything under them.
+// profiles and all account-owned records. This includes club_memberships,
+// club_trainers and, through the trainer row, every club team assignment.
 // Note: this does not remove the coach's video files from R2 storage.
 export async function deleteCoach(coachId: string) {
-  await requireAdmin();
+  const platformAdmin = await requireAdmin();
+  if (coachId === platformAdmin.id) throw new Error("Je eigen platformadminaccount kan hier niet verwijderd worden.");
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.deleteUser(coachId);
   if (error) throw new Error(error.message);
 
   revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/admin/clubs");
+  revalidatePath("/dashboard/club");
 }

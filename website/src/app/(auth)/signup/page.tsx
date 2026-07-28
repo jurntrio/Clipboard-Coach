@@ -96,7 +96,13 @@ export default function SignupPage() {
     });
 
     if (signUpError) {
-      setError(signUpError.message);
+      console.error("Signup failed", {
+        name: signUpError.name,
+        status: signUpError.status,
+        code: "code" in signUpError ? signUpError.code : undefined,
+        message: signUpError.message
+      });
+      setError(readableSignupError(signUpError, locale));
       setLoading(false);
       return;
     }
@@ -198,7 +204,10 @@ export default function SignupPage() {
                   <input type="checkbox" checked={legalAccepted} onChange={(event) => setLegalAccepted(event.target.checked)} className="mt-1" required />
                   <span>{t("auth.legalPrefix")} <Link href="/terms" target="_blank" className="font-semibold text-accent hover:underline">{t("legal.terms")}</Link>. {t("auth.legalPrivacyPrefix")} <Link href="/privacy" target="_blank" className="font-semibold text-accent hover:underline">{t("legal.privacy")}</Link>.</span>
                 </label>
-                {error && <p className="text-red-400 text-sm">{error}</p>}
+                {error && <div role="alert" aria-live="polite" className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm leading-5 text-red-300">
+                  <strong className="block">{locale === "nl" ? "Registreren is niet gelukt" : "Registration failed"}</strong>
+                  <span className="mt-1 block">{error}</span>
+                </div>}
                 <button
                   type="submit"
                   disabled={loading || !legalAccepted}
@@ -236,4 +245,36 @@ export default function SignupPage() {
       </div>
     </div>
   );
+}
+
+function readableSignupError(error: unknown, locale: "nl" | "en") {
+  const fallback = locale === "nl"
+    ? "Je account kon niet worden aangemaakt. Probeer het opnieuw of neem contact op met info@clipboardcoach.com."
+    : "Your account could not be created. Try again or contact info@clipboardcoach.com.";
+  if (!error || typeof error !== "object") return fallback;
+  const candidate = error as { message?: unknown; code?: unknown; status?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message.trim() : "";
+  const normalized = message.toLocaleLowerCase("en");
+  if (normalized.includes("already registered") || normalized.includes("already exists")) {
+    return locale === "nl"
+      ? "Dit e-mailadres is al geregistreerd. Kies Aanmelden of gebruik Wachtwoord vergeten."
+      : "This email address is already registered. Sign in or use Forgot password.";
+  }
+  if (normalized.includes("rate limit") || candidate.status === 429) {
+    return locale === "nl"
+      ? "Er waren te veel registratiepogingen. Wacht enkele minuten en probeer opnieuw."
+      : "There were too many registration attempts. Wait a few minutes and try again.";
+  }
+  if (normalized.includes("password")) {
+    return locale === "nl"
+      ? "Het wachtwoord wordt niet aanvaard. Gebruik minstens 6 tekens en probeer opnieuw."
+      : "The password was not accepted. Use at least 6 characters and try again.";
+  }
+  if (normalized.includes("database error") || normalized.includes("saving new user")) {
+    return locale === "nl"
+      ? "De club- of teamkoppeling kon niet worden opgeslagen. Probeer opnieuw; blijft dit gebeuren, neem dan contact op met info@clipboardcoach.com."
+      : "The club or team link could not be saved. Try again; if this continues, contact info@clipboardcoach.com.";
+  }
+  if (!message || message === "{}" || message === "[]" || message === "[object Object]") return fallback;
+  return message;
 }
