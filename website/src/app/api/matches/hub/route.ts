@@ -12,8 +12,13 @@ export async function GET() {
   const membership = context.clubs.find((club) => club.id === clubId);
   if (!membership) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
 
-  const { data: clubTeams } = await admin.from("club_teams")
-    .select("id").eq("club_id", clubId).neq("status", "merged");
+  const [{ data: clubTeams }, { data: clubSettings }] = await Promise.all([
+    admin.from("club_teams").select("id").eq("club_id", clubId).neq("status", "merged"),
+    admin.from("clubs").select("clip_view_count_roles").eq("id", clubId).maybeSingle()
+  ]);
+  const configuredViewRoles = clubSettings?.clip_view_count_roles ?? ["club_admin"];
+  const effectiveRole = ["coach", "assistant_coach", "team_manager"].includes(membership.role) ? "trainer" : membership.role;
+  const canSeeViewCounts = context.isPlatformAdmin || effectiveRole === "club_admin" || configuredViewRoles.includes(effectiveRole);
   const clubTeamIds = (clubTeams ?? []).map((team) => team.id);
   const [{ data: matches }, { data: teams }] = await Promise.all([
     admin.from("matches").select("*, match_videos(video_id)")
@@ -37,7 +42,7 @@ export async function GET() {
       ? admin.from("players").select("*").in("team_id", teamIds).neq("role", "staff").order("last_name")
       : Promise.resolve({ data: [] }),
     videoIds.length
-      ? admin.from("clips").select("id, coach_id, video_id, name, render_status, created_at, audience_type, audience_player_ids, rendered_segments, share_links(token), videos(title, video_url), clip_segments(id, sequence_order, video_id, render_status, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))")
+      ? admin.from("clips").select(`id, coach_id, video_id, name, render_status, created_at, audience_type, audience_player_ids, rendered_segments, share_links(token${canSeeViewCounts ? ", view_count" : ""}), videos(title, video_url), clip_segments(id, sequence_order, video_id, render_status, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))`)
           .in("video_id", videoIds).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] })
   ]);
@@ -48,7 +53,8 @@ export async function GET() {
     players: players ?? [],
     clips: clips ?? [],
     role: membership.role,
-    isPlatformAdmin: context.isPlatformAdmin
+    isPlatformAdmin: context.isPlatformAdmin,
+    canSeeViewCounts
   });
 }
 
@@ -60,4 +66,3 @@ async function visibleTrainerMatches(admin: ReturnType<typeof createAdminClient>
   const visibleIds = new Set((assignments ?? []).map((item) => item.match_id));
   return matches.filter((match) => visibleIds.has(match.id));
 }
-

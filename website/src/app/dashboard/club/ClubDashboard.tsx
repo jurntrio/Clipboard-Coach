@@ -6,7 +6,7 @@ import { ClubTeamsManager } from "./ClubTeamsManager";
 import { ClubLogoUploader } from "@/components/clubs/ClubLogoUploader";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 
-type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; logo_url?: string | null };
+type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null };
 type Team = {
   id: string;
   club_id: string;
@@ -112,6 +112,28 @@ export function ClubDashboard() {
     } : current);
   }
 
+  async function setClipViewRole(role: string, enabled: boolean) {
+    if (!club || readOnly || role === "club_admin") return;
+    const current = club.clip_view_count_roles ?? ["club_admin"];
+    const roles = enabled ? [...new Set([...current, role])] : current.filter((item) => item !== role);
+    setSaving("clip-view-roles");
+    setError("");
+    const response = await fetch("/api/club/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clubId: club.id, clipViewCountRoles: roles })
+    });
+    const body = await response.json();
+    setSaving("");
+    if (!response.ok) return setError(body.error || "Rechten voor kijkcijfers konden niet worden bewaard.");
+    setData((currentData) => currentData ? {
+      ...currentData,
+      clubs: currentData.clubs.map((item) => item.id === club.id
+        ? { ...item, clip_view_count_roles: body.club.clip_view_count_roles }
+        : item)
+    } : currentData);
+  }
+
   async function saveTrainingSettings(next: TrainingSettings) {
     if (readOnly) return;
     setSaving("training-settings");
@@ -192,6 +214,27 @@ export function ClubDashboard() {
             <span className="mt-1 block text-sm text-textMuted">Toon de vaste sponsorafbeelding onder de video op gedeelde clippagina’s.</span>
           </span>
         </label>
+        <div className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-4">
+          <h3 className="font-semibold text-textPrimary">Wie mag kijkcijfers zien?</h3>
+          <p className="mt-1 text-sm text-textMuted">Bepaal welke rollen het aantal geopende gedeelde clips in Matches zien. Clubadmins behouden altijd toegang.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {([
+              ["club_admin", "Clubadmins"],
+              ["club_admin_viewer", "Clubadmin-viewers"],
+              ["analyst", "Analisten"],
+              ["trainer", "Trainers en assistenten"]
+            ] as const).map(([role, label]) => (
+              <label key={role} className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm text-textPrimary">
+                <input type="checkbox"
+                  checked={role === "club_admin" || (club?.clip_view_count_roles ?? ["club_admin"]).includes(role)}
+                  disabled={readOnly || role === "club_admin" || saving === "clip-view-roles"}
+                  onChange={(event) => void setClipViewRole(role, event.target.checked)}
+                  className="h-4 w-4 accent-accent disabled:opacity-60" />
+                <span>{label}{role === "club_admin" && <span className="ml-1 text-xs text-textMuted">· altijd</span>}</span>
+              </label>
+            ))}
+          </div>
+        </div>
       </section>}
 
       {moduleEnabled("matches") && <section className="rounded-xl border border-border bg-card p-5">

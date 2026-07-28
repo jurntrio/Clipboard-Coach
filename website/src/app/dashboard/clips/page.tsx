@@ -17,7 +17,7 @@ type HubMatch = Match & { match_videos: { video_id: string }[] };
 type HubClip = {
   id: string; coach_id: string; video_id: string; name: string; render_status: string; created_at: string; audience_type: "full_team" | "selected_players" | "specific_players";
   audience_player_ids: string[];
-  share_links: Array<{ token: string }>;
+  share_links: Array<{ token: string; view_count?: number }>;
   rendered_segments: Array<{ id: string; url: string; name: string; color: string; duration: number; play_start?: number; mobile_compatible?: boolean }>;
   videos: { title: string | null; video_url: string } | null;
   clip_segments: Array<{ id: string; sequence_order: number; video_id: string | null; render_status: "pending" | "rendering" | "ready" | "failed"; videos: { video_url: string } | null; tags: { id: string; name: string; color: string; start_time: number; end_time: number; player_ids: string[] } | null }>;
@@ -276,6 +276,8 @@ function ClipPills({ clips, onClip, onDelete, canDelete, empty }: { clips: HubCl
     const completedSegments = clip.clip_segments.filter((segment) => segment.render_status === "ready").length;
     const totalSegments = clip.clip_segments.length;
     const progress = totalSegments ? Math.round((completedSegments / totalSegments) * 100) : 0;
+    const canSeeViews = clip.share_links?.some((link) => typeof link.view_count === "number");
+    const viewCount = clip.share_links?.reduce((sum, link) => sum + (link.view_count ?? 0), 0) ?? 0;
     return <span key={clip.id} className="inline-flex flex-col overflow-hidden rounded-xl border border-accent/40 bg-accentDim">
       <span className="inline-flex">
         <button type="button" disabled={processing} onClick={() => onClip(clip)} title={clip.name} aria-label={`${clip.name} ${t("common.play")}`} className="flex h-8 min-w-10 items-center justify-center gap-1 px-2 text-xs font-bold text-accent hover:bg-accent hover:text-page disabled:cursor-wait disabled:opacity-70"><span aria-hidden="true">{processing ? "…" : "▶"}</span><span>{index + 1}</span></button>
@@ -284,6 +286,9 @@ function ClipPills({ clips, onClip, onDelete, canDelete, empty }: { clips: HubCl
       {processing && <span className="border-t border-accent/20 px-2 py-1 text-[9px] font-semibold text-textMuted" title={t("clip.estimateHelp")}>
         {t("clip.renderProgress", { completed: completedSegments, total: totalSegments })}
         <span className="mt-1 block h-1 overflow-hidden rounded-full bg-button"><span className="block h-full bg-accent transition-[width]" style={{ width: `${progress}%` }} /></span>
+      </span>}
+      {!processing && canSeeViews && <span className="border-t border-accent/20 px-2 py-1 text-[9px] font-semibold text-textMuted" title="Aantal keer dat een gedeelde clippagina werd geopend">
+        Bekeken: {viewCount}×
       </span>}
     </span>;
   })}</div>;

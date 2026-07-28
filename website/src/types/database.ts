@@ -37,6 +37,7 @@ export type Club = {
   external_sync_status: string | null;
   last_synced_at: string | null;
   clip_advertising_enabled: boolean;
+  clip_view_count_roles: string[];
   created_at: string;
   updated_at: string;
 };

@@ -34,6 +34,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ club });
   }
 
+  if (Array.isArray(body.clipViewCountRoles)) {
+    const allowedRoles = new Set(["club_admin", "club_admin_viewer", "analyst", "trainer"]);
+    const roles = Array.from(new Set([
+      "club_admin",
+      ...body.clipViewCountRoles.filter((role: unknown): role is string => typeof role === "string" && allowedRoles.has(role))
+    ]));
+    const { data: club, error } = await admin.from("clubs")
+      .update({ clip_view_count_roles: roles })
+      .eq("id", body.clubId)
+      .select("id, clip_view_count_roles")
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ club });
+  }
+
   if (body.logoUrl === null || (typeof body.logoUrl === "string" && (
     body.logoUrl.startsWith("/branding/clubs/") ||
     body.logoUrl.startsWith(`${process.env.R2_PUBLIC_URL?.replace(/\/$/, "")}/clubs/${body.clubId}/`)

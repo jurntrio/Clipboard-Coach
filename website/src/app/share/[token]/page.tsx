@@ -32,7 +32,12 @@ export default async function SharePage({ params }: { params: { token: string } 
     notFound();
   }
 
-  await supabase.from("share_links").update({ view_count: shareLink.view_count + 1 }).eq("id", shareLink.id);
+  const { error: incrementError } = await supabase.rpc("increment_share_link_view", { target_link_id: shareLink.id });
+  // Compatibility while migration 0054 is being rolled out; once present,
+  // the RPC path above is atomic and this fallback is never used.
+  if (incrementError) {
+    await supabase.from("share_links").update({ view_count: shareLink.view_count + 1 }).eq("id", shareLink.id);
+  }
 
   const clip = shareLink.clips as any;
   const sourceSegments = (clip.clip_segments ?? [])
