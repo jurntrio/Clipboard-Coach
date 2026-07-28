@@ -187,7 +187,7 @@ export function ClubDashboard() {
     <div className="space-y-6">
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h2 className="text-xl font-semibold text-textBright">{club?.name}</h2><p className="text-sm text-textMuted">Clubtrainers en hun standaardploegen</p></div>
+          <div><h2 className="text-xl font-semibold text-textBright">{club?.name}</h2><p className="text-sm text-textMuted">Clubinstellingen, modules en toegangsbeheer</p></div>
           <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-300">
             RBFA {club?.rbfa_registration_number ? `stamnummer ${club.rbfa_registration_number}` : "nog te configureren"}
           </span>
@@ -197,16 +197,6 @@ export function ClubDashboard() {
           <ClubLogoUploader clubId={club.id} clubName={club.name} logoUrl={club.logo_url ?? null} readOnly={readOnly}
             onChanged={logoUrl => setData(current => current ? { ...current, clubs: current.clubs.map(item => item.id === club.id ? { ...item, logo_url: logoUrl } : item) } : current)} />
         </div>}
-        <div className="mt-4 overflow-x-auto rounded-xl border border-borderSubtle">
-          <table className="w-full min-w-[780px] text-sm">
-            <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="px-3 py-3 text-left">Naam</th><th className="px-3 py-3 text-left">Team(s)</th><th className="px-3 py-3 text-left">Gsm</th><th className="px-3 py-3 text-left">E-mail</th><th className="px-3 py-3 text-left">Rol</th></tr></thead>
-            <tbody>{trainers.map((trainer) => {
-              const membership = data.memberships.find((item) => item.club_id === trainer.club_id && item.profile_id === trainer.profile_id);
-              const role = membership?.role ?? "trainer";
-              return <tr key={trainer.id} className="border-t border-borderSubtle bg-card"><td className="px-3 py-3 font-medium text-textPrimary"><a href={trainer.profile_id ? `#member-${trainer.profile_id}` : undefined} onClick={() => { if (!trainer.profile_id) return; const details = document.getElementById(`member-${trainer.profile_id}`) as HTMLDetailsElement | null; if (details) details.open = true; }} className={trainer.profile_id ? "hover:text-accent hover:underline" : ""}>{trainer.display_name}</a>{trainer.invitation_status !== "linked" && <span className="ml-2 text-xs text-amber-300">Nog te koppelen</span>}</td><td className="px-3 py-3 text-textSecondary">{trainer.club_trainer_teams.map((link) => teamNames.get(link.club_team_id)).filter(Boolean).join(", ") || "—"}</td><td className="px-3 py-3 text-textSecondary">{trainer.phone_number || "—"}</td><td className="px-3 py-3 text-textSecondary">{trainer.profiles?.email || "—"}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${roleBadgeClass[role]}`}>{roleLabels[role]}</span></td></tr>;
-            })}</tbody>
-          </table>
-        </div>
       </section>
 
       {moduleEnabled("teams") && <ModuleAccordion title="Teams" icon="/branding/teams.png">
