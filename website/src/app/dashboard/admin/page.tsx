@@ -129,7 +129,7 @@ export default async function AdminOverviewPage() {
       <section className="mb-8 rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-textBright">{t("admin.usersWithoutTeam")}</h2>
+            <h2 className="text-lg font-semibold text-textBright">Gebruikers zonder toegewezen ploeg</h2>
             <p className="mt-1 text-sm text-textMuted">{t("admin.usersWithoutTeamSubtitle")}</p>
           </div>
           <span className="rounded-full bg-amber-500/15 px-3 py-1 text-sm font-semibold text-amber-300">{coachesWithoutTeams.length}</span>
@@ -137,7 +137,13 @@ export default async function AdminOverviewPage() {
         <div className="mt-4 divide-y divide-borderSubtle rounded-lg border border-borderSubtle bg-cardDeep">
           {coachesWithoutTeams.map((coach) => (
             <div key={coach.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-              <div><div className="font-medium text-textPrimary">{coach.full_name || coach.email}</div><div className="text-xs text-textMuted">{coach.email}</div></div>
+              <div>
+                <div className="font-medium text-textPrimary">{coach.full_name || coach.email}</div>
+                <div className="text-xs text-textMuted">{coach.email}</div>
+                <div className="mt-1 text-xs text-textSecondary">
+                  Club: {coach.clubNames.join(", ") || "geen club"} · Functie: {formatFunctions(coach.functionRoles)}
+                </div>
+              </div>
               <Link href={`/dashboard/admin/coaches/${coach.id}`} className="rounded-lg border border-borderButton px-3 py-2 text-sm text-textPrimary hover:border-accent hover:text-accent">{t("admin.assignTeam")}</Link>
             </div>
           ))}

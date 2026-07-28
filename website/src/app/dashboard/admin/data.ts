@@ -56,7 +56,7 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
       admin.from("videos").select("id, coach_id, video_url, file_size, processing_status").eq("status", "active"),
       admin.from("clips").select("id, coach_id, rendered_segments"),
       admin.from("club_memberships").select("profile_id, role, function_role, custom_role_name, clubs(name, club_teams(name))"),
-      admin.from("club_trainers").select("profile_id, club_trainer_teams(club_teams(name))").not("profile_id", "is", null)
+      admin.from("club_trainers").select("profile_id, clubs(name), club_trainer_teams(club_teams(name))").not("profile_id", "is", null)
     ]);
 
   const authById = new Map(authUsers?.users.map((u) => [u.id, u]) ?? []);
@@ -71,6 +71,10 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
       .filter((trainer) => trainer.profile_id === profile.id)
       .flatMap((trainer) => trainer.club_trainer_teams ?? [])
       .map((link) => relatedName(link.club_teams))
+      .filter((name): name is string => !!name);
+    const trainerClubNames = (clubTrainers ?? [])
+      .filter((trainer) => trainer.profile_id === profile.id)
+      .map((trainer) => relatedName(trainer.clubs))
       .filter((name): name is string => !!name);
     const profileMemberships = (memberships ?? []).filter((membership) => membership.profile_id === profile.id);
     const fullClubAccessTeamNames = profileMemberships
@@ -94,7 +98,10 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
       storageBytes:
         coachVideos.reduce((sum, video) => sum + cloudVideoBytes(video), 0) +
         coachClips.reduce((sum, clip) => sum + renderedClipBytes(clip), 0),
-      clubNames: profileMemberships.map((membership) => relatedName(membership.clubs)).filter((name): name is string => !!name),
+      clubNames: Array.from(new Set([
+        ...profileMemberships.map((membership) => relatedName(membership.clubs)).filter((name): name is string => !!name),
+        ...trainerClubNames
+      ])),
       teamNames,
       functionRoles: Array.from(new Set(profileMemberships.map((membership) =>
         membership.function_role === "custom" && membership.custom_role_name
