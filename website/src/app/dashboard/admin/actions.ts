@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CLUB_MODULES, type ClubModuleKey } from "@/lib/club-modules";
+import { CLUB_MODULE_BUNDLES, CLUB_MODULES, type ClubModuleBundleKey, type ClubModuleKey } from "@/lib/club-modules";
 
 // A ~100 year ban is the conventional way to permanently block a Supabase
 // auth user; there is no dedicated "disabled" flag on auth.users.
@@ -136,6 +136,30 @@ export async function setClubModuleEntitlement(clubId: string, moduleKey: ClubMo
     updated_by: platformAdmin.id,
     updated_at: new Date().toISOString()
   }, { onConflict: "club_id,module_key" });
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/admin/clubs");
+  revalidatePath("/dashboard/club");
+}
+
+export async function setClubModuleBundle(clubId: string, bundleKey: ClubModuleBundleKey, enabled: boolean) {
+  const platformAdmin = await requireAdmin();
+  const bundle = CLUB_MODULE_BUNDLES.find((item) => item.key === bundleKey);
+  if (!bundle) throw new Error("Onbekende clubmodule.");
+  const admin = createAdminClient();
+  const { data: club } = await admin.from("clubs").select("id").eq("id", clubId).maybeSingle();
+  if (!club) throw new Error("Club niet gevonden.");
+  const timestamp = new Date().toISOString();
+  const { error } = await admin.from("club_module_entitlements").upsert(
+    bundle.modules.map((moduleKey) => ({
+      club_id: clubId,
+      module_key: moduleKey,
+      enabled,
+      updated_by: platformAdmin.id,
+      updated_at: timestamp
+    })),
+    { onConflict: "club_id,module_key" }
+  );
   if (error) throw new Error(error.message);
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/admin/clubs");

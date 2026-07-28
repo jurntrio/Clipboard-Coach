@@ -12,3 +12,31 @@ export const CLUB_MODULES = [
 export type ClubModuleKey = typeof CLUB_MODULES[number]["key"];
 
 export const DEFAULT_CLUB_MODULES = CLUB_MODULES.map((module) => module.key);
+
+export const CLUB_MODULE_BUNDLES = [
+  {
+    key: "training",
+    label: "Training",
+    description: "Trainingen, tekentool en de gedeelde Intradesk-bibliotheek.",
+    modules: ["training", "intradesk"]
+  },
+  {
+    key: "video_analysis",
+    label: "Videoanalyse",
+    description: "Video Viewer, wedstrijden, tagging en clips.",
+    modules: ["video_viewer", "matches", "clips"]
+  },
+  {
+    key: "club_teams",
+    label: "Club & Teams",
+    description: "Teams, leden, clubbeheer en aanwezigheden.",
+    modules: ["teams", "club_management", "attendance"]
+  }
+] as const satisfies ReadonlyArray<{
+  key: string;
+  label: string;
+  description: string;
+  modules: readonly ClubModuleKey[];
+}>;
+
+export type ClubModuleBundleKey = typeof CLUB_MODULE_BUNDLES[number]["key"];
