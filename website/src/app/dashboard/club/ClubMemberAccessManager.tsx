@@ -80,7 +80,7 @@ function MemberEditor({ clubId, member, name, teams, permissions, teamAccess, re
       {functionRole === "custom" && <label className="block text-sm text-textSecondary">Naam aangepaste rol<input value={customRoleName} disabled={readOnly} onChange={(event) => setCustomRoleName(event.target.value)} className={inputClass} /></label>}
       {teamScope === "selected" && <div><h4 className="text-sm font-semibold text-textPrimary">Geselecteerde teams</h4><div className="mt-2 grid gap-2 sm:grid-cols-2">{teams.map((team) => <label key={team.id} className="flex items-center gap-2 text-sm text-textSecondary"><input type="checkbox" checked={teamIds.has(team.id)} disabled={readOnly} onChange={() => toggle(setTeamIds, team.id)} className="accent-accent" />{team.name}</label>)}</div></div>}
       <div><h4 className="text-sm font-semibold text-textPrimary">Rechten</h4><div className="mt-2 grid gap-2 md:grid-cols-2">{CLUB_PERMISSION_OPTIONS.map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-textSecondary"><input type="checkbox" checked={permissionKeys.has(key)} disabled={readOnly} onChange={() => toggle(setPermissionKeys, key)} className="accent-accent" />{label}</label>)}</div></div>
-      {!readOnly && <button type="button" onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page">Rechten bewaren</button>}
+      {!readOnly && <button type="button" onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page">Instellingen opslaan</button>}
       {status && <span className="ml-3 text-sm text-accent">{status}</span>}
     </div>
   </details>;
