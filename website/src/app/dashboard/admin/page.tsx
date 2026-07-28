@@ -6,6 +6,7 @@ import { PlanBadge } from "./PlanBadge";
 import { getServerI18n } from "@/i18n/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminClubModuleToggles } from "./AdminClubModuleToggles";
+import { CLUB_FUNCTION_ROLES } from "@/lib/club-access-options";
 
 export default async function AdminOverviewPage() {
   const admin = createAdminClient();
@@ -18,6 +19,7 @@ export default async function AdminOverviewPage() {
   ]);
   const { locale, t } = getServerI18n();
   const coachesWithoutTeams = coaches.filter((coach) => coach.teamCount === 0);
+  const coachesById = new Map(coaches.map((coach) => [coach.id, coach]));
 
   const totals = coaches.reduce(
     (acc, c) => ({
@@ -96,18 +98,20 @@ export default async function AdminOverviewPage() {
                 <div className="overflow-x-auto border-t border-borderSubtle">
                   <table className="w-full min-w-[680px] text-sm">
                     <thead className="text-xs uppercase text-textMuted">
-                      <tr><th className="px-4 py-2 text-left">{t("admin.colName")}</th><th className="px-4 py-2 text-left">{t("admin.colTeams")}</th><th className="px-4 py-2 text-left">{t("admin.colPhone")}</th><th className="px-4 py-2 text-left">{t("admin.colEmail")}</th></tr>
+                      <tr><th className="px-4 py-2 text-left">{t("admin.colName")}</th><th className="px-4 py-2 text-left">Functie</th><th className="px-4 py-2 text-left">{t("admin.colTeams")}</th><th className="px-4 py-2 text-left">{t("admin.colPhone")}</th><th className="px-4 py-2 text-left">{t("admin.colEmail")}</th><th className="px-4 py-2 text-left">Laatste login</th></tr>
                     </thead>
                     <tbody>
                       {trainers.map((trainer) => (
                         <tr key={trainer.id} className="border-t border-borderSubtle">
                           <td className="px-4 py-2 text-textPrimary">{trainer.display_name}{trainer.invitation_status !== "linked" && <span className="ml-2 text-xs text-amber-300">{t("admin.notLinkedYet")}</span>}</td>
+                          <td className="px-4 py-2 text-textSecondary">{trainer.profile_id ? formatFunctions(coachesById.get(trainer.profile_id)?.functionRoles) : "—"}</td>
                           <td className="px-4 py-2 text-textSecondary">{trainer.club_trainer_teams.map((link) => relationValue(link.club_teams)?.name).filter(Boolean).join(", ") || "—"}</td>
                           <td className="px-4 py-2 text-textSecondary">{trainer.phone_number || "—"}</td>
                           <td className="px-4 py-2 text-textSecondary">{relationValue(trainer.profiles)?.email || "—"}</td>
+                          <td className="whitespace-nowrap px-4 py-2 text-textSecondary">{trainer.profile_id ? formatLastLogin(coachesById.get(trainer.profile_id)?.last_sign_in_at, locale) : "—"}</td>
                         </tr>
                       ))}
-                      {!trainers.length && <tr><td colSpan={4} className="px-4 py-4 text-center text-textMuted">{t("admin.noneTrainersAssigned")}</td></tr>}
+                      {!trainers.length && <tr><td colSpan={6} className="px-4 py-4 text-center text-textMuted">{t("admin.noneTrainersAssigned")}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -153,6 +157,8 @@ export default async function AdminOverviewPage() {
             <tr>
               <th className="text-left px-4 py-3">{t("admin.coach")}</th>
               <th className="text-left px-4 py-3">{t("admin.joined")}</th>
+              <th className="text-left px-4 py-3">Functie</th>
+              <th className="text-left px-4 py-3">Laatste login</th>
               <th className="text-left px-4 py-3">{t("admin.colClub")}</th>
               <th className="text-right px-4 py-3">{t("common.teams")}</th>
               <th className="text-right px-4 py-3">{t("admin.players")}</th>
@@ -173,6 +179,8 @@ export default async function AdminOverviewPage() {
                   </Link>
                 </td>
                 <td className="px-4 py-3 text-textSecondary">{new Date(coach.created_at).toLocaleDateString(locale)}</td>
+                <td className="px-4 py-3 text-textSecondary">{formatFunctions(coach.functionRoles)}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-textSecondary">{formatLastLogin(coach.last_sign_in_at, locale)}</td>
                 <td className="px-4 py-3 text-textSecondary">{coach.clubNames.join(", ") || "–"}</td>
                 <td className="px-4 py-3 text-right text-textSecondary" title={coach.teamNames.join(", ")}>{coach.teamCount}</td>
                 <td className="px-4 py-3 text-right text-textSecondary">{coach.playerCount}</td>
@@ -197,7 +205,7 @@ export default async function AdminOverviewPage() {
 
             {coaches.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-textMuted">
+                <td colSpan={12} className="px-4 py-6 text-center text-textMuted">
                   {t("admin.noneCoaches")}
                 </td>
               </tr>
@@ -211,6 +219,15 @@ export default async function AdminOverviewPage() {
 
 function relationValue<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+function formatFunctions(keys: string[] | undefined) {
+  if (!keys?.length) return "—";
+  return keys.map((key) => CLUB_FUNCTION_ROLES.find(([value]) => value === key)?.[1] || key).join(", ");
+}
+
+function formatLastLogin(value: string | null | undefined, locale: string) {
+  return value ? new Date(value).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" }) : "Nog nooit";
 }
 
 function StatTile({ label, value, warn }: { label: string; value: string | number; warn?: boolean }) {

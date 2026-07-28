@@ -12,6 +12,7 @@ export type CoachOverview = Profile & {
   storageBytes: number;
   clubNames: string[];
   teamNames: string[];
+  functionRoles: string[];
 };
 
 type StoredClipSegment = { file_size?: number | null };
@@ -54,7 +55,7 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
       admin.from("players").select("id, team_id"),
       admin.from("videos").select("id, coach_id, video_url, file_size, processing_status").eq("status", "active"),
       admin.from("clips").select("id, coach_id, rendered_segments"),
-      admin.from("club_memberships").select("profile_id, role, clubs(name, club_teams(name))"),
+      admin.from("club_memberships").select("profile_id, role, function_role, custom_role_name, clubs(name, club_teams(name))"),
       admin.from("club_trainers").select("profile_id, club_trainer_teams(club_teams(name))").not("profile_id", "is", null)
     ]);
 
@@ -94,7 +95,12 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
         coachVideos.reduce((sum, video) => sum + cloudVideoBytes(video), 0) +
         coachClips.reduce((sum, clip) => sum + renderedClipBytes(clip), 0),
       clubNames: profileMemberships.map((membership) => relatedName(membership.clubs)).filter((name): name is string => !!name),
-      teamNames
+      teamNames,
+      functionRoles: Array.from(new Set(profileMemberships.map((membership) =>
+        membership.function_role === "custom" && membership.custom_role_name
+          ? membership.custom_role_name
+          : membership.function_role || membership.role
+      )))
     };
   });
 }

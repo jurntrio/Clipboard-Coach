@@ -67,7 +67,7 @@ export function AdminClubModuleToggles({
         })}
       </div>
       {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
-      <div className="mt-3"><ClubInvitationCreator clubId={clubId} readOnly={false} /></div>
+      <div className="mt-3"><ClubInvitationCreator clubId={clubId} readOnly={false} compact /></div>
     </div>
     <ConfirmDialog
       open={!!pendingChange}

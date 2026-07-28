@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CLUB_FUNCTION_ROLES } from "@/lib/club-access-options";
 
-export function ClubInvitationCreator({ clubId, readOnly }: { clubId: string; readOnly: boolean }) {
+export function ClubInvitationCreator({ clubId, readOnly, compact = false }: { clubId: string; readOnly: boolean; compact?: boolean }) {
   const [functionRole, setFunctionRole] = useState("trainer");
   const [expectedName, setExpectedName] = useState("");
   const [link, setLink] = useState("");
@@ -23,7 +23,7 @@ export function ClubInvitationCreator({ clubId, readOnly }: { clubId: string; re
   }
 
   if (readOnly) return null;
-  return <section className="rounded-xl border border-border bg-card p-5">
+  const content = <>
     <h2 className="text-xl font-semibold text-textBright">Iemand uitnodigen</h2>
     <p className="mt-1 text-sm text-textMuted">Kies vooraf de rol. Als je een naam invult, moet de persoon zich met exact die naam registreren. De link vervalt na één registratie.</p>
     <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -33,7 +33,14 @@ export function ClubInvitationCreator({ clubId, readOnly }: { clubId: string; re
     <button type="button" onClick={() => void createInvite()} className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page">Uitnodiging aanmaken</button>
     {status && <p className="mt-3 text-sm text-accent">{status}</p>}
     {link && <div className="mt-3 flex gap-2 rounded-lg border border-borderSubtle bg-cardDeep p-2"><input readOnly value={link} className="min-w-0 flex-1 bg-transparent px-2 text-xs text-textPrimary" /><button type="button" onClick={() => void navigator.clipboard.writeText(link)} className="rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-accent">Link kopiëren</button></div>}
-  </section>;
+  </>;
+  if (compact) return <details className="group/invite rounded-lg border border-border bg-card">
+    <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-textPrimary">
+      Iemand uitnodigen <span className="text-accent transition-transform group-open/invite:rotate-90">▶</span>
+    </summary>
+    <div className="border-t border-borderSubtle p-4">{content}</div>
+  </details>;
+  return <section className="rounded-xl border border-border bg-card p-5">{content}</section>;
 }
 
 const inputClass = "mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary";
