@@ -12,8 +12,9 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LinkStaffModal } from "@/components/teams/LinkStaffModal";
 import { useI18n } from "@/i18n/client";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
+import { ImportRosterModal } from "@/components/teams/ImportRosterModal";
 
-type TeamWithPlayers = Team & { players: Player[]; can_edit_roster?: boolean; club_managed?: boolean };
+type TeamWithPlayers = Team & { players: Player[]; can_edit_roster?: boolean; can_import_roster?: boolean; club_managed?: boolean };
 type ClipSummary = {
   id: string;
   team_id: string | null;
@@ -40,6 +41,7 @@ export default function TeamsPage() {
   const [linkedStaff, setLinkedStaff] = useState<LinkedStaff[]>([]);
   const [staffInvitations, setStaffInvitations] = useState<StaffInvitation[]>([]);
   const [linkStaffTarget, setLinkStaffTarget] = useState<{ teamId: string; teamName: string } | null>(null);
+  const [importRosterTarget, setImportRosterTarget] = useState<{ teamId: string; clubTeamId: string | null; teamName: string } | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -197,6 +199,7 @@ export default function TeamsPage() {
                   <PlayerCard key={player.id} player={player} clipCount={clipCountFor(team, player)} onDelete={canEditRoster ? () => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() }) : undefined} />
                 ))}
                 {canEditRoster && <button type="button" onClick={() => setAddPlayerTarget({ teamId: team.id, teamName: team.name, role: "player" })} className="min-h-14 rounded-lg border border-dashed border-accent/60 bg-accentDim px-4 py-3 text-left text-sm font-semibold text-accent hover:border-accent">+ {t("team.addPlayer").replace("+ ", "")}</button>}
+                {(ownsTeam || team.can_import_roster === true) && <button type="button" onClick={() => setImportRosterTarget({ teamId: team.id, clubTeamId: team.club_team_id ?? null, teamName: team.name })} className="min-h-11 rounded-lg border border-borderButton bg-button px-4 py-2 text-left text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent">PSD/Excel spelerslijst importeren</button>}
               </div>
 
               <div className="mt-1 pt-2.5 mx-3.5 mb-3.5 border-t border-borderSubtle">
@@ -248,6 +251,7 @@ export default function TeamsPage() {
         />
       )}
       {linkStaffTarget && <LinkStaffModal teamId={linkStaffTarget.teamId} teamName={linkStaffTarget.teamName} onClose={() => setLinkStaffTarget(null)} onLinked={() => void loadLinkedStaff()} />}
+      {importRosterTarget && <ImportRosterModal teamId={importRosterTarget.teamId} clubTeamId={importRosterTarget.clubTeamId} teamName={importRosterTarget.teamName} onClose={() => setImportRosterTarget(null)} onImported={() => void loadTeams()} />}
       <ConfirmDialog open={!!deleteTarget} title={deleteTarget?.kind === "team" ? t("team.deleteTeam") : deleteTarget?.kind === "linked-staff" ? t("team.removeLinked") : t("team.deletePlayer")} message={deleteTarget?.kind === "team" ? t("team.deleteTeamMessage", { name: deleteTarget.name }) : t("team.removeMessage", { name: deleteTarget?.name ?? "" })} confirmLabel={deleteTarget?.kind === "linked-staff" ? t("common.remove") : t("team.delete")} busy={deleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDelete()} />
     </div>
   );

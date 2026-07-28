@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getClubContext } from "@/lib/auth/active-club";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 export async function GET() {
   const context = await getClubContext();
@@ -11,6 +12,8 @@ export async function GET() {
   const clubId = context.activeClubId;
   const membership = context.clubs.find((club) => club.id === clubId);
   if (!membership) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
+  const access = await getClubAccess(clubId, context.user);
+  if (!hasClubPermission(access, "games.view")) return NextResponse.json({ error: "Geen toegang tot Games." }, { status: 403 });
 
   const [{ data: clubTeams }, { data: clubSettings }] = await Promise.all([
     admin.from("club_teams").select("id").eq("club_id", clubId).neq("status", "merged"),
@@ -18,8 +21,9 @@ export async function GET() {
   ]);
   const configuredViewRoles = clubSettings?.clip_view_count_roles ?? ["club_admin"];
   const effectiveRole = ["coach", "assistant_coach", "team_manager"].includes(membership.role) ? "trainer" : membership.role;
-  const canSeeViewCounts = context.isPlatformAdmin || effectiveRole === "club_admin" || configuredViewRoles.includes(effectiveRole);
-  const clubTeamIds = (clubTeams ?? []).map((team) => team.id);
+  const canSeeViewCounts = hasClubPermission(access, "games.view_counts")
+    && (context.isPlatformAdmin || effectiveRole === "club_admin" || configuredViewRoles.includes(effectiveRole));
+  const clubTeamIds = (clubTeams ?? []).map((team) => team.id).filter((id) => canAccessTeam(access, id));
   const [{ data: matches }, { data: teams }] = await Promise.all([
     admin.from("matches").select("*, match_videos(video_id)")
       .eq("club_id", clubId)
@@ -30,9 +34,7 @@ export async function GET() {
       : Promise.resolve({ data: [] })
   ]);
 
-  const visibleMatches = context.isPlatformAdmin || ["club_admin", "club_admin_viewer", "analyst"].includes(membership.role)
-    ? (matches ?? [])
-    : await visibleTrainerMatches(admin, context.user.id, clubId, matches ?? []);
+  const visibleMatches = (matches ?? []).filter((match) => canAccessTeam(access, match.club_team_id));
   const teamIds = (teams ?? []).map((team) => team.id);
   const videoIds = Array.from(new Set(visibleMatches.flatMap((match) =>
     (match.match_videos as { video_id: string }[] | null)?.map((link) => link.video_id) ?? []

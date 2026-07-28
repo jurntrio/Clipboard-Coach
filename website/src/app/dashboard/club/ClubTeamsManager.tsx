@@ -72,7 +72,7 @@ function storedRows(team: Team): PlayerRow[] {
   })) : [emptyPlayer()];
 }
 
-export function ClubTeamsManager({ clubId, teams, trainers, migrationIssues, onChanged, readOnly }: { clubId: string; teams: Team[]; trainers: Trainer[]; migrationIssues: MigrationIssue[]; onChanged: () => Promise<void>; readOnly?: boolean }) {
+export function ClubTeamsManager({ clubId, teams, trainers, migrationIssues, onChanged, readOnly, allowImport = true }: { clubId: string; teams: Team[]; trainers: Trainer[]; migrationIssues: MigrationIssue[]; onChanged: () => Promise<void>; readOnly?: boolean; allowImport?: boolean }) {
   const { t } = useI18n();
   const [name, setName] = useState("");
   const [editing, setEditing] = useState("");
@@ -143,14 +143,14 @@ export function ClubTeamsManager({ clubId, teams, trainers, migrationIssues, onC
             {t("common.edit")}<span className={`transition ${editing === team.id ? "rotate-90" : ""}`}>▶</span>
           </button>
         </div>
-        {editing === team.id && <TeamEditor clubId={clubId} team={team} trainers={trainers} busy={busy === team.id} request={request} onChanged={onChanged} readOnly={readOnly} />}
+        {editing === team.id && <TeamEditor clubId={clubId} team={team} trainers={trainers} busy={busy === team.id} request={request} onChanged={onChanged} readOnly={readOnly} allowImport={allowImport} />}
       </article>;
     })}</div>
     {!teams.length && <div className="mt-4 rounded-xl border border-dashed border-border p-8 text-center text-textMuted">{t("clubTeams.noTeamsYet")}</div>}
   </section>;
 }
 
-function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly }: { clubId: string; team: Team; trainers: Trainer[]; busy: boolean; request: (method: string, body: Record<string, unknown>) => Promise<boolean>; onChanged: () => Promise<void>; readOnly?: boolean }) {
+function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly, allowImport }: { clubId: string; team: Team; trainers: Trainer[]; busy: boolean; request: (method: string, body: Record<string, unknown>) => Promise<boolean>; onChanged: () => Promise<void>; readOnly?: boolean; allowImport: boolean }) {
   const { t } = useI18n();
   const supabase = useMemo(() => createClient(), []);
   const [name, setName] = useState(team.name);
@@ -293,7 +293,7 @@ function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly
     <div className="rounded-xl border border-borderSubtle p-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="mr-auto"><h4 className="font-semibold text-textPrimary">{t("clubTeams.roster")}</h4><p className="text-xs text-textMuted">{t("clubTeams.importHelp")}</p></div>
-        {!readOnly && <label className="cursor-pointer rounded-lg border border-borderButton px-3 py-2 text-sm text-textPrimary">{t("clubTeams.choosePsdFile")}<input type="file" accept=".xlsx" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importRoster(file); event.target.value = ""; }} /></label>}
+        {!readOnly && allowImport && <label className="cursor-pointer rounded-lg border border-borderButton px-3 py-2 text-sm text-textPrimary">{t("clubTeams.choosePsdFile")}<input type="file" accept=".xlsx" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importRoster(file); event.target.value = ""; }} /></label>}
         {!readOnly && <button type="button" onClick={() => setPlayers((current) => [...current, emptyPlayer()])} className="rounded-lg border border-borderButton px-3 py-2 text-sm text-textSecondary">{t("clubTeams.addPlayer")}</button>}
       </div>
       {!readOnly && <div className="mt-3 flex flex-wrap gap-2">{(["merge", "sync", "replace"] as const).map((mode) => (

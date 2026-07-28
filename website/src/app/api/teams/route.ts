@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 export async function GET() {
   const context = await getClubContext();
@@ -10,25 +11,28 @@ export async function GET() {
     const admin = createAdminClient();
     const access = context.clubs.find((club) => club.id === context.activeClubId);
     if (!access) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
-    const { data: clubTeams } = await admin.from("club_teams")
-      .select("id, trainers_can_edit_roster").eq("club_id", context.activeClubId).eq("status", "active");
+    const authorization = await getClubAccess(context.activeClubId, user);
+    if (!hasClubPermission(authorization, "teams.view")) return NextResponse.json({ error: "Geen toegang tot Teams." }, { status: 403 });
+    const [{ data: clubTeams }, { data: permissions }] = await Promise.all([
+      admin.from("club_teams").select("id, trainers_can_edit_roster").eq("club_id", context.activeClubId).eq("status", "active"),
+      admin.from("club_module_entitlements").select("module_key, enabled").eq("club_id", context.activeClubId)
+        .in("module_key", ["teams_manage", "teams_import"])
+    ]);
+    const teamsManageEnabled = permissions?.find((item) => item.module_key === "teams_manage")?.enabled !== false;
+    const teamsImportEnabled = teamsManageEnabled && permissions?.find((item) => item.module_key === "teams_import")?.enabled !== false;
     let allowedIds = (clubTeams ?? []).map((team) => team.id);
-    const clubWide = context.isPlatformAdmin || ["club_admin", "club_admin_viewer"].includes(access.role);
+    const clubWide = authorization.teamIds === null;
     if (!clubWide) {
-      const { data: trainer } = await admin.from("club_trainers").select("id")
-        .eq("club_id", context.activeClubId).eq("profile_id", user.id).maybeSingle();
-      const { data: assignments } = trainer
-        ? await admin.from("club_trainer_teams").select("club_team_id").eq("trainer_id", trainer.id).eq("status", "active")
-        : { data: [] };
-      const assigned = new Set((assignments ?? []).map((item) => item.club_team_id));
-      allowedIds = allowedIds.filter((id) => assigned.has(id));
+      allowedIds = allowedIds.filter((id) => canAccessTeam(authorization, id));
     }
     const { data: teams } = allowedIds.length
       ? await admin.from("teams").select("*, players(*), club_teams!inner(trainers_can_edit_roster)").in("club_team_id", allowedIds)
       : { data: [] };
     return NextResponse.json({ teams: (teams ?? []).map((team) => {
       const settings = team.club_teams as unknown as { trainers_can_edit_roster: boolean };
-      return { ...team, can_edit_roster: context.isPlatformAdmin || access.role === "club_admin" || settings.trainers_can_edit_roster, club_managed: true };
+      const canEdit = teamsManageEnabled && hasClubPermission(authorization, "teams.manage")
+        && (authorization.role === "platform_admin" || authorization.role === "club_admin" || settings.trainers_can_edit_roster);
+      return { ...team, can_edit_roster: canEdit, can_import_roster: canEdit && teamsImportEnabled && hasClubPermission(authorization, "teams.import"), club_managed: true };
     }) });
   }
 

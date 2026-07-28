@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CLUB_MODULE_BUNDLES, CLUB_MODULES, type ClubModuleBundleKey, type ClubModuleKey } from "@/lib/club-modules";
+import { CLUB_FEATURE_PERMISSIONS, CLUB_MODULE_BUNDLES, CLUB_MODULES, type ClubFeaturePermissionKey, type ClubModuleBundleKey, type ClubModuleKey } from "@/lib/club-modules";
 
 // A ~100 year ban is the conventional way to permanently block a Supabase
 // auth user; there is no dedicated "disabled" flag on auth.users.
@@ -139,6 +139,26 @@ export async function setClubModuleEntitlement(clubId: string, moduleKey: ClubMo
   if (error) throw new Error(error.message);
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/admin/clubs");
+  revalidatePath("/dashboard/club");
+}
+
+export async function setClubFeaturePermission(clubId: string, permissionKey: ClubFeaturePermissionKey, enabled: boolean) {
+  const platformAdmin = await requireAdmin();
+  if (!CLUB_FEATURE_PERMISSIONS.some((permission) => permission.key === permissionKey)) throw new Error("Onbekend deelrecht.");
+  const admin = createAdminClient();
+  const { data: club } = await admin.from("clubs").select("id").eq("id", clubId).maybeSingle();
+  if (!club) throw new Error("Club niet gevonden.");
+  const timestamp = new Date().toISOString();
+  const changes: { club_id: string; module_key: string; enabled: boolean; updated_by: string; updated_at: string }[] = [{
+    club_id: clubId, module_key: permissionKey, enabled, updated_by: platformAdmin.id, updated_at: timestamp
+  }];
+  if (permissionKey === "teams_manage" && !enabled) {
+    changes.push({ club_id: clubId, module_key: "teams_import", enabled: false, updated_by: platformAdmin.id, updated_at: timestamp });
+  }
+  const { error } = await admin.from("club_module_entitlements").upsert(changes, { onConflict: "club_id,module_key" });
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard/admin/clubs");
+  revalidatePath("/dashboard/teams");
   revalidatePath("/dashboard/club");
 }
 

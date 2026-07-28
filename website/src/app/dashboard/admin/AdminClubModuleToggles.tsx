@@ -3,8 +3,15 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { setClubModuleBundle } from "./actions";
-import { CLUB_MODULE_BUNDLES, type ClubModuleBundleKey } from "@/lib/club-modules";
+import { setClubModuleEntitlement } from "./actions";
+import { CLUB_MODULES, type ClubModuleKey } from "@/lib/club-modules";
+import { ClubInvitationCreator } from "../club/ClubInvitationCreator";
+
+type PendingChange = {
+  key: ClubModuleKey;
+  label: string;
+  enabled: boolean;
+};
 
 export function AdminClubModuleToggles({
   clubId,
@@ -18,12 +25,11 @@ export function AdminClubModuleToggles({
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [pendingChange, setPendingChange] = useState<{ key: ClubModuleBundleKey; label: string; enabled: boolean } | null>(null);
-  const [enabledByBundle, setEnabledByBundle] = useState<Record<ClubModuleBundleKey, boolean>>(() =>
-    Object.fromEntries(CLUB_MODULE_BUNDLES.map((bundle) => [
-      bundle.key,
-      bundle.modules.every((moduleKey) => entitlements.find((item) => item.module_key === moduleKey)?.enabled !== false)
-    ])) as Record<ClubModuleBundleKey, boolean>
+  const [pendingChange, setPendingChange] = useState<PendingChange | null>(null);
+  const [enabledByKey, setEnabledByKey] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(CLUB_MODULES.map((item) => [
+      item.key, entitlements.find((entitlement) => entitlement.module_key === item.key)?.enabled !== false
+    ]))
   );
 
   function confirmChange() {
@@ -32,8 +38,11 @@ export function AdminClubModuleToggles({
     setError("");
     startTransition(async () => {
       try {
-        await setClubModuleBundle(clubId, change.key, change.enabled);
-        setEnabledByBundle((current) => ({ ...current, [change.key]: change.enabled }));
+        await setClubModuleEntitlement(clubId, change.key, change.enabled);
+        setEnabledByKey((current) => ({
+          ...current,
+          [change.key]: change.enabled,
+        }));
         setPendingChange(null);
         router.refresh();
       } catch (reason) {
@@ -45,19 +54,20 @@ export function AdminClubModuleToggles({
 
   return <>
     <div className="border-t border-borderSubtle px-4 py-3">
-      <div className="grid gap-2 sm:grid-cols-3">
-        {CLUB_MODULE_BUNDLES.map((bundle) => <label key={bundle.key} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-textPrimary">
-          <input
-            type="checkbox"
-            checked={enabledByBundle[bundle.key]}
-            disabled={busy}
-            onChange={(event) => setPendingChange({ key: bundle.key, label: bundle.label, enabled: event.target.checked })}
-            className="h-4 w-4 accent-accent disabled:opacity-50"
-          />
-          <span className="font-semibold">{bundle.label}</span>
-        </label>)}
+      <div className="space-y-2">
+        {CLUB_MODULES.filter((module) => ["matches", "video_viewer", "teams", "clips", "training", "intradesk"].includes(module.key)).map((module) => {
+          return <div key={module.key} className="rounded-lg border border-border bg-card">
+            <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm text-textPrimary">
+              <input type="checkbox" checked={enabledByKey[module.key]} disabled={busy}
+                onChange={(event) => setPendingChange({ key: module.key, label: module.label, enabled: event.target.checked })}
+                className="h-4 w-4 accent-accent disabled:opacity-50" />
+              <span className="font-semibold">{module.label}</span>
+            </label>
+          </div>;
+        })}
       </div>
       {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
+      <div className="mt-3"><ClubInvitationCreator clubId={clubId} readOnly={false} /></div>
     </div>
     <ConfirmDialog
       open={!!pendingChange}

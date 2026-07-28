@@ -776,6 +776,19 @@ export default function DrawingCanvas({
     setSelectedHandleId(null);
   }
 
+  useEffect(() => {
+    function handleSelectedShapeDelete(event: KeyboardEvent) {
+      if (tool !== "select" || selectedShapeIndex === null || (event.key !== "Delete" && event.key !== "Backspace")) return;
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return;
+      event.preventDefault();
+      deleteSelectedShape();
+    }
+
+    window.addEventListener("keydown", handleSelectedShapeDelete);
+    return () => window.removeEventListener("keydown", handleSelectedShapeDelete);
+  }, [tool, selectedShapeIndex]);
+
   function deleteSelectedPolygonPoint() {
     if (selectedShapeIndex === null || !selectedHandleId?.startsWith("p")) return;
     const shape = shapes[selectedShapeIndex];

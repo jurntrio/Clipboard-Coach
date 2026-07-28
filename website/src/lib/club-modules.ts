@@ -13,6 +13,13 @@ export type ClubModuleKey = typeof CLUB_MODULES[number]["key"];
 
 export const DEFAULT_CLUB_MODULES = CLUB_MODULES.map((module) => module.key);
 
+export const CLUB_FEATURE_PERMISSIONS = [
+  { key: "teams_manage", module: "teams", label: "Teams en spelers beheren", description: "Teams aanpassen en spelers toevoegen, wijzigen of verwijderen." },
+  { key: "teams_import", module: "teams", label: "PSD/Excel-import gebruiken", description: "Spelerslijsten vanuit een PSD- of Excelbestand importeren.", dependsOn: "teams_manage" }
+] as const;
+
+export type ClubFeaturePermissionKey = typeof CLUB_FEATURE_PERMISSIONS[number]["key"];
+
 export const CLUB_MODULE_BUNDLES = [
   {
     key: "training",

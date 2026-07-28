@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createClub, removeClubMembership, setClubMembership, setClubModuleBundle, setClubModuleEntitlement } from "../actions";
-import { CLUB_MODULE_BUNDLES, CLUB_MODULES, type ClubModuleBundleKey, type ClubModuleKey } from "@/lib/club-modules";
+import { createClub, removeClubMembership, setClubMembership, setClubModuleEntitlement } from "../actions";
+import { CLUB_MODULES, type ClubModuleKey } from "@/lib/club-modules";
 import { ClubLogoUploader } from "@/components/clubs/ClubLogoUploader";
 
 type ProfileOption = { id: string; email: string; full_name: string | null };
@@ -111,32 +111,19 @@ function ClubDetails({ club, profiles, pending, run, readOnly }: { club: ClubRow
       </section>
 
       <section className="mb-5 rounded-lg border border-borderSubtle bg-cardDeep p-4">
-        <h3 className="font-semibold text-textBright">Hoofdmodules</h3>
-        <p className="mt-1 text-xs text-textMuted">Een hoofdschakelaar zet alle bijbehorende onderdelen voor deze club samen aan of uit.</p>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          {CLUB_MODULE_BUNDLES.map((bundle) => {
-            const enabledCount = bundle.modules.filter((key) => club.modules.find((item) => item.module_key === key)?.enabled !== false).length;
-            const enabled = enabledCount === bundle.modules.length;
-            return <label key={bundle.key} className="flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-sm text-textPrimary">
-              <input type="checkbox" checked={enabled} ref={(element) => { if (element) element.indeterminate = enabledCount > 0 && !enabled; }} disabled={pending || readOnly}
-                onChange={(event) => run(() => setClubModuleBundle(club.id, bundle.key as ClubModuleBundleKey, event.target.checked))}
-                className="mt-0.5 h-4 w-4 accent-accent disabled:opacity-50" />
-              <span><strong className="block text-textBright">{bundle.label}</strong><span className="mt-1 block text-xs text-textMuted">{bundle.description}</span></span>
-            </label>;
-          })}
-        </div>
-        <details className="mt-3">
-          <summary className="cursor-pointer text-xs font-semibold text-textSecondary">Geavanceerde deelrechten</summary>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {CLUB_MODULES.map((module) => {
-              const enabled = club.modules.find((item) => item.module_key === module.key)?.enabled !== false;
-              return <label key={module.key} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-textPrimary">
+        <h3 className="font-semibold text-textBright">Modules en rechten</h3>
+        <p className="mt-1 text-xs text-textMuted">Schakel per onderdeel de module in en bepaal daaronder welke handelingen toegelaten zijn.</p>
+        <div className="mt-3 space-y-2">
+          {CLUB_MODULES.filter((module) => ["matches", "video_viewer", "teams", "clips", "training", "intradesk"].includes(module.key)).map((module) => {
+            const enabled = club.modules.find((item) => item.module_key === module.key)?.enabled !== false;
+            return <div key={module.key} className="rounded-lg border border-border bg-card">
+              <label className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-textBright">
                 <input type="checkbox" checked={enabled} disabled={pending || readOnly} onChange={(event) => run(() => setClubModuleEntitlement(club.id, module.key as ClubModuleKey, event.target.checked))} className="h-4 w-4 accent-accent disabled:opacity-50" />
                 {module.label}
-              </label>;
-            })}
-          </div>
-        </details>
+              </label>
+            </div>;
+          })}
+        </div>
       </section>
 
       <section className="mb-5 rounded-lg border border-borderSubtle bg-cardDeep p-4">

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Scope = { clubPlayerId: string | null; playerId: string };
@@ -19,15 +20,8 @@ async function authorizeAndResolveScope(admin: Admin, userId: string, userEmail:
   if (!allowed && team.club_team_id) {
     const { data: clubTeam } = await admin.from("club_teams").select("club_id, trainers_can_edit_roster").eq("id", team.club_team_id).maybeSingle();
     if (clubTeam) {
-      const { data: membership } = await admin.from("club_memberships").select("role").eq("club_id", clubTeam.club_id).eq("profile_id", userId).eq("status", "active").maybeSingle();
-      if (membership?.role === "club_admin") allowed = true;
-      if (!allowed && clubTeam.trainers_can_edit_roster) {
-        const { data: trainer } = await admin.from("club_trainers").select("id").eq("club_id", clubTeam.club_id).eq("profile_id", userId).maybeSingle();
-        if (trainer) {
-          const { data: assignment } = await admin.from("club_trainer_teams").select("id").eq("club_team_id", team.club_team_id).eq("trainer_id", trainer.id).eq("status", "active").maybeSingle();
-          if (assignment) allowed = true;
-        }
-      }
+      const access = await getClubAccess(clubTeam.club_id, { id: userId, email: userEmail });
+      allowed = canAccessTeam(access, team.club_team_id) && hasClubPermission(access, "teams.manage");
     }
   }
   if (!allowed) return { error: NextResponse.json({ error: "Geen toegang tot deze speler." }, { status: 403 }) };

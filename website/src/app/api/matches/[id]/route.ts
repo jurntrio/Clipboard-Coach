@@ -3,6 +3,7 @@ import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { deleteObject } from "@/lib/r2/upload";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -10,9 +11,15 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const platformAdmin = isAdminEmail(user.email);
-  const database = platformAdmin ? createAdminClient() : supabase;
-  const { data: match } = await database.from("matches").select("id, coach_id, match_videos(video_id, videos(video_key))").eq("id", params.id).maybeSingle();
-  if (!match || (!platformAdmin && match.coach_id !== user.id)) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+  const database = createAdminClient();
+  const { data: match } = await database.from("matches").select("id, coach_id, club_id, club_team_id, match_videos(video_id, videos(video_key))").eq("id", params.id).maybeSingle();
+  if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+  if (match.club_id) {
+    const access = await getClubAccess(match.club_id, user);
+    if (!hasClubPermission(access, "games.create") || !canAccessTeam(access, match.club_team_id)) {
+      return NextResponse.json({ error: "Geen recht om deze wedstrijd te verwijderen." }, { status: 403 });
+    }
+  } else if (!platformAdmin && match.coach_id !== user.id) return NextResponse.json({ error: "Match not found" }, { status: 404 });
 
   const linked = (match.match_videos as unknown as { video_id: string; videos: { video_key: string } | null }[] | null) ?? [];
   const disposable: { id: string; key: string }[] = [];

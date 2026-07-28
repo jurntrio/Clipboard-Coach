@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 type PlayerInput = {
   firstName?: unknown;
@@ -23,6 +24,10 @@ export async function PUT(request: Request, { params }: { params: { teamId: stri
   const admin = createAdminClient();
   const { data: clubTeam } = await admin.from("club_teams").select("id, club_id, trainers_can_edit_roster").eq("id", params.teamId).maybeSingle();
   if (!clubTeam) return NextResponse.json({ error: "Team niet gevonden." }, { status: 404 });
+  const access = await getClubAccess(clubTeam.club_id, user);
+  if (!canAccessTeam(access, clubTeam.id) || !hasClubPermission(access, "teams.manage")) {
+    return NextResponse.json({ error: "Geen beheerrechten voor dit team." }, { status: 403 });
+  }
   const { data: membership } = await admin.from("club_memberships").select("id").eq("club_id", clubTeam.club_id)
     .eq("profile_id", user.id).eq("role", "club_admin").eq("status", "active").maybeSingle();
   let authorized = !!membership || isAdminEmail(user.email);
@@ -41,7 +46,20 @@ export async function PUT(request: Request, { params }: { params: { teamId: stri
   }
   if (!authorized) return NextResponse.json({ error: "Geen toegang tot dit team." }, { status: 403 });
 
-  const body = await request.json().catch(() => null) as { players?: PlayerInput[]; removePlayerIds?: unknown } | null;
+  const body = await request.json().catch(() => null) as { players?: PlayerInput[]; removePlayerIds?: unknown; source?: unknown } | null;
+  const { data: permissions } = await admin.from("club_module_entitlements").select("module_key, enabled")
+    .eq("club_id", clubTeam.club_id).in("module_key", ["teams_manage", "teams_import"]);
+  const teamsManageEnabled = permissions?.find((item) => item.module_key === "teams_manage")?.enabled !== false;
+  const teamsImportEnabled = permissions?.find((item) => item.module_key === "teams_import")?.enabled !== false;
+  if (!isAdminEmail(user.email) && !teamsManageEnabled) {
+    return NextResponse.json({ error: "Het beheren van teams en spelers is voor deze club uitgeschakeld." }, { status: 403 });
+  }
+  if (!isAdminEmail(user.email) && body?.source === "excel_import" && !teamsImportEnabled) {
+    return NextResponse.json({ error: "De PSD/Excel-import is voor deze club uitgeschakeld." }, { status: 403 });
+  }
+  if (body?.source === "excel_import" && !hasClubPermission(access, "teams.import")) {
+    return NextResponse.json({ error: "Geen recht om spelerslijsten te importeren." }, { status: 403 });
+  }
   if (!Array.isArray(body?.players) || body.players.length > 500) {
     return NextResponse.json({ error: "Ongeldige spelerslijst." }, { status: 400 });
   }

@@ -19,7 +19,7 @@ export default async function DashboardHomePage() {
   const platformAdminCards = [
     { href: "/dashboard/teams", label: t("common.teams"), icon: "/branding/teams.png", modules: null },
     { href: "/dashboard/videos", label: t("common.videoViewer"), icon: "/branding/video-viewer.png", modules: null },
-    { href: "/dashboard/clips", label: "Matches & Clips", icon: "/branding/clips.png", modules: null },
+    { href: "/dashboard/clips", label: "Games", icon: "/branding/games.png", modules: null },
     { href: "/dashboard/training", label: t("common.training"), icon: "/branding/training.png", modules: null },
     { href: "/dashboard/intradesk", label: "Intradesk", icon: "/branding/intradesk.png", modules: null },
     { href: "/dashboard/settings", label: t("common.settings"), icon: "/branding/settings.png", modules: null },

@@ -23,6 +23,23 @@ export async function POST(request: Request) {
   const allowed = isAdminEmail(user.email) || (membership?.role === "club_admin" && membership.status === "active");
   if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  if (body.featurePermission && ["teams_manage", "teams_import"].includes(body.featurePermission.key)
+    && typeof body.featurePermission.enabled === "boolean") {
+    const rows = [{
+      club_id: body.clubId,
+      module_key: body.featurePermission.key,
+      enabled: body.featurePermission.enabled,
+      updated_by: user.id,
+      updated_at: new Date().toISOString()
+    }];
+    if (body.featurePermission.key === "teams_manage" && !body.featurePermission.enabled) {
+      rows.push({ ...rows[0], module_key: "teams_import", enabled: false });
+    }
+    const { error } = await admin.from("club_module_entitlements").upsert(rows, { onConflict: "club_id,module_key" });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ permissions: rows });
+  }
+
   if (typeof body.clipAdvertisingEnabled === "boolean") {
     const { data: club, error } = await admin
       .from("clubs")

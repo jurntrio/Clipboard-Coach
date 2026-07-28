@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getClubContext } from "@/lib/auth/active-club";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 type MatchInput = {
   id?: string; team_a_id?: string | null; team_a_name?: string; team_b_name?: string;
@@ -14,9 +15,8 @@ export async function POST(request: Request) {
   if (!context.activeClubId) return NextResponse.json({ error: "Selecteer eerst een club." }, { status: 400 });
   const access = context.clubs.find((club) => club.id === context.activeClubId);
   if (!access) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
-  if (!context.isPlatformAdmin && ["club_admin_viewer", "analyst"].includes(access.role)) {
-    return NextResponse.json({ error: "Je hebt alleen leestoegang binnen deze club." }, { status: 403 });
-  }
+  const authorization = await getClubAccess(context.activeClubId, context.user);
+  if (!hasClubPermission(authorization, "games.create")) return NextResponse.json({ error: "Geen recht om wedstrijden te beheren." }, { status: 403 });
 
   const body = await request.json().catch(() => null) as MatchInput | null;
   if (!body?.team_a_name?.trim() || !body.team_b_name?.trim()) {
@@ -29,8 +29,9 @@ export async function POST(request: Request) {
     if (!team || linkedClub?.club_id !== context.activeClubId) {
       return NextResponse.json({ error: "Deze ploeg behoort niet tot de actieve club." }, { status: 400 });
     }
+    if (!canAccessTeam(authorization, team.club_team_id)) return NextResponse.json({ error: "Geen toegang tot deze ploeg." }, { status: 403 });
   }
-  const clubWideManager = context.isPlatformAdmin || access.role === "club_admin";
+  const clubWideManager = authorization.teamIds === null;
   let trainerId: string | null = null;
   if (!clubWideManager) {
     const { data: trainer } = await admin.from("club_trainers").select("id")

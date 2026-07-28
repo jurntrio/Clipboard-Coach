@@ -3,6 +3,7 @@ import { isAdminEmail } from "@/lib/auth/admin";
 import { isTrainingAgeCategory } from "@/lib/training-categories";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 const EDIT_ROLES = new Set(["trainer", "coach", "assistant_coach", "club_admin"]);
 
@@ -19,10 +20,8 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const { data: membership } = await admin.from("club_memberships")
-    .select("role, status").eq("club_id", body.clubId).eq("profile_id", user.id).maybeSingle();
-  if (!isAdminEmail(user.email)
-    && (membership?.status !== "active" || !EDIT_ROLES.has(membership.role))) {
+  const access = await getClubAccess(body.clubId, user);
+  if (!hasClubPermission(access, "intradesk.manage")) {
     return NextResponse.json({ error: "Je mag voor deze club geen trainingen publiceren." }, { status: 403 });
   }
 
