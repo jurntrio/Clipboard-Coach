@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { CLUB_MODULES, type ClubModuleKey } from "@/lib/club-modules";
 
 // A ~100 year ban is the conventional way to permanently block a Supabase
 // auth user; there is no dedicated "disabled" flag on auth.users.
@@ -122,6 +123,25 @@ export async function removeClubMembership(clubId: string, profileId: string) {
   revalidatePath(`/dashboard/admin/coaches/${profileId}`);
 }
 
+export async function setClubModuleEntitlement(clubId: string, moduleKey: ClubModuleKey, enabled: boolean) {
+  const platformAdmin = await requireAdmin();
+  if (!CLUB_MODULES.some((module) => module.key === moduleKey)) throw new Error("Onbekende clubmodule.");
+  const admin = createAdminClient();
+  const { data: club } = await admin.from("clubs").select("id").eq("id", clubId).maybeSingle();
+  if (!club) throw new Error("Club niet gevonden.");
+  const { error } = await admin.from("club_module_entitlements").upsert({
+    club_id: clubId,
+    module_key: moduleKey,
+    enabled,
+    updated_by: platformAdmin.id,
+    updated_at: new Date().toISOString()
+  }, { onConflict: "club_id,module_key" });
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/admin/clubs");
+  revalidatePath("/dashboard/club");
+}
+
 export async function updateTrainerAssignment(input: {
   profileId: string;
   fullName: string;
@@ -190,13 +210,17 @@ export async function updateTrainerAssignment(input: {
 }
 
 // Deletes the auth user, which cascades (via FK on delete cascade) through
-// profiles -> teams/videos/clips/standard_tags and everything under them.
+// profiles and all account-owned records. This includes club_memberships,
+// club_trainers and, through the trainer row, every club team assignment.
 // Note: this does not remove the coach's video files from R2 storage.
 export async function deleteCoach(coachId: string) {
-  await requireAdmin();
+  const platformAdmin = await requireAdmin();
+  if (coachId === platformAdmin.id) throw new Error("Je eigen platformadminaccount kan hier niet verwijderd worden.");
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.deleteUser(coachId);
   if (error) throw new Error(error.message);
 
   revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/admin/clubs");
+  revalidatePath("/dashboard/club");
 }

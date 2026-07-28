@@ -7,13 +7,14 @@ export default async function AdminClubsPage() {
   const { isFullAdmin } = await requireAdminOrViewer();
   const admin = createAdminClient();
   const [{ data: clubs }, { data: profiles }] = await Promise.all([
-    admin.from("clubs").select("id, name, rbfa_registration_number, club_teams(id, name), club_memberships(profile_id, role), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))").order("name"),
+    admin.from("clubs").select("id, name, rbfa_registration_number, club_teams(id, name), club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))").order("name"),
     admin.from("profiles").select("id, email, full_name").order("full_name")
   ]);
   const rows = (clubs ?? []).map((club) => ({
     ...club,
     teams: (club.club_teams ?? []) as { id: string; name: string }[],
     memberships: (club.club_memberships ?? []) as { profile_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst" }[],
+    modules: (club.club_module_entitlements ?? []) as { module_key: string; enabled: boolean }[],
     trainers: (club.club_trainers ?? []) as unknown as {
       id: string;
       profile_id: string | null;

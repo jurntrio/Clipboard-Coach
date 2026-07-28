@@ -1,35 +1,15 @@
-"use client";
-
 import Image from "next/image";
+import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { useI18n } from "@/i18n/client";
 
 export default function TrainingPage() {
-  const { t } = useI18n();
-
-  return (
-    <div className="mx-auto max-w-6xl p-8">
-      <SectionHeader title={t("training.title")} artworkSrc="/branding/training.png" />
-
-      <section className="overflow-hidden rounded-2xl border border-border bg-card text-center">
-        <div className="mx-auto flex max-w-2xl flex-col items-center px-6 py-14 sm:py-20">
-          <Image
-            src="/branding/training.png"
-            alt=""
-            width={180}
-            height={180}
-            className="mb-7 h-36 w-36 object-contain sm:h-44 sm:w-44"
-            priority
-          />
-          <p className="font-display text-sm uppercase tracking-[0.2em] text-accent">
-            {t("training.eyebrow")}
-          </p>
-          <h1 className="mt-3 text-3xl font-bold text-textBright">{t("training.title")}</h1>
-          <p className="mt-4 max-w-xl text-sm leading-7 text-textSecondary sm:text-base">
-            {t("training.body")}
-          </p>
-        </div>
-      </section>
-    </div>
-  );
+  return <div className="mx-auto max-w-5xl p-4 sm:p-8">
+    <SectionHeader title="Training" subtitle="Plan trainingen, houd aanwezigheden bij en maak nieuwe trainingsplannen." artworkSrc="/branding/training.png" />
+    <section className="rounded-2xl border border-border bg-card p-6 text-center sm:p-10">
+      <Image src="/branding/training.png" alt="" width={150} height={150} className="mx-auto h-28 w-28 object-contain" />
+      <h2 className="mt-5 text-2xl font-bold text-textBright">Trainingen</h2>
+      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-textSecondary">De trainingslijst en aanwezigheden worden hier in een volgende stap toegevoegd.</p>
+      <Link href="/dashboard/training/new" className="mt-6 inline-flex rounded-lg bg-accent px-5 py-3 text-sm font-black text-page hover:brightness-110">Maak nieuwe training aan</Link>
+    </section>
+  </div>;
 }

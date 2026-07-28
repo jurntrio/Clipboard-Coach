@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createClub, removeClubMembership, setClubMembership } from "../actions";
+import { createClub, removeClubMembership, setClubMembership, setClubModuleEntitlement } from "../actions";
+import { CLUB_MODULES, type ClubModuleKey } from "@/lib/club-modules";
 
 type ProfileOption = { id: string; email: string; full_name: string | null };
 type Membership = { profile_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst" };
 type ClubTrainer = { id: string; profile_id: string | null; display_name: string; phone_number: string | null; invitation_status: string; profiles: { email: string } | { email: string }[] | null; club_trainer_teams: { club_teams: { name: string } | { name: string }[] | null }[] };
 type ClubTeam = { id: string; name: string };
-type ClubRow = { id: string; name: string; rbfa_registration_number: string | null; teams: ClubTeam[]; memberships: Membership[]; trainers: ClubTrainer[] };
+type ClubRow = { id: string; name: string; rbfa_registration_number: string | null; teams: ClubTeam[]; memberships: Membership[]; trainers: ClubTrainer[]; modules: { module_key: string; enabled: boolean }[] };
 
 const memberRoleLabel: Record<Membership["role"], string> = { club_admin: "Club Admin", club_admin_viewer: "Club Admin (viewer)", analyst: "Analyst", trainer: "Trainer" };
 const memberRoleClass: Record<Membership["role"], string> = { club_admin: "bg-blue-500/15 text-blue-300", club_admin_viewer: "bg-blue-500/10 text-blue-200", analyst: "bg-cyan-500/15 text-cyan-300", trainer: "bg-accent/15 text-accent" };
@@ -59,6 +60,21 @@ function ClubRoles({ club, profiles, pending, run, readOnly }: { club: ClubRow; 
     </summary>
     <div className="border-t border-borderSubtle p-5">
     {!!club.teams.length && <div className="mb-5 flex flex-wrap gap-2">{club.teams.map((team) => <span key={team.id} className={`rounded-full px-3 py-1 text-xs ${assignedTeamNames.has(team.name) ? "bg-accent/15 text-accent" : "bg-cardDeep text-textMuted"}`}>{team.name}{!assignedTeamNames.has(team.name) && " · geen trainer"}</span>)}</div>}
+    <section className="mb-5 rounded-lg border border-borderSubtle bg-cardDeep p-4">
+      <h3 className="font-semibold text-textBright">Beschikbare modules</h3>
+      <p className="mt-1 text-xs text-textMuted">Alleen de platformadmin bepaalt welke onderdelen deze club kan gebruiken.</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {CLUB_MODULES.map((module) => {
+          const enabled = club.modules.find((item) => item.module_key === module.key)?.enabled !== false;
+          return <label key={module.key} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-textPrimary">
+            <input type="checkbox" checked={enabled} disabled={pending || readOnly}
+              onChange={(event) => run(() => setClubModuleEntitlement(club.id, module.key as ClubModuleKey, event.target.checked))}
+              className="h-4 w-4 accent-accent disabled:opacity-50" />
+            {module.label}
+          </label>;
+        })}
+      </div>
+    </section>
     <div className="mb-5 overflow-x-auto rounded-lg border border-borderSubtle">
       <table className="w-full min-w-[680px] text-sm">
         <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="px-3 py-2 text-left">Naam</th><th className="px-3 py-2 text-left">Ploeg(en)</th><th className="px-3 py-2 text-left">GSM</th><th className="px-3 py-2 text-left">E-mail</th></tr></thead>

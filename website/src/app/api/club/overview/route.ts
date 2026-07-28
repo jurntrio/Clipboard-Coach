@@ -23,12 +23,14 @@ export async function GET() {
   }
   if (!clubIds.length) return NextResponse.json({ clubs: [] });
 
-  const [{ data: clubs }, { data: teams }, { data: trainers }, { data: matches }, { data: clubMemberships }] = await Promise.all([
+  const [{ data: clubs }, { data: teams }, { data: trainers }, { data: matches }, { data: clubMemberships }, { data: moduleEntitlements }, { data: trainingSettings }] = await Promise.all([
     admin.from("clubs").select("*").in("id", clubIds).order("name"),
     admin.from("club_teams").select("*, club_trainer_teams(trainer_id, role, status), teams(id, players(*))").in("club_id", clubIds).neq("status", "merged").order("name"),
     admin.from("club_trainers").select("*, profiles(email), club_trainer_teams(club_team_id)").in("club_id", clubIds).order("display_name"),
     admin.from("matches").select("id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, external_source").in("club_id", clubIds).order("match_date", { ascending: false }),
-    admin.from("club_memberships").select("club_id, profile_id, role").in("club_id", clubIds)
+    admin.from("club_memberships").select("club_id, profile_id, role").in("club_id", clubIds),
+    admin.from("club_module_entitlements").select("club_id, module_key, enabled").in("club_id", clubIds),
+    admin.from("club_training_settings").select("*").in("club_id", clubIds)
   ]);
   const matchIds = (matches ?? []).map((match) => match.id);
   const { data: assignments } = matchIds.length
@@ -73,6 +75,7 @@ export async function GET() {
 
   return NextResponse.json({
     clubs: clubs ?? [], teams: teams ?? [], trainers: trainers ?? [], matches: matches ?? [],
-    assignments: assignments ?? [], memberships: clubMemberships ?? [], migrationIssues
+    assignments: assignments ?? [], memberships: clubMemberships ?? [], moduleEntitlements: moduleEntitlements ?? [],
+    trainingSettings: trainingSettings ?? [], migrationIssues
   });
 }

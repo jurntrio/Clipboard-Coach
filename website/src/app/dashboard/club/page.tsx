@@ -3,8 +3,10 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { createClient } from "@/lib/supabase/server";
 import { ClubDashboard } from "./ClubDashboard";
+import { requireClubModule } from "@/lib/auth/club-module";
 
 export default async function ClubPage() {
+  await requireClubModule("club_management");
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
