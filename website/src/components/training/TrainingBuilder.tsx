@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { TRAINING_AGE_CATEGORIES } from "@/lib/training-categories";
 
 const ASSET_ROOT = "/branding/Training";
 const FIELD_SRC = `${ASSET_ROOT}/11vs11.jpg`;
@@ -26,10 +27,8 @@ const otherEquipment = [
   ["ClipboardZwart.png", "Clipboard"], ["7Zwart.png", "Markering"]
 ] as const;
 const phases = [
-  ["W-UP", "Opwarming"], ["KERN 1", "Trainingsvorm 1"], ["KERN 2", "Trainingsvorm 2"],
-  ["KERN 3", "Trainingsvorm 3"], ["KERN 4", "Trainingsvorm 4"], ["COOL", "Cooling-down"]
+  "Warming-up", "Vorm 1", "Vorm 2", "Vorm 3", "Vorm 4", "Cooling-down"
 ] as const;
-
 type PaletteAsset = { src: string; label: string };
 type FieldItem = PaletteAsset & { id: string; x: number; y: number; scale: number; rotation: number; stretchX?: number; stretchY?: number };
 type FieldLine = {
@@ -47,9 +46,20 @@ type Block = {
 
 function path(file: string) { return `${ASSET_ROOT}/${file}`; }
 function makeBlocks(): Block[] {
-  return phases.map(([code, label], index) => ({
-    id: `default-phase-${index}`, code, label, active: true, title: "", minutes: code === "W-UP" ? 15 : 10,
-    organisation: "", flow: "", coaching: "", items: [], lines: [], areas: [], dribbles: []
+  return phases.map((label, index) => ({
+    id: `default-phase-${index}`,
+    code: "",
+    label,
+    active: true,
+    title: "",
+    minutes: index === 0 ? 15 : 10,
+    organisation: "",
+    flow: "",
+    coaching: "",
+    items: [],
+    lines: [],
+    areas: [],
+    dribbles: []
   }));
 }
 
@@ -228,7 +238,7 @@ function PrintPreview({ name, team, clubLogoUrl, date, playerCount, keeperCount,
             </div>
             <div className="min-w-0">
               <div className="flex items-center justify-between gap-4">
-                <div className="flex min-w-0 items-center gap-2"><span className="rounded bg-[#169447] px-2 py-1 text-[10px] font-black text-white">{block.code}</span><h2 className="truncate text-base font-black">{block.label || "Oefening"}</h2></div>
+                <div className="flex min-w-0 items-center gap-2"><h2 className="truncate text-base font-black">{block.label || "Oefening"}</h2></div>
                 <span className="whitespace-nowrap text-xs font-bold">{block.minutes} min.</span>
               </div>
               <div className="mt-1 space-y-2">
@@ -401,10 +411,13 @@ function Pitch({ items, lines, areas, dribbles, preview = false, onOpen, selecte
   );
 }
 
-export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainerOptions = [] }: {
+export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainerOptions = [], clubOptions = [], initialTraining, editingTrainingId }: {
   initialTrainer?: string;
   teamOptions?: { id: string; name: string; assigned: boolean; clubLogoUrl: string | null }[];
   trainerOptions?: string[];
+  clubOptions?: { id: string; name: string }[];
+  initialTraining?: Record<string, any>;
+  editingTrainingId?: string;
 }) {
   const editorFieldRef = useRef<HTMLDivElement>(null);
   const editorSnapshotRef = useRef<Block | null>(null);
@@ -436,7 +449,11 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   const [trainers, setTrainers] = useState<string[]>(initialTrainer ? [initialTrainer] : []);
   const [themes, setThemes] = useState<string[]>([]);
   const [material, setMaterial] = useState("");
-  const [status, setStatus] = useState("Nieuw concept");
+  const [status, setStatus] = useState("");
+  const [clubId, setClubId] = useState(clubOptions[0]?.id ?? "");
+  const [ageCategory, setAgeCategory] = useState("");
+  const [personalTrainingId, setPersonalTrainingId] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
 
   const activeBlock = activeIndex === null ? null : blocks[activeIndex];
   const selectedItem = activeBlock?.items.find(item => item.id === selectedId) ?? null;
@@ -470,26 +487,34 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
 
   useEffect(() => {
     const raw = window.localStorage.getItem("cbcs.training-builder.v2");
-    if (!raw) return;
+    if (!raw && !initialTraining) return;
     try {
-      const draft = JSON.parse(raw);
+      const draft = initialTraining ?? JSON.parse(raw!);
       setName(draft.name ?? name); setTeam(draft.team ?? ""); setDate(draft.date ?? "");
       setPlayerCount(draft.playerCount ?? 15); setKeeperCount(draft.keeperCount ?? 2);
       setTrainers(Array.isArray(draft.trainers) ? draft.trainers : draft.trainer ? [draft.trainer] : initialTrainer ? [initialTrainer] : []);
       setThemes(Array.isArray(draft.themes) ? draft.themes : draft.theme ? [draft.theme] : []);
+      setClubId(draft.clubId ?? clubOptions[0]?.id ?? "");
+      setAgeCategory(draft.ageCategory ?? "");
+      setPersonalTrainingId(draft.personalTrainingId);
       setCustomTeam(Boolean(draft.team && !teamOptions.some(option => option.name === draft.team)));
-      setMaterial(draft.material ?? ""); if (Array.isArray(draft.blocks)) {
+      setMaterial(draft.material ?? ""); if (Array.isArray(draft.blocks) && draft.blocks.length) {
         setBlocks(draft.blocks.map((block: Block, index: number) => ({
           ...block,
           id: block.id ?? `restored-phase-${index}`,
-          label: block.title?.trim() || block.label,
+          code: block.id?.startsWith("default-phase-") ? "" : block.code,
+          label: block.id?.startsWith("default-phase-") && phases[index]
+            ? phases[index]
+            : block.title?.trim() || block.label,
           title: "",
           lines: (block.lines ?? []).map(line => ({ ...line, color: line.color ?? "#111111" })),
           areas: (block.areas ?? []).map(area => ({ ...area, style: area.style ?? "fill" })),
           dribbles: block.dribbles ?? []
         })));
+      } else {
+        setBlocks(makeBlocks());
       }
-      setStatus("Lokaal concept hersteld");
+      setStatus(initialTraining ? "Gedeelde training geopend · wijzigingen worden een nieuwe versie" : "Lokaal concept hersteld");
     } catch { /* een ongeldig oud concept negeren */ }
     // Alleen eenmalig het lokale concept herstellen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -608,11 +633,43 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
     setConfirmClose(false);
     editorSnapshotRef.current = null;
   }
-  function saveDraft() {
+  async function saveDraft() {
+    if (!clubId) return setStatus("Kies eerst de club waarvoor je bewaart.");
+    if (!ageCategory) return setStatus("Kies verplicht een leeftijdsjaar.");
+    if (!name.trim()) return setStatus("Geef de training eerst een naam.");
+    setSaving(true);
+    setStatus("Training bewaren…");
     window.localStorage.setItem("cbcs.training-builder.v2", JSON.stringify({
-      version: 3, name, team, date, playerCount, keeperCount, trainers, themes, material, blocks, updatedAt: new Date().toISOString()
+      version: 4, name, team, date, playerCount, keeperCount, trainers, themes, material, blocks,
+      clubId, ageCategory, personalTrainingId, updatedAt: new Date().toISOString()
     }));
-    setStatus(`Lokaal opgeslagen om ${new Date().toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" })}`);
+    try {
+      const response = await fetch("/api/trainings/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clubId, ageCategory, title: name, themes, personalTrainingId, clubTrainingId: editingTrainingId,
+          content: { name, team, date, playerCount, keeperCount, trainers, themes, material, blocks }
+        })
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || "Bewaren is mislukt.");
+      setPersonalTrainingId(result.personalTrainingId);
+      window.localStorage.setItem("cbcs.training-builder.v2", JSON.stringify({
+        version: 4, name, team, date, playerCount, keeperCount, trainers, themes, material, blocks,
+        clubId, ageCategory, personalTrainingId: result.personalTrainingId, updatedAt: new Date().toISOString()
+      }));
+      const message = result.publicationState === "published"
+        ? "Persoonlijk bewaard en automatisch gepubliceerd in Intradesk"
+        : result.publicationState === "pending_approval"
+          ? "Persoonlijk bewaard en naar de clubadmin gestuurd"
+          : "Persoonlijk bewaard";
+      setStatus(`${message} · ${ageCategory}`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Bewaren is mislukt.");
+    } finally {
+      setSaving(false);
+    }
   }
   function placeItem(event: React.MouseEvent<HTMLDivElement>) {
     if (activeIndex === null) return;
@@ -785,6 +842,17 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
       <section className="rounded-2xl border border-border bg-card p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Meta label="Naam training"><input value={name} onChange={e => setName(e.target.value)} className={inputClass} /></Meta>
+          <Meta label="Leeftijdsjaar *">
+            <select required value={ageCategory} onChange={event => setAgeCategory(event.target.value)} className={inputClass}>
+              <option value="">Kies leeftijdsjaar…</option>
+              {TRAINING_AGE_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
+            </select>
+          </Meta>
+          {clubOptions.length > 1 && <Meta label="Club">
+            <select value={clubId} onChange={event => setClubId(event.target.value)} className={inputClass}>
+              {clubOptions.map(club => <option key={club.id} value={club.id}>{club.name}</option>)}
+            </select>
+          </Meta>}
           <Meta label="Ploeg">
             <select value={customTeam ? "__custom__" : team} onChange={event => {
               const value = event.target.value;
@@ -817,7 +885,10 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-accentDim px-4 py-2 text-sm font-black text-accent">Totale duur: {totalMinutes} minuten</span>
             <button type="button" onClick={() => setShowPrintPreview(true)} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-bold text-textPrimary">Afdrukvoorbeeld</button>
-            <button type="button" onClick={saveDraft} className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page">Opslaan</button>
+            <button type="button" disabled={saving} onClick={() => void saveDraft()}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page disabled:opacity-50">
+              {saving ? "Opslaan…" : editingTrainingId ? "Nieuwe versie opslaan" : "Opslaan"}
+            </button>
           </div>
         </div>
       </section>
@@ -827,21 +898,21 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
           <article key={block.id} className="overflow-hidden rounded-2xl border border-border bg-card">
             <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                <input value={block.code} onChange={event => updateBlock(index, { code: event.target.value })}
-                  aria-label="Korte naam trainingsvak" className="w-24 rounded-lg border border-border bg-cardDeep px-3 py-2 text-center text-xs font-black uppercase text-textBright outline-none focus:border-accent" />
                 <input value={block.label} onChange={event => updateBlock(index, { label: event.target.value })}
                   aria-label="Naam trainingsvak" className="min-w-48 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-2 font-bold text-textBright outline-none hover:border-border focus:border-accent focus:bg-input" />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-5">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-textSecondary">
                   <input type="number" min={0} value={block.minutes} onChange={event => updateBlock(index, { minutes: Number(event.target.value) })}
-                    aria-label={`Minuten ${block.label}`} className="w-16 rounded border border-border bg-input px-2 py-1.5 text-right text-sm text-textBright outline-none focus:border-accent" />
+                    aria-label={`Minuten ${block.label}`} className="w-20 rounded border border-border bg-input px-3 py-1.5 text-right text-sm text-textBright outline-none focus:border-accent" />
                   min.
                 </label>
-                <button type="button" onClick={() => moveBlock(index, -1)} disabled={index === 0} title="Vak omhoog" aria-label="Trainingsvak omhoog"
-                  className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm font-black text-textPrimary disabled:cursor-not-allowed disabled:opacity-30">↑</button>
-                <button type="button" onClick={() => moveBlock(index, 1)} disabled={index === blocks.length - 1} title="Vak omlaag" aria-label="Trainingsvak omlaag"
-                  className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm font-black text-textPrimary disabled:cursor-not-allowed disabled:opacity-30">↓</button>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => moveBlock(index, -1)} disabled={index === 0} title="Vak omhoog" aria-label="Trainingsvak omhoog"
+                    className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm font-black text-textPrimary disabled:cursor-not-allowed disabled:opacity-30">↑</button>
+                  <button type="button" onClick={() => moveBlock(index, 1)} disabled={index === blocks.length - 1} title="Vak omlaag" aria-label="Trainingsvak omlaag"
+                    className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm font-black text-textPrimary disabled:cursor-not-allowed disabled:opacity-30">↓</button>
+                </div>
                 <label className="flex items-center gap-2 text-xs text-textSecondary"><input type="checkbox" checked={block.active} onChange={e => updateBlock(index, { active: e.target.checked })} /> actief</label>
               </div>
             </header>

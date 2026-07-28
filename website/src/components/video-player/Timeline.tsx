@@ -50,7 +50,7 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
   return (
     <div className="shrink-0 space-y-1.5">
       <div className="flex justify-between px-1 text-[10px] text-textMuted">
-        <span>0:00</span>
+        <span>{formatTime(0)}</span>
         <span>{formatTime(duration)}</span>
       </div>
       <div className="relative h-6" aria-label={t("timeline.periodMarkers")}>

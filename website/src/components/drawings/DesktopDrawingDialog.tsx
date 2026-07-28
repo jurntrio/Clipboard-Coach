@@ -3,6 +3,7 @@
 import { useState } from "react";
 import DrawingCanvas, { type Shape } from "../../../../src/DrawingCanvas";
 import { useI18n } from "@/i18n/client";
+import { formatTime } from "@/lib/utils";
 export type WebDrawingShape = Shape;
 
 export function captureVideoFrame(video: HTMLVideoElement, notReadyMessage = "The current video frame is not ready yet."): string {
@@ -52,7 +53,7 @@ export function FrameDrawingDialog({ frame, time, initialShapes, initialDuration
 
   return <div className={`drawingWebBackdrop ${maximized ? "drawingWebMaximized" : ""}`} role="dialog" aria-modal="true" aria-label={t("drawing.title")}>
     <div className="drawingWebDialog">
-      <div className="drawingWebHeader"><h2>{t("drawing.title")} — {Math.floor(time / 60)}:{String(Math.floor(time % 60)).padStart(2, "0")}</h2><div><button type="button" onClick={() => setMaximized((value) => !value)}>{maximized ? t("drawing.minimize") : t("drawing.maximize")}</button><button type="button" onClick={onClose}>{t("common.close")}</button></div></div>
+      <div className="drawingWebHeader"><h2>{t("drawing.title")} — {formatTime(time)}</h2><div><button type="button" onClick={() => setMaximized((value) => !value)}>{maximized ? t("drawing.minimize") : t("drawing.maximize")}</button><button type="button" onClick={onClose}>{t("common.close")}</button></div></div>
       <div className="drawingWebCanvas"><DrawingCanvas imageUrl={frame} initialShapes={initialShapes} onCancel={onClose} onDownload={download} showSave={!!onSave} onSave={(dataUrl, shapes) => void save(dataUrl, shapes)} labels={{ arrow: t("drawing.arrow"), dottedLine: t("drawing.dottedLine"), circle: t("drawing.circle"), area: t("drawing.area"), text: t("drawing.text"), edit: t("drawing.edit"), color: (value) => t("drawing.color", { color: value }), chooseColor: t("drawing.chooseColor"), lineWidth: t("drawing.lineWidth"), lineWidthValue: (value) => t("drawing.lineWidthValue", { width: value }), deleteShape: t("drawing.deleteShape"), deletePoint: t("drawing.deletePoint"), undo: t("drawing.undo"), clearAll: t("drawing.clearAll"), textHint: t("drawing.textHint"), areaHint: t("drawing.areaHint"), pointsHint: (value) => t("drawing.pointsHint", { count: value }), done: t("drawing.done"), cancel: t("common.cancel"), textPlaceholder: t("drawing.textPlaceholder"), editTextHint: t("drawing.editTextHint"), place: t("drawing.place"), download: t("drawing.download"), save: t("common.save") }} /></div>
       {onSave ? <label className="drawingWebDuration">{t("drawing.showFor")} <input type="number" min={1} max={30} value={durationSeconds} onChange={(event) => setDurationSeconds(Math.min(30, Math.max(1, Number(event.target.value) || 1)))} /> {t("drawing.seconds")}{saving ? ` · ${t("common.saving")}` : ""}</label> : null}
       {error ? <p className="drawingWebError">{error}</p> : null}

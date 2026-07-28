@@ -15,10 +15,11 @@ export function getTagColor(label: string): string {
 
 export function formatTime(totalSeconds: number): string {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-  const minutes = Math.floor(safeSeconds / 60);
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
   const seconds = safeSeconds % 60;
 
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 export function getPlayerDisplayName(player: { first_name: string; last_name: string }): string {
