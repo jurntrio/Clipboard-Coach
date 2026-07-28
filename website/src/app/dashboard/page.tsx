@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { getServerI18n } from "@/i18n/server";
 import { ParentHome } from "@/components/parent/ParentHome";
+import { getClubContext } from "@/lib/auth/active-club";
 
 export default async function DashboardHomePage() {
   const { t } = getServerI18n();
@@ -42,7 +43,8 @@ export default async function DashboardHomePage() {
 
   if (isGuardian && !hasOtherRole) return <ParentHome />;
 
-  const clubIds = (clubMemberships ?? []).map((membership) => membership.club_id);
+  const clubContext = await getClubContext();
+  const clubIds = clubContext.activeClubId ? [clubContext.activeClubId] : [];
   const { data: entitlements } = clubIds.length
     ? await supabase.from("club_module_entitlements").select("module_key, enabled").in("club_id", clubIds)
     : { data: null };

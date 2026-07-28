@@ -11,6 +11,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { buildPublicShareUrl } from "@/lib/share-url";
 import { useI18n } from "@/i18n/client";
 import type { Match, Player, StandardTag, Team } from "@/types/database";
+import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 
 type HubMatch = Match & { match_videos: { video_id: string }[] };
 type HubClip = {
@@ -26,6 +27,7 @@ const inputClass = "mt-1 w-full rounded-xl border border-border bg-input px-3 py
 
 export default function MatchesHubPage() {
   const { t, locale } = useI18n();
+  const { activeClubId } = useActiveClub();
   const supabase = createClient();
   const [matches, setMatches] = useState<HubMatch[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -54,29 +56,32 @@ export default function MatchesHubPage() {
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser();
-    const [{ data: matchData }, { data: teamData }, { data: playerData }, { data: tagData }, { data: clipData }] = await Promise.all([
-      supabase.from("matches").select("*, match_videos(video_id)").order("match_date", { ascending: false, nullsFirst: false }).order("start_time", { ascending: false }),
-      supabase.from("teams").select("*").not("name", "ilike", "EXTRA").order("name"),
-      supabase.from("players").select("*").neq("role", "staff").order("last_name"),
-      supabase.from("standard_tags").select("*").order("created_at"),
-      supabase.from("clips").select("id, coach_id, video_id, name, render_status, created_at, audience_type, audience_player_ids, rendered_segments, share_links(token), videos(title, video_url), clip_segments(id, sequence_order, video_id, render_status, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))").order("created_at", { ascending: false })
+    const [hubResponse, { data: tagData }] = await Promise.all([
+      fetch("/api/matches/hub", { cache: "no-store" }),
+      supabase.from("standard_tags").select("*").order("created_at")
     ]);
+    const hub = await hubResponse.json();
+    if (!hubResponse.ok) { setNotice(hub.error || "Wedstrijden konden niet geladen worden."); return; }
+    const matchData = hub.matches as HubMatch[];
+    const teamData = hub.teams as Team[];
+    const playerData = hub.players as Player[];
+    const clipData = hub.clips as HubClip[];
     setMatches((matchData as HubMatch[] | null) ?? []);
     setTeams(teamData ?? []); setPlayers(playerData ?? []); setStandardTags(tagData ?? []);
-    setClips((clipData as unknown as HubClip[] | null) ?? []);
+    setClips(clipData ?? []);
+    setIsPlatformAdmin(hub.isPlatformAdmin === true);
+    setAccountRole((hub.role as typeof accountRole) ?? "coach");
     if (user) {
       setCurrentUserId(user.id);
       const { data: profile } = await supabase.from("profiles").select("account_role, full_name").eq("id", user.id).maybeSingle();
       setAccountRole((profile?.account_role as "coach" | "club_admin" | "club_admin_viewer" | "analyst" | "admin_viewer" | undefined) ?? "coach");
       setCoachName(profile?.full_name?.trim() || user.email?.split("@")[0] || t("matchHub.defaultCoachName"));
     }
-    const adminStatus = await fetch("/api/admin/status").then((response) => response.json()).catch(() => ({ isAdmin: false, isAdminViewer: false }));
-    setIsPlatformAdmin(adminStatus.isAdmin === true);
-    setIsAdminViewer(adminStatus.isAdminViewer === true);
+    setIsAdminViewer(hub.role === "admin_viewer");
     if (!expandedId && matchData?.length) setExpandedId(matchData[0].id);
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [activeClubId]);
   const hasProcessingClips = clips.some((clip) => clip.render_status === "rendering");
   useEffect(() => {
     if (!hasProcessingClips) return;
@@ -285,7 +290,7 @@ function ClipPills({ clips, onClip, onDelete, canDelete, empty }: { clips: HubCl
 }
 
 function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved }: { match: HubMatch | null; teams: Team[]; allPlayers: Player[]; standardTags: StandardTag[]; onClose: () => void; onSaved: () => void }) {
-  const { t } = useI18n(); const supabase = createClient();
+  const { t } = useI18n();
   const [teamName, setTeamName] = useState(match?.team_a_name ?? "");
   const [teamId, setTeamId] = useState(match?.team_a_id ?? "");
   const [opponent, setOpponent] = useState(match?.team_b_name ?? "");
@@ -324,23 +329,14 @@ function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved 
     const homeTeamName = teamName.trim();
     if (!homeTeamName || !opponent.trim()) { setError(t("matchHub.required")); return; }
     setSaving(true); setError("");
-    let coachId: string | null = null;
-    if (!match) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setSaving(false); setError(t("errors.sessionExpired")); return; }
-      coachId = user.id;
-    }
     const matchedTeam = teams.find((team) => team.id === teamId);
     const payload = { team_a_id: matchedTeam?.id ?? null, team_a_name: matchedTeam?.name ?? homeTeamName, team_b_id: null, team_b_name: opponent.trim(), match_date: date || null, start_time: time || null, status, score_a: scoreA === "" ? null : Number(scoreA), score_b: scoreB === "" ? null : Number(scoreB), player_ids: playerIds, live_tag_names: tagNames };
-    let result = match ? await supabase.from("matches").update(payload).eq("id", match.id) : await supabase.from("matches").insert({ ...payload, coach_id: coachId });
-    if (result.error?.message.includes("schema cache")) {
-      const legacyPayload = { team_a_id: payload.team_a_id, team_a_name: payload.team_a_name, team_b_id: null, team_b_name: opponent.trim(), match_date: date || null, start_time: time || null };
-      result = match ? await supabase.from("matches").update(legacyPayload).eq("id", match.id) : await supabase.from("matches").insert({ ...legacyPayload, coach_id: coachId });
-    }
-    if (!result.error && match && status === "finished") {
-      await supabase.from("match_tag_links").update({ active: false }).eq("match_id", match.id);
-    }
-    setSaving(false); if (result.error) { setError(result.error.message); return; } onSaved();
+    const response = await fetch("/api/matches", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, id: match?.id })
+    });
+    const result = await response.json().catch(() => null) as { error?: string } | null;
+    setSaving(false); if (!response.ok) { setError(result?.error || "Wedstrijd kon niet worden bewaard."); return; } onSaved();
   }
 
   return <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/80 p-4" onClick={onClose}><div className="my-4 w-full max-w-2xl rounded-2xl border border-border bg-cardAlt p-5" onClick={(event) => event.stopPropagation()}><div className="mb-5 flex items-center justify-between"><div><h2 className="text-xl font-bold text-textBright">{match ? t("matchHub.edit") : t("matchHub.new")}</h2><p className="text-sm text-textMuted">{t("matchHub.prepare")}</p></div><button type="button" onClick={onClose} className="text-2xl text-textMuted">×</button></div>

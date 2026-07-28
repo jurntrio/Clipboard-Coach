@@ -2,6 +2,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { IntradeskLibrary } from "@/components/intradesk/IntradeskLibrary";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getClubContext } from "@/lib/auth/active-club";
 
 type LibraryTraining = {
   id: string;
@@ -17,11 +18,14 @@ export default async function IntradeskPage() {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const admin = createAdminClient();
-  const { data: memberships } = user
+  const context = await getClubContext();
+  const { data: memberships } = user && !context.isPlatformAdmin
     ? await admin.from("club_memberships").select("club_id, role").eq("profile_id", user.id).eq("status", "active")
     : { data: [] };
   const readableRoles = new Set(["trainer", "coach", "assistant_coach", "analyst", "club_admin", "club_admin_viewer"]);
-  const clubIds = [...new Set((memberships ?? []).filter(item => readableRoles.has(item.role)).map(item => item.club_id))];
+  const clubIds = context.activeClubId && (context.isPlatformAdmin || (memberships ?? []).some(item => item.club_id === context.activeClubId && readableRoles.has(item.role)))
+    ? [context.activeClubId]
+    : [];
   const { data } = clubIds.length
     ? await admin.from("club_trainings")
       .select("id, title, age_category, themes, current_version, updated_at, updated_by")

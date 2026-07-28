@@ -2,10 +2,38 @@
 
 import Image from "next/image";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { TRAINING_AGE_CATEGORIES } from "@/lib/training-categories";
+import { supportsBelgianTeamTactics, TRAINING_AGE_CATEGORIES } from "@/lib/training-categories";
 
 const ASSET_ROOT = "/branding/Training";
 const FIELD_SRC = `${ASSET_ROOT}/11vs11.jpg`;
+const TEAM_TACTIC_GROUPS = [
+  {
+    label: "Offensieve principes",
+    options: [
+      "TT1 · Opbouw van achteruit",
+      "TT2 · Infiltratie van verdedigers naar waarheidszone",
+      "TT3 · Kansen creëren/scoren na dieptepass",
+      "TT4 · Kansen creëren/scoren na voorzet"
+    ]
+  },
+  {
+    label: "Defensieve principes",
+    options: [
+      "TT5 · Opbouw van achteruit beletten",
+      "TT6 · Infiltratie van verdedigers naar waarheidszone beletten",
+      "TT7 · Kansen/scoren na dieptepass beletten",
+      "TT8 · Kansen/scoren na voorzet beletten"
+    ]
+  },
+  {
+    label: "Offensieve omschakelingsprincipes",
+    options: ["TT9 · Kansen creëren/scoren na tegenaanval"]
+  },
+  {
+    label: "Defensieve omschakelingsprincipes",
+    options: ["TT10 · Kansen/scoren na tegenaanval beletten"]
+  }
+] as const;
 const colors = [
   { file: "Groen", label: "Groen" }, { file: "Blauw", label: "Blauw" },
   { file: "Zwart", label: "Zwart" }, { file: "Wit", label: "Wit" },
@@ -39,9 +67,11 @@ type AreaStyle = "outline" | "fill" | "hatched";
 type FieldArea = { id: string; points: { x: number; y: number }[]; color: string; style: AreaStyle; number?: number };
 type FieldDribble = { id: string; points: { x: number; y: number }[]; color: string; number?: number };
 type SelectedDrawing = { kind: "line" | "area" | "dribble"; id: string } | null;
+type FieldType = "full" | "half" | "blank";
 type Block = {
   id: string; code: string; label: string; active: boolean; title: string; minutes: number;
-  organisation: string; flow: string; coaching: string; items: FieldItem[]; lines: FieldLine[]; areas: FieldArea[]; dribbles: FieldDribble[];
+  organisation: string; flow: string; coaching: string; fieldType: FieldType;
+  items: FieldItem[]; lines: FieldLine[]; areas: FieldArea[]; dribbles: FieldDribble[];
 };
 
 function path(file: string) { return `${ASSET_ROOT}/${file}`; }
@@ -56,11 +86,38 @@ function makeBlocks(): Block[] {
     organisation: "",
     flow: "",
     coaching: "",
+    fieldType: "full",
     items: [],
     lines: [],
     areas: [],
     dribbles: []
   }));
+}
+
+function TeamTacticsSelect({ values, onChange }: { values: string[]; onChange: (values: string[]) => void }) {
+  function toggle(value: string) {
+    onChange(values.includes(value) ? values.filter(item => item !== value) : [...values, value]);
+  }
+  return <details className="relative mt-1">
+    <summary className="flex min-h-[38px] cursor-pointer list-none items-center justify-between rounded-lg border border-border bg-input px-3 py-2 text-sm normal-case text-textBright">
+      <span className="truncate">{values.length ? `${values.length} principe${values.length === 1 ? "" : "s"} geselecteerd` : "Kies TeamTactics…"}</span>
+      <span className="ml-2 text-accent">▾</span>
+    </summary>
+    <div className="absolute left-0 z-50 mt-1 max-h-[430px] w-[min(620px,90vw)] overflow-y-auto rounded-xl border border-border bg-cardAlt p-3 normal-case shadow-2xl">
+      <p className="mb-3 text-xs text-textMuted">Teamtactische (sub)principes · 4 modules jaarplan topsport</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {TEAM_TACTIC_GROUPS.map(group => <fieldset key={group.label} className="rounded-lg border border-borderSubtle bg-card p-3">
+          <legend className="px-1 text-xs font-black text-accent">{group.label}</legend>
+          <div className="mt-1 space-y-2">
+            {group.options.map(option => <label key={option} className="flex cursor-pointer items-start gap-2 text-xs leading-5 text-textPrimary">
+              <input type="checkbox" checked={values.includes(option)} onChange={() => toggle(option)} className="mt-0.5 h-4 w-4 shrink-0 accent-accent" />
+              <span>{option}</span>
+            </label>)}
+          </div>
+        </fieldset>)}
+      </div>
+    </div>
+  </details>;
 }
 
 function MultiValueInput({ values, onChange, placeholder, suggestions = [] }: {
@@ -171,9 +228,9 @@ function paginatePrintBlocks(blocks: Block[], measuredHeights: Record<string, nu
   return pages;
 }
 
-function PrintPreview({ name, team, clubLogoUrl, date, playerCount, keeperCount, trainers, themes, material, blocks, onClose }: {
+function PrintPreview({ name, team, clubLogoUrl, date, playerCount, keeperCount, trainers, teamTactics, themes, material, blocks, onClose }: {
   name: string; team: string; date: string; playerCount: number; keeperCount: number;
-  clubLogoUrl: string | null; trainers: string[]; themes: string[]; material: string; blocks: Block[]; onClose: () => void;
+  clubLogoUrl: string | null; trainers: string[]; teamTactics: string[]; themes: string[]; material: string; blocks: Block[]; onClose: () => void;
 }) {
   const activeBlocks = blocks.filter(block => block.active);
   const measurementRefs = useRef(new Map<string, HTMLDivElement>());
@@ -223,6 +280,7 @@ function PrintPreview({ name, team, clubLogoUrl, date, playerCount, keeperCount,
               <dl className="mt-1.5 grid grid-cols-4 gap-x-3 text-[8px] leading-tight">
                 <div><dt className="font-bold uppercase text-[#66706b]">Spelers</dt><dd>{playerCount} + {keeperCount} keepers</dd></div>
                 <div><dt className="font-bold uppercase text-[#66706b]">Trainer(s)</dt><dd>{trainers.join(", ") || "—"}</dd></div>
+                {!!teamTactics.length && <div><dt className="font-bold uppercase text-[#66706b]">TeamTactics</dt><dd>{teamTactics.join(", ")}</dd></div>}
                 <div><dt className="font-bold uppercase text-[#66706b]">Thema&apos;s</dt><dd>{themes.join(", ") || "—"}</dd></div>
                 <div><dt className="font-bold uppercase text-[#66706b]">Materiaal</dt><dd>{material || "—"}</dd></div>
               </dl>
@@ -233,7 +291,7 @@ function PrintPreview({ name, team, clubLogoUrl, date, playerCount, keeperCount,
           {pageBlocks.map(block => block ? <section key={block.id} className="grid min-h-0 grid-cols-[38%_1fr] gap-4 overflow-hidden border-b border-[#dbe2de] pb-2 last:border-b-0">
             <div className="flex min-h-0 items-center justify-center overflow-hidden">
               <div className="h-full max-w-full overflow-hidden border border-[#cad4ce] bg-white" style={{ aspectRatio: "414 / 612" }}>
-                <Pitch items={block.items} lines={block.lines} areas={block.areas} dribbles={block.dribbles} preview />
+                <Pitch fieldType={block.fieldType} items={block.items} lines={block.lines} areas={block.areas} dribbles={block.dribbles} preview />
               </div>
             </div>
             <div className="min-w-0">
@@ -259,8 +317,8 @@ function PrintText({ label, value, compact = false }: { label: string; value: st
   return <section className={compact ? "" : "mt-4"}><h3 className={`${compact ? "text-[9px]" : "text-xs"} font-black uppercase tracking-wide text-[#169447]`}>{label}</h3><p className={`${compact ? "mt-0.5 text-[10px] leading-snug" : "mt-1 text-sm leading-relaxed"} whitespace-pre-wrap text-[#2e3832]`}>{value || "—"}</p></section>;
 }
 
-function Pitch({ items, lines, areas, dribbles, preview = false, onOpen, selectedId, selectedDrawing, drawingInteractive = true, onSelect, onDeleteItem, onSelectDrawing, onDrawingPointerDown, onDrawingPointerMove, onMove, onResize, onRotate, pendingLine, pendingLineStyle, pendingArea, pendingAreaStyle = "outline", pendingDribble, hoverPoint, drawingColor = "#111111" }: {
-  items: FieldItem[]; lines: FieldLine[]; areas: FieldArea[]; dribbles: FieldDribble[]; preview?: boolean; onOpen?: () => void; selectedId?: string | null;
+function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = false, onOpen, selectedId, selectedDrawing, drawingInteractive = true, onSelect, onDeleteItem, onSelectDrawing, onDrawingPointerDown, onDrawingPointerMove, onMove, onResize, onRotate, pendingLine, pendingLineStyle, pendingArea, pendingAreaStyle = "outline", pendingDribble, hoverPoint, drawingColor = "#111111" }: {
+  fieldType?: FieldType; items: FieldItem[]; lines: FieldLine[]; areas: FieldArea[]; dribbles: FieldDribble[]; preview?: boolean; onOpen?: () => void; selectedId?: string | null;
   selectedDrawing?: SelectedDrawing;
   drawingInteractive?: boolean;
   onSelect?: (id: string) => void; onDeleteItem?: (id: string) => void;
@@ -280,7 +338,8 @@ function Pitch({ items, lines, areas, dribbles, preview = false, onOpen, selecte
 }) {
   return (
     <div onClick={onOpen} className={`relative aspect-[414/612] w-full overflow-hidden bg-white ${preview ? "cursor-pointer" : "cursor-crosshair"}`}>
-      <Image src={FIELD_SRC} alt="11 tegen 11 voetbalveld" fill sizes={preview ? "360px" : "620px"} className="pointer-events-none object-contain" priority />
+      {fieldType !== "blank" && <Image src={FIELD_SRC} alt={fieldType === "half" ? "Half voetbalveld" : "11 tegen 11 voetbalveld"} fill sizes={preview ? "360px" : "620px"}
+        className={`pointer-events-none object-fill ${fieldType === "half" ? "origin-top scale-[1.6667]" : ""}`} priority />}
       <svg className="pointer-events-none absolute inset-0 z-[5] h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <marker id={preview ? "training-arrow-preview" : "training-arrow-editor"} viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
@@ -415,7 +474,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   initialTrainer?: string;
   teamOptions?: { id: string; name: string; assigned: boolean; clubLogoUrl: string | null }[];
   trainerOptions?: string[];
-  clubOptions?: { id: string; name: string }[];
+  clubOptions?: { id: string; name: string; country: string }[];
   initialTraining?: Record<string, any>;
   editingTrainingId?: string;
 }) {
@@ -447,6 +506,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   const [playerCount, setPlayerCount] = useState(15);
   const [keeperCount, setKeeperCount] = useState(2);
   const [trainers, setTrainers] = useState<string[]>(initialTrainer ? [initialTrainer] : []);
+  const [teamTactics, setTeamTactics] = useState<string[]>([]);
   const [themes, setThemes] = useState<string[]>([]);
   const [material, setMaterial] = useState("");
   const [status, setStatus] = useState("");
@@ -459,6 +519,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   const selectedItem = activeBlock?.items.find(item => item.id === selectedId) ?? null;
   const totalMinutes = blocks.reduce((sum, block) => sum + (block.active ? block.minutes : 0), 0);
   const clubLogoUrl = customTeam ? null : teamOptions.find(option => option.name === team)?.clubLogoUrl ?? null;
+  const teamTacticsEnabled = supportsBelgianTeamTactics(clubOptions.find(club => club.id === clubId)?.country);
   const byColor = (families: readonly (readonly [string, string])[]) =>
     colors.flatMap(color => families.map(([file, label]) => ({
       src: path(`${file}${color.file}.png`), label: `${label} ${color.label}`
@@ -493,8 +554,11 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
       setName(draft.name ?? name); setTeam(draft.team ?? ""); setDate(draft.date ?? "");
       setPlayerCount(draft.playerCount ?? 15); setKeeperCount(draft.keeperCount ?? 2);
       setTrainers(Array.isArray(draft.trainers) ? draft.trainers : draft.trainer ? [draft.trainer] : initialTrainer ? [initialTrainer] : []);
+      const restoredClubId = draft.clubId ?? clubOptions[0]?.id ?? "";
+      const restoredClub = clubOptions.find(club => club.id === restoredClubId);
+      setTeamTactics(supportsBelgianTeamTactics(restoredClub?.country) && Array.isArray(draft.teamTactics) ? draft.teamTactics : []);
       setThemes(Array.isArray(draft.themes) ? draft.themes : draft.theme ? [draft.theme] : []);
-      setClubId(draft.clubId ?? clubOptions[0]?.id ?? "");
+      setClubId(restoredClubId);
       setAgeCategory(draft.ageCategory ?? "");
       setPersonalTrainingId(draft.personalTrainingId);
       setCustomTeam(Boolean(draft.team && !teamOptions.some(option => option.name === draft.team)));
@@ -507,6 +571,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
             ? phases[index]
             : block.title?.trim() || block.label,
           title: "",
+          fieldType: block.fieldType ?? "full",
           lines: (block.lines ?? []).map(line => ({ ...line, color: line.color ?? "#111111" })),
           areas: (block.areas ?? []).map(area => ({ ...area, style: area.style ?? "fill" })),
           dribbles: block.dribbles ?? []
@@ -592,6 +657,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
       organisation: "",
       flow: "",
       coaching: "",
+      fieldType: "full",
       items: [],
       lines: [],
       areas: [],
@@ -640,7 +706,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
     setSaving(true);
     setStatus("Training bewaren…");
     window.localStorage.setItem("cbcs.training-builder.v2", JSON.stringify({
-      version: 4, name, team, date, playerCount, keeperCount, trainers, themes, material, blocks,
+      version: 5, name, team, date, playerCount, keeperCount, trainers, teamTactics, themes, material, blocks,
       clubId, ageCategory, personalTrainingId, updatedAt: new Date().toISOString()
     }));
     try {
@@ -649,14 +715,14 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clubId, ageCategory, title: name, themes, personalTrainingId, clubTrainingId: editingTrainingId,
-          content: { name, team, date, playerCount, keeperCount, trainers, themes, material, blocks }
+          content: { name, team, date, playerCount, keeperCount, trainers, teamTactics, themes, material, blocks }
         })
       });
       const result = await response.json().catch(() => null);
       if (!response.ok) throw new Error(result?.error || "Bewaren is mislukt.");
       setPersonalTrainingId(result.personalTrainingId);
       window.localStorage.setItem("cbcs.training-builder.v2", JSON.stringify({
-        version: 4, name, team, date, playerCount, keeperCount, trainers, themes, material, blocks,
+        version: 5, name, team, date, playerCount, keeperCount, trainers, teamTactics, themes, material, blocks,
         clubId, ageCategory, personalTrainingId: result.personalTrainingId, updatedAt: new Date().toISOString()
       }));
       const message = result.publicationState === "published"
@@ -849,7 +915,11 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
             </select>
           </Meta>
           {clubOptions.length > 1 && <Meta label="Club">
-            <select value={clubId} onChange={event => setClubId(event.target.value)} className={inputClass}>
+            <select value={clubId} onChange={event => {
+              const nextClubId = event.target.value;
+              setClubId(nextClubId);
+              if (!supportsBelgianTeamTactics(clubOptions.find(club => club.id === nextClubId)?.country)) setTeamTactics([]);
+            }} className={inputClass}>
               {clubOptions.map(club => <option key={club.id} value={club.id}>{club.name}</option>)}
             </select>
           </Meta>}
@@ -875,6 +945,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
             </div>
           </Meta>
           <Meta label="Trainer(s)"><MultiValueInput values={trainers} onChange={setTrainers} suggestions={trainerOptions} placeholder="Trainer toevoegen" /></Meta>
+          {teamTacticsEnabled && <Meta label="TeamTactics"><TeamTacticsSelect values={teamTactics} onChange={setTeamTactics} /></Meta>}
           <Meta label="Hoofdthema('s)"><MultiValueInput values={themes} onChange={setThemes} placeholder="Thema toevoegen" /></Meta>
         </div>
         <Meta label="Benodigd materiaal volledige training" wide>
@@ -920,7 +991,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
               <div>
                 <button type="button" onClick={() => openEditor(index)}
                   className="block w-full overflow-hidden rounded-xl border border-border bg-white hover:border-accent" title="Open tekentool">
-                  <Pitch items={block.items} lines={block.lines} areas={block.areas} dribbles={block.dribbles} preview />
+                  <Pitch fieldType={block.fieldType} items={block.items} lines={block.lines} areas={block.areas} dribbles={block.dribbles} preview />
                 </button>
                 <button type="button" onClick={() => openEditor(index)}
                   className="mt-2 w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-black text-page">Tekenen</button>
@@ -940,7 +1011,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
       </section>
 
       {showPrintPreview && <PrintPreview name={name} team={team} clubLogoUrl={clubLogoUrl} date={date} playerCount={playerCount} keeperCount={keeperCount}
-        trainers={trainers} themes={themes} material={material} blocks={blocks} onClose={() => setShowPrintPreview(false)} />}
+        trainers={trainers} teamTactics={teamTactics} themes={themes} material={material} blocks={blocks} onClose={() => setShowPrintPreview(false)} />}
 
       {activeBlock && activeIndex !== null && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label={`Tekening ${activeBlock.label}`}>
@@ -963,6 +1034,12 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
               </aside>
               <main className="min-w-0">
                 <div className="mx-auto mb-3 flex max-w-[940px] flex-wrap items-center gap-2 rounded-lg border border-[#dbe2de] bg-[#f7f9f8] p-2 text-[#182019]">
+                  <div className="flex items-center gap-1 rounded border border-[#cbd5cf] bg-white p-1">
+                    <span className="px-2 text-[10px] font-black uppercase text-[#66706b]">Ondergrond</span>
+                    {([["full", "Volledig veld"], ["half", "Half veld"], ["blank", "Wit vlak"]] as const).map(([value, label]) =>
+                      <button key={value} type="button" onClick={() => updateBlock(activeIndex, { fieldType: value })}
+                        className={`rounded px-2.5 py-1.5 text-xs font-bold ${activeBlock.fieldType === value ? "bg-[#169447] text-white" : "bg-[#f7f9f8] text-[#36423b]"}`}>{label}</button>)}
+                  </div>
                   <button type="button" onClick={() => { setLineStyle(null); setLineStart(null); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedDrawing(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${!lineStyle && !areaMode && !dribbleMode ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>↖ Selecteren</button>
                   <button type="button" onClick={() => { setLineStyle("solid"); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setLineStart(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${lineStyle === "solid" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>→ Pass</button>
                   <button type="button" onClick={() => { setLineStyle("dashed"); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setLineStart(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${lineStyle === "dashed" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>⇢ Looplijn</button>
@@ -1000,7 +1077,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
                   </p>
                 </div>
                 <div ref={editorFieldRef} onClick={placeItem} onPointerMove={trackDrawingPointer} onPointerLeave={() => setHoverPoint(null)} className="mx-auto w-full max-w-[620px] self-start overflow-hidden rounded border border-[#dbe2de] bg-white shadow-sm">
-                  <Pitch items={activeBlock.items} lines={activeBlock.lines} areas={activeBlock.areas} dribbles={activeBlock.dribbles} selectedId={selectedId} selectedDrawing={selectedDrawing}
+                  <Pitch fieldType={activeBlock.fieldType} items={activeBlock.items} lines={activeBlock.lines} areas={activeBlock.areas} dribbles={activeBlock.dribbles} selectedId={selectedId} selectedDrawing={selectedDrawing}
                     drawingInteractive={!selectedAsset && !lineStyle && !areaMode && !dribbleMode}
                     onSelect={id => { setSelectedId(id); setSelectedDrawing(null); }} onDeleteItem={deleteFieldItem}
                     onSelectDrawing={selectDrawing} onDrawingPointerDown={startDrawingDrag} onDrawingPointerMove={moveDrawingDrag}

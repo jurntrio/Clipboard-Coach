@@ -11,6 +11,7 @@ import { CreateTeamModal } from "@/components/teams/CreateTeamModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LinkStaffModal } from "@/components/teams/LinkStaffModal";
 import { useI18n } from "@/i18n/client";
+import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 
 type TeamWithPlayers = Team & { players: Player[]; can_edit_roster?: boolean; club_managed?: boolean };
 type ClipSummary = {
@@ -25,6 +26,7 @@ type StaffInvitation = { id: string; team_id: string; team_name: string; created
 
 export default function TeamsPage() {
   const { t } = useI18n();
+  const { activeClubId } = useActiveClub();
   const [teams, setTeams] = useState<TeamWithPlayers[]>([]);
   const [clips, setClips] = useState<ClipSummary[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -45,7 +47,7 @@ export default function TeamsPage() {
     loadTeams();
     loadClips();
     loadLinkedStaff();
-  }, []);
+  }, [activeClubId]);
 
   async function loadTeams() {
     const response = await fetch("/api/teams");

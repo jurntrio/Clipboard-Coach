@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdminEmail } from "@/lib/auth/admin";
-import { isTrainingAgeCategory } from "@/lib/training-categories";
+import { isTrainingAgeCategory, supportsBelgianTeamTactics } from "@/lib/training-categories";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,6 +22,14 @@ export async function POST(request: Request) {
   if (!isAdminEmail(user.email) && (membership?.status !== "active" || !TRAINER_ROLES.has(membership.role))) {
     return NextResponse.json({ error: "Je mag voor deze club geen trainingen bewaren." }, { status: 403 });
   }
+  const { data: club } = await admin.from("clubs").select("country").eq("id", body.clubId).maybeSingle();
+  if (!club) return NextResponse.json({ error: "Club niet gevonden." }, { status: 404 });
+  const content = {
+    ...(body.content as Record<string, unknown>),
+    teamTactics: supportsBelgianTeamTactics(club.country) && Array.isArray(body.content.teamTactics)
+      ? body.content.teamTactics.filter((item: unknown): item is string => typeof item === "string")
+      : []
+  };
 
   const themes = Array.isArray(body.themes)
     ? body.themes.filter((item: unknown): item is string => typeof item === "string").slice(0, 12)
@@ -32,7 +40,7 @@ export async function POST(request: Request) {
     title: body.title.trim().slice(0, 160),
     age_category: body.ageCategory,
     themes,
-    content: body.content,
+    content,
     updated_at: new Date().toISOString()
   };
 
@@ -71,7 +79,7 @@ export async function POST(request: Request) {
       const { error: versionError } = await admin.from("club_training_versions").insert({
         training_id: linked.data.id,
         version_number: nextVersion,
-        content: body.content,
+        content,
         change_note: "Automatisch gepubliceerd vanuit de persoonlijke training",
         created_by: user.id
       });
@@ -89,7 +97,7 @@ export async function POST(request: Request) {
       }).select("id").single();
       if (clubError || !clubTraining) return NextResponse.json({ error: clubError?.message ?? "Publiceren is mislukt." }, { status: 400 });
       const { error: versionError } = await admin.from("club_training_versions").insert({
-        training_id: clubTraining.id, version_number: 1, content: body.content,
+        training_id: clubTraining.id, version_number: 1, content,
         change_note: "Automatisch gepubliceerd vanuit de persoonlijke training", created_by: user.id
       });
       if (versionError) return NextResponse.json({ error: versionError.message }, { status: 400 });

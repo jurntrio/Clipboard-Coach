@@ -2,16 +2,18 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TrainingBuilder } from "@/components/training/TrainingBuilder";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getClubContext } from "@/lib/auth/active-club";
 
 export default async function NewTrainingPage({ searchParams }: { searchParams?: { source?: string } }) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const admin = createAdminClient();
+  const context = await getClubContext();
 
   let trainerName = "";
   let teamOptions: { id: string; name: string; assigned: boolean; clubLogoUrl: string | null }[] = [];
   let trainerOptions: string[] = [];
-  let clubOptions: { id: string; name: string }[] = [];
+  let clubOptions: { id: string; name: string; country: string }[] = [];
   let initialTraining: Record<string, any> | undefined;
   let editingTrainingId: string | undefined;
 
@@ -23,7 +25,9 @@ export default async function NewTrainingPage({ searchParams }: { searchParams?:
     ]);
 
     trainerName = profile?.full_name?.trim() || profile?.email?.split("@")[0] || user.email?.split("@")[0] || "";
-    const clubIds = [...new Set((memberships ?? []).map(item => item.club_id))];
+    const clubIds = context.activeClubId && (context.isPlatformAdmin || (memberships ?? []).some(item => item.club_id === context.activeClubId))
+      ? [context.activeClubId]
+      : [];
     const trainerIds = (ownTrainerRows ?? []).map(item => item.id);
     const [{ data: clubTeams }, { data: assignments }, { data: clubTrainers }] = await Promise.all([
       clubIds.length
@@ -36,17 +40,17 @@ export default async function NewTrainingPage({ searchParams }: { searchParams?:
         ? admin.from("club_trainers").select("display_name").in("club_id", clubIds).order("display_name")
         : Promise.resolve({ data: [] })
     ]);
-    let clubs: { id: string; name: string; logo_url?: string | null }[] = [];
+    let clubs: { id: string; name: string; country: string; logo_url?: string | null }[] = [];
     if (clubIds.length) {
-      const withLogo = await admin.from("clubs").select("id, name, logo_url").in("id", clubIds);
+      const withLogo = await admin.from("clubs").select("id, name, country, logo_url").in("id", clubIds);
       if (withLogo.error) {
-        const fallback = await admin.from("clubs").select("id, name").in("id", clubIds);
+        const fallback = await admin.from("clubs").select("id, name, country").in("id", clubIds);
         clubs = fallback.data ?? [];
       } else {
         clubs = withLogo.data ?? [];
       }
     }
-    clubOptions = clubs.map(club => ({ id: club.id, name: club.name }));
+    clubOptions = clubs.map(club => ({ id: club.id, name: club.name, country: club.country }));
     const assignedIds = new Set((assignments ?? []).map(item => item.club_team_id));
     const clubLogos = new Map(clubs.map(club => [
       club.id,

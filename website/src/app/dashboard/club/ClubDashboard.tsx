@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ClubTeamsManager } from "./ClubTeamsManager";
 import { ClubLogoUploader } from "@/components/clubs/ClubLogoUploader";
+import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; logo_url?: string | null };
 type Team = {
@@ -32,6 +33,7 @@ const roleLabels: Record<Membership["role"], string> = { club_admin: "Club Admin
 const roleBadgeClass: Record<Membership["role"], string> = { club_admin: "bg-blue-500/15 text-blue-300", club_admin_viewer: "bg-blue-500/10 text-blue-200", analyst: "bg-cyan-500/15 text-cyan-300", trainer: "bg-accent/15 text-accent" };
 
 export function ClubDashboard() {
+  const { activeClubId } = useActiveClub();
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState("");
@@ -44,7 +46,7 @@ export function ClubDashboard() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Clubgegevens konden niet geladen worden.");
       setData(body);
-      setSelectedClubId((current) => current || body.clubs?.[0]?.id || "");
+      setSelectedClubId(activeClubId || body.clubs?.[0]?.id || "");
     }).catch((reason) => setError(reason.message));
   }
 
@@ -52,6 +54,9 @@ export function ClubDashboard() {
     void load();
     void supabase.auth.getUser().then(({ data: authData }) => setCurrentUserId(authData.user?.id ?? ""));
   }, []);
+  useEffect(() => {
+    if (activeClubId) setSelectedClubId(activeClubId);
+  }, [activeClubId]);
 
   const club = data?.clubs.find((item) => item.id === selectedClubId);
   const teams = useMemo(() => data?.teams.filter((item) => item.club_id === selectedClubId) ?? [], [data, selectedClubId]);
@@ -141,12 +146,6 @@ export function ClubDashboard() {
 
   return (
     <div className="space-y-6">
-      {data.clubs.length > 1 && (
-        <select value={selectedClubId} onChange={(event) => setSelectedClubId(event.target.value)} className="rounded-lg border border-border bg-card px-3 py-2">
-          {data.clubs.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-      )}
-
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h2 className="text-xl font-semibold text-textBright">{club?.name}</h2><p className="text-sm text-textMuted">Clubtrainers en hun standaardploegen</p></div>

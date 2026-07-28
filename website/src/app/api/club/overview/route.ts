@@ -1,26 +1,19 @@
 import { NextResponse } from "next/server";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getClubContext } from "@/lib/auth/active-club";
 
 export async function GET() {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const context = await getClubContext();
+  const user = context.user;
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
-  const { data: memberships } = await admin
-    .from("club_memberships")
-    .select("club_id, role")
-    .eq("profile_id", user.id);
-  const allowed = isAdminEmail(user.email) || memberships?.some((item) => item.role === "club_admin" || item.role === "club_admin_viewer");
+  const activeAccess = context.clubs.find((club) => club.id === context.activeClubId);
+  const allowed = isAdminEmail(user.email) || activeAccess?.role === "club_admin" || activeAccess?.role === "club_admin_viewer";
   if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  let clubIds = (memberships ?? []).map((item) => item.club_id);
-  if (isAdminEmail(user.email)) {
-    const { data: allClubs } = await admin.from("clubs").select("id");
-    clubIds = (allClubs ?? []).map((club) => club.id);
-  }
+  const clubIds = context.activeClubId ? [context.activeClubId] : [];
   if (!clubIds.length) return NextResponse.json({ clubs: [] });
 
   const [{ data: clubs }, { data: teams }, { data: trainers }, { data: matches }, { data: clubMemberships }, { data: moduleEntitlements }, { data: trainingSettings }] = await Promise.all([
