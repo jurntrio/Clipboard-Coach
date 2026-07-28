@@ -46,7 +46,7 @@ export default async function NewTrainingPage() {
     const assignedIds = new Set((assignments ?? []).map(item => item.club_team_id));
     const clubLogos = new Map(clubs.map(club => [
       club.id,
-      club.logo_url || (club.name.trim().toLocaleLowerCase().includes("torhout") ? "/branding/clubs/km-torhout.png" : null)
+      club.logo_url ?? null
     ]));
     teamOptions = (clubTeams ?? [])
       .map(item => ({ id: item.id, name: item.name, assigned: assignedIds.has(item.id), clubLogoUrl: clubLogos.get(item.club_id) ?? null }))

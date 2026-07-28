@@ -156,7 +156,7 @@ export function ClubDashboard() {
         </div>
         {club && <div className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-4">
           <h3 className="mb-3 font-semibold text-textBright">Clublogo</h3>
-          <ClubLogoUploader clubId={club.id} clubName={club.name} logoUrl={club.logo_url || (club.name.toLocaleLowerCase().includes("torhout") ? "/branding/clubs/km-torhout.png" : null)} readOnly={readOnly}
+          <ClubLogoUploader clubId={club.id} clubName={club.name} logoUrl={club.logo_url ?? null} readOnly={readOnly}
             onChanged={logoUrl => setData(current => current ? { ...current, clubs: current.clubs.map(item => item.id === club.id ? { ...item, logo_url: logoUrl } : item) } : current)} />
         </div>}
         <div className="mt-4 overflow-x-auto rounded-xl border border-borderSubtle">

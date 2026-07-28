@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function ClubLogoUploader({ clubId, clubName, logoUrl, readOnly = false, onChanged }: {
   clubId: string; clubName: string; logoUrl: string | null; readOnly?: boolean;
@@ -11,6 +11,11 @@ export function ClubLogoUploader({ clubId, clubName, logoUrl, readOnly = false, 
   const [currentLogo, setCurrentLogo] = useState(logoUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setCurrentLogo(logoUrl);
+    setError("");
+  }, [clubId, logoUrl]);
 
   async function saveLogo(nextLogo: string | null) {
     const response = await fetch("/api/club/settings", {

@@ -15,7 +15,7 @@ export default async function AdminClubsPage() {
   const clubs = withLogos.data ?? fallback?.data ?? [];
   const rows = (clubs ?? []).map((club) => ({
     ...club,
-    logo_url: "logo_url" in club ? (club.logo_url as string | null) : (club.name.toLocaleLowerCase().includes("torhout") ? "/branding/clubs/km-torhout.png" : null),
+    logo_url: "logo_url" in club ? (club.logo_url as string | null) : null,
     teams: (club.club_teams ?? []) as { id: string; name: string }[],
     memberships: (club.club_memberships ?? []) as { profile_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst" }[],
     modules: (club.club_module_entitlements ?? []) as { module_key: string; enabled: boolean }[],
