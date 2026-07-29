@@ -188,6 +188,15 @@ export type Match = {
   club_team_id: string | null;
   external_source: string | null;
   external_match_id: string | null;
+  is_home_match: boolean;
+  meeting_time_enabled: boolean;
+  meeting_time: string | null;
+  departure_time_enabled: boolean;
+  departure_time: string | null;
+  field_option_id: string | null;
+  locker_room_option_id: string | null;
+  meeting_place_option_id: string | null;
+  meeting_place_custom: string | null;
 };
 
 export type LiveMatchTag = {
@@ -246,6 +255,10 @@ export type StandardTag = {
   is_protected: boolean;
   start_offset_seconds: number;
   end_offset_seconds: number;
+  live_start_offset_seconds: number;
+  live_end_offset_seconds: number;
+  video_start_offset_seconds: number;
+  video_end_offset_seconds: number;
   created_at: string;
 };
 

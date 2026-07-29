@@ -104,7 +104,7 @@ export default function SettingsPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="mb-2 font-semibold text-textBright">Clip Profiles</h2>
+        <h2 className="mb-2 font-semibold text-textBright">{t("clipProfiles.title")}</h2>
         <p className="mb-3 text-sm text-textMuted">{t("settings.clipProfilesHelp")}</p>
         <ClipProfilesTable />
       </section>

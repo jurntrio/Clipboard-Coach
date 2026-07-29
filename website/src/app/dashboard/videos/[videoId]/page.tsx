@@ -200,7 +200,7 @@ export default function VideoViewerPage() {
     setExtraPlayers(groups.flatMap((group) => group.players).filter((player) => player.role !== "staff"));
   }
 
-  async function addTag(label: string) {
+  async function addTag(label: string, profile?: StandardTag) {
     if (!label.trim() || !video) return;
 
     const startTime = currentTime;
@@ -211,8 +211,8 @@ export default function VideoViewerPage() {
         video_id: video.id,
         name: label.trim(),
         occurred_at_seconds: startTime,
-        start_time: startTime,
-        end_time: marker ? startTime : Math.min(duration || Number.POSITIVE_INFINITY, startTime + 5),
+        start_time: marker ? startTime : Math.max(0, startTime + (profile?.video_start_offset_seconds ?? 0)),
+        end_time: marker ? startTime : Math.min(duration || Number.POSITIVE_INFINITY, Math.max(0, startTime + (profile?.video_end_offset_seconds ?? 5))),
         color: getTagColor(label),
         player_ids: video.active_player_ids
       })
@@ -329,9 +329,9 @@ export default function VideoViewerPage() {
         <div>
           <h3 className="mb-2 text-sm font-semibold text-textBright">{t("video.addClipTag")}</h3>
           <div className="grid grid-cols-1 gap-2">
-            {standardTags.filter((tag) => !isPeriodMarker(tag.name)).map((tag) => <button key={tag.id} onClick={() => void addTag(tag.name)} className="rounded-lg border border-borderButton bg-button px-2 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}
+            {standardTags.filter((tag) => !isPeriodMarker(tag.name)).map((tag) => <button key={tag.id} onClick={() => void addTag(tag.name, tag)} className="rounded-lg border border-borderButton bg-button px-2 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}
           </div>
-          <div className="mt-2"><QuickTagCreator onCreated={async (tag) => { setStandardTags((current) => [...current, tag]); await addTag(tag.name); }} /></div>
+          <div className="mt-2"><QuickTagCreator onCreated={async (tag) => { setStandardTags((current) => [...current, tag]); await addTag(tag.name, tag); }} /></div>
         </div>
         <button type="button" onClick={drawDownloadOnly} className="mt-auto w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page">{t("video.draw")}</button>
       </div>

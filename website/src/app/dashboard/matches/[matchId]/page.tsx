@@ -769,8 +769,8 @@ export default function MatchViewerPage() {
         const targetVideo = videos[targetIndex];
         const localTime = Math.max(0, elapsed - (offsets.map.get(targetVideo.id) ?? 0));
         const profile = standardTags.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
-        const startOffset = profile?.start_offset_seconds ?? -5;
-        const endOffset = profile?.end_offset_seconds ?? 5;
+        const startOffset = profile?.live_start_offset_seconds ?? profile?.start_offset_seconds ?? -5;
+        const endOffset = profile?.live_end_offset_seconds ?? profile?.end_offset_seconds ?? 5;
         const maxDuration = targetVideo.duration ?? Number.POSITIVE_INFINITY;
         const startTime = Math.max(0, localTime + startOffset);
         const endTime = Math.min(maxDuration, Math.max(startTime, localTime + endOffset));

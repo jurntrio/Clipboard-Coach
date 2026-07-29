@@ -14,8 +14,18 @@ function fixture(summary: string, teamName: string) {
   return parts.length >= 2 ? { home: parts[0], away: parts.slice(1).join(" - ") } : { home: teamName, away: summary };
 }
 
+function mappedFixture(summary: string, teamName: string, clubName: string) {
+  const source = fixture(summary, teamName);
+  const normalize = (value: string) => value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  const clubKey = normalize(clubName);
+  const homeIsClub = normalize(source.home).includes(clubKey);
+  const awayIsClub = normalize(source.away).includes(clubKey);
+  if (awayIsClub && !homeIsClub) return { own: teamName, opponent: source.home, isHome: false };
+  return { own: teamName, opponent: source.away || source.home, isHome: true };
+}
+
 async function syncFeed(feed: Record<string, any>) {
-  const { data: team } = await supabase.from("club_teams").select("id, club_id, name").eq("id", feed.club_team_id).single();
+  const { data: team } = await supabase.from("club_teams").select("id, club_id, name, clubs(name)").eq("id", feed.club_team_id).single();
   if (!team) throw new Error("Team not found");
   const [{ data: operationalTeam }, { data: owner }] = await Promise.all([
     supabase.from("teams").select("id").eq("club_team_id", team.id).maybeSingle(),
@@ -36,11 +46,12 @@ async function syncFeed(feed: Record<string, any>) {
   let imported = 0;
   let updated = 0;
   for (const event of events) {
-    const names = fixture(event.summary, team.name);
+    const club = team.clubs as unknown as { name: string } | null;
+    const names = mappedFixture(event.summary, team.name, club?.name ?? team.name);
     const externalMatchId = `${team.id}:${event.uid}`;
     const payload = {
       coach_id: owner.profile_id, club_id: team.club_id, club_team_id: team.id, team_a_id: operationalTeam.id,
-      team_a_name: names.home, team_b_name: names.away, match_date: event.startsAt.toISOString().slice(0, 10),
+      team_a_name: names.own, team_b_name: names.opponent, is_home_match: names.isHome, match_date: event.startsAt.toISOString().slice(0, 10),
       start_time: event.startsAt.toLocaleTimeString("nl-BE", { timeZone: "Europe/Brussels", hour12: false, hour: "2-digit", minute: "2-digit" }),
       status: event.cancelled ? "finished" : "scheduled", external_source: "foot24", external_match_id: externalMatchId
     };

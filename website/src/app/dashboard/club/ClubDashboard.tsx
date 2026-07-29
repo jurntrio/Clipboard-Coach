@@ -8,6 +8,7 @@ import { ClubSponsorManager } from "@/components/clubs/ClubSponsorManager";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { ClubMemberAccessManager } from "./ClubMemberAccessManager";
 import { ClubInvitationCreator } from "./ClubInvitationCreator";
+import { ClubMatchOptionsManager, type ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean };
 type Team = {
@@ -33,7 +34,7 @@ type TrainingSettings = {
   new_version_policy: "automatic" | "approval_required"; trainers_can_create_versions: boolean;
   trainers_can_download: boolean; age_category_required: boolean; change_note_required: boolean;
 };
-type Overview = { clubs: Club[]; teams: Team[]; trainers: Trainer[]; matches: Match[]; assignments: Assignment[]; memberships: Membership[]; moduleEntitlements: ModuleEntitlement[]; trainingSettings: TrainingSettings[]; memberPermissions: { club_id: string; profile_id: string; permission_key: string; enabled: boolean }[]; memberTeamAccess: { club_id: string; profile_id: string; club_team_id: string }[]; rolePermissionDefaults: { club_id: string; function_role: string; permission_key: string; enabled: boolean }[]; migrationIssues: MigrationIssue[] };
+type Overview = { clubs: Club[]; teams: Team[]; trainers: Trainer[]; matches: Match[]; assignments: Assignment[]; memberships: Membership[]; moduleEntitlements: ModuleEntitlement[]; trainingSettings: TrainingSettings[]; memberPermissions: { club_id: string; profile_id: string; permission_key: string; enabled: boolean }[]; memberTeamAccess: { club_id: string; profile_id: string; club_team_id: string }[]; rolePermissionDefaults: { club_id: string; function_role: string; permission_key: string; enabled: boolean }[]; matchOptions: ClubMatchOption[]; migrationIssues: MigrationIssue[] };
 
 const roleLabels: Record<Membership["role"], string> = { club_admin: "Club Admin", club_admin_viewer: "Club Admin (viewer)", analyst: "Analyst", trainer: "Trainer" };
 const roleBadgeClass: Record<Membership["role"], string> = { club_admin: "bg-blue-500/15 text-blue-300", club_admin_viewer: "bg-blue-500/10 text-blue-200", analyst: "bg-cyan-500/15 text-cyan-300", trainer: "bg-accent/15 text-accent" };
@@ -227,6 +228,7 @@ export function ClubDashboard() {
         <MatchAssignmentManager matches={matches} trainers={trainers} teamNames={teamNames}
           assignments={data.assignments} saving={saving} readOnly={readOnly} onToggle={toggle} />
       </section>}
+      {moduleEnabled("matches") && <div className="mt-4"><ClubMatchOptionsManager clubId={selectedClubId} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} readOnly={readOnly} onChanged={load} /></div>}
       </ModuleAccordion>}
 
       {moduleEnabled("video_viewer") && <ModuleAccordion title="Video Viewer" icon="/branding/video-viewer.png">

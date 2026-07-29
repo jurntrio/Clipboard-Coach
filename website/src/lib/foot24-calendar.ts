@@ -74,10 +74,20 @@ function splitFixture(summary: string, ownTeamName: string) {
   return { home: ownTeamName, away: cleaned };
 }
 
+function mappedFixture(summary: string, teamName: string, clubName: string) {
+  const source = splitFixture(summary, teamName);
+  const normalize = (value: string) => value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  const clubKey = normalize(clubName);
+  const homeIsClub = normalize(source.home).includes(clubKey);
+  const awayIsClub = normalize(source.away).includes(clubKey);
+  if (awayIsClub && !homeIsClub) return { own: teamName, opponent: source.home, isHome: false };
+  return { own: teamName, opponent: source.away || source.home, isHome: true };
+}
+
 export async function syncFoot24Feed(teamId: string) {
   const admin = createAdminClient();
   const [{ data: team }, { data: feed }] = await Promise.all([
-    admin.from("club_teams").select("id, club_id, name").eq("id", teamId).maybeSingle(),
+    admin.from("club_teams").select("id, club_id, name, clubs(name)").eq("id", teamId).maybeSingle(),
     admin.from("club_team_calendar_feeds").select("*").eq("club_team_id", teamId).maybeSingle()
   ]);
   if (!team || !feed) throw new Error("Geen kalenderlink voor deze ploeg ingesteld.");
@@ -108,15 +118,17 @@ export async function syncFoot24Feed(teamId: string) {
   let imported = 0;
   let updated = 0;
   for (const event of events) {
-    const fixture = splitFixture(event.summary, team.name);
+    const club = team.clubs as unknown as { name: string } | null;
+    const fixture = mappedFixture(event.summary, team.name, club?.name ?? team.name);
     const externalMatchId = `${team.id}:${event.uid}`;
     const payload = {
       coach_id: owner.profile_id,
       club_id: team.club_id,
       club_team_id: team.id,
       team_a_id: operationalTeam.id,
-      team_a_name: fixture.home,
-      team_b_name: fixture.away,
+      team_a_name: fixture.own,
+      team_b_name: fixture.opponent,
+      is_home_match: fixture.isHome,
       match_date: event.startsAt.toISOString().slice(0, 10),
       start_time: event.startsAt.toLocaleTimeString("nl-BE", { timeZone: "Europe/Brussels", hour12: false, hour: "2-digit", minute: "2-digit" }),
       status: event.cancelled ? "finished" : "scheduled",

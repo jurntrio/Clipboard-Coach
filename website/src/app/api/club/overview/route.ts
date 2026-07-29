@@ -16,7 +16,7 @@ export async function GET() {
   const clubIds = context.activeClubId ? [context.activeClubId] : [];
   if (!clubIds.length) return NextResponse.json({ clubs: [] });
 
-  const [{ data: clubs }, { data: teams }, { data: trainers }, { data: matches }, { data: clubMemberships }, { data: moduleEntitlements }, { data: trainingSettings }, { data: memberPermissions }, { data: memberTeamAccess }, { data: rolePermissionDefaults }] = await Promise.all([
+  const [{ data: clubs }, { data: teams }, { data: trainers }, { data: matches }, { data: clubMemberships }, { data: moduleEntitlements }, { data: trainingSettings }, { data: memberPermissions }, { data: memberTeamAccess }, { data: rolePermissionDefaults }, { data: matchOptions }] = await Promise.all([
     admin.from("clubs").select("*").in("id", clubIds).order("name"),
     admin.from("club_teams").select("*, club_trainer_teams(trainer_id, role, status), teams(id, players(*))").in("club_id", clubIds).neq("status", "merged").order("name"),
     admin.from("club_trainers").select("*, profiles(email), club_trainer_teams(club_team_id)").in("club_id", clubIds).order("display_name"),
@@ -26,7 +26,8 @@ export async function GET() {
     admin.from("club_training_settings").select("*").in("club_id", clubIds),
     admin.from("club_member_permissions").select("club_id, profile_id, permission_key, enabled").in("club_id", clubIds),
     admin.from("club_member_team_access").select("club_id, profile_id, club_team_id").in("club_id", clubIds),
-    admin.from("club_role_permission_defaults").select("club_id, function_role, permission_key, enabled").in("club_id", clubIds)
+    admin.from("club_role_permission_defaults").select("club_id, function_role, permission_key, enabled").in("club_id", clubIds),
+    admin.from("club_match_options").select("id, club_id, option_type, label").in("club_id", clubIds).eq("active", true).order("label")
   ]);
   const matchIds = (matches ?? []).map((match) => match.id);
   const { data: assignments } = matchIds.length
@@ -73,6 +74,6 @@ export async function GET() {
     clubs: clubs ?? [], teams: teams ?? [], trainers: trainers ?? [], matches: matches ?? [],
     assignments: assignments ?? [], memberships: clubMemberships ?? [], moduleEntitlements: moduleEntitlements ?? [],
     trainingSettings: trainingSettings ?? [], memberPermissions: memberPermissions ?? [],
-    memberTeamAccess: memberTeamAccess ?? [], rolePermissionDefaults: rolePermissionDefaults ?? [], migrationIssues
+    memberTeamAccess: memberTeamAccess ?? [], rolePermissionDefaults: rolePermissionDefaults ?? [], matchOptions: matchOptions ?? [], migrationIssues
   });
 }

@@ -27,8 +27,8 @@ export async function GET() {
   const [{ data: matches }, { data: teams }] = await Promise.all([
     admin.from("matches").select("*, match_videos(video_id)")
       .eq("club_id", clubId)
-      .order("match_date", { ascending: false, nullsFirst: false })
-      .order("start_time", { ascending: false }),
+      .order("match_date", { ascending: true, nullsFirst: false })
+      .order("start_time", { ascending: true }),
     clubTeamIds.length
       ? admin.from("teams").select("*").in("club_team_id", clubTeamIds).not("name", "ilike", "EXTRA").order("name")
       : Promise.resolve({ data: [] })
