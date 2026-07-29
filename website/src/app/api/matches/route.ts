@@ -24,12 +24,15 @@ export async function POST(request: Request) {
   }
   const admin = createAdminClient();
   if (body.team_a_id) {
-    const { data: team } = await admin.from("teams").select("id, club_team_id, club_teams(club_id)").eq("id", body.team_a_id).maybeSingle();
-    const linkedClub = team?.club_teams as unknown as { club_id: string } | null;
+    const { data: team } = await admin.from("teams").select("id, club_team_id, club_teams(club_id, trainers_can_manage_matches)").eq("id", body.team_a_id).maybeSingle();
+    const linkedClub = team?.club_teams as unknown as { club_id: string; trainers_can_manage_matches: boolean } | null;
     if (!team || linkedClub?.club_id !== context.activeClubId) {
       return NextResponse.json({ error: "Deze ploeg behoort niet tot de actieve club." }, { status: 400 });
     }
     if (!canAccessTeam(authorization, team.club_team_id)) return NextResponse.json({ error: "Geen toegang tot deze ploeg." }, { status: 403 });
+    if (authorization.teamIds !== null && !linkedClub?.trainers_can_manage_matches) {
+      return NextResponse.json({ error: "De clubadmin staat niet toe dat trainers wedstrijden voor deze ploeg beheren." }, { status: 403 });
+    }
   }
   const clubWideManager = authorization.teamIds === null;
   let trainerId: string | null = null;

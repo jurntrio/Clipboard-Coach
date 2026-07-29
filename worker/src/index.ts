@@ -6,6 +6,7 @@ import { processClip } from "./processClip";
 import { processRemoteClip } from "./processRemoteClip";
 import { cleanupExpiredClips } from "./cleanupExpiredClips";
 import { startLockedJob } from "./jobLock";
+import { syncFoot24Calendars } from "./syncFoot24Calendars";
 
 const app = express();
 app.use(express.json({ limit: "32kb" }));
@@ -55,3 +56,14 @@ cleanupInterval.unref();
 cleanupExpiredClips()
   .then((result) => console.log("[worker] startup clip retention cleanup complete:", result))
   .catch((error) => console.error("[worker] startup clip retention cleanup failed:", error));
+
+const calendarInterval = setInterval(() => {
+  syncFoot24Calendars()
+    .then((result) => console.log("[worker] Foot24 calendar sync complete:", result))
+    .catch((error) => console.error("[worker] Foot24 calendar sync failed:", error));
+}, 30 * 60 * 1000);
+calendarInterval.unref();
+
+syncFoot24Calendars()
+  .then((result) => console.log("[worker] startup Foot24 calendar sync complete:", result))
+  .catch((error) => console.error("[worker] startup Foot24 calendar sync failed:", error));

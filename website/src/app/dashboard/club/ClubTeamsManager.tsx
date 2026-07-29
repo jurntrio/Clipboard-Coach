@@ -31,6 +31,7 @@ type Team = {
   name: string;
   status: string;
   trainers_can_edit_roster: boolean;
+  trainers_can_manage_matches: boolean;
   club_trainer_teams?: { trainer_id: string; role: string; status: string }[];
   teams?: { id: string; players: StoredPlayer[] }[];
 };
@@ -155,6 +156,13 @@ function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly
   const supabase = useMemo(() => createClient(), []);
   const [name, setName] = useState(team.name);
   const [canEdit, setCanEdit] = useState(team.trainers_can_edit_roster);
+  const [canManageMatches, setCanManageMatches] = useState(team.trainers_can_manage_matches ?? false);
+  const [coachMenuOpen, setCoachMenuOpen] = useState(false);
+  const [calendarUrl, setCalendarUrl] = useState("");
+  const [calendarEnabled, setCalendarEnabled] = useState(false);
+  const [calendarConfigured, setCalendarConfigured] = useState(false);
+  const [calendarStatus, setCalendarStatus] = useState("");
+  const [calendarLastSync, setCalendarLastSync] = useState<string | null>(null);
   const [players, setPlayers] = useState<PlayerRow[]>(() => storedRows(team));
   const [baseline, setBaseline] = useState<StoredPlayer[]>(() => team.teams?.[0]?.players?.filter((player) => player.role === "player") ?? []);
   const [rosterStatus, setRosterStatus] = useState("");
@@ -190,6 +198,17 @@ function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly
     }, 300);
     return () => clearTimeout(handle);
   }, [searchTerm, clubId, supabase]);
+
+  useEffect(() => {
+    void fetch(`/api/club/teams/${team.id}/calendar`).then(async (response) => {
+      if (!response.ok) return;
+      const result = await response.json();
+      setCalendarConfigured(result.configured === true);
+      setCalendarEnabled(result.enabled === true);
+      setCalendarStatus(result.last_sync_message ?? "");
+      setCalendarLastSync(result.last_synced_at ?? null);
+    });
+  }, [team.id]);
 
   function updatePlayer(index: number, field: keyof PlayerRow, value: string) {
     setPlayers((current) => current.map((player, row) => row === index ? { ...player, [field]: value } : player));
@@ -234,7 +253,7 @@ function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly
       return;
     }
     setRosterStatus(t("common.saving"));
-    const savedTeam = await request("PATCH", { teamId: team.id, name, trainersCanEditRoster: canEdit });
+    const savedTeam = await request("PATCH", { teamId: team.id, name, trainersCanEditRoster: canEdit, trainersCanManageMatches: canManageMatches });
     if (!savedTeam) { setRosterStatus(""); return; }
     const removePlayerIds = importMode === "merge" ? [] : missingPlayers.filter((player) => removeIds.has(player.id)).map((player) => player.id);
     const response = await fetch(`/api/club/teams/${team.id}/roster`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ players: players.map(({ isStored: _isStored, ...player }) => player), removePlayerIds }) });
@@ -258,26 +277,91 @@ function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly
     await onChanged();
   }
 
+  async function saveCalendar(syncAfter = false) {
+    setCalendarStatus(t("common.saving"));
+    const response = await fetch(`/api/club/teams/${team.id}/calendar`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: calendarUrl, enabled: calendarEnabled })
+    });
+    const result = await response.json();
+    if (!response.ok) { setCalendarStatus(result.error || t("clubTeams.calendarSaveFailed")); return; }
+    setCalendarConfigured(true);
+    setCalendarUrl("");
+    setCalendarStatus(t("clubTeams.calendarSaved"));
+    if (syncAfter) await syncCalendar();
+  }
+
+  async function syncCalendar() {
+    setCalendarStatus(t("clubTeams.calendarChecking"));
+    const response = await fetch(`/api/club/teams/${team.id}/calendar`, { method: "POST" });
+    const result = await response.json();
+    if (!response.ok) { setCalendarStatus(result.error || t("clubTeams.calendarSyncFailed")); return; }
+    setCalendarStatus(result.unchanged ? t("clubTeams.calendarNoChanges") : t("clubTeams.calendarSyncResult", { imported: result.imported, updated: result.updated }));
+    setCalendarLastSync(new Date().toISOString());
+    await onChanged();
+  }
+
   return <div className="mt-4 space-y-5 border-t border-borderSubtle pt-4">
     <div className="flex flex-wrap gap-3">
       <input value={name} disabled={readOnly} onChange={(event) => setName(event.target.value)} className={`${inputClass} min-w-52 flex-1 disabled:opacity-60`} />
       {!readOnly && <button disabled={busy || !name.trim()} onClick={() => void saveAll()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page">{t("common.save")}</button>}
     </div>
-    <label className="flex items-start gap-3 rounded-lg border border-borderSubtle p-3 text-sm text-textSecondary">
-      <input type="checkbox" checked={canEdit} disabled={readOnly} onChange={(event) => setCanEdit(event.target.checked)} className="mt-1 h-4 w-4 accent-accent" />
-      <span><strong className="block text-textPrimary">{t("clubTeams.trainerCanEditRoster")}</strong>{t("clubTeams.trainerCanEditRosterHelp")}</span>
-    </label>
+    <div className="grid gap-2 md:grid-cols-2">
+      <label className="flex items-center gap-3 rounded-lg border border-borderSubtle p-3 text-sm text-textSecondary">
+        <input type="checkbox" checked={canEdit} disabled={readOnly} onChange={(event) => setCanEdit(event.target.checked)} className="h-4 w-4 accent-accent" />
+        <strong className="flex-1 text-textPrimary">{t("clubTeams.trainerCanEditRoster")}</strong>
+        <span title={t("clubTeams.trainerCanEditRosterHelp")} className="cursor-help rounded-full border border-borderButton px-2 py-0.5 text-xs font-bold text-accent">i</span>
+      </label>
+      <label className="flex items-center gap-3 rounded-lg border border-borderSubtle p-3 text-sm text-textSecondary">
+        <input type="checkbox" checked={canManageMatches} disabled={readOnly} onChange={(event) => setCanManageMatches(event.target.checked)} className="h-4 w-4 accent-accent" />
+        <strong className="flex-1 text-textPrimary">{t("clubTeams.trainerCanManageMatches")}</strong>
+        <span title={t("clubTeams.trainerCanManageMatchesHelp")} className="cursor-help rounded-full border border-borderButton px-2 py-0.5 text-xs font-bold text-accent">i</span>
+      </label>
+    </div>
     <div>
       <h4 className="text-sm font-semibold text-textPrimary">{t("clubTeams.assignCoaches")}</h4>
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">{trainers.map((trainer) => {
+      <div className="relative mt-2">
+        <button type="button" disabled={readOnly} onClick={() => setCoachMenuOpen((open) => !open)}
+          className="flex w-full items-center justify-between rounded-lg border border-borderSubtle bg-input px-3 py-2 text-left text-sm text-textPrimary disabled:opacity-60">
+          <span>{(team.club_trainer_teams ?? []).filter((link) => link.status === "active").length
+            ? t("clubTeams.selectedCoachCount", { count: (team.club_trainer_teams ?? []).filter((link) => link.status === "active").length })
+            : t("clubTeams.chooseCoaches")}</span>
+          <span className={`transition ${coachMenuOpen ? "rotate-180" : ""}`}>▼</span>
+        </button>
+        {coachMenuOpen && <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-border bg-card p-2 shadow-xl">{trainers.map((trainer) => {
         const link = team.club_trainer_teams?.find((item) => item.trainer_id === trainer.id && item.status === "active");
         return <label key={trainer.id} className="flex items-center gap-2 rounded-lg border border-borderSubtle px-3 py-2 text-sm text-textSecondary">
-          <input type="checkbox" checked={!!link} disabled={readOnly || busy || !trainer.profile_id} onChange={() => void request("PUT", { teamId: team.id, profileId: trainer.profile_id, role: link?.role ?? "coach", remove: !!link })} className="accent-accent" />
+          <input type="checkbox" checked={!!link} disabled={readOnly || busy || !trainer.profile_id} onChange={() => {
+            void request("PUT", { teamId: team.id, profileId: trainer.profile_id, role: link?.role ?? "coach", remove: !!link }).then(() => setCoachMenuOpen(false));
+          }} className="accent-accent" />
           <span className="flex-1">{trainer.display_name}</span>
           {!trainer.profile_id && <span className="text-xs text-amber-300">{t("clubTeams.notRegisteredYet")}</span>}
         </label>;
-      })}</div>
+      })}</div>}
+      </div>
     </div>
+    {!readOnly && <div className="rounded-xl border border-borderSubtle p-4">
+      <h4 className="font-semibold text-textPrimary">{t("clubTeams.automaticMatches")}</h4>
+      <p className="mt-1 text-xs text-textMuted">{t("clubTeams.automaticMatchesHelp")}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <input type="url" value={calendarUrl} onChange={(event) => setCalendarUrl(event.target.value)}
+          placeholder={calendarConfigured ? t("clubTeams.calendarConfigured") : "https://www.foot24.be/...ics?key=…"}
+          className={`${inputClass} min-w-64 flex-1`} />
+        <button type="button" onClick={() => void saveCalendar(true)} disabled={!calendarUrl && !calendarConfigured}
+          className="rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-accent disabled:opacity-50">{t("clubTeams.testAndSync")}</button>
+      </div>
+      <label className="mt-3 flex items-center gap-2 text-sm text-textSecondary">
+        <input type="checkbox" checked={calendarEnabled} onChange={(event) => setCalendarEnabled(event.target.checked)} className="accent-accent" />
+        {t("clubTeams.enableAutomaticSync")}
+      </label>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button type="button" onClick={() => void saveCalendar(false)} disabled={!calendarUrl && !calendarConfigured}
+          className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page disabled:opacity-50">{t("common.save")}</button>
+        {calendarConfigured && <button type="button" onClick={() => void syncCalendar()} className="rounded-lg border border-borderButton px-3 py-2 text-sm text-textPrimary">{t("clubTeams.syncNow")}</button>}
+        {calendarLastSync && <span className="text-xs text-textMuted">{t("clubTeams.lastSync", { date: new Date(calendarLastSync).toLocaleString("nl-BE") })}</span>}
+      </div>
+      {calendarStatus && <p className="mt-2 text-sm text-accent">{calendarStatus}</p>}
+    </div>}
     {!readOnly && <div className="rounded-xl border border-borderSubtle p-4">
       <h4 className="font-semibold text-textPrimary">{t("clubTeams.addExistingHeading")}</h4>
       <p className="text-xs text-textMuted">{t("clubTeams.addExistingHelp")}</p>

@@ -52,6 +52,7 @@ export type ClubTeam = {
   age_category: string | null;
   level_or_competition: string | null;
   trainers_can_edit_roster: boolean;
+  trainers_can_manage_matches: boolean;
   sponsor_url: string | null;
   sponsor_enabled: boolean;
   status: "active" | "inactive" | "pending" | "rejected" | "archived" | "merged";

@@ -71,6 +71,7 @@ export async function PATCH(request: Request) {
   if ("ageCategory" in (body ?? {})) update.age_category = text(body?.ageCategory, 60) || null;
   if ("levelOrCompetition" in (body ?? {})) update.level_or_competition = text(body?.levelOrCompetition, 100) || null;
   if ("trainersCanEditRoster" in (body ?? {})) update.trainers_can_edit_roster = body?.trainersCanEditRoster === true;
+  if ("trainersCanManageMatches" in (body ?? {})) update.trainers_can_manage_matches = body?.trainersCanManageMatches === true;
   if (status) update.status = status;
   if (status === "active" && team.status === "pending") Object.assign(update, { approved_by: ctx.user.id, approved_at: new Date().toISOString() });
   const { data, error } = await ctx.admin.from("club_teams").update(update).eq("id", teamId).select("*").single();

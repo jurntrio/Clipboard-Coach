@@ -18,6 +18,7 @@ type Team = {
   sponsor_url?: string | null;
   sponsor_enabled?: boolean;
   trainers_can_edit_roster: boolean;
+  trainers_can_manage_matches: boolean;
   club_trainer_teams?: { trainer_id: string; role: string; status: string }[];
   teams?: { id: string; players: { id: string; first_name: string; last_name: string; date_of_birth: string | null; email: string | null; phone_numbers: string[]; role: "player" | "staff" }[] }[];
 };

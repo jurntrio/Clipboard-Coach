@@ -19,6 +19,12 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     if (!hasClubPermission(access, "games.create") || !canAccessTeam(access, match.club_team_id)) {
       return NextResponse.json({ error: "Geen recht om deze wedstrijd te verwijderen." }, { status: 403 });
     }
+    if (access.teamIds !== null && match.club_team_id) {
+      const { data: clubTeam } = await database.from("club_teams").select("trainers_can_manage_matches").eq("id", match.club_team_id).maybeSingle();
+      if (!clubTeam?.trainers_can_manage_matches) {
+        return NextResponse.json({ error: "De clubadmin staat niet toe dat trainers wedstrijden voor deze ploeg beheren." }, { status: 403 });
+      }
+    }
   } else if (!platformAdmin && match.coach_id !== user.id) return NextResponse.json({ error: "Match not found" }, { status: 404 });
 
   const linked = (match.match_videos as unknown as { video_id: string; videos: { video_key: string } | null }[] | null) ?? [];
