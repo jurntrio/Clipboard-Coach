@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
 
-export default async function NewTrainingPage({ searchParams }: { searchParams?: { source?: string } }) {
+export default async function NewTrainingPage({ searchParams }: { searchParams?: { source?: string; sessionId?: string } }) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const admin = createAdminClient();
@@ -72,11 +72,26 @@ export default async function NewTrainingPage({ searchParams }: { searchParams?:
         }
       }
     }
+    if (searchParams?.sessionId && clubIds.length) {
+      const { data: session } = await admin.from("team_training_sessions")
+        .select("id, club_id, club_team_id, training_date, club_teams(name, age_category)")
+        .eq("id", searchParams.sessionId).in("club_id", clubIds).maybeSingle();
+      if (session) {
+        const scheduledTeam = session.club_teams as unknown as { name: string; age_category: string | null } | null;
+        initialTraining = {
+          ...(initialTraining ?? {}),
+          clubId: session.club_id,
+          team: scheduledTeam?.name ?? "",
+          date: session.training_date,
+          ageCategory: scheduledTeam?.age_category ?? ""
+        };
+      }
+    }
   }
 
   return <div className="mx-auto max-w-[1680px] p-4 sm:p-8">
     <SectionHeader title="Nieuwe training" subtitle="Maak een training met oefeningen en tekeningen." artworkSrc="/branding/training.png" backHref="/dashboard/training" showHome={false} />
     <TrainingBuilder initialTrainer={trainerName} teamOptions={teamOptions} trainerOptions={trainerOptions}
-      clubOptions={clubOptions} initialTraining={initialTraining} editingTrainingId={editingTrainingId} />
+      clubOptions={clubOptions} initialTraining={initialTraining} editingTrainingId={editingTrainingId} sessionId={searchParams?.sessionId} />
   </div>;
 }

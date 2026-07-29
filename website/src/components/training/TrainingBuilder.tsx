@@ -470,13 +470,14 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
   );
 }
 
-export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainerOptions = [], clubOptions = [], initialTraining, editingTrainingId }: {
+export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainerOptions = [], clubOptions = [], initialTraining, editingTrainingId, sessionId }: {
   initialTrainer?: string;
   teamOptions?: { id: string; name: string; assigned: boolean; clubLogoUrl: string | null }[];
   trainerOptions?: string[];
   clubOptions?: { id: string; name: string; country: string }[];
   initialTraining?: Record<string, any>;
   editingTrainingId?: string;
+  sessionId?: string;
 }) {
   const editorFieldRef = useRef<HTMLDivElement>(null);
   const editorSnapshotRef = useRef<Block | null>(null);
@@ -714,7 +715,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clubId, ageCategory, title: name, themes, personalTrainingId, clubTrainingId: editingTrainingId,
+          clubId, ageCategory, title: name, themes, personalTrainingId, clubTrainingId: editingTrainingId, sessionId,
           content: { name, team, date, playerCount, keeperCount, trainers, teamTactics, themes, material, blocks }
         })
       });

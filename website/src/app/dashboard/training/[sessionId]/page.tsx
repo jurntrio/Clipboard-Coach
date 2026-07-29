@@ -10,11 +10,14 @@ export default async function TrainingDetailPage({ params }: { params: { session
   if (!context.user || !context.activeClubId) redirect("/login");
   const admin = createAdminClient();
   const { data: session } = await admin.from("team_training_sessions")
-    .select("id, club_id, club_team_id, training_date, start_time, field_option_id, locker_room_option_id, staff_ids, club_teams(name, teams(id))")
+    .select("id, club_id, club_team_id, training_date, start_time, field_option_id, locker_room_option_id, staff_ids, trainer_info, attendance_confirmed_at, personal_training_id, club_training_id, club_teams(name, teams(id))")
     .eq("id", params.sessionId).eq("club_id", context.activeClubId).maybeSingle();
   if (!session) notFound();
   const access = await getClubAccess(context.activeClubId, context.user);
-  if (!canAccessTeam(access, session.club_team_id)) redirect("/dashboard/training");
+  const { data: ownTrainer } = await admin.from("club_trainers").select("id")
+    .eq("club_id", context.activeClubId).eq("profile_id", context.user.id).maybeSingle();
+  const assignedStaff = session.staff_ids.includes(ownTrainer?.id ?? "");
+  if (!canAccessTeam(access, session.club_team_id) && !assignedStaff) redirect("/dashboard/training");
   const clubTeam = session.club_teams as unknown as { name: string; teams: { id: string }[] } | null;
   const operationalTeamIds = (clubTeam?.teams ?? []).map(team => team.id);
   const [{ data: players }, { data: options }, { data: staff }, { data: attendance }] = await Promise.all([
@@ -30,10 +33,15 @@ export default async function TrainingDetailPage({ params }: { params: { session
   const field = (options ?? []).find(option => option.id === session.field_option_id)?.label ?? "Nog niet bepaald";
   const lockerRoom = (options ?? []).find(option => option.id === session.locker_room_option_id)?.label ?? "Nog niet bepaald";
   const reasons = (options ?? []).filter(option => option.option_type === "non_selection_reason");
-  const editable = !access.readOnly && hasClubPermission(access, "teams.manage");
+  const editable = !access.readOnly && hasClubPermission(access, "training.manage");
 
   return <main className="mx-auto max-w-5xl space-y-5 p-4 sm:p-8">
-    <Link href="/dashboard/training" className="text-sm font-semibold text-accent hover:underline">← Alle trainingen</Link>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <Link href="/dashboard/training" className="text-sm font-semibold text-accent hover:underline">← Alle trainingen</Link>
+      {editable && (session.club_training_id
+        ? <Link href={`/dashboard/intradesk/${session.club_training_id}`} className="rounded-lg border border-borderButton px-4 py-2 text-sm font-bold text-accent">Open trainingsplan</Link>
+        : <Link href={`/dashboard/training/new?sessionId=${session.id}`} className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page">Training opstellen</Link>)}
+    </div>
     <header className="rounded-2xl border border-border bg-card p-5">
       <p className="text-xs font-bold uppercase tracking-wide text-accent">Training</p>
       <h1 className="mt-1 text-2xl font-bold text-textBright">{clubTeam?.name ?? "Teamtraining"}</h1>
@@ -43,7 +51,8 @@ export default async function TrainingDetailPage({ params }: { params: { session
         <Info label="Staff" value={(staff ?? []).map(person => person.display_name).join(", ") || "Nog niemand aangeduid"} />
       </div>
     </header>
-    <TrainingAttendanceList sessionId={session.id} players={players ?? []} reasons={reasons} initial={(attendance ?? []) as any} editable={editable} />
+    <TrainingAttendanceList sessionId={session.id} players={players ?? []} reasons={reasons} initial={(attendance ?? []) as any} editable={editable}
+      confirmedAt={session.attendance_confirmed_at} initialTrainerInfo={session.trainer_info} />
   </main>;
 }
 

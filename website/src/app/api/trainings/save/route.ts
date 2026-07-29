@@ -22,6 +22,18 @@ export async function POST(request: Request) {
   if (!hasClubPermission(access, "training.manage")) {
     return NextResponse.json({ error: "Je mag voor deze club geen trainingen bewaren." }, { status: 403 });
   }
+  let linkedSession: { id: string; club_team_id: string; staff_ids: string[] } | null = null;
+  if (typeof body.sessionId === "string") {
+    const [{ data }, { data: ownTrainer }] = await Promise.all([
+      admin.from("team_training_sessions").select("id, club_team_id, staff_ids")
+        .eq("id", body.sessionId).eq("club_id", body.clubId).maybeSingle(),
+      admin.from("club_trainers").select("id").eq("club_id", body.clubId).eq("profile_id", user.id).maybeSingle()
+    ]);
+    if (!data || (access.teamIds !== null && !access.teamIds.has(data.club_team_id) && !data.staff_ids.includes(ownTrainer?.id ?? ""))) {
+      return NextResponse.json({ error: "Je hebt geen toegang tot deze geplande training." }, { status: 403 });
+    }
+    linkedSession = data;
+  }
   const { data: club } = await admin.from("clubs").select("country").eq("id", body.clubId).maybeSingle();
   if (!club) return NextResponse.json({ error: "Club niet gevonden." }, { status: 404 });
   const content = {
@@ -62,7 +74,7 @@ export async function POST(request: Request) {
   const policy = settings?.new_training_policy ?? "automatic";
   const existingClubTrainingId: string | null = personal.club_training_id
     ?? (typeof body.clubTrainingId === "string" ? body.clubTrainingId : null);
-  let publicationState: "personal" | "pending_approval" | "published" =
+  let publicationState: "personal" | "pending_approval" | "published" = linkedSession ? "published" :
     existingClubTrainingId && settings?.new_version_policy === "approval_required"
       ? "pending_approval"
       : policy === "automatic" ? "published"
@@ -110,6 +122,14 @@ export async function POST(request: Request) {
     publication_state: publicationState
   }).eq("id", personal.id).eq("owner_id", user.id);
   if (stateError) return NextResponse.json({ error: stateError.message }, { status: 400 });
+  if (linkedSession) {
+    const { error: linkError } = await admin.from("team_training_sessions").update({
+      personal_training_id: personal.id,
+      club_training_id: clubTrainingId,
+      updated_at: new Date().toISOString()
+    }).eq("id", linkedSession.id);
+    if (linkError) return NextResponse.json({ error: linkError.message }, { status: 400 });
+  }
 
   return NextResponse.json({
     personalTrainingId: personal.id,

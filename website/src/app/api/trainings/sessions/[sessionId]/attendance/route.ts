@@ -8,15 +8,35 @@ export async function PUT(request: Request, { params }: { params: { sessionId: s
   if (!context.user || !context.activeClubId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const admin = createAdminClient();
   const { data: session } = await admin.from("team_training_sessions")
-    .select("id, club_id, club_team_id").eq("id", params.sessionId).eq("club_id", context.activeClubId).maybeSingle();
+    .select("id, club_id, club_team_id, attendance_confirmed_at").eq("id", params.sessionId).eq("club_id", context.activeClubId).maybeSingle();
   if (!session) return NextResponse.json({ error: "Training niet gevonden." }, { status: 404 });
   const access = await getClubAccess(context.activeClubId, context.user);
-  if (!canAccessTeam(access, session.club_team_id) || access.readOnly || !hasClubPermission(access, "teams.manage")) {
+  const { data: ownTrainer } = await admin.from("club_trainers").select("id")
+    .eq("club_id", context.activeClubId).eq("profile_id", context.user.id).maybeSingle();
+  const { data: sessionStaff } = await admin.from("team_training_sessions").select("staff_ids").eq("id", session.id).single();
+  const assignedStaff = sessionStaff?.staff_ids?.includes(ownTrainer?.id ?? "") === true;
+  if ((!canAccessTeam(access, session.club_team_id) && !assignedStaff) || access.readOnly || !hasClubPermission(access, "training.manage")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const body = await request.json().catch(() => null) as {
+    action?: "confirm" | "trainer_info"; trainerInfo?: string;
     playerId?: string; status?: "unknown" | "present" | "absent"; reasonId?: string | null; note?: string | null;
   } | null;
+  if (body?.action === "trainer_info") {
+    const trainerInfo = body.trainerInfo?.trim().slice(0, 1000) || null;
+    const { error } = await admin.from("team_training_sessions").update({ trainer_info: trainerInfo }).eq("id", session.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ trainerInfo });
+  }
+  if (body?.action === "confirm") {
+    const confirmedAt = new Date().toISOString();
+    const { error } = await admin.from("team_training_sessions").update({
+      attendance_confirmed_at: confirmedAt, attendance_confirmed_by: context.user.id
+    }).eq("id", session.id).is("attendance_confirmed_at", null);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ confirmedAt });
+  }
+  if (session.attendance_confirmed_at) return NextResponse.json({ error: "De aanwezigheden zijn al bevestigd." }, { status: 409 });
   if (!body?.playerId || !["unknown", "present", "absent"].includes(body.status ?? "")) {
     return NextResponse.json({ error: "Ongeldige aanwezigheidsstatus." }, { status: 400 });
   }

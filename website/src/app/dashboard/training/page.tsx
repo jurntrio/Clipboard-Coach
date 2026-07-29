@@ -10,9 +10,9 @@ export default async function TrainingPage() {
   const admin = createAdminClient();
   const clubId = context.activeClubId;
   const access = clubId && context.user ? await getClubAccess(clubId, context.user) : null;
-  const [{ data: sessions }, { data: options }, { data: intradeskEntitlement }] = await Promise.all([
+  const [{ data: sessions }, { data: options }, { data: intradeskEntitlement }, { data: ownTrainer }] = await Promise.all([
     clubId
-      ? admin.from("team_training_sessions").select("id, club_team_id, training_date, start_time, field_option_id, locker_room_option_id, club_teams(name)")
+      ? admin.from("team_training_sessions").select("id, club_team_id, training_date, start_time, field_option_id, locker_room_option_id, staff_ids, club_teams(name)")
           .eq("club_id", clubId).order("training_date").order("start_time")
       : Promise.resolve({ data: [] }),
     clubId
@@ -20,9 +20,12 @@ export default async function TrainingPage() {
       : Promise.resolve({ data: [] }),
     clubId
       ? admin.from("club_module_entitlements").select("club_id").eq("club_id", clubId).eq("module_key", "intradesk").eq("enabled", true).maybeSingle()
+      : Promise.resolve({ data: null }),
+    clubId && context.user
+      ? admin.from("club_trainers").select("id").eq("club_id", clubId).eq("profile_id", context.user.id).maybeSingle()
       : Promise.resolve({ data: null })
   ]);
-  const visible = (sessions ?? []).filter(session => access?.teamIds === null || access?.teamIds.has(session.club_team_id));
+  const visible = (sessions ?? []).filter(session => access?.teamIds === null || access?.teamIds.has(session.club_team_id) || session.staff_ids.includes(ownTrainer?.id ?? ""));
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = visible.filter(item => item.training_date >= today);
   const past = visible.filter(item => item.training_date < today).reverse().slice(0, 20);
