@@ -47,9 +47,9 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
   const filtered = useMemo(() => activities.filter(activity =>
     activeContext === "all" || activity.contextIds.includes(activeContext)
   ), [activities, activeContext]);
-  const upcoming = filtered.filter(item => item.kind === "match" && !!item.date && item.date >= today && item.status !== "finished")
+  const upcoming = filtered.filter(item => !!item.date && item.date >= today && item.status !== "finished" && item.status !== "completed")
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).slice(0, 6);
-  const recent = filtered.filter(item => item.kind === "training" || item.status === "finished" || (!!item.date && item.date < today))
+  const recent = filtered.filter(item => item.status === "completed" || item.status === "finished" || (!!item.date && item.date < today))
     .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`)).slice(0, 6);
   const contextNames = new Map(contexts.map(item => [item.id, item.subject]));
 
@@ -71,7 +71,7 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
       </div>
       {contexts.length ? <div className="grid gap-3 lg:grid-cols-3">
         {contexts.map(context => {
-          const next = activities.filter(item => item.contextIds.includes(context.id) && item.kind === "match" && !!item.date && item.date >= today)
+          const next = activities.filter(item => item.contextIds.includes(context.id) && !!item.date && item.date >= today && item.status !== "completed")
             .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).slice(0, 3);
           return <details key={context.id} className="group rounded-xl border border-border bg-card">
             <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
@@ -81,7 +81,7 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
             </summary>
             <div className="border-t border-borderSubtle p-4">
               {next.length ? <div className="space-y-2">{next.map(item => <ActivityRow key={item.id} item={item} labels={contextNames} compact />)}</div>
-                : <p className="text-sm text-textMuted">Geen komende wedstrijden gepland.</p>}
+                : <p className="text-sm text-textMuted">Geen komende wedstrijden of trainingen gepland.</p>}
               <button type="button" onClick={() => setActiveContext(context.id)} className="mt-3 text-sm font-semibold text-accent hover:underline">Toon in mijn planning</button>
             </div>
           </details>;
@@ -91,7 +91,7 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
 
     <section className="rounded-2xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h2 className="text-xl font-bold text-textBright">Mijn planning</h2><p className="text-sm text-textMuted">Wedstrijden en later ook geplande trainingen, chronologisch samengebracht.</p></div>
+        <div><h2 className="text-xl font-bold text-textBright">Mijn planning</h2><p className="text-sm text-textMuted">Wedstrijden en geplande trainingen, chronologisch samengebracht.</p></div>
         <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
           <button onClick={() => setActiveContext("all")} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${activeContext === "all" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Alles</button>
           {contexts.map(context => <button key={context.id} onClick={() => setActiveContext(context.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${activeContext === context.id ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{context.label}</button>)}
@@ -100,7 +100,7 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div><h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-textSecondary">Komend</h3>
           {upcoming.length ? <div className="space-y-2">{upcoming.map(item => <ActivityRow key={item.id} item={item} labels={contextNames} />)}</div>
-            : <div className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Geen komende wedstrijden. Geplande trainingen worden toegevoegd zodra de trainingskalender beschikbaar is.</div>}
+            : <div className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Geen komende wedstrijden of trainingen.</div>}
         </div>
         <div><h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-textSecondary">Recent afgerond</h3>
           {recent.length ? <div className="space-y-2">{recent.map(item => <ActivityRow key={item.id} item={item} labels={contextNames} />)}</div>

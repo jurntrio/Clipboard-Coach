@@ -75,6 +75,10 @@ export function ClubDashboard() {
   const readOnly = myMembership?.role === "club_admin_viewer";
   const moduleEnabled = (key: string) => data?.moduleEntitlements.find((item) => item.club_id === selectedClubId && item.module_key === key)?.enabled !== false;
   const trainingSettings = data?.trainingSettings.find((item) => item.club_id === selectedClubId);
+  const youthCoordinatorTrainerIds = trainers.filter(trainer => data?.memberships.some(membership =>
+    membership.club_id === selectedClubId && membership.profile_id === trainer.profile_id
+      && ["youth_coordinator", "head_youth_development"].includes(membership.function_role ?? "")
+  )).map(trainer => trainer.id);
 
   function isAssigned(match: Match, trainer: Trainer) {
     const explicit = data?.assignments.find((item) => item.match_id === match.id && item.trainer_id === trainer.id);
@@ -172,9 +176,13 @@ export function ClubDashboard() {
       </section>
 
       {moduleEnabled("teams") && <ModuleAccordion title="Teams" icon="/branding/teams.png">
-        <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} migrationIssues={migrationIssues} onChanged={load}
+        <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} coordinatorTrainerIds={youthCoordinatorTrainerIds} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} migrationIssues={migrationIssues} onChanged={load}
           readOnly={readOnly || !moduleEnabled("teams_manage")} allowImport={moduleEnabled("teams_import")} />
       </ModuleAccordion>}
+
+      <ModuleAccordion title="Algemene info & infrastructuur" icon="/branding/clubadmin.png">
+        <ClubMatchOptionsManager clubId={selectedClubId} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} readOnly={readOnly} onChanged={load} />
+      </ModuleAccordion>
 
       {(moduleEnabled("training") || moduleEnabled("intradesk")) && trainingSettings && (
         <>
@@ -228,7 +236,6 @@ export function ClubDashboard() {
         <MatchAssignmentManager matches={matches} trainers={trainers} teamNames={teamNames}
           assignments={data.assignments} saving={saving} readOnly={readOnly} onToggle={toggle} />
       </section>}
-      {moduleEnabled("matches") && <div className="mt-4"><ClubMatchOptionsManager clubId={selectedClubId} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} readOnly={readOnly} onChanged={load} /></div>}
       </ModuleAccordion>}
 
       {moduleEnabled("video_viewer") && <ModuleAccordion title="Video Viewer" icon="/branding/video-viewer.png">

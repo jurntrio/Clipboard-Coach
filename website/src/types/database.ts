@@ -199,6 +199,21 @@ export type Match = {
   meeting_place_custom: string | null;
 };
 
+export type TeamTrainingSession = {
+  id: string;
+  club_id: string;
+  club_team_id: string;
+  training_date: string;
+  start_time: string;
+  field_option_id: string | null;
+  locker_room_option_id: string | null;
+  staff_ids: string[];
+  series_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type LiveMatchTag = {
   id: string;
   match_id: string;

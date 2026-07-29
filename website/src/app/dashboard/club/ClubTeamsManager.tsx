@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { readSheet } from "read-excel-file/browser";
 import { useI18n } from "@/i18n/client";
 import { createClient } from "@/lib/supabase/client";
+import { TeamTrainingScheduler } from "@/components/teams/TeamTrainingScheduler";
+import type { ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
 
 type PlayerRow = {
   firstName: string;
@@ -73,7 +75,7 @@ function storedRows(team: Team): PlayerRow[] {
   })) : [emptyPlayer()];
 }
 
-export function ClubTeamsManager({ clubId, teams, trainers, migrationIssues, onChanged, readOnly, allowImport = true }: { clubId: string; teams: Team[]; trainers: Trainer[]; migrationIssues: MigrationIssue[]; onChanged: () => Promise<void>; readOnly?: boolean; allowImport?: boolean }) {
+export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerIds, options, migrationIssues, onChanged, readOnly, allowImport = true }: { clubId: string; teams: Team[]; trainers: Trainer[]; coordinatorTrainerIds: string[]; options: ClubMatchOption[]; migrationIssues: MigrationIssue[]; onChanged: () => Promise<void>; readOnly?: boolean; allowImport?: boolean }) {
   const { t } = useI18n();
   const [name, setName] = useState("");
   const [editing, setEditing] = useState("");
@@ -144,14 +146,14 @@ export function ClubTeamsManager({ clubId, teams, trainers, migrationIssues, onC
             {t("common.edit")}<span className={`transition ${editing === team.id ? "rotate-90" : ""}`}>▶</span>
           </button>
         </div>
-        {editing === team.id && <TeamEditor clubId={clubId} team={team} trainers={trainers} busy={busy === team.id} request={request} onChanged={onChanged} readOnly={readOnly} allowImport={allowImport} />}
+        {editing === team.id && <TeamEditor clubId={clubId} team={team} trainers={trainers} coordinatorTrainerIds={coordinatorTrainerIds} options={options} busy={busy === team.id} request={request} onChanged={onChanged} readOnly={readOnly} allowImport={allowImport} />}
       </article>;
     })}</div>
     {!teams.length && <div className="mt-4 rounded-xl border border-dashed border-border p-8 text-center text-textMuted">{t("clubTeams.noTeamsYet")}</div>}
   </section>;
 }
 
-function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly, allowImport }: { clubId: string; team: Team; trainers: Trainer[]; busy: boolean; request: (method: string, body: Record<string, unknown>) => Promise<boolean>; onChanged: () => Promise<void>; readOnly?: boolean; allowImport: boolean }) {
+function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, busy, request, onChanged, readOnly, allowImport }: { clubId: string; team: Team; trainers: Trainer[]; coordinatorTrainerIds: string[]; options: ClubMatchOption[]; busy: boolean; request: (method: string, body: Record<string, unknown>) => Promise<boolean>; onChanged: () => Promise<void>; readOnly?: boolean; allowImport: boolean }) {
   const { t } = useI18n();
   const supabase = useMemo(() => createClient(), []);
   const [name, setName] = useState(team.name);
@@ -172,6 +174,8 @@ function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [assignStatus, setAssignStatus] = useState("");
+  const [activeTab, setActiveTab] = useState<"settings" | "trainings">("settings");
+  const [rosterOpen, setRosterOpen] = useState(false);
 
   const missingPlayers = useMemo(() => {
     const currentKeys = new Set(players.map((player) => nameKey(player.firstName, player.lastName)));
@@ -301,7 +305,14 @@ function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly
     await onChanged();
   }
 
-  return <div className="mt-4 space-y-5 border-t border-borderSubtle pt-4">
+  return <div className="mt-4 border-t border-borderSubtle pt-4">
+    <div className="mb-5 flex gap-2 border-b border-borderSubtle pb-3">
+      <button type="button" onClick={() => setActiveTab("settings")} className={`rounded-lg px-4 py-2 text-sm font-bold ${activeTab === "settings" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Team bewerken</button>
+      <button type="button" onClick={() => setActiveTab("trainings")} className={`rounded-lg px-4 py-2 text-sm font-bold ${activeTab === "trainings" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Trainingen toevoegen</button>
+    </div>
+    {activeTab === "trainings" ? <TeamTrainingScheduler teamId={team.id} trainers={trainers}
+      assignedTrainerIds={[...new Set([...coordinatorTrainerIds, ...(team.club_trainer_teams ?? []).filter(link => link.status === "active").map(link => link.trainer_id)])]}
+      options={options} readOnly={readOnly} /> : <div className="space-y-5">
     <div className="flex flex-wrap gap-3">
       <input value={name} disabled={readOnly} onChange={(event) => setName(event.target.value)} className={`${inputClass} min-w-52 flex-1 disabled:opacity-60`} />
       {!readOnly && <button disabled={busy || !name.trim()} onClick={() => void saveAll()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page">{t("common.save")}</button>}
@@ -375,8 +386,12 @@ function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly
       </div>)}</div>}
     </div>}
     <div className="rounded-xl border border-borderSubtle p-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <button type="button" onClick={() => setRosterOpen(open => !open)} className="flex w-full flex-wrap items-center gap-3 text-left">
         <div className="mr-auto"><h4 className="font-semibold text-textPrimary">{t("clubTeams.roster")}</h4><p className="text-xs text-textMuted">{t("clubTeams.importHelp")}</p></div>
+        <span className={`text-accent transition ${rosterOpen ? "rotate-90" : ""}`}>▶</span>
+      </button>
+      {rosterOpen && <div className="mt-4">
+      <div className="flex flex-wrap justify-end gap-3">
         {!readOnly && allowImport && <label className="cursor-pointer rounded-lg border border-borderButton px-3 py-2 text-sm text-textPrimary">{t("clubTeams.choosePsdFile")}<input type="file" accept=".xlsx" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importRoster(file); event.target.value = ""; }} /></label>}
         {!readOnly && <button type="button" onClick={() => setPlayers((current) => [...current, emptyPlayer()])} className="rounded-lg border border-borderButton px-3 py-2 text-sm text-textSecondary">{t("clubTeams.addPlayer")}</button>}
       </div>
@@ -411,6 +426,8 @@ function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly
         )}
       </div>)}</div>
       {!readOnly && <p className="mt-3 text-xs text-textMuted">{t("clubTeams.saveHint", { save: t("common.save") })}</p>}
+      </div>}
     </div>
+  </div>}
   </div>;
 }

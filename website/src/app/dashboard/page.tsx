@@ -84,10 +84,14 @@ export default async function DashboardHomePage() {
   }
   contexts.push(...groupedChildren.values());
 
-  const [{ data: matches }, { data: trainingPlans }] = await Promise.all([
+  const [{ data: matches }, { data: trainingSessions }, { data: trainingPlans }] = await Promise.all([
     clubId
       ? admin.from("matches").select("id, club_team_id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b")
           .eq("club_id", clubId).order("match_date", { ascending: true, nullsFirst: false })
+      : Promise.resolve({ data: [] }),
+    clubId
+      ? admin.from("team_training_sessions").select("id, club_team_id, training_date, start_time, club_teams(name)")
+          .eq("club_id", clubId).order("training_date", { ascending: true }).limit(100)
       : Promise.resolve({ data: [] }),
     clubId
       ? admin.from("trainer_trainings").select("id, title, age_category, updated_at, publication_state")
@@ -115,6 +119,22 @@ export default async function DashboardHomePage() {
       href: `/dashboard/games/${match.id}`
     }];
   });
+  activities.push(...(trainingSessions ?? []).flatMap(session => {
+    const contextIds = contexts.filter(item => item.clubTeamIds.includes(session.club_team_id)).map(item => item.id);
+    if (!canSeeAllMatches && !contextIds.length) return [];
+    const team = session.club_teams as unknown as { name: string } | null;
+    return [{
+      id: `training-session:${session.id}`,
+      kind: "training" as const,
+      title: `Training ${team?.name ?? ""}`.trim(),
+      date: session.training_date,
+      time: session.start_time?.slice(0, 5) || null,
+      status: session.training_date >= new Date().toISOString().slice(0, 10) ? "scheduled" : "completed",
+      score: null,
+      contextIds,
+      href: "/dashboard/teams"
+    }];
+  }));
   activities.push(...(trainingPlans ?? []).map(plan => ({
     id: `training:${plan.id}`,
     kind: "training" as const,
