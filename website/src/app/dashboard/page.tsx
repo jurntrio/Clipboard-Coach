@@ -132,7 +132,7 @@ export default async function DashboardHomePage() {
       status: session.training_date >= new Date().toISOString().slice(0, 10) ? "scheduled" : "completed",
       score: null,
       contextIds,
-      href: "/dashboard/teams"
+      href: `/dashboard/training/${session.id}`
     }];
   }));
   activities.push(...(trainingPlans ?? []).map(plan => ({
