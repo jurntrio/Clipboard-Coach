@@ -62,7 +62,10 @@ export function MatchLauncher() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const [matchResult, videoResult, teamResult] = await Promise.all([
-      supabase.from("matches").select("*, match_videos(video_id)").eq("coach_id", user.id).order("last_opened_at", { ascending: false }),
+      // Let the database access policies determine the visible matches. Filtering
+      // by coach_id here hid club matches from admins even though they are allowed
+      // to review every match in their club.
+      supabase.from("matches").select("*, match_videos(video_id)").order("last_opened_at", { ascending: false }),
       supabase.from("videos").select("*").eq("coach_id", user.id).eq("status", "active").order("created_at", { ascending: false }),
       supabase.from("teams").select("*").order("name")
     ]);
