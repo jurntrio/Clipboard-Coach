@@ -42,24 +42,28 @@ function MemberEditor({ clubId, member, name, teams, permissions, teamAccess, as
   const [customRoleName, setCustomRoleName] = useState(member.custom_role_name || "");
   const [teamScope, setTeamScope] = useState<TeamScope>(member.team_scope || (["club_admin", "club_admin_viewer"].includes(member.role) ? "all" : "assigned"));
   const [teamIds, setTeamIds] = useState(() => new Set(teamAccess.map((item) => item.club_team_id)));
+  const [assignedIds, setAssignedIds] = useState(() => new Set(assignedTeamIds));
   const defaultTrainerPermissions = ["video.view", "games.tag_link.create", "games.tag", "training.view", "intradesk.view", "clips.share"];
   const [permissionKeys, setPermissionKeys] = useState(() => new Set([
     ...permissions.filter((item) => item.enabled).map((item) => item.permission_key),
     "intradesk.view",
     ...(member.role === "trainer" && !permissions.length ? defaultTrainerPermissions : [])
   ]));
+  const [extraTeamsOpen, setExtraTeamsOpen] = useState(false);
   const [status, setStatus] = useState("");
   useEffect(() => {
     setFunctionRole(member.function_role || member.role || "trainer");
     setCustomRoleName(member.custom_role_name || "");
     setTeamScope(member.team_scope || (["club_admin", "club_admin_viewer"].includes(member.role) ? "all" : "assigned"));
     setTeamIds(new Set(teamAccess.map((item) => item.club_team_id)));
+    setAssignedIds(new Set(assignedTeamIds));
     setPermissionKeys(new Set([
       ...permissions.filter((item) => item.enabled).map((item) => item.permission_key),
       "intradesk.view",
       ...(member.role === "trainer" && !permissions.length ? defaultTrainerPermissions : [])
     ]));
-  }, [member, permissions, teamAccess]);
+    setExtraTeamsOpen(false);
+  }, [member, permissions, teamAccess, assignedTeamIds]);
 
   function toggle(setter: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) {
     setter((current) => {
@@ -72,7 +76,7 @@ function MemberEditor({ clubId, member, name, teams, permissions, teamAccess, as
     setStatus("Bewaren…");
     const response = await fetch("/api/club/members/access", {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clubId, profileId: member.profile_id, functionRole, customRoleName, teamScope, teamIds: [...teamIds], permissions: [...permissionKeys] })
+      body: JSON.stringify({ clubId, profileId: member.profile_id, functionRole, customRoleName, teamScope, teamIds: [...teamIds], assignedTeamIds: [...assignedIds], permissions: [...permissionKeys] })
     });
     const body = await response.json();
     if (!response.ok) return setStatus(body.error || "Rechten konden niet worden bewaard.");
@@ -88,23 +92,56 @@ function MemberEditor({ clubId, member, name, teams, permissions, teamAccess, as
     <div className="space-y-4 border-t border-borderSubtle p-4">
       <div className="grid gap-3 md:grid-cols-2">
         <label className="text-sm text-textSecondary">Clubrol<select value={functionRole} disabled={readOnly} onChange={(event) => setFunctionRole(event.target.value)} className={inputClass}>{CLUB_FUNCTION_ROLES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-        <label className="text-sm text-textSecondary">Teamtoegang<select value={teamScope} disabled={readOnly || ["club_admin", "club_admin_viewer"].includes(member.role)} onChange={(event) => setTeamScope(event.target.value as TeamScope)} className={inputClass}>
-          <option value="none">Geen teams</option><option value="assigned">Alleen toegewezen teams</option><option value="selected">Geselecteerde teams</option><option value="all">Alle teams</option>
-        </select></label>
+        <label className="text-sm text-textSecondary">
+          <span className="flex items-center gap-1.5">Teamtoegang
+            <span className="group/info relative inline-grid h-4 w-4 cursor-help place-items-center rounded-full border border-textMuted text-[10px] font-bold text-textMuted" aria-label="Informatie over teamtoegang">
+              i
+              <span className="pointer-events-none absolute left-1/2 top-6 z-30 hidden w-72 -translate-x-1/2 rounded-lg border border-border bg-card p-3 text-left text-xs font-normal leading-relaxed text-textSecondary shadow-xl group-hover/info:block">
+                Teamtoegang bepaalt de harde grens: geen teams, alleen de eigen/toegewezen teams of alle clubteams. Extra ploegen geef je afzonderlijk via het recht ‘Andere teams buiten de eigen ploeg(en) bekijken’.
+              </span>
+            </span>
+          </span>
+          <select value={teamScope} disabled={readOnly || ["club_admin", "club_admin_viewer"].includes(member.role)} onChange={(event) => setTeamScope(event.target.value as TeamScope)} className={inputClass}>
+            <option value="none">Geen teams</option><option value="assigned">Eigen/toegewezen teams</option><option value="all">Alle teams</option>
+          </select>
+        </label>
       </div>
       {functionRole === "custom" && <label className="block text-sm text-textSecondary">Naam aangepaste rol<input value={customRoleName} disabled={readOnly} onChange={(event) => setCustomRoleName(event.target.value)} className={inputClass} /></label>}
-      <div className="rounded-lg border border-border p-3">
-        <h4 className="text-sm font-semibold text-textPrimary">Eigen/toegewezen teams</h4>
-        <p className="mt-1 text-sm text-textSecondary">{teams.filter((team) => assignedTeamIds.includes(team.id)).map((team) => team.name).join(", ") || "Nog geen team toegewezen"}</p>
-      </div>
-      {(teamScope === "assigned" || teamScope === "selected") && <div>
-        <h4 className="text-sm font-semibold text-textPrimary">{teamScope === "assigned" ? "Extra teams bekijken" : "Geselecteerde teams"}</h4>
-        <p className="mt-1 text-xs text-textMuted">Vink hier bijkomende teams aan naast de eigen/toegewezen ploeg(en).</p>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">{teams.filter((team) => !assignedTeamIds.includes(team.id)).map((team) => <label key={team.id} className="flex items-center gap-2 text-sm text-textSecondary"><input type="checkbox" checked={teamIds.has(team.id)} disabled={readOnly} onChange={() => toggle(setTeamIds, team.id)} className="accent-accent" />{team.name}</label>)}</div>
-      </div>}
-      <div><h4 className="text-sm font-semibold text-textPrimary">Rechten</h4><div className="mt-2 grid gap-2 md:grid-cols-2">{CLUB_PERMISSION_OPTIONS.map(([key, label]) => {
+      <details className="group/assigned rounded-lg border border-border">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3">
+          <span><strong className="block text-sm text-textPrimary">Eigen/toegewezen teams</strong><span className="text-sm text-textSecondary">{teams.filter((team) => assignedIds.has(team.id)).map((team) => team.name).join(", ") || "Nog geen team toegewezen"}</span></span>
+          <span className="text-accent transition-transform group-open/assigned:rotate-90">▶</span>
+        </summary>
+        <div className="grid gap-2 border-t border-borderSubtle p-3 sm:grid-cols-2">{teams.map((team) => <label key={team.id} className="flex items-center gap-2 text-sm text-textSecondary"><input type="checkbox" checked={assignedIds.has(team.id)} disabled={readOnly} onChange={() => toggle(setAssignedIds, team.id)} className="accent-accent" />{team.name}</label>)}</div>
+      </details>
+      <div><h4 className="text-sm font-semibold text-textPrimary">Rechten</h4><div className="mt-2 grid items-start gap-2 md:grid-cols-2">{CLUB_PERMISSION_OPTIONS.map(([key, label]) => {
         const alwaysEnabled = key === "intradesk.view";
-        return <label key={key} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-textSecondary"><input type="checkbox" checked={alwaysEnabled || permissionKeys.has(key)} disabled={readOnly || alwaysEnabled} onChange={() => toggle(setPermissionKeys, key)} className="accent-accent" />{label}{alwaysEnabled && <span className="ml-auto text-xs text-accent">altijd</span>}</label>;
+        const checked = alwaysEnabled || permissionKeys.has(key);
+        return <div key={key} className="rounded-lg border border-border">
+          <label className="flex items-center gap-2 px-3 py-2 text-sm text-textSecondary">
+            <input type="checkbox" checked={checked} disabled={readOnly || alwaysEnabled} onChange={() => {
+              toggle(setPermissionKeys, key);
+              if (key === "teams.view") {
+                if (checked) {
+                  setTeamIds(new Set());
+                  setExtraTeamsOpen(false);
+                } else {
+                  setExtraTeamsOpen(true);
+                }
+              }
+            }} className="accent-accent" />
+            {label}{alwaysEnabled && <span className="ml-auto text-xs text-accent">altijd</span>}
+          </label>
+          {key === "teams.view" && checked && teamScope === "assigned" && <details open={extraTeamsOpen} onToggle={(event) => setExtraTeamsOpen(event.currentTarget.open)} className="group/extra border-t border-borderSubtle">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs font-semibold text-accent">
+              Extra teams bekijken <span className="transition-transform group-open/extra:rotate-90">▶</span>
+            </summary>
+            <div className="space-y-2 border-t border-borderSubtle p-3">
+              <p className="text-xs text-textMuted">Vink bijkomende teams aan naast de eigen/toegewezen ploeg(en).</p>
+              {teams.filter((team) => !assignedIds.has(team.id)).map((team) => <label key={team.id} className="flex items-center gap-2 text-sm text-textSecondary"><input type="checkbox" checked={teamIds.has(team.id)} disabled={readOnly} onChange={() => toggle(setTeamIds, team.id)} className="accent-accent" />{team.name}</label>)}
+            </div>
+          </details>}
+        </div>;
       })}</div></div>
       {!readOnly && <button type="button" onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page">Instellingen opslaan</button>}
       {status && <span className="ml-3 text-sm text-accent">{status}</span>}

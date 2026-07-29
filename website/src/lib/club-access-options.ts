@@ -23,4 +23,4 @@ export const CLUB_PERMISSION_OPTIONS = [
 ] as const;
 
 export type ClubPermissionKey = typeof CLUB_PERMISSION_OPTIONS[number][0];
-export type TeamScope = "none" | "assigned" | "selected" | "all";
+export type TeamScope = "none" | "assigned" | "all";

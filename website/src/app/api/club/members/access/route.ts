@@ -4,7 +4,7 @@ import { CLUB_FUNCTION_ROLES, CLUB_PERMISSION_OPTIONS, type TeamScope } from "@/
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-const scopes = new Set<TeamScope>(["none", "assigned", "selected", "all"]);
+const scopes = new Set<TeamScope>(["none", "assigned", "all"]);
 
 export async function PUT(request: Request) {
   const supabase = createClient();
@@ -36,25 +36,40 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Wijzig deze beheerdersrol via het platformbeheer." }, { status: 409 });
   }
   const teamIds = Array.isArray(body.teamIds) ? body.teamIds.filter((id: unknown): id is string => typeof id === "string") : [];
-  if (teamIds.length) {
+  const assignedTeamIds = Array.isArray(body.assignedTeamIds) ? body.assignedTeamIds.filter((id: unknown): id is string => typeof id === "string") : [];
+  const allTeamIds = [...new Set([...teamIds, ...assignedTeamIds])];
+  if (allTeamIds.length) {
     const { count } = await admin.from("club_teams").select("id", { count: "exact", head: true })
-      .eq("club_id", body.clubId).in("id", teamIds);
-    if (count !== new Set(teamIds).size) return NextResponse.json({ error: "Een geselecteerd team hoort niet bij deze club." }, { status: 400 });
+      .eq("club_id", body.clubId).in("id", allTeamIds);
+    if (count !== allTeamIds.length) return NextResponse.json({ error: "Een geselecteerd team hoort niet bij deze club." }, { status: 400 });
   }
   const permissions = Array.isArray(body.permissions)
     ? body.permissions.filter((key: unknown): key is string => typeof key === "string" && permissionKeys.has(key as never))
     : [];
   if (!permissions.includes("intradesk.view")) permissions.push("intradesk.view");
+  const extraTeamIds = permissions.includes("teams.view") ? teamIds : [];
   const { error: membershipError } = await admin.from("club_memberships").update({
     function_role: body.functionRole, custom_role_name: customRoleName, team_scope: body.teamScope
   }).eq("club_id", body.clubId).eq("profile_id", body.profileId);
   if (membershipError) return NextResponse.json({ error: membershipError.message }, { status: 400 });
   await admin.from("club_member_team_access").delete().eq("club_id", body.clubId).eq("profile_id", body.profileId);
-  if ((body.teamScope === "selected" || body.teamScope === "assigned") && teamIds.length) {
-    const { error } = await admin.from("club_member_team_access").insert(teamIds.map((clubTeamId: string) => ({
+  if (body.teamScope === "assigned" && extraTeamIds.length) {
+    const { error } = await admin.from("club_member_team_access").insert(extraTeamIds.map((clubTeamId: string) => ({
       club_id: body.clubId, profile_id: body.profileId, club_team_id: clubTeamId
     })));
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  const { data: trainer } = await admin.from("club_trainers").select("id")
+    .eq("club_id", body.clubId).eq("profile_id", body.profileId).maybeSingle();
+  if (trainer) {
+    const { error: clearError } = await admin.from("club_trainer_teams").delete().eq("trainer_id", trainer.id);
+    if (clearError) return NextResponse.json({ error: clearError.message }, { status: 400 });
+    if (assignedTeamIds.length) {
+      const { error: assignmentError } = await admin.from("club_trainer_teams").insert(assignedTeamIds.map((clubTeamId: string) => ({
+        trainer_id: trainer.id, club_team_id: clubTeamId, role: "coach", status: "active"
+      })));
+      if (assignmentError) return NextResponse.json({ error: assignmentError.message }, { status: 400 });
+    }
   }
   await admin.from("club_member_permissions").delete().eq("club_id", body.clubId).eq("profile_id", body.profileId);
   {

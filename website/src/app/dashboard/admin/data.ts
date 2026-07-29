@@ -56,7 +56,7 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
       admin.from("players").select("id, team_id"),
       admin.from("videos").select("id, coach_id, video_url, file_size, processing_status").eq("status", "active"),
       admin.from("clips").select("id, coach_id, rendered_segments"),
-      admin.from("club_memberships").select("profile_id, role, function_role, custom_role_name, clubs(name, club_teams(id, name, teams(players(id))))"),
+      admin.from("club_memberships").select("profile_id, role, function_role, custom_role_name, clubs(name, club_teams:club_teams!club_teams_club_id_fkey(id, name, teams(players(id))))"),
       admin.from("club_trainers").select("profile_id, clubs(name), club_trainer_teams(club_teams(id, name, teams(players(id))))").not("profile_id", "is", null)
     ]);
 
@@ -195,7 +195,7 @@ export async function getCoachDetail(coachId: string): Promise<CoachDetail | nul
     admin.from("profiles").select("*").eq("id", coachId).maybeSingle(),
     admin.from("teams").select("*, players(*)").eq("coach_id", coachId).order("created_at", { ascending: false }),
     admin.from("clips").select("id, rendered_segments").eq("coach_id", coachId),
-    admin.from("clubs").select("id, name, club_teams(id, name)").order("name"),
+    admin.from("clubs").select("id, name, club_teams:club_teams!club_teams_club_id_fkey(id, name)").order("name"),
     admin.from("club_memberships").select("club_id, role").eq("profile_id", coachId),
     admin.from("club_trainers").select("club_id, phone_number, club_trainer_teams(club_team_id)").eq("profile_id", coachId)
   ]);

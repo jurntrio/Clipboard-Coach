@@ -7,6 +7,8 @@ import { ClubLogoUploader } from "@/components/clubs/ClubLogoUploader";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { ClubMemberAccessManager } from "./ClubMemberAccessManager";
 import { ClubInvitationCreator } from "./ClubInvitationCreator";
+import Link from "next/link";
+import Image from "next/image";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null };
 type Team = {
@@ -19,7 +21,7 @@ type Team = {
   teams?: { id: string; players: { id: string; first_name: string; last_name: string; date_of_birth: string | null; email: string | null; phone_numbers: string[]; role: "player" | "staff" }[] }[];
 };
 type Trainer = { id: string; club_id: string; profile_id: string | null; display_name: string; phone_number: string | null; invitation_status: string; profiles: { email: string } | null; club_trainer_teams: { club_team_id: string }[] };
-type Membership = { club_id: string; profile_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst"; function_role?: string; custom_role_name?: string | null; team_scope?: "none" | "assigned" | "selected" | "all" };
+type Membership = { club_id: string; profile_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst"; function_role?: string; custom_role_name?: string | null; team_scope?: "none" | "assigned" | "all" };
 type Match = { id: string; club_id: string; club_team_id: string | null; team_a_name: string; team_b_name: string; match_date: string | null; start_time: string | null; status: string; score_a: number | null; score_b: number | null; external_source: string | null };
 type Assignment = { id: string; match_id: string; trainer_id: string; visible: boolean; assignment_source: string };
 type MigrationIssue = { id: string; clubId: string; clubPlayerId: string; playerName: string; seasonId: string | null; candidates: { teamId: string; teamName: string; membershipType: string }[] };
@@ -186,17 +188,21 @@ export function ClubDashboard() {
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-border bg-card p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h2 className="text-xl font-semibold text-textBright">{club?.name}</h2><p className="text-sm text-textMuted">Clubinstellingen, modules en toegangsbeheer</p></div>
+        <div className="flex flex-wrap items-center gap-4">
+          <Link href="/dashboard" title="Home" className="grid h-16 w-16 shrink-0 place-items-center rounded-xl border border-borderButton bg-button transition hover:border-accent hover:bg-cardHover">
+            <Image src="/branding/home.png" alt="Home" width={38} height={38} />
+          </Link>
+          {club && <ClubLogoUploader compact clubId={club.id} clubName={club.name} logoUrl={club.logo_url ?? null} readOnly={readOnly}
+            onChanged={logoUrl => setData(current => current ? { ...current, clubs: current.clubs.map(item => item.id === club.id ? { ...item, logo_url: logoUrl } : item) } : current)} />}
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-lg uppercase text-textBright">Clubbeheer</p>
+            <h2 className="text-xl font-semibold text-textBright">{club?.name}</h2>
+            <p className="text-sm text-textMuted">Clubinstellingen, modules en toegangsbeheer</p>
+          </div>
           <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-300">
             RBFA {club?.rbfa_registration_number ? `stamnummer ${club.rbfa_registration_number}` : "nog te configureren"}
           </span>
         </div>
-        {club && <div className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-4">
-          <h3 className="mb-3 font-semibold text-textBright">Clublogo</h3>
-          <ClubLogoUploader clubId={club.id} clubName={club.name} logoUrl={club.logo_url ?? null} readOnly={readOnly}
-            onChanged={logoUrl => setData(current => current ? { ...current, clubs: current.clubs.map(item => item.id === club.id ? { ...item, logo_url: logoUrl } : item) } : current)} />
-        </div>}
       </section>
 
       {moduleEnabled("teams") && <ModuleAccordion title="Teams" icon="/branding/teams.png">

@@ -38,7 +38,7 @@ export default async function AdminClubsPage() {
   const { isFullAdmin } = await requireAdminOrViewer();
   const admin = createAdminClient();
   const { data: profiles } = await admin.from("profiles").select("id, email, full_name").order("full_name");
-  const clubRelations = "club_teams(id, name), club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))";
+  const clubRelations = "club_teams:club_teams!club_teams_club_id_fkey(id, name), club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))";
   const withLogos = await admin.from("clubs").select(`id, name, rbfa_registration_number, logo_url, ${clubRelations}`).order("name");
   const fallback = withLogos.error
     ? await admin.from("clubs").select(`id, name, rbfa_registration_number, ${clubRelations}`).order("name")

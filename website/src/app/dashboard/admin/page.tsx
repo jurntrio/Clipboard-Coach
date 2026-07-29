@@ -17,12 +17,14 @@ export default async function AdminOverviewPage() {
     getCoachOverviews(),
     admin
       .from("clubs")
-      .select("id, name, rbfa_registration_number, club_teams(id, name), club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))")
+      .select("id, name, rbfa_registration_number, club_teams:club_teams!club_teams_club_id_fkey(id, name), club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))")
       .order("name")
   ]);
   const { locale, t } = getServerI18n();
   const coachesWithoutTeams = coaches.filter((coach) =>
-    coach.teamCount === 0 && (coach.membershipRoles.length === 0 || coach.membershipRoles.includes("trainer"))
+    coach.teamCount === 0
+    && !["platform_admin", "admin_viewer", "club_admin", "club_admin_viewer", "analyst"].includes(coach.account_role)
+    && (coach.membershipRoles.length === 0 || coach.membershipRoles.includes("trainer"))
   );
   const coachesById = new Map(coaches.map((coach) => [coach.id, coach]));
 
@@ -100,6 +102,23 @@ export default async function AdminOverviewPage() {
                   clubName={club.name}
                   entitlements={(club.club_module_entitlements ?? []) as { module_key: string; enabled: boolean }[]}
                 />
+                <div className="border-t border-borderSubtle px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-textPrimary">Ploegen</h3>
+                    <span className="text-xs text-textMuted">{club.club_teams?.length ?? 0}</span>
+                  </div>
+                  {(club.club_teams?.length ?? 0) > 0 ? (
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {(club.club_teams ?? []).map((team) => (
+                        <div key={team.id} className="rounded-lg border border-borderSubtle bg-card px-3 py-2 text-sm text-textSecondary">
+                          {team.name}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-textMuted">Nog geen ploegen toegevoegd.</p>
+                  )}
+                </div>
                 <div className="overflow-x-auto border-t border-borderSubtle">
                   <table className="w-full min-w-[680px] text-sm">
                     <thead className="text-xs uppercase text-textMuted">
@@ -156,14 +175,28 @@ export default async function AdminOverviewPage() {
         </div>
       </section>
 
-      <div className="flex justify-end mb-3">
-        <Link href="/dashboard/admin/videos" className="text-accent text-sm hover:underline">
-          {t("admin.viewVideos")}
-        </Link>
-      </div>
+      {isFullAdmin && <PlatformInvitationCreator clubs={(clubs ?? []).map((club) => ({
+        id: club.id,
+        name: club.name,
+        teams: (club.club_teams ?? []) as { id: string; name: string }[]
+      }))} />}
 
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+      <details className="group/users mt-8 overflow-hidden rounded-xl border border-border bg-card">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+          <span>
+            <strong className="block text-lg text-textBright">Alle geregistreerde gebruikers</strong>
+            <span className="text-sm text-textMuted">{coaches.length} gebruikers</span>
+          </span>
+          <span className="text-accent transition-transform group-open/users:rotate-90">▶</span>
+        </summary>
+        <div className="border-t border-borderSubtle">
+          <div className="flex justify-end px-4 py-3">
+            <Link href="/dashboard/admin/videos" className="text-accent text-sm hover:underline">
+              {t("admin.viewVideos")}
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[1120px] text-sm">
           <thead className="bg-cardDeep text-textMuted uppercase text-xs">
             <tr>
               <th className="text-left px-4 py-3">{t("admin.coach")}</th>
@@ -222,14 +255,10 @@ export default async function AdminOverviewPage() {
               </tr>
             )}
           </tbody>
-        </table>
-      </div>
-
-      {isFullAdmin && <PlatformInvitationCreator clubs={(clubs ?? []).map((club) => ({
-        id: club.id,
-        name: club.name,
-        teams: (club.club_teams ?? []) as { id: string; name: string }[]
-      }))} />}
+          </table>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

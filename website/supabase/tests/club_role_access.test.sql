@@ -16,7 +16,7 @@ values
 
 insert into public.club_memberships (club_id, profile_id, role, status, function_role, team_scope)
 values
-  ('58000000-0000-0000-0000-000000000001', '58000000-0000-0000-0000-000000000010', 'team_manager', 'active', 'team_manager', 'selected'),
+  ('58000000-0000-0000-0000-000000000001', '58000000-0000-0000-000000000010', 'team_manager', 'active', 'team_manager', 'assigned'),
   ('58000000-0000-0000-0000-000000000001', '58000000-0000-0000-0000-000000000011', 'club_admin_viewer', 'active', 'club_admin_viewer', 'all');
 
 insert into public.club_member_team_access (club_id, profile_id, club_team_id)
@@ -40,7 +40,7 @@ select ok(public.club_member_can_access_team(
 
 select is(
   (select team_scope from public.club_memberships where profile_id = '58000000-0000-0000-0000-000000000010'),
-  'selected', 'teamscope wordt afzonderlijk van functierol opgeslagen'
+  'assigned', 'teamscope wordt afzonderlijk van functierol opgeslagen'
 );
 
 select * from finish();
