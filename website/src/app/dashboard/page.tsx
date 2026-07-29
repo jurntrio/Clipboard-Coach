@@ -45,7 +45,7 @@ export default async function DashboardHomePage() {
   // van elkaar bepaald, op basis van de effectieve koppelingen, niet op 1 enkel rolveld.
   const isGuardian = !!guardianLink;
   const hasOtherRole = isAdminEmail(user?.email)
-    || profile?.account_role === "club_admin" || profile?.account_role === "club_admin_viewer" || profile?.account_role === "admin_viewer"
+    || profile?.account_role === "platform_admin" || profile?.account_role === "club_admin" || profile?.account_role === "club_admin_viewer" || profile?.account_role === "admin_viewer"
     || !!clubMemberships?.length || !!ownedTeam;
 
   if (isGuardian && !hasOtherRole) return <ParentHome />;
@@ -62,10 +62,10 @@ export default async function DashboardHomePage() {
   if (isGuardian) {
     visibleCards.push({ href: "/dashboard/parent", label: "Ouderweergave", icon: "/branding/clips.png", modules: null });
   }
-  if (isAdminEmail(user?.email) || profile?.account_role === "club_admin" || profile?.account_role === "club_admin_viewer") {
+  if (isAdminEmail(user?.email) || profile?.account_role === "platform_admin" || profile?.account_role === "club_admin" || profile?.account_role === "club_admin_viewer") {
     if (!constrainedByClub || enabledModules.has("club_management")) visibleCards.push({ href: "/dashboard/club", label: "Clubbeheer", icon: "/branding/clubadmin.png", modules: null });
   }
-  if (isAdminEmail(user?.email) || profile?.account_role === "admin_viewer") {
+  if (isAdminEmail(user?.email) || profile?.account_role === "platform_admin" || profile?.account_role === "admin_viewer") {
     visibleCards.push({ href: "/dashboard/admin", label: t("common.admin"), icon: "/branding/admin.png", modules: null });
   }
 

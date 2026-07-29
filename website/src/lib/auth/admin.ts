@@ -12,22 +12,23 @@ export function isAdminEmail(email: string | null | undefined): boolean {
   return !!email && ADMIN_EMAILS.includes(email.toLowerCase());
 }
 
-// Server-only guard: redirects non-admins back to the dashboard. Call this at
-// the top of every admin server action, since layouts alone don't protect
-// server actions invoked directly. Stays email-allowlist-only on purpose --
-// this is the gate for every mutation, so it must never be satisfied by the
-// (view-only) admin_viewer account_role.
+// Server-only guard for mutating platform actions. Both the owner allowlist
+// and explicitly invited platform_admin accounts qualify; admin_viewer never
+// does.
 export async function requireAdmin() {
   const supabase = createClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();
 
-  if (!isAdminEmail(user?.email)) {
+  if (!user) redirect("/dashboard");
+  if (isAdminEmail(user.email)) return user;
+  const { data: profile } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
+  if (profile?.account_role !== "platform_admin") {
     redirect("/dashboard");
   }
 
-  return user!;
+  return user;
 }
 
 // Page-level gate for the /dashboard/admin section: lets full admins AND
@@ -45,6 +46,7 @@ export async function requireAdminOrViewer() {
   if (isAdminEmail(user.email)) return { user, isFullAdmin: true };
 
   const { data: profile } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
+  if (profile?.account_role === "platform_admin") return { user, isFullAdmin: true };
   if (profile?.account_role !== "admin_viewer") redirect("/dashboard");
 
   return { user, isFullAdmin: false };

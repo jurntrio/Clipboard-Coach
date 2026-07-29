@@ -34,7 +34,8 @@ async function loadClubContext() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { user: null, clubs: [] as AvailableClub[], activeClubId: null, isPlatformAdmin: false };
 
-  const platformAdmin = isAdminEmail(user.email);
+  const { data: profile } = await createAdminClient().from("profiles").select("account_role").eq("id", user.id).maybeSingle();
+  const platformAdmin = isAdminEmail(user.email) || profile?.account_role === "platform_admin";
   const clubs = await loadAvailableClubs(user.id, platformAdmin);
 
   const requestedId = cookies().get(ACTIVE_CLUB_COOKIE)?.value;

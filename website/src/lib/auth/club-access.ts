@@ -7,11 +7,14 @@ const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view
 const analystDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.view_counts", "games.tag", "clips.share"]);
 
 export async function getClubAccess(clubId: string, user: { id: string; email?: string | null }) {
-  if (isAdminEmail(user.email)) return {
+  const admin = createAdminClient();
+  const { data: platformProfile } = isAdminEmail(user.email)
+    ? { data: { account_role: "platform_admin" } }
+    : await admin.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
+  if (isAdminEmail(user.email) || platformProfile?.account_role === "platform_admin") return {
     exists: true, role: "platform_admin", functionRole: "platform_admin", teamScope: "all" as TeamScope,
     readOnly: false, permissions: new Set(CLUB_PERMISSION_OPTIONS.map(([key]) => key)), teamIds: null as Set<string> | null
   };
-  const admin = createAdminClient();
   const [{ data: membership }, { data: explicit }, { data: selected }, { data: trainer }] = await Promise.all([
     admin.from("club_memberships").select("role, status, function_role, team_scope").eq("club_id", clubId).eq("profile_id", user.id).maybeSingle(),
     admin.from("club_member_permissions").select("permission_key, enabled").eq("club_id", clubId).eq("profile_id", user.id),

@@ -7,14 +7,17 @@ import { getServerI18n } from "@/i18n/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminClubModuleToggles } from "./AdminClubModuleToggles";
 import { CLUB_FUNCTION_ROLES } from "@/lib/club-access-options";
+import { PlatformInvitationCreator } from "./PlatformInvitationCreator";
+import { requireAdminOrViewer } from "@/lib/auth/admin";
 
 export default async function AdminOverviewPage() {
+  const { isFullAdmin } = await requireAdminOrViewer();
   const admin = createAdminClient();
   const [coaches, { data: clubs }] = await Promise.all([
     getCoachOverviews(),
     admin
       .from("clubs")
-      .select("id, name, rbfa_registration_number, club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))")
+      .select("id, name, rbfa_registration_number, club_teams(id, name), club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))")
       .order("name")
   ]);
   const { locale, t } = getServerI18n();
@@ -221,6 +224,12 @@ export default async function AdminOverviewPage() {
           </tbody>
         </table>
       </div>
+
+      {isFullAdmin && <PlatformInvitationCreator clubs={(clubs ?? []).map((club) => ({
+        id: club.id,
+        name: club.name,
+        teams: (club.club_teams ?? []) as { id: string; name: string }[]
+      }))} />}
     </div>
   );
 }

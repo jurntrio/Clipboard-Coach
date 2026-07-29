@@ -7,7 +7,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { LEGAL_STATEMENT_VERSION, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 
-type Invite = { clubName: string; roleLabel: string; expectedName: string | null };
+type Invite = {
+  clubName: string | null; teamName: string | null; roleLabel: string;
+  expectedName: string | null; contactEmail: string | null; contactPhone: string | null;
+};
 const normalize = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase("nl-BE");
 
 export default function ClubInvitePage() {
@@ -27,6 +30,7 @@ export default function ClubInvitePage() {
       if (!response.ok) throw new Error(body.error);
       setInvite(body);
       if (body.expectedName) setFullName(body.expectedName);
+      if (body.contactEmail) setEmail(body.contactEmail);
     }).catch((reason) => setError(reason.message || "Ongeldige uitnodiging.")).finally(() => setLoading(false));
   }, [token]);
 
@@ -53,11 +57,13 @@ export default function ClubInvitePage() {
   return <div className="flex min-h-screen items-center justify-center bg-page p-4"><div className="w-full max-w-md rounded-2xl border border-border bg-card p-8">
     <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={280} height={90} className="mx-auto mb-5" />
     {loading ? <p className="text-center text-textMuted">Uitnodiging laden…</p> : submitted ? <div className="text-center"><h1 className="text-2xl font-bold text-textBright">Controleer je e-mail</h1><p className="mt-2 text-textSecondary">Bevestig je account om toegang te krijgen.</p></div> : error && !invite ? <p className="text-center text-red-300">{error}</p> : <>
-      <h1 className="text-2xl font-bold text-textBright">Uitnodiging voor {invite?.clubName}</h1>
+      <h1 className="text-2xl font-bold text-textBright">{invite?.clubName ? `Uitnodiging voor ${invite.clubName}` : "Uitnodiging voor Clipboard Coach"}</h1>
+      {invite?.teamName && <p className="mt-1 text-sm text-textSecondary">Ploeg: <strong>{invite.teamName}</strong></p>}
+      {invite?.contactPhone && <p className="mt-1 text-xs text-textMuted">Gsm: {invite.contactPhone}</p>}
       <p className="mt-2 text-sm text-textMuted">Je wordt geregistreerd als <strong className="text-textPrimary">{invite?.roleLabel}</strong>. Deze link kan maar door één persoon worden gebruikt.</p>
       <form onSubmit={signup} className="mt-5 space-y-4">
         <label className="block text-sm text-textSecondary">Volledige naam<input required value={fullName} onChange={(event) => setFullName(event.target.value)} readOnly={!!invite?.expectedName} className={inputClass} /></label>
-        <label className="block text-sm text-textSecondary">E-mail<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} /></label>
+        <label className="block text-sm text-textSecondary">E-mail<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} readOnly={!!invite?.contactEmail} className={inputClass} /></label>
         <label className="block text-sm text-textSecondary">Wachtwoord<input required minLength={6} type="password" value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} /></label>
         <label className="flex items-start gap-2 text-sm text-textSecondary"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="mt-1" /><span>Ik ga akkoord met de <Link href="/terms" target="_blank" className="text-accent">Gebruiksvoorwaarden</Link> en de <Link href="/privacy" target="_blank" className="text-accent">Privacyverklaring</Link>.</span></label>
         {error && <p className="text-sm text-red-300">{error}</p>}

@@ -11,7 +11,7 @@ export default async function ClubPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: profile } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
-  if (!isAdminEmail(user.email) && profile?.account_role !== "club_admin") redirect("/dashboard");
+  if (!isAdminEmail(user.email) && profile?.account_role !== "platform_admin" && profile?.account_role !== "club_admin") redirect("/dashboard");
 
   return <div className="mx-auto max-w-7xl p-8"><SectionHeader title="Clubbeheer" subtitle="Beheer trainers, ploegen en toegang tot wedstrijden." artworkSrc="/branding/teams.png" /><ClubDashboard /></div>;
 }
