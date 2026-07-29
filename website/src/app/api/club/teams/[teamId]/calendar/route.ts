@@ -38,9 +38,14 @@ export async function PUT(request: Request, { params }: { params: { teamId: stri
   if (!rawUrl && !existing) return NextResponse.json({ error: "Vul eerst een kalenderlink in." }, { status: 400 });
   let feedUrl = existing?.feed_url ?? "";
   try {
-    if (rawUrl) feedUrl = rawUrl.includes("voetbalvlaanderen.be")
-      ? parseVoetbalVlaanderenUrl(rawUrl).url
-      : validateFoot24Url(rawUrl);
+    if (rawUrl) {
+      if (rawUrl.includes("voetbalvlaanderen.be") && (!process.env.RBFA_API_USERNAME || !process.env.RBFA_API_PASSWORD)) {
+        return NextResponse.json({ error: "De officiële Voetbal Vlaanderen-toegang is nog niet geconfigureerd op de server. De bestaande kalenderlink is niet vervangen." }, { status: 503 });
+      }
+      feedUrl = rawUrl.includes("voetbalvlaanderen.be")
+        ? parseVoetbalVlaanderenUrl(rawUrl).url
+        : validateFoot24Url(rawUrl);
+    }
   }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Ongeldige link." }, { status: 400 }); }
   const feedChanged = !!existing && existing.feed_url !== feedUrl;
