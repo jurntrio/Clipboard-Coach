@@ -112,7 +112,7 @@ export default async function DashboardHomePage() {
       status: match.status,
       score: match.score_a !== null && match.score_b !== null ? `${match.score_a}–${match.score_b}` : null,
       contextIds,
-      href: `/dashboard/matches/${match.id}`
+      href: `/dashboard/games/${match.id}`
     }];
   });
   activities.push(...(trainingPlans ?? []).map(plan => ({

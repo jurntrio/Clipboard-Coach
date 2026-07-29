@@ -3,6 +3,7 @@ import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { syncFoot24Feed, validateFoot24Url } from "@/lib/foot24-calendar";
+import { parseVoetbalVlaanderenUrl, syncVoetbalVlaanderenFeed } from "@/lib/voetbal-vlaanderen-calendar";
 
 async function authorize(teamId: string) {
   const supabase = createClient();
@@ -34,9 +35,13 @@ export async function PUT(request: Request, { params }: { params: { teamId: stri
   const rawUrl = typeof body?.url === "string" ? body.url.trim() : "";
   const { data: existing } = await ctx.admin.from("club_team_calendar_feeds")
     .select("feed_url").eq("club_team_id", params.teamId).maybeSingle();
-  if (!rawUrl && !existing) return NextResponse.json({ error: "Vul eerst een Foot24 iCal-link in." }, { status: 400 });
+  if (!rawUrl && !existing) return NextResponse.json({ error: "Vul eerst een kalenderlink in." }, { status: 400 });
   let feedUrl = existing?.feed_url ?? "";
-  try { if (rawUrl) feedUrl = validateFoot24Url(rawUrl); }
+  try {
+    if (rawUrl) feedUrl = rawUrl.includes("voetbalvlaanderen.be")
+      ? parseVoetbalVlaanderenUrl(rawUrl).url
+      : validateFoot24Url(rawUrl);
+  }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Ongeldige link." }, { status: 400 }); }
   const feedChanged = !!existing && existing.feed_url !== feedUrl;
   const { error } = await ctx.admin.from("club_team_calendar_feeds").upsert({
@@ -59,7 +64,12 @@ export async function POST(_request: Request, { params }: { params: { teamId: st
   const ctx = await authorize(params.teamId);
   if ("response" in ctx) return ctx.response;
   try {
-    return NextResponse.json(await syncFoot24Feed(params.teamId));
+    const { data: feed } = await ctx.admin.from("club_team_calendar_feeds")
+      .select("feed_url").eq("club_team_id", params.teamId).maybeSingle();
+    if (!feed) throw new Error("Geen kalenderlink voor deze ploeg ingesteld.");
+    return NextResponse.json(feed.feed_url.includes("voetbalvlaanderen.be")
+      ? await syncVoetbalVlaanderenFeed(params.teamId)
+      : await syncFoot24Feed(params.teamId));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Synchronisatie mislukt.";
     await ctx.admin.from("club_team_calendar_feeds").update({

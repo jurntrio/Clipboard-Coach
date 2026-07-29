@@ -345,7 +345,7 @@ function TeamEditor({ clubId, team, trainers, busy, request, onChanged, readOnly
       <p className="mt-1 text-xs text-textMuted">{t("clubTeams.automaticMatchesHelp")}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <input type="url" value={calendarUrl} onChange={(event) => setCalendarUrl(event.target.value)}
-          placeholder={calendarConfigured ? t("clubTeams.calendarConfigured") : "https://www.foot24.be/...ics?key=…"}
+          placeholder={calendarConfigured ? t("clubTeams.calendarConfigured") : "https://www.voetbalvlaanderen.be/club/.../ploeg/.../kalender"}
           className={`${inputClass} min-w-64 flex-1`} />
         <button type="button" onClick={() => void saveCalendar(true)} disabled={!calendarUrl && !calendarConfigured}
           className="rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-accent disabled:opacity-50">{t("clubTeams.testAndSync")}</button>

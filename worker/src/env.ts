@@ -13,5 +13,8 @@ export const env = {
   r2PublicUrl: required("R2_PUBLIC_URL"),
   supabaseUrl: required("NEXT_PUBLIC_SUPABASE_URL"),
   supabaseServiceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
+  rbfaApiUsername: process.env.RBFA_API_USERNAME ?? "",
+  rbfaApiPassword: process.env.RBFA_API_PASSWORD ?? "",
+  rbfaGraphqlUrl: process.env.RBFA_GRAPHQL_URL ?? "https://datalake-prod2018.rbfa.be/graphql",
   port: Number(process.env.PORT ?? 8080)
 };
