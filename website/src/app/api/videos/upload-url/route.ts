@@ -18,11 +18,13 @@ export async function POST(request: Request) {
     const { key, contentType } = await request.json();
 
     const clubLogoMatch = typeof key === "string" ? key.match(/^clubs\/([0-9a-f-]{36})\/logo-[a-zA-Z0-9.-]+$/) : null;
+    const clubSponsorMatch = typeof key === "string" ? key.match(/^clubs\/([0-9a-f-]{36})\/sponsors\/[a-zA-Z0-9.-]+$/) : null;
     let clubLogoAllowed = false;
-    if (clubLogoMatch && ["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
+    const brandingClubId = clubLogoMatch?.[1] ?? clubSponsorMatch?.[1];
+    if (brandingClubId && ["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
       const admin = createAdminClient();
       const { data: membership } = await admin.from("club_memberships").select("role, status")
-        .eq("club_id", clubLogoMatch[1]).eq("profile_id", user.id).maybeSingle();
+        .eq("club_id", brandingClubId).eq("profile_id", user.id).maybeSingle();
       clubLogoAllowed = isAdminEmail(user.email) || (membership?.role === "club_admin" && membership.status === "active");
     }
 

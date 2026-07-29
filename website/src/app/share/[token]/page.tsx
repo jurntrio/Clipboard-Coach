@@ -63,14 +63,16 @@ export default async function SharePage({ params }: { params: { token: string } 
       }))
     : sourceSegments;
   const hasOnlineSegments = clip.render_status === "ready" && segments.length > 0 && segments.every((segment: any) => typeof segment.url === "string" && /^https?:\/\//.test(segment.url));
-  let showAdvertising = true;
+  let sponsorUrl: string | null = "/branding/clip-sponsors.png";
   if (clip.team_id) {
     const { data: team } = await supabase.from("teams").select("club_team_id").eq("id", clip.team_id).maybeSingle();
     if (team?.club_team_id) {
-      const { data: clubTeam } = await supabase.from("club_teams").select("club_id").eq("id", team.club_team_id).maybeSingle();
+      const { data: clubTeam } = await supabase.from("club_teams").select("club_id, sponsor_url, sponsor_enabled").eq("id", team.club_team_id).maybeSingle();
       if (clubTeam?.club_id) {
-        const { data: club } = await supabase.from("clubs").select("clip_advertising_enabled").eq("id", clubTeam.club_id).maybeSingle();
-        showAdvertising = club?.clip_advertising_enabled !== false;
+        const { data: club } = await supabase.from("clubs").select("clip_advertising_enabled, general_sponsor_url, use_general_sponsor").eq("id", clubTeam.club_id).maybeSingle();
+        sponsorUrl = club?.use_general_sponsor !== false
+          ? (club?.general_sponsor_url ?? (club?.clip_advertising_enabled !== false ? "/branding/clip-sponsors.png" : null))
+          : (clubTeam.sponsor_enabled ? clubTeam.sponsor_url : null);
       }
     }
   }
@@ -93,14 +95,15 @@ export default async function SharePage({ params }: { params: { token: string } 
             </div>
           )}
         </div>
-        {showAdvertising && (
+        {sponsorUrl && (
           <div className="mt-5 overflow-hidden rounded-xl border border-border bg-white">
             <Image
-              src="/branding/clip-sponsors.png"
+              src={sponsorUrl}
               alt="Sponsors"
               width={2048}
               height={768}
               className="h-auto w-full"
+              unoptimized
             />
           </div>
         )}

@@ -14,7 +14,7 @@ export default function HelpPage() {
   ];
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <SectionHeader title={t("common.help")} artworkSrc="/branding/help.png" />
+      <SectionHeader title={t("common.help")} artworkSrc="/branding/help.png" showHome={false} />
 
       <div className="flex flex-col gap-3">
         {topics.map((topic) => (

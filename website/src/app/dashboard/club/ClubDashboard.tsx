@@ -4,18 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ClubTeamsManager } from "./ClubTeamsManager";
 import { ClubLogoUploader } from "@/components/clubs/ClubLogoUploader";
+import { ClubSponsorManager } from "@/components/clubs/ClubSponsorManager";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { ClubMemberAccessManager } from "./ClubMemberAccessManager";
 import { ClubInvitationCreator } from "./ClubInvitationCreator";
-import Link from "next/link";
-import Image from "next/image";
 
-type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null };
+type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean };
 type Team = {
   id: string;
   club_id: string;
   name: string;
   status: string;
+  sponsor_url?: string | null;
+  sponsor_enabled?: boolean;
   trainers_can_edit_roster: boolean;
   club_trainer_teams?: { trainer_id: string; role: string; status: string }[];
   teams?: { id: string; players: { id: string; first_name: string; last_name: string; date_of_birth: string | null; email: string | null; phone_numbers: string[]; role: "player" | "staff" }[] }[];
@@ -97,25 +98,6 @@ export function ClubDashboard() {
     } : current);
   }
 
-  async function setClipAdvertising(enabled: boolean) {
-    if (!club || readOnly) return;
-    const key = `clips:${club.id}`;
-    setSaving(key);
-    setError("");
-    const response = await fetch("/api/club/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clubId: club.id, clipAdvertisingEnabled: enabled })
-    });
-    const body = await response.json();
-    setSaving("");
-    if (!response.ok) return setError(body.error || "Clipinstellingen konden niet worden bewaard.");
-    setData((current) => current ? {
-      ...current,
-      clubs: current.clubs.map((item) => item.id === club.id ? { ...item, clip_advertising_enabled: enabled } : item)
-    } : current);
-  }
-
   async function setClipViewRole(role: string, enabled: boolean) {
     if (!club || readOnly || role === "club_admin") return;
     const current = club.clip_view_count_roles ?? ["club_admin"];
@@ -166,21 +148,6 @@ export function ClubDashboard() {
     } : current);
   }
 
-  async function setFeaturePermission(key: "teams_manage" | "teams_import", enabled: boolean) {
-    if (readOnly) return;
-    setSaving(key);
-    setError("");
-    const response = await fetch("/api/club/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clubId: selectedClubId, featurePermission: { key, enabled } })
-    });
-    const body = await response.json();
-    setSaving("");
-    if (!response.ok) return setError(body.error || "Recht kon niet worden bewaard.");
-    await load();
-  }
-
   if (error) return <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div>;
   if (!data) return <div className="text-textMuted">Clubgegevens laden…</div>;
   if (!data.clubs.length) return <div className="text-textMuted">Je bent nog niet aan een club gekoppeld.</div>;
@@ -189,9 +156,6 @@ export function ClubDashboard() {
     <div className="space-y-6">
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center gap-4">
-          <Link href="/dashboard" title="Home" className="grid h-16 w-16 shrink-0 place-items-center rounded-xl border border-borderButton bg-button transition hover:border-accent hover:bg-cardHover">
-            <Image src="/branding/home.png" alt="Home" width={38} height={38} />
-          </Link>
           {club && <ClubLogoUploader compact clubId={club.id} clubName={club.name} logoUrl={club.logo_url ?? null} readOnly={readOnly}
             onChanged={logoUrl => setData(current => current ? { ...current, clubs: current.clubs.map(item => item.id === club.id ? { ...item, logo_url: logoUrl } : item) } : current)} />}
           <div className="min-w-0 flex-1">
@@ -206,15 +170,6 @@ export function ClubDashboard() {
       </section>
 
       {moduleEnabled("teams") && <ModuleAccordion title="Teams" icon="/branding/teams.png">
-        <div className="mb-4 space-y-2 rounded-xl border border-borderSubtle bg-cardDeep p-4">
-          <PermissionToggle label="Teams en spelers beheren" help="Teams aanpassen en spelers toevoegen, wijzigen of verwijderen."
-            checked={moduleEnabled("teams_manage")} disabled={readOnly || saving === "teams_manage"}
-            onChange={(enabled) => void setFeaturePermission("teams_manage", enabled)} />
-          <PermissionToggle label="PSD/Excel-import gebruiken" help="Spelerslijsten vanuit PSD of Excel inlezen."
-            checked={moduleEnabled("teams_manage") && moduleEnabled("teams_import")}
-            disabled={readOnly || !moduleEnabled("teams_manage") || saving === "teams_import"}
-            onChange={(enabled) => void setFeaturePermission("teams_import", enabled)} />
-        </div>
         <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} migrationIssues={migrationIssues} onChanged={load}
           readOnly={readOnly || !moduleEnabled("teams_manage")} allowImport={moduleEnabled("teams_import")} />
       </ModuleAccordion>}
@@ -234,19 +189,14 @@ export function ClubDashboard() {
       {moduleEnabled("clips") && <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Clips</h2>
         <p className="mt-1 text-sm text-textMuted">Bepaal wat er onderaan de publieke gedeelde clips van deze club verschijnt.</p>
-        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-borderSubtle bg-cardDeep p-4">
-          <input
-            type="checkbox"
-            checked={club?.clip_advertising_enabled !== false}
-            disabled={readOnly || saving === `clips:${club?.id}`}
-            onChange={(event) => void setClipAdvertising(event.target.checked)}
-            className="mt-0.5 h-5 w-5 accent-accent disabled:opacity-60"
-          />
-          <span>
-            <span className="block font-semibold text-textPrimary">Voeg reclame toe</span>
-            <span className="mt-1 block text-sm text-textMuted">Toon de vaste sponsorafbeelding onder de video op gedeelde clippagina’s.</span>
-          </span>
-        </label>
+        {club && <ClubSponsorManager
+          clubId={club.id}
+          generalUrl={club.general_sponsor_url ?? "/branding/clip-sponsors.png"}
+          useGeneral={club.use_general_sponsor ?? club.clip_advertising_enabled !== false}
+          teams={teams}
+          readOnly={readOnly}
+          onChanged={load}
+        />}
         <div className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-4">
           <h3 className="font-semibold text-textPrimary">Wie mag kijkcijfers zien?</h3>
           <p className="mt-1 text-sm text-textMuted">Bepaal welke rollen het aantal geopende gedeelde clips in Matches zien. Clubadmins behouden altijd toegang.</p>
@@ -273,41 +223,8 @@ export function ClubDashboard() {
       {moduleEnabled("matches") && <section className="mt-4 rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Wedstrijden toewijzen</h2>
         <p className="mt-1 text-sm text-textMuted">De ploegtoewijzing wordt automatisch aangevinkt. Elke wijziging hieronder is een handmatige override.</p>
-        {matches.length ? (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-max min-w-full table-fixed text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase text-textMuted">
-                  <th className="sticky left-0 z-20 w-[260px] min-w-[260px] bg-card px-3 py-3">Wedstrijd</th>
-                  <th className="sticky left-[260px] z-20 w-[120px] min-w-[120px] bg-card px-3 py-3">Ploeg</th>
-                  {trainers.map((trainer) => (
-                    <th key={trainer.id} className="h-32 w-11 min-w-11 align-bottom">
-                      <div className="relative h-full w-full">
-                        <span
-                          className="absolute bottom-2 left-5 block w-36 origin-bottom-left whitespace-nowrap text-left text-[11px] normal-case"
-                          style={{ transform: "rotate(-45deg)" }}
-                          title={trainer.display_name}
-                        >
-                          {trainer.display_name}
-                        </span>
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>{matches.map((match) => (
-                <tr key={match.id} className="border-t border-borderSubtle">
-                  <td className="sticky left-0 z-10 bg-card px-3 py-3"><div className="font-medium text-textPrimary">{match.team_a_name} – {match.team_b_name}</div><div className="text-xs text-textMuted">{match.match_date || "Datum onbekend"} {match.start_time?.slice(0, 5) || ""}{match.external_source ? ` · ${match.external_source.toUpperCase()}` : ""}</div></td>
-                  <td className="sticky left-[260px] z-10 bg-card px-3 py-3 text-textSecondary">{match.club_team_id ? teamNames.get(match.club_team_id) || "–" : "Nog te koppelen"}</td>
-                  {trainers.map((trainer) => {
-                    const key = `${match.id}:${trainer.id}`;
-                    return <td key={trainer.id} className="w-11 min-w-11 px-1 py-3 text-center"><input aria-label={`${trainer.display_name} toegang tot ${match.team_a_name} - ${match.team_b_name}`} type="checkbox" checked={isAssigned(match, trainer)} disabled={saving === key || readOnly} onChange={() => void toggle(match, trainer)} className="h-5 w-5 accent-accent disabled:opacity-60" /></td>;
-                  })}
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        ) : <div className="mt-4 rounded-lg border border-dashed border-border p-8 text-center text-textMuted">Nog geen clubwedstrijden gekoppeld. De structuur staat klaar voor RBFA-import en handmatig gekoppelde wedstrijden.</div>}
+        <MatchAssignmentManager matches={matches} trainers={trainers} teamNames={teamNames}
+          assignments={data.assignments} saving={saving} readOnly={readOnly} onToggle={toggle} />
       </section>}
       </ModuleAccordion>}
 
@@ -330,6 +247,115 @@ export function ClubDashboard() {
   );
 }
 
+function MatchAssignmentManager({ matches, trainers, teamNames, assignments, saving, readOnly, onToggle }: {
+  matches: Match[];
+  trainers: Trainer[];
+  teamNames: Map<string, string>;
+  assignments: Assignment[];
+  saving: string;
+  readOnly: boolean;
+  onToggle: (match: Match, trainer: Trainer) => Promise<void>;
+}) {
+  const [matchQuery, setMatchQuery] = useState("");
+  const [teamFilter, setTeamFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [selectedMatchId, setSelectedMatchId] = useState("");
+  const [personQuery, setPersonQuery] = useState("");
+  const [accessFilter, setAccessFilter] = useState<"all" | "assigned" | "unassigned">("all");
+  const normalizedMatchQuery = matchQuery.trim().toLocaleLowerCase("nl");
+  const filteredMatches = matches.filter(match => {
+    const haystack = `${match.team_a_name} ${match.team_b_name} ${match.club_team_id ? teamNames.get(match.club_team_id) ?? "" : ""} ${match.external_source ?? ""}`.toLocaleLowerCase("nl");
+    return (!normalizedMatchQuery || haystack.includes(normalizedMatchQuery))
+      && (!teamFilter || match.club_team_id === teamFilter)
+      && (!dateFrom || (match.match_date ?? "") >= dateFrom)
+      && (!dateTo || (match.match_date ?? "") <= dateTo);
+  }).slice(0, 50);
+  const selectedMatch = matches.find(match => match.id === selectedMatchId) ?? null;
+
+  function assignmentState(match: Match, trainer: Trainer) {
+    const explicit = assignments.find(item => item.match_id === match.id && item.trainer_id === trainer.id);
+    const automatic = !!match.club_team_id && trainer.club_trainer_teams.some(item => item.club_team_id === match.club_team_id);
+    return {
+      visible: explicit?.visible ?? automatic,
+      source: explicit?.assignment_source === "manual" ? "Handmatige override" : automatic ? "Automatisch via ploeg" : "Niet toegewezen"
+    };
+  }
+
+  const normalizedPersonQuery = personQuery.trim().toLocaleLowerCase("nl");
+  const people = selectedMatch ? trainers.filter(trainer => {
+    const state = assignmentState(selectedMatch, trainer);
+    const haystack = `${trainer.display_name} ${trainer.profiles?.email ?? ""}`.toLocaleLowerCase("nl");
+    return (!normalizedPersonQuery || haystack.includes(normalizedPersonQuery))
+      && (accessFilter === "all" || (accessFilter === "assigned" ? state.visible : !state.visible));
+  }).slice(0, 50) : [];
+
+  if (!matches.length) return <div className="mt-4 rounded-lg border border-dashed border-border p-8 text-center text-textMuted">Nog geen clubwedstrijden gekoppeld.</div>;
+
+  return <div className="mt-4 grid gap-4 lg:grid-cols-2">
+    <div className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
+      <h3 className="font-semibold text-textPrimary">1. Zoek een wedstrijd</h3>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <input value={matchQuery} onChange={event => setMatchQuery(event.target.value)}
+          placeholder="Ploeg, tegenstander of bron…" className="sm:col-span-2 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+        <select value={teamFilter} onChange={event => setTeamFilter(event.target.value)}
+          className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary">
+          <option value="">Alle ploegen</option>
+          {Array.from(teamNames).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        </select>
+        <div className="grid grid-cols-2 gap-2">
+          <input type="date" aria-label="Datum vanaf" value={dateFrom} onChange={event => setDateFrom(event.target.value)}
+            className="min-w-0 rounded-lg border border-border bg-input px-2 py-2 text-xs text-textPrimary" />
+          <input type="date" aria-label="Datum tot" value={dateTo} onChange={event => setDateTo(event.target.value)}
+            className="min-w-0 rounded-lg border border-border bg-input px-2 py-2 text-xs text-textPrimary" />
+        </div>
+      </div>
+      <div className="mt-3 max-h-96 space-y-2 overflow-y-auto">
+        {filteredMatches.map(match => <button key={match.id} type="button" onClick={() => setSelectedMatchId(match.id)}
+          className={`w-full rounded-lg border p-3 text-left ${selectedMatchId === match.id ? "border-accent bg-accent/10" : "border-border bg-card hover:border-borderButton"}`}>
+          <span className="block text-sm font-semibold text-textPrimary">{match.team_a_name} – {match.team_b_name}</span>
+          <span className="mt-1 block text-xs text-textMuted">{match.match_date || "Datum onbekend"} · {match.club_team_id ? teamNames.get(match.club_team_id) ?? "Ploeg onbekend" : "Nog niet gekoppeld"}</span>
+        </button>)}
+        {!filteredMatches.length && <p className="py-6 text-center text-sm text-textMuted">Geen wedstrijden gevonden.</p>}
+      </div>
+      {filteredMatches.length === 50 && <p className="mt-2 text-xs text-textMuted">De eerste 50 resultaten worden getoond. Verfijn je zoekopdracht.</p>}
+    </div>
+
+    <div className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
+      <h3 className="font-semibold text-textPrimary">2. Zoek een gebruiker</h3>
+      {!selectedMatch ? <p className="mt-4 text-sm text-textMuted">Selecteer eerst links een wedstrijd.</p> : <>
+        <p className="mt-1 text-xs text-textMuted">{selectedMatch.team_a_name} – {selectedMatch.team_b_name}</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+          <input value={personQuery} onChange={event => setPersonQuery(event.target.value)}
+            placeholder="Voornaam, achternaam of e-mail…" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+          <select value={accessFilter} onChange={event => setAccessFilter(event.target.value as typeof accessFilter)}
+            className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary">
+            <option value="all">Iedereen</option>
+            <option value="assigned">Toegewezen</option>
+            <option value="unassigned">Niet toegewezen</option>
+          </select>
+        </div>
+        <div className="mt-3 max-h-96 space-y-2 overflow-y-auto">
+          {people.map(trainer => {
+            const state = assignmentState(selectedMatch, trainer);
+            const key = `${selectedMatch.id}:${trainer.id}`;
+            return <label key={trainer.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
+              <input type="checkbox" checked={state.visible} disabled={readOnly || saving === key}
+                onChange={() => void onToggle(selectedMatch, trainer)} className="h-5 w-5 accent-accent disabled:opacity-50" />
+              <span className="min-w-0 flex-1">
+                <strong className="block truncate text-sm text-textPrimary">{trainer.display_name}</strong>
+                <span className="block truncate text-xs text-textMuted">{trainer.profiles?.email || "Geen gekoppeld e-mailadres"} · {state.source}</span>
+              </span>
+            </label>;
+          })}
+          {!people.length && <p className="py-6 text-center text-sm text-textMuted">Geen gebruikers gevonden.</p>}
+        </div>
+        {people.length === 50 && <p className="mt-2 text-xs text-textMuted">De eerste 50 resultaten worden getoond. Verfijn je zoekopdracht.</p>}
+      </>}
+    </div>
+  </div>;
+}
+
 function ModuleAccordion({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
   return <details className="group rounded-xl border border-border bg-card">
     <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
@@ -339,13 +365,6 @@ function ModuleAccordion({ title, icon, children }: { title: string; icon: strin
     </summary>
     <div className="border-t border-borderSubtle p-4">{children}</div>
   </details>;
-}
-
-function PermissionToggle({ label, help, checked, disabled, onChange }: { label: string; help: string; checked: boolean; disabled: boolean; onChange: (enabled: boolean) => void }) {
-  return <label className="flex items-start gap-3 rounded-lg border border-border p-3">
-    <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 h-4 w-4 accent-accent disabled:opacity-50" />
-    <span><strong className="block text-sm text-textPrimary">{label}</strong><span className="block text-xs text-textMuted">{help}</span></span>
-  </label>;
 }
 
 function TrainingModuleSettings({ settings, saving, readOnly, onSave }: {

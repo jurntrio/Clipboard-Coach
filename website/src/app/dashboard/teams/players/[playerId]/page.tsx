@@ -244,7 +244,6 @@ export default function PlayerClipsPage() {
     <div className="mx-auto max-w-7xl p-6">
       <header className="mb-8 flex items-center gap-3 rounded-xl border border-border bg-card p-4">
         <Link href="/dashboard/teams" title={t("team.back")} className="grid h-14 w-14 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/back.png" alt={t("team.back")} width={38} height={38} /></Link>
-        <Link href="/dashboard" title={t("nav.home")} className="grid h-14 w-14 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt={t("nav.home")} width={34} height={34} /></Link>
         <div className="ml-3 flex min-w-0 flex-1 items-center gap-3">
           <div className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-full border-2 border-accent bg-avatar font-bold text-accent">{player?.initials || "–"}</div>
           <div className="min-w-0">

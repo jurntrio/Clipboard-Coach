@@ -75,7 +75,7 @@ export default async function NewTrainingPage({ searchParams }: { searchParams?:
   }
 
   return <div className="mx-auto max-w-[1680px] p-4 sm:p-8">
-    <SectionHeader title="Nieuwe training" subtitle="Maak een training met oefeningen en tekeningen." artworkSrc="/branding/training.png" backHref="/dashboard/training" />
+    <SectionHeader title="Nieuwe training" subtitle="Maak een training met oefeningen en tekeningen." artworkSrc="/branding/training.png" backHref="/dashboard/training" showHome={false} />
     <TrainingBuilder initialTrainer={trainerName} teamOptions={teamOptions} trainerOptions={trainerOptions}
       clubOptions={clubOptions} initialTraining={initialTraining} editingTrainingId={editingTrainingId} />
   </div>;

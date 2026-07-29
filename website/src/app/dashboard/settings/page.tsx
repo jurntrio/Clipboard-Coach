@@ -60,7 +60,7 @@ export default function SettingsPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <SectionHeader title={t("common.settings")} artworkSrc="/branding/settings.png" />
+      <SectionHeader title={t("common.settings")} artworkSrc="/branding/settings.png" showHome={false} />
 
       <section className="mb-8">
         <h2 className="text-textBright font-semibold mb-2">{t("settings.appearance")}</h2>

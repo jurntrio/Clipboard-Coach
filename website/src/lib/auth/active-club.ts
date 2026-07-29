@@ -10,22 +10,25 @@ export const ACTIVE_CLUB_COOKIE = "clipboard_coach_active_club";
 export type AvailableClub = {
   id: string;
   name: string;
+  logoUrl: string | null;
   role: string;
 };
 
 const loadAvailableClubs = unstable_cache(async (userId: string, platformAdmin: boolean): Promise<AvailableClub[]> => {
   const admin = createAdminClient();
   if (platformAdmin) {
-    const { data } = await admin.from("clubs").select("id, name").eq("status", "active").order("name");
-    return (data ?? []).map((club) => ({ ...club, role: "platform_admin" }));
+    const { data } = await admin.from("clubs").select("id, name, logo_url").eq("status", "active").order("name");
+    return (data ?? []).map((club) => ({ id: club.id, name: club.name, logoUrl: club.logo_url, role: "platform_admin" }));
   }
   const { data: memberships } = await admin.from("club_memberships")
-    .select("club_id, role, clubs(id, name, status)")
+    .select("club_id, role, clubs(id, name, status, logo_url)")
     .eq("profile_id", userId)
     .eq("status", "active");
   return (memberships ?? []).flatMap((membership) => {
-    const club = membership.clubs as unknown as { id: string; name: string; status: string } | null;
-    return club?.status === "active" ? [{ id: club.id, name: club.name, role: membership.role }] : [];
+    const club = membership.clubs as unknown as { id: string; name: string; status: string; logo_url: string | null } | null;
+    return club?.status === "active"
+      ? [{ id: club.id, name: club.name, logoUrl: club.logo_url, role: membership.role }]
+      : [];
   }).sort((a, b) => a.name.localeCompare(b.name));
 }, ["available-clubs"], { revalidate: 30 });
 

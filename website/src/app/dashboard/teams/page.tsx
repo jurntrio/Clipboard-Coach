@@ -127,7 +127,7 @@ export default function TeamsPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <SectionHeader title={t("common.teams")} artworkSrc="/branding/teams.png" />
+      <SectionHeader title={t("common.teams")} artworkSrc="/branding/teams.png" showHome={false} />
 
       {staffInvitations.length > 0 && <div className="mb-6 space-y-3">{staffInvitations.map((invitation) => <div key={invitation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent/40 bg-accentDim p-4"><p className="text-sm text-textPrimary">{t("team.invitedTo", { team: invitation.team_name })}</p><div className="flex gap-2"><button type="button" onClick={() => void answerStaffInvitation(invitation.id, "decline")} className="rounded-lg border border-borderButton px-3 py-2 text-sm text-textSecondary">{t("team.declineInvitation")}</button><button type="button" onClick={() => void answerStaffInvitation(invitation.id, "accept")} className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page">{t("team.acceptInvitation")}</button></div></div>)}</div>}
 

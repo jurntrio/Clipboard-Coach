@@ -51,6 +51,45 @@ export async function POST(request: Request) {
     return NextResponse.json({ club });
   }
 
+  if (typeof body.useGeneralSponsor === "boolean") {
+    const { data: club, error } = await admin.from("clubs")
+      .update({ use_general_sponsor: body.useGeneralSponsor, clip_advertising_enabled: body.useGeneralSponsor })
+      .eq("id", body.clubId)
+      .select("id, use_general_sponsor, general_sponsor_url")
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ club });
+  }
+
+  if (body.generalSponsorUrl === null || (typeof body.generalSponsorUrl === "string"
+    && body.generalSponsorUrl.startsWith(`${process.env.R2_PUBLIC_URL?.replace(/\/$/, "")}/clubs/${body.clubId}/sponsors/`))) {
+    const { data: club, error } = await admin.from("clubs")
+      .update({ general_sponsor_url: body.generalSponsorUrl })
+      .eq("id", body.clubId)
+      .select("id, general_sponsor_url, use_general_sponsor")
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ club });
+  }
+
+  if (body.teamSponsor && typeof body.teamSponsor.teamId === "string") {
+    const updates: { sponsor_url?: string | null; sponsor_enabled?: boolean } = {};
+    if (typeof body.teamSponsor.enabled === "boolean") updates.sponsor_enabled = body.teamSponsor.enabled;
+    if (body.teamSponsor.sponsorUrl === null || (typeof body.teamSponsor.sponsorUrl === "string"
+      && body.teamSponsor.sponsorUrl.startsWith(`${process.env.R2_PUBLIC_URL?.replace(/\/$/, "")}/clubs/${body.clubId}/sponsors/`))) {
+      updates.sponsor_url = body.teamSponsor.sponsorUrl;
+    }
+    if (!Object.keys(updates).length) return NextResponse.json({ error: "Ongeldige sponsorinstelling." }, { status: 400 });
+    const { data: team, error } = await admin.from("club_teams")
+      .update(updates)
+      .eq("id", body.teamSponsor.teamId)
+      .eq("club_id", body.clubId)
+      .select("id, sponsor_url, sponsor_enabled")
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ team });
+  }
+
   if (Array.isArray(body.clipViewCountRoles)) {
     const allowedRoles = new Set(["club_admin", "club_admin_viewer", "analyst", "trainer"]);
     const roles = Array.from(new Set([

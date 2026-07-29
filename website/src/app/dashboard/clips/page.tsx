@@ -190,7 +190,7 @@ export default function MatchesHubPage() {
 
   return (
     <main className="mx-auto max-w-6xl p-5 sm:p-7">
-      <SectionHeader title={t("common.matches")} />
+      <SectionHeader title={t("common.matches")} showHome={false} />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
         <div><h2 className="font-semibold text-textBright">{t("matchHub.title")}</h2><p className="text-sm text-textMuted">{t("matchHub.subtitle")}</p></div>
         <div className="flex flex-wrap items-center gap-3">

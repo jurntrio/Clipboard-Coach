@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
 import { formatTime, getTagColor } from "@/lib/utils";
@@ -882,10 +880,7 @@ export default function MatchViewerPage() {
       <input ref={attachInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void attachLocalFiles(Array.from(event.target.files ?? []).map((file) => ({ file, handle: null }))); event.target.value = ""; }} />
       <div className="flex flex-1 min-h-0">
         <aside className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard" title={t("nav.home")} aria-label={t("nav.home")} className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/home.png" alt={t("nav.home")} width={28} height={28} /></Link>
-            <span className="font-mono text-sm font-semibold text-textPrimary" aria-label={t("match.currentPosition")}>{formatClock(combinedTime)}</span>
-          </div>
+          <span className="font-mono text-sm font-semibold text-textPrimary" aria-label={t("match.currentPosition")}>{formatClock(combinedTime)}</span>
           {match && <MatchDetailsCard match={match} videoCount={blocks.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} onReplaceVideos={match.coach_id === currentUserId && videos.every((video) => isLocalVideoUrl(video.video_url)) ? () => void chooseReplacementVideos() : undefined} onDeleteMatch={match.coach_id === currentUserId || isPlatformAdmin ? () => setConfirmDeleteMatch(true) : undefined} replacing={replacing} editable={canEditMatch} />}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
           <div><h3 className="mb-2 text-sm font-semibold text-textBright">{t("video.periodMarkers")}</h3><div className="space-y-2">{markerTags.map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div></div>

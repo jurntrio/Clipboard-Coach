@@ -27,7 +27,7 @@ export default async function IntradeskTrainingPage({ params }: { params: { trai
   };
 
   return <div className="mx-auto max-w-5xl p-4 sm:p-8">
-    <SectionHeader title={training.title} subtitle={`${training.age_category} · versie ${training.current_version}`} artworkSrc="/branding/intradesk.png" backHref="/dashboard/intradesk" />
+    <SectionHeader title={training.title} subtitle={`${training.age_category} · versie ${training.current_version}`} artworkSrc="/branding/intradesk.png" backHref="/dashboard/intradesk" showHome={false} />
 
     <section className="grid gap-4 rounded-2xl border border-border bg-card p-5 sm:grid-cols-2 lg:grid-cols-4">
       <Fact label="Categorie" value={training.age_category} />

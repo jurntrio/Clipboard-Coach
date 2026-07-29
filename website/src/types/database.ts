@@ -37,6 +37,8 @@ export type Club = {
   external_sync_status: string | null;
   last_synced_at: string | null;
   clip_advertising_enabled: boolean;
+  general_sponsor_url: string | null;
+  use_general_sponsor: boolean;
   clip_view_count_roles: string[];
   created_at: string;
   updated_at: string;
@@ -50,6 +52,8 @@ export type ClubTeam = {
   age_category: string | null;
   level_or_competition: string | null;
   trainers_can_edit_roster: boolean;
+  sponsor_url: string | null;
+  sponsor_enabled: boolean;
   status: "active" | "inactive" | "pending" | "rejected" | "archived" | "merged";
   merged_into_id: string | null;
   external_provider: string | null;

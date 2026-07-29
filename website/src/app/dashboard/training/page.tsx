@@ -11,7 +11,7 @@ export default async function TrainingPage() {
     ? await supabase.from("club_module_entitlements").select("club_id").eq("club_id", context.activeClubId).eq("module_key", "intradesk").eq("enabled", true).maybeSingle()
     : { data: { club_id: "personal" } };
   return <div className="mx-auto max-w-5xl p-4 sm:p-8">
-    <SectionHeader title="Training" subtitle="Plan trainingen, houd aanwezigheden bij en maak nieuwe trainingsplannen." artworkSrc="/branding/training.png" />
+    <SectionHeader title="Training" subtitle="Plan trainingen, houd aanwezigheden bij en maak nieuwe trainingsplannen." artworkSrc="/branding/training.png" showHome={false} />
     <section className="rounded-2xl border border-border bg-card p-6 text-center sm:p-10">
       <Image src="/branding/training.png" alt="" width={150} height={150} className="mx-auto h-28 w-28 object-contain" />
       <h2 className="mt-5 text-2xl font-bold text-textBright">Trainingen</h2>

@@ -51,7 +51,7 @@ export default async function IntradeskPage() {
   }));
 
   return <div className="mx-auto max-w-[1500px] p-4 sm:p-8">
-    <SectionHeader title="Intradesk" subtitle="De gedeelde trainingsbibliotheek van je club, geordend per leeftijd." artworkSrc="/branding/intradesk.png" />
+    <SectionHeader title="Intradesk" subtitle="De gedeelde trainingsbibliotheek van je club, geordend per leeftijd." artworkSrc="/branding/intradesk.png" showHome={false} />
     <IntradeskLibrary trainings={rows} />
   </div>;
 }
