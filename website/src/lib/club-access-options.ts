@@ -5,7 +5,7 @@ export const CLUB_FUNCTION_ROLES = [
   ["head_youth_development", "TVJO / Hoofd jeugdopleiding"], ["technical_director", "Technisch directeur"],
   ["trainer", "Trainer"], ["team_manager", "Teamafgevaardigde"], ["goalkeeper_coach", "Keeperstrainer"],
   ["video_analyst", "Videoanalist"], ["physiotherapist", "Kinesist"], ["doctor", "Dokter"],
-  ["performance_coach", "Performance coach"], ["physical_coach", "Physical coach"], ["operator", "Uitbater"],
+  ["performance_coach", "Performance coach"], ["physical_coach", "Physical coach"], ["operator", "Medewerker horeca"],
   ["equipment_manager", "Materiaalmeester"], ["scout", "Scout"],
   ["communications", "Communicatie- / persverantwoordelijke"], ["match_secretary", "Wedstrijdsecretaris"],
   ["safety_officer", "Veiligheidsverantwoordelijke"], ["head_referees", "Hoofd Scheidsrechters"],
