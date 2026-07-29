@@ -35,6 +35,13 @@ export async function getClubAccess(clubId: string, user: { id: string; email?: 
       else permissions.delete(row.permission_key as ClubPermissionKey);
     }
   }
+  if (permissions.has("teams.manage_all")) {
+    permissions.add("teams.view_all");
+    permissions.add("teams.view");
+    permissions.add("teams.manage");
+  } else if (permissions.has("teams.view_all")) {
+    permissions.add("teams.view");
+  }
   const teamIds = new Set((selected ?? []).map((row) => row.club_team_id));
   if (membership.team_scope === "assigned" && trainer) {
     const { data: assignments } = await admin.from("club_trainer_teams").select("club_team_id").eq("trainer_id", trainer.id).eq("status", "active");
@@ -43,7 +50,7 @@ export async function getClubAccess(clubId: string, user: { id: string; email?: 
   return {
     exists: true, role: membership.role, functionRole: membership.function_role,
     teamScope: membership.team_scope as TeamScope, readOnly, permissions,
-    teamIds: membership.role === "club_admin" || readOnly || membership.team_scope === "all" ? null : teamIds
+    teamIds: membership.role === "club_admin" || readOnly || membership.team_scope === "all" || permissions.has("teams.view_all") ? null : teamIds
   };
 }
 

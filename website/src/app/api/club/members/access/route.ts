@@ -46,7 +46,17 @@ export async function PUT(request: Request) {
   const permissions = Array.isArray(body.permissions)
     ? body.permissions.filter((key: unknown): key is string => typeof key === "string" && permissionKeys.has(key as never))
     : [];
-  if (!permissions.includes("intradesk.view")) permissions.push("intradesk.view");
+  if (permissions.includes("teams.manage_all")) {
+    for (const required of ["teams.view_all", "teams.view", "teams.manage"]) {
+      if (!permissions.includes(required)) permissions.push(required);
+    }
+  } else if (permissions.includes("teams.view_all") && !permissions.includes("teams.view")) {
+    permissions.push("teams.view");
+  }
+  if (!permissions.includes("teams.manage")) {
+    const importIndex = permissions.indexOf("teams.import");
+    if (importIndex >= 0) permissions.splice(importIndex, 1);
+  }
   const extraTeamIds = permissions.includes("teams.view") ? teamIds : [];
   const { error: membershipError } = await admin.from("club_memberships").update({
     function_role: body.functionRole, custom_role_name: customRoleName, team_scope: body.teamScope
