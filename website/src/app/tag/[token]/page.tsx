@@ -62,12 +62,16 @@ export default function LiveTagPage() {
       body: JSON.stringify({ tagName, playerIds: playerIdsOverride ?? selectedPlayerIds, taggerName })
     });
     setSaving(false);
-    if (!response.ok) { setMessage("De tag kon niet worden opgeslagen."); return; }
+    if (!response.ok) {
+      const result = await response.json().catch(() => null) as { error?: string } | null;
+      setMessage(result?.error || "De tag kon niet worden opgeslagen.");
+      return;
+    }
     setMessage(`${tagName} opgeslagen om ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
   }
 
   function handleTagPress(name: string) {
-    if (getTagEventKind(name) === "goal") { setGoalPromptTag(name); return; }
+    if (getTagEventKind(name) === "goal" && players.length > 0) { setGoalPromptTag(name); return; }
     void addTag(name);
   }
 

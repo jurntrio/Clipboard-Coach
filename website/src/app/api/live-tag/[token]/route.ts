@@ -2,6 +2,19 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTagColor } from "@/lib/utils";
 
+function brusselsKickoff(date: string | null, time: string | null) {
+  if (!date || !time) return null;
+  const target = `${date}T${time.slice(0, 5)}:${time.slice(6, 8) || "00"}`;
+  const candidate = new Date(`${target}+02:00`);
+  if (Number.isNaN(candidate.getTime())) return null;
+  const localHour = Number(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Brussels", hour: "2-digit", hour12: false
+  }).format(candidate));
+  const requestedHour = Number(time.slice(0, 2));
+  if (localHour === requestedHour) return candidate;
+  return new Date(candidate.getTime() + (requestedHour - localHour) * 60 * 60 * 1000);
+}
+
 async function loadLink(token: string) {
   const supabase = createAdminClient();
   const { data } = await supabase
@@ -33,6 +46,15 @@ export async function POST(request: Request, { params }: { params: { token: stri
   const tagName = body?.tagName?.trim() ?? "";
   const allowedTags = (link.matches.live_tag_names ?? []) as string[];
   if (!tagName || !allowedTags.includes(tagName)) return NextResponse.json({ error: "Invalid tag" }, { status: 400 });
+  const kickoff = brusselsKickoff(link.matches.match_date, link.matches.start_time);
+  if (kickoff && Date.now() < kickoff.getTime()) {
+    return NextResponse.json({ error: "De wedstrijd is nog niet begonnen." }, { status: 409 });
+  }
+  if (kickoff) {
+    await supabase.from("live_match_tags").delete()
+      .eq("match_id", link.matches.id)
+      .lt("occurred_at", kickoff.toISOString());
+  }
   const allowedPlayers = new Set((link.matches.player_ids ?? []) as string[]);
   const playerIds = (body?.playerIds ?? []).filter((id) => allowedPlayers.has(id)).slice(0, 4);
   const taggerName = body?.taggerName?.trim().slice(0, 80) || null;
