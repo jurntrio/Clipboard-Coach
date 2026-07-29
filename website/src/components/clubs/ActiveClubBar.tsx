@@ -36,7 +36,7 @@ export function ActiveClubBar() {
             width={52}
             height={52}
             unoptimized
-            className="h-[52px] w-[52px] shrink-0 rounded-xl border border-borderButton bg-white object-contain"
+            className="h-[52px] w-[52px] shrink-0 rounded-xl border border-borderButton bg-transparent object-contain"
           />
         ) : (
           <div

@@ -58,7 +58,7 @@ export function ClubLogoUploader({ clubId, clubName, logoUrl, readOnly = false, 
     <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => event.target.files?.[0] && void upload(event.target.files[0])} />
     <button type="button" disabled={readOnly || busy} onClick={() => inputRef.current?.click()}
       title={readOnly ? clubName : "Verander het logo"}
-      className="group/logo relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-white p-1 disabled:cursor-default">
+      className={`group/logo relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-border p-1 disabled:cursor-default ${currentLogo ? "bg-transparent" : "bg-white"}`}>
       {currentLogo ? <Image src={currentLogo} alt={`Logo ${clubName}`} width={64} height={64} className="h-full w-full object-contain" unoptimized /> : <span className="text-center text-[10px] font-bold uppercase text-[#7a857f]">Geen logo</span>}
       {!readOnly && <span className="absolute inset-x-0 bottom-0 translate-y-full bg-black/80 px-1 py-1 text-[9px] font-semibold text-white transition-transform group-hover/logo:translate-y-0">Verander het logo</span>}
     </button>
@@ -66,7 +66,7 @@ export function ClubLogoUploader({ clubId, clubName, logoUrl, readOnly = false, 
   </div>;
 
   return <div className="flex flex-wrap items-center gap-3">
-    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-border bg-white p-1">
+    <div className={`grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-border p-1 ${currentLogo ? "bg-transparent" : "bg-white"}`}>
       {currentLogo ? <Image src={currentLogo} alt={`Logo ${clubName}`} width={64} height={64} className="h-full w-full object-contain" unoptimized /> : <span className="text-center text-[10px] font-bold uppercase text-[#7a857f]">Geen logo</span>}
     </div>
     <div>
