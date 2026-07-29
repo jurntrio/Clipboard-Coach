@@ -86,11 +86,16 @@ function mappedFixture(summary: string, teamName: string, clubName: string) {
 
 export async function syncFoot24Feed(teamId: string) {
   const admin = createAdminClient();
-  const [{ data: team }, { data: feed }] = await Promise.all([
-    admin.from("club_teams").select("id, club_id, name, clubs(name)").eq("id", teamId).maybeSingle(),
+  const [teamResult, feedResult] = await Promise.all([
+    admin.from("club_teams").select("id, club_id, name").eq("id", teamId).maybeSingle(),
     admin.from("club_team_calendar_feeds").select("*").eq("club_team_id", teamId).maybeSingle()
   ]);
-  if (!team || !feed) throw new Error("Geen kalenderlink voor deze ploeg ingesteld.");
+  if (teamResult.error) throw new Error(`Ploeg kon niet worden gelezen: ${teamResult.error.message}`);
+  if (feedResult.error) throw new Error(`Kalenderinstelling kon niet worden gelezen: ${feedResult.error.message}`);
+  const team = teamResult.data;
+  const feed = feedResult.data;
+  if (!team) throw new Error("Ploeg niet gevonden.");
+  if (!feed) throw new Error("Geen kalenderlink voor deze ploeg ingesteld.");
 
   const url = validateFoot24Url(feed.feed_url);
   const headers: Record<string, string> = { Accept: "text/calendar" };
@@ -109,7 +114,10 @@ export async function syncFoot24Feed(teamId: string) {
   }
   const events = parseFoot24Calendar(await response.text());
   if (!events.length) throw new Error("De kalender bevat geen bruikbare wedstrijden.");
-  const { data: operationalTeam } = await admin.from("teams").select("id").eq("club_team_id", team.id).maybeSingle();
+  const [{ data: club }, { data: operationalTeam }] = await Promise.all([
+    admin.from("clubs").select("name").eq("id", team.club_id).maybeSingle(),
+    admin.from("teams").select("id").eq("club_team_id", team.id).maybeSingle()
+  ]);
   if (!operationalTeam) throw new Error("De ploeg heeft geen gekoppelde spelerslijst.");
   const { data: owner } = await admin.from("club_memberships").select("profile_id").eq("club_id", team.club_id)
     .eq("role", "club_admin").eq("status", "active").limit(1).maybeSingle();
@@ -118,7 +126,6 @@ export async function syncFoot24Feed(teamId: string) {
   let imported = 0;
   let updated = 0;
   for (const event of events) {
-    const club = team.clubs as unknown as { name: string } | null;
     const fixture = mappedFixture(event.summary, team.name, club?.name ?? team.name);
     const externalMatchId = `${team.id}:${event.uid}`;
     const payload = {
