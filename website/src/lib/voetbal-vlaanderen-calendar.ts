@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { removeFoot24Advertisements } from "@/lib/foot24-calendar";
 
 type OfficialGame = {
   id: string;
@@ -56,6 +57,7 @@ function normalized(value: string) {
 
 export async function syncVoetbalVlaanderenFeed(teamId: string) {
   const admin = createAdminClient();
+  await removeFoot24Advertisements(teamId);
   const [{ data: team }, { data: feed }] = await Promise.all([
     admin.from("club_teams").select("id, club_id, name").eq("id", teamId).maybeSingle(),
     admin.from("club_team_calendar_feeds").select("*").eq("club_team_id", teamId).maybeSingle()

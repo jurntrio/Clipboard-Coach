@@ -78,13 +78,31 @@ function cleanSummary(summary: string) {
   return summary.replace(/^[^\p{L}\p{N}]+/u, "").replace(/\s+/g, " ").trim();
 }
 
+export function isFoot24Advertisement(summary: string) {
+  return /brochure|tornooivoetbal|jeugdtoernooien|update (?:voetbal)?kalender/i.test(cleanSummary(summary));
+}
+
+export async function removeFoot24Advertisements(teamId: string) {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("matches").select("id, team_b_name")
+    .eq("external_source", "foot24").eq("club_team_id", teamId);
+  if (error) throw new Error(`Oude Foot24-items konden niet worden gecontroleerd: ${error.message}`);
+  const advertisementIds = (data ?? [])
+    .filter((match) => isFoot24Advertisement(match.team_b_name ?? ""))
+    .map((match) => match.id);
+  if (!advertisementIds.length) return 0;
+  const { error: deleteError } = await admin.from("matches").delete().in("id", advertisementIds);
+  if (deleteError) throw new Error(`Oude Foot24-reclame kon niet worden verwijderd: ${deleteError.message}`);
+  return advertisementIds.length;
+}
+
 function normalizeTeamName(value: string) {
   return value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
 }
 
 function isFixtureForClub(summary: string, clubName: string) {
   const cleaned = cleanSummary(summary);
-  if (/brochure|tornooivoetbal|jeugdtoernooien|update (?:voetbal)?kalender/i.test(cleaned)) return false;
+  if (isFoot24Advertisement(cleaned)) return false;
   const source = splitFixture(cleaned, "");
   if (!source.home || !source.away) return false;
   const clubKey = normalizeTeamName(clubName);
