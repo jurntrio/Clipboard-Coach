@@ -35,3 +35,19 @@ test("recognizes cancelled matches", () => {
   const [event] = parseCalendar(calendar);
   assert.equal(event.cancelled, true);
 });
+
+test("parses the timezone and summary format used by the KM Torhout A feed", () => {
+  const calendar = [
+    "BEGIN:VEVENT",
+    "UID:6a69f7d2bf208",
+    "DTSTART;TZID=Europe/Brussels:20260729T200000",
+    "DTEND;TZID=Europe/Brussels:20260729T214500",
+    "SUMMARY:⚽ KM TORHOUT - KVV. ZELZATE (1 A)",
+    "END:VEVENT"
+  ].join("\r\n");
+
+  const [event] = parseCalendar(calendar);
+  assert.equal(event.uid, "6a69f7d2bf208");
+  assert.equal(event.summary, "⚽ KM TORHOUT - KVV. ZELZATE (1 A)");
+  assert.equal(event.startsAt.toISOString(), "2026-07-29T18:00:00.000Z");
+});

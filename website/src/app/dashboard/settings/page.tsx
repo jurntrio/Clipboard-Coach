@@ -9,6 +9,7 @@ import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { useI18n } from "@/i18n/client";
 import { PrivacyDataSection } from "@/components/settings/PrivacyDataSection";
 import { ClipProfilesTable } from "@/components/settings/ClipProfilesTable";
+import { isPeriodMarker } from "@/lib/tags";
 
 export default function SettingsPage() {
   const { t } = useI18n();
@@ -79,7 +80,7 @@ export default function SettingsPage() {
         <p className="text-textMuted text-sm mb-3">{t("settings.quickTagsHelp")}</p>
 
         <div className="flex flex-col gap-1 mb-4">
-          {standardTags.map((tag) => (
+          {standardTags.filter((tag) => !isPeriodMarker(tag.name)).map((tag) => (
             <div key={tag.id} className="flex items-center justify-between bg-card border border-border rounded-lg px-3 py-2">
               {editingTagId === tag.id ? <input autoFocus value={tagNameDraft} onChange={(event) => setTagNameDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void renameStandardTag(tag.id); if (event.key === "Escape") setEditingTagId(null); }} className="min-w-0 flex-1 rounded border border-accent bg-input px-2 py-1 text-textPrimary outline-none" /> : <span className="text-textPrimary">{tag.name}</span>}
               {!tag.is_protected && (

@@ -32,14 +32,24 @@ export async function PUT(request: Request, { params }: { params: { teamId: stri
   if ("response" in ctx) return ctx.response;
   const body = await request.json().catch(() => null) as { url?: unknown; enabled?: unknown } | null;
   const rawUrl = typeof body?.url === "string" ? body.url.trim() : "";
-  const { data: existing } = await ctx.admin.from("club_team_calendar_feeds").select("feed_url").eq("club_team_id", params.teamId).maybeSingle();
+  const { data: existing } = await ctx.admin.from("club_team_calendar_feeds")
+    .select("feed_url").eq("club_team_id", params.teamId).maybeSingle();
   if (!rawUrl && !existing) return NextResponse.json({ error: "Vul eerst een Foot24 iCal-link in." }, { status: 400 });
   let feedUrl = existing?.feed_url ?? "";
   try { if (rawUrl) feedUrl = validateFoot24Url(rawUrl); }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Ongeldige link." }, { status: 400 }); }
+  const feedChanged = !!existing && existing.feed_url !== feedUrl;
   const { error } = await ctx.admin.from("club_team_calendar_feeds").upsert({
     club_team_id: params.teamId, provider: "foot24", feed_url: feedUrl,
-    enabled: body?.enabled === true, updated_at: new Date().toISOString()
+    enabled: body?.enabled === true,
+    ...(feedChanged ? {
+      last_synced_at: null,
+      last_sync_status: null,
+      last_sync_message: null,
+      last_etag: null,
+      last_modified: null
+    } : {}),
+    updated_at: new Date().toISOString()
   }, { onConflict: "club_team_id" });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
