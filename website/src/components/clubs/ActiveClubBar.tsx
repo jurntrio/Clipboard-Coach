@@ -2,11 +2,20 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { useActiveClub } from "./ActiveClubProvider";
 
 export function ActiveClubBar() {
   const { clubs, activeClub, activeClubId, isPlatformAdmin, changing, selectClub } = useActiveClub();
+  const router = useRouter();
   const showClubSelector = isPlatformAdmin || clubs.length > 1;
+  async function signOut() {
+    await createClient().auth.signOut();
+    router.replace("/login");
+    router.refresh();
+  }
+  const actionClass = "grid h-[52px] w-[52px] shrink-0 place-items-center rounded-xl border border-borderButton bg-button transition hover:border-accent hover:bg-cardHover";
 
   return (
     <div className="sticky top-0 z-40 border-b border-border bg-card/95 px-5 py-3 backdrop-blur">
@@ -15,7 +24,7 @@ export function ActiveClubBar() {
           href="/dashboard"
           title="Home"
           aria-label="Home"
-          className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-xl border border-borderButton bg-button transition hover:border-accent hover:bg-cardHover"
+          className={actionClass}
         >
           <Image src="/branding/home.png" alt="" width={30} height={30} />
         </Link>
@@ -48,6 +57,25 @@ export function ActiveClubBar() {
             {clubs.map((club) => <option key={club.id} value={club.id}>{club.name}</option>)}
           </select>
         )}
+        <div className="ml-auto hidden items-center gap-3 sm:flex">
+          <Link href="/dashboard/settings" title="Instellingen" aria-label="Instellingen" className={actionClass}>
+            <Image src="/branding/settings.png" alt="" width={32} height={32} />
+          </Link>
+          <Link href="/dashboard/help" title="Help" aria-label="Help" className={actionClass}>
+            <Image src="/branding/help.png" alt="" width={32} height={32} />
+          </Link>
+          <button type="button" onClick={() => void signOut()} title="Afmelden" aria-label="Afmelden" className={actionClass}>
+            <Image src="/branding/exit.png" alt="" width={32} height={32} />
+          </button>
+        </div>
+        <details className="group relative ml-auto sm:hidden">
+          <summary className={`${actionClass} cursor-pointer list-none text-xl font-bold text-textPrimary`} title="Menu" aria-label="Menu">•••</summary>
+          <div className="absolute right-0 z-50 mt-2 grid min-w-48 gap-1 rounded-xl border border-border bg-cardAlt p-2 shadow-xl">
+            <Link href="/dashboard/settings" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-textPrimary hover:bg-cardHover"><Image src="/branding/settings.png" alt="" width={28} height={28} />Instellingen</Link>
+            <Link href="/dashboard/help" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-textPrimary hover:bg-cardHover"><Image src="/branding/help.png" alt="" width={28} height={28} />Help</Link>
+            <button type="button" onClick={() => void signOut()} className="flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-textPrimary hover:bg-cardHover"><Image src="/branding/exit.png" alt="" width={28} height={28} />Afmelden</button>
+          </div>
+        </details>
       </div>
     </div>
   );
