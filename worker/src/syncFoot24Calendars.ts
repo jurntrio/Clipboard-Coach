@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { parseCalendar } from "./foot24CalendarParser";
+import { isFixtureForClub } from "./foot24Fixture";
 
 function validateUrl(raw: string) {
   const url = new URL(raw);
@@ -14,8 +15,16 @@ function fixture(summary: string, teamName: string) {
   return parts.length >= 2 ? { home: parts[0], away: parts.slice(1).join(" - ") } : { home: teamName, away: summary };
 }
 
+function cleanSummary(summary: string) {
+  return summary.replace(/^[^\p{L}\p{N}]+/u, "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeTeamName(value: string) {
+  return value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+}
+
 function mappedFixture(summary: string, teamName: string, clubName: string) {
-  const source = fixture(summary, teamName);
+  const source = fixture(cleanSummary(summary), teamName);
   const normalize = (value: string) => value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
   const clubKey = normalize(clubName);
   const homeIsClub = normalize(source.home).includes(clubKey);
@@ -41,13 +50,25 @@ async function syncFeed(feed: Record<string, any>) {
     return;
   }
   if (!response.ok || !(response.headers.get("content-type") ?? "").toLowerCase().includes("text/calendar")) throw new Error(`Foot24 response ${response.status}`);
-  const events = parseCalendar(await response.text());
-  if (!events.length) throw new Error("No usable calendar events");
+  const feedEvents = parseCalendar(await response.text());
+  if (!feedEvents.length) throw new Error("No usable calendar events");
+  const club = team.clubs as unknown as { name: string } | null;
+  const clubName = club?.name ?? team.name;
+  const events = feedEvents.filter((event) => isFixtureForClub(event.summary, clubName));
+  if (!events.length) throw new Error("No fixtures for this club");
+  const rejectedIds = feedEvents.filter((event) => !isFixtureForClub(event.summary, clubName))
+    .map((event) => `${team.id}:${event.uid}`);
+  if (rejectedIds.length) {
+    const { error } = await supabase.from("matches").delete()
+      .eq("external_source", "foot24")
+      .eq("club_team_id", team.id)
+      .in("external_match_id", rejectedIds);
+    if (error) throw error;
+  }
   let imported = 0;
   let updated = 0;
   for (const event of events) {
-    const club = team.clubs as unknown as { name: string } | null;
-    const names = mappedFixture(event.summary, team.name, club?.name ?? team.name);
+    const names = mappedFixture(event.summary, team.name, clubName);
     const externalMatchId = `${team.id}:${event.uid}`;
     const payload = {
       coach_id: owner.profile_id, club_id: team.club_id, club_team_id: team.id, team_a_id: operationalTeam.id,

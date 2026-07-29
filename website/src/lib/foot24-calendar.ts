@@ -74,8 +74,25 @@ function splitFixture(summary: string, ownTeamName: string) {
   return { home: ownTeamName, away: cleaned };
 }
 
+function cleanSummary(summary: string) {
+  return summary.replace(/^[^\p{L}\p{N}]+/u, "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeTeamName(value: string) {
+  return value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+}
+
+function isFixtureForClub(summary: string, clubName: string) {
+  const cleaned = cleanSummary(summary);
+  if (/brochure|tornooivoetbal|jeugdtoernooien|update (?:voetbal)?kalender/i.test(cleaned)) return false;
+  const source = splitFixture(cleaned, "");
+  if (!source.home || !source.away) return false;
+  const clubKey = normalizeTeamName(clubName);
+  return !!clubKey && (normalizeTeamName(source.home).includes(clubKey) || normalizeTeamName(source.away).includes(clubKey));
+}
+
 function mappedFixture(summary: string, teamName: string, clubName: string) {
-  const source = splitFixture(summary, teamName);
+  const source = splitFixture(cleanSummary(summary), teamName);
   const normalize = (value: string) => value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
   const clubKey = normalize(clubName);
   const homeIsClub = normalize(source.home).includes(clubKey);
@@ -112,13 +129,25 @@ export async function syncFoot24Feed(teamId: string) {
   if (!(response.headers.get("content-type") ?? "").toLowerCase().includes("text/calendar")) {
     throw new Error("De link gaf geen iCal-kalender terug.");
   }
-  const events = parseFoot24Calendar(await response.text());
-  if (!events.length) throw new Error("De kalender bevat geen bruikbare wedstrijden.");
+  const feedEvents = parseFoot24Calendar(await response.text());
+  if (!feedEvents.length) throw new Error("De kalender bevat geen bruikbare wedstrijden.");
   const [{ data: club }, { data: operationalTeam }] = await Promise.all([
     admin.from("clubs").select("name").eq("id", team.club_id).maybeSingle(),
     admin.from("teams").select("id").eq("club_team_id", team.id).maybeSingle()
   ]);
   if (!operationalTeam) throw new Error("De ploeg heeft geen gekoppelde spelerslijst.");
+  const clubName = club?.name ?? team.name;
+  const events = feedEvents.filter((event) => isFixtureForClub(event.summary, clubName));
+  if (!events.length) throw new Error("De kalender bevat geen wedstrijden voor deze club.");
+  const rejectedIds = feedEvents.filter((event) => !isFixtureForClub(event.summary, clubName))
+    .map((event) => `${team.id}:${event.uid}`);
+  if (rejectedIds.length) {
+    const { error } = await admin.from("matches").delete()
+      .eq("external_source", "foot24")
+      .eq("club_team_id", team.id)
+      .in("external_match_id", rejectedIds);
+    if (error) throw new Error(`Oude Foot24-reclame kon niet worden verwijderd: ${error.message}`);
+  }
   const { data: owner } = await admin.from("club_memberships").select("profile_id").eq("club_id", team.club_id)
     .eq("role", "club_admin").eq("status", "active").limit(1).maybeSingle();
   if (!owner?.profile_id) throw new Error("De club heeft geen actieve clubadmin om de wedstrijden aan te koppelen.");
@@ -126,7 +155,7 @@ export async function syncFoot24Feed(teamId: string) {
   let imported = 0;
   let updated = 0;
   for (const event of events) {
-    const fixture = mappedFixture(event.summary, team.name, club?.name ?? team.name);
+    const fixture = mappedFixture(event.summary, team.name, clubName);
     const externalMatchId = `${team.id}:${event.uid}`;
     const payload = {
       coach_id: owner.profile_id,

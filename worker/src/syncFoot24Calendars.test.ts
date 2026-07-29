@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseCalendar } from "./foot24CalendarParser";
+import { isFixtureForClub } from "./foot24Fixture";
 
 test("parses Foot24-style events and unfolded summaries", () => {
   const calendar = [
@@ -50,4 +51,12 @@ test("parses the timezone and summary format used by the KM Torhout A feed", () 
   assert.equal(event.uid, "6a69f7d2bf208");
   assert.equal(event.summary, "⚽ KM TORHOUT - KVV. ZELZATE (1 A)");
   assert.equal(event.startsAt.toISOString(), "2026-07-29T18:00:00.000Z");
+});
+
+test("distinguishes Foot24 fixtures from advertising events", () => {
+  assert.equal(isFixtureForClub("⚽ KM TORHOUT - KVV. ZELZATE (1 A)", "KM Torhout"), true);
+  assert.equal(isFixtureForClub("⚽ SPARTA PETEGEM DEINZE - KM TORHOUT (1 A)", "KM Torhout"), true);
+  assert.equal(isFixtureForClub("⚽ Ontdek ruim 80 internationale jeugdtoernooien! 👉 Gratis brochure", "KM Torhout"), false);
+  assert.equal(isFixtureForClub("KM TORHOUT reeks 1 A – Internationaal tornooivoetbal beleven? Bestel nu de gratis brochure!", "KM Torhout"), false);
+  assert.equal(isFixtureForClub("Foot24.be - Update voetbalkalender", "KM Torhout"), false);
 });
