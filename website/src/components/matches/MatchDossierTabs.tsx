@@ -31,9 +31,9 @@ const emptyDossier: MatchDossier = {
   highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: []
 };
 
-export function MatchDossierTabs({ matchId, players, clips, initialDossier, editable, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed }: {
+export function MatchDossierTabs({ matchId, players, clips, initialDossier, editable, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, showSelection = true }: {
   matchId: string; players: Player[]; clips: Clip[]; initialDossier?: Partial<MatchDossier> | null; editable: boolean;
-  played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean;
+  played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean; showSelection?: boolean;
 }) {
   const router = useRouter();
   const expectedGoals = Array.from({ length: (scoreA ?? 0) + (scoreB ?? 0) }, (_, index) => ({ id: `goal-${index + 1}` }));
@@ -104,14 +104,14 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
       </div> : <Empty text="Nog geen clips voor deze wedstrijd." />}
     </ClosedPanel>
 
-    <ClosedPanel title={`Selectie (${players.length})`}>
+    {showSelection && <ClosedPanel title={`Selectie (${players.length})`}>
       {players.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {players.map(player => <div key={player.id} className="rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 text-sm text-textPrimary">
           {player.jersey_number != null && <span className="mr-2 font-black text-accent">{player.jersey_number}</span>}
           {player.first_name} {player.last_name}
         </div>)}
       </div> : <Empty text="Nog geen spelers geselecteerd." />}
-    </ClosedPanel>
+    </ClosedPanel>}
 
     <ClosedPanel title="Opstelling">
       {field("lineup_notes", "Opstelling", "Noteer de basisopstelling, formatie, posities en wissels…")}

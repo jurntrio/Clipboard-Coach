@@ -58,6 +58,9 @@ export default function MatchesHubPage() {
   const [preparationMatch, setPreparationMatch] = useState<HubMatch | null>(null);
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const [canManageMatches, setCanManageMatches] = useState(false);
+  const [canPrepareMatches, setCanPrepareMatches] = useState(false);
+  const [canCreateTagLink, setCanCreateTagLink] = useState(false);
+  const [matchOptionNames, setMatchOptionNames] = useState<Record<string, string>>({});
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -76,6 +79,9 @@ export default function MatchesHubPage() {
     setClips(clipData ?? []);
     setIsPlatformAdmin(hub.isPlatformAdmin === true);
     setCanManageMatches(hub.canManageMatches === true);
+    setCanPrepareMatches(hub.canPrepareMatches === true);
+    setCanCreateTagLink(hub.canCreateTagLink === true);
+    setMatchOptionNames(Object.fromEntries((hub.matchOptions ?? []).map((option: { id: string; label: string }) => [option.id, option.label])));
     setAccountRole((hub.role as typeof accountRole) ?? "coach");
     if (user) {
       setCurrentUserId(user.id);
@@ -221,9 +227,9 @@ export default function MatchesHubPage() {
         <ClubMatchCsvImporter teams={csvTeams} readOnly={false} onImported={load} />
       </div>}
 
-      <MatchSection title={t("matchHub.upcoming")} matches={showAllUpcoming ? upcoming : upcoming.slice(0, 3)} empty={t("matchHub.noUpcoming")} allowTagging={canManageMatches} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onPrepare={setPreparationMatch} onDeleteMatch={setDeleteMatchTarget} onDeleteClip={setDeleteClipTarget} onTagLink={createTagLink} onClip={setSelectedClip} />
+      <MatchSection title={t("matchHub.upcoming")} matches={showAllUpcoming ? upcoming : upcoming.slice(0, 3)} empty={t("matchHub.noUpcoming")} allowTagging={canCreateTagLink} canPrepare={canPrepareMatches} optionNames={matchOptionNames} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onPrepare={setPreparationMatch} onDeleteMatch={setDeleteMatchTarget} onDeleteClip={setDeleteClipTarget} onTagLink={createTagLink} onClip={setSelectedClip} />
       {upcoming.length > 3 && <button type="button" onClick={() => setShowAllUpcoming(value => !value)} className="mt-3 rounded-lg border border-borderButton px-4 py-2 text-sm font-semibold text-accent">{showAllUpcoming ? t("matchHub.showFirstThree") : t("matchHub.showAllUpcoming")}</button>}
-      <div className="mt-8"><MatchSection title={t("matchHub.finished")} matches={finished} empty={t("matchHub.noFinished")} allowTagging={false} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onPrepare={setPreparationMatch} onDeleteMatch={setDeleteMatchTarget} onDeleteClip={setDeleteClipTarget} onTagLink={createTagLink} onClip={setSelectedClip} /></div>
+      <div className="mt-8"><MatchSection title={t("matchHub.finished")} matches={finished} empty={t("matchHub.noFinished")} allowTagging={false} canPrepare={canPrepareMatches} optionNames={matchOptionNames} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onPrepare={setPreparationMatch} onDeleteMatch={setDeleteMatchTarget} onDeleteClip={setDeleteClipTarget} onTagLink={createTagLink} onClip={setSelectedClip} /></div>
 
       {(createOpen || editingMatch) && <MatchEditor match={editingMatch} teams={teams} allPlayers={players} standardTags={standardTags} onClose={() => { setCreateOpen(false); setEditingMatch(null); }} onSaved={async () => { setCreateOpen(false); setEditingMatch(null); await load(); }} />}
       {selectedClip && <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos?.video_url ?? ""} segments={playbackSegments(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} />}
@@ -236,8 +242,8 @@ export default function MatchesHubPage() {
   );
 }
 
-function MatchSection({ title, matches, empty, allowTagging, canManage, currentUserId, isPlatformAdmin, expandedId, setExpandedId, clipsByMatch, players, sharingPlayerId, onSharePlayer, onEdit, onPrepare, onDeleteMatch, onDeleteClip, onTagLink, onClip }: {
-  title: string; matches: HubMatch[]; empty: string; allowTagging: boolean; canManage: boolean; expandedId: string | null; setExpandedId: (id: string | null) => void;
+function MatchSection({ title, matches, empty, allowTagging, canPrepare, optionNames, canManage, currentUserId, isPlatformAdmin, expandedId, setExpandedId, clipsByMatch, players, sharingPlayerId, onSharePlayer, onEdit, onPrepare, onDeleteMatch, onDeleteClip, onTagLink, onClip }: {
+  title: string; matches: HubMatch[]; empty: string; allowTagging: boolean; canPrepare: boolean; optionNames: Record<string, string>; canManage: boolean; expandedId: string | null; setExpandedId: (id: string | null) => void;
   currentUserId: string; isPlatformAdmin: boolean; clipsByMatch: Map<string, HubClip[]>; players: Player[]; sharingPlayerId: string; onSharePlayer: (match: HubMatch, player: Player, clips: HubClip[]) => void; onEdit: (match: HubMatch) => void; onPrepare: (match: HubMatch) => void; onDeleteMatch: (match: HubMatch) => void; onDeleteClip: (clip: HubClip) => void; onTagLink: (match: HubMatch) => void; onClip: (clip: HubClip) => void;
 }) {
   const { t } = useI18n();
@@ -254,6 +260,15 @@ function MatchSection({ title, matches, empty, allowTagging, canManage, currentU
         <button type="button" onClick={() => onPrepare(match)} title={t("matchPrep.open")} aria-label={t("matchPrep.open")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-borderButton bg-button text-sm font-black text-accent hover:border-accent">i</button>
       </div>
       {expanded && <div className="border-t border-border p-4">
+        <dl className="mb-4 grid gap-2 text-sm sm:grid-cols-2">
+          <HubInfo label="Afgesproken tijdstip" value={match.meeting_time_enabled ? match.meeting_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />
+          <HubInfo label="Verzamelplaats" value={match.meeting_place_custom || optionNames[match.meeting_place_option_id ?? ""] || "Niet ingesteld"} />
+          {match.is_home_match && <HubInfo label="Veld" value={optionNames[match.field_option_id ?? ""] || "Niet ingesteld"} />}
+          {match.is_home_match && <HubInfo label="Kleedkamer thuis" value={optionNames[match.locker_room_option_id ?? ""] || "Niet ingesteld"} />}
+          {match.is_home_match && <HubInfo label="Kleedkamer bezoekers" value={optionNames[match.visitor_locker_room_option_id ?? ""] || "Niet ingesteld"} />}
+          <HubInfo label="Scheidsrechter" value={optionNames[match.referee_option_id ?? ""] || "Aangeduid door KBVB"} />
+        </dl>
+        {canPrepare && <Link href={`/dashboard/games/${match.id}/preparation`} className="mb-3 inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Wedstrijdvoorbereiding</Link>}
         <div className="mb-5 flex flex-wrap gap-2"><Link href={`/dashboard/games/${match.id}`} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">Wedstrijdinfo</Link>{allowTagging && match.status !== "finished" && <button type="button" onClick={() => void onTagLink(match)} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">{t("matchHub.copyTagLink")}</button>}{canManage && <button type="button" onClick={() => onEdit(match)} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{t("matchHub.edit")}</button>}{match.match_videos?.length ? <Link href={`/dashboard/matches/${match.id}`} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{t("common.videoViewer")}</Link> : canManage ? <Link href="/dashboard/videos" className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{t("matchHub.addVideo")}</Link> : null}{(isPlatformAdmin || match.coach_id === currentUserId) && <button type="button" onClick={() => void onDeleteMatch(match)} className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/20">{t("matchHub.deleteMatch")}</button>}</div>
         <div className="mb-4 rounded-xl border border-accent/25 bg-accentDim/40 p-3">
           <div className="mb-2 flex items-center justify-between gap-3"><h4 className="text-sm font-semibold text-textBright">{t("matchHub.teamClips")}</h4><span className="text-xs text-textMuted">{teamClips.length}</span></div>
@@ -281,6 +296,10 @@ function MatchSection({ title, matches, empty, allowTagging, canManage, currentU
       </div>}
     </article>;
   }) : <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-textMuted">{empty}</p>}</div></section>;
+}
+
+function HubInfo({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-lg border border-borderSubtle bg-cardDeep p-3"><dt className="text-xs text-textMuted">{label}</dt><dd className="mt-1 font-semibold text-textPrimary">{value}</dd></div>;
 }
 
 function ClipPills({ clips, onClip, onDelete, canDelete, empty }: { clips: HubClip[]; onClip: (clip: HubClip) => void; onDelete?: (clip: HubClip) => void; canDelete?: (clip: HubClip) => boolean; empty?: string }) {

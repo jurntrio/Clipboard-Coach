@@ -3,7 +3,7 @@ import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-const optionTypes = new Set(["field", "locker_room", "meeting_place", "non_selection_reason"]);
+const optionTypes = new Set(["field", "locker_room", "visitor_locker_room", "referee", "meeting_place", "non_selection_reason"]);
 
 async function authorize(clubId: string) {
   const supabase = createClient();

@@ -18,6 +18,9 @@ export const CLUB_PERMISSION_OPTIONS = [
   ["video.view", "Video Viewer gebruiken"],
   ["games.view", "Games bekijken"], ["games.create", "Wedstrijden aanmaken en aanpassen"],
   ["games.communication.manage", "Publieke wedstrijdinfo en sponsoring beheren"],
+  ["games.planning.manage", "Praktische wedstrijdplanning beheren"],
+  ["games.selection.view", "Volledige wedstrijdselectie bekijken"],
+  ["games.selection.manage", "Wedstrijdselectie beheren"],
   ["games.view_counts", "Kijkcijfers bekijken"], ["games.tag_link.create", "Taglink aanmaken en delen"], ["games.tag", "Wedstrijden taggen"],
   ["training.view", "Trainingen bekijken in Intradesk"], ["training.manage", "Trainingen toevoegen en versies maken"],
   ["intradesk.view", "Intradesk bekijken"], ["intradesk.manage", "Intradesk-onderdelen beheren"],
@@ -34,6 +37,9 @@ export const CLUB_PERMISSION_DESCRIPTIONS: Record<ClubPermissionKey, string> = {
   "games.view": "Geeft toegang tot Games: wedstrijden, tags en clips van de eigen/toegewezen of extra toegankelijke ploegen bekijken.",
   "games.create": "Wedstrijden aanmaken en aanpassen voor de eigen/toegewezen en eventueel extra toegankelijke ploegen. Wie toegang tot alle teams heeft, kan dit voor alle clubteams.",
   "games.communication.manage": "Publieke wedstrijdinformatie, uitslag, locatie en de sponsor van gedeelde wedstrijdclips beheren.",
+  "games.planning.manage": "Per wedstrijd de afspraak, locatie, kleedkamers, het veld en de scheidsrechter selecteren uit de clubinstellingen.",
+  "games.selection.view": "De volledige selectie bekijken. Ouders zien hiermee niet automatisch andere spelers.",
+  "games.selection.manage": "De selectie beheren, inclusief rugnummers, redenen en interne notities.",
   "games.view_counts": "Bekijken hoe vaak gedeelde clips geopend werden.",
   "games.tag_link.create": "Een eenmalige of gedeelde link maken waarmee iemand een wedstrijd kan taggen.",
   "games.tag": "Tijdens of na een wedstrijd tags en momenten toevoegen of aanpassen.",
@@ -51,7 +57,7 @@ export function defaultPermissionsForRole(role: string): ClubPermissionKey[] {
   if (role === "club_admin") return CLUB_PERMISSION_OPTIONS.map(([key]) => key);
   if (role === "club_admin_viewer") return ["teams.view", "video.view", "games.view", "games.view_counts", "training.view", "intradesk.view"];
   if (role === "trainer" || role === "goalkeeper_coach") {
-    return ["video.view", "games.view", "games.tag_link.create", "games.tag", "training.view", "intradesk.view", "clips.share"];
+    return ["video.view", "games.view", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.view", "intradesk.view", "clips.share"];
   }
   if (role === "video_analyst") return ["video.view", "games.view", "games.view_counts", "games.tag", "intradesk.view", "clips.share"];
   if (role === "communications") return ["games.view", "games.communication.manage", "clips.share"];

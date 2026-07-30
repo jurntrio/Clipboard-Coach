@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useI18n } from "@/i18n/client";
 
-export type ClubMatchOption = { id: string; club_id: string; option_type: "field" | "locker_room" | "meeting_place" | "non_selection_reason"; label: string };
+export type ClubMatchOption = { id: string; club_id: string; option_type: "field" | "locker_room" | "visitor_locker_room" | "referee" | "meeting_place" | "non_selection_reason"; label: string };
 
 const groups: Array<{ type: ClubMatchOption["option_type"]; title: string; help: string }> = [
   { type: "field", title: "clubMatchOptions.fields", help: "clubMatchOptions.fieldsHelp" },
   { type: "locker_room", title: "clubMatchOptions.lockerRooms", help: "clubMatchOptions.lockerRoomsHelp" },
+  { type: "visitor_locker_room", title: "Kleedkamers bezoekers", help: "Kleedkamers voor de bezoekende ploeg bij thuiswedstrijden." },
+  { type: "referee", title: "Scheidsrechters", help: "Standaard staat ‘Aangeduid door KBVB’ klaar." },
   { type: "meeting_place", title: "clubMatchOptions.meetingPlaces", help: "clubMatchOptions.meetingPlacesHelp" },
   { type: "non_selection_reason", title: "clubMatchOptions.reasons", help: "clubMatchOptions.reasonsHelp" }
 ];
@@ -49,8 +51,8 @@ export function ClubMatchOptionsManager({ clubId, options, readOnly, onChanged }
     <h2 className="text-xl font-semibold text-textBright">{t("clubMatchOptions.title")}</h2>
     <p className="mt-1 text-sm text-textMuted">{t("clubMatchOptions.subtitle")}</p>
     <div className="mt-4 grid gap-4 lg:grid-cols-2">{groups.map(group => <div key={group.type} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
-      <h3 className="font-semibold text-textPrimary">{t(group.title as any)}</h3>
-      <p className="mt-1 text-xs text-textMuted">{t(group.help as any)}</p>
+      <h3 className="font-semibold text-textPrimary">{group.title.includes(".") ? t(group.title as any) : group.title}</h3>
+      <p className="mt-1 text-xs text-textMuted">{group.help.includes(".") ? t(group.help as any) : group.help}</p>
       <div className="mt-3 flex gap-2"><input value={drafts[group.type] ?? ""} disabled={readOnly} onChange={event => setDrafts(current => ({ ...current, [group.type]: event.target.value }))} className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" /><button type="button" disabled={readOnly || busy === group.type} onClick={() => void add(group.type)} className="rounded-lg bg-accent px-3 py-2 text-sm font-bold text-page">{t("common.add")}</button></div>
       <div className="mt-3 flex flex-wrap gap-2">{options.filter(option => option.option_type === group.type).map(option => <span key={option.id} className="inline-flex items-center gap-2 rounded-full border border-borderButton bg-button px-3 py-1 text-sm text-textPrimary">{option.label}{!readOnly && <button type="button" disabled={busy === option.id} onClick={() => void remove(option)} className="text-red-300" aria-label={t("common.remove")}>×</button>}</span>)}</div>
     </div>)}</div>

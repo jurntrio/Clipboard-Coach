@@ -201,6 +201,8 @@ export type Match = {
   departure_time: string | null;
   field_option_id: string | null;
   locker_room_option_id: string | null;
+  visitor_locker_room_option_id: string | null;
+  referee_option_id: string | null;
   meeting_place_option_id: string | null;
   meeting_place_custom: string | null;
 };

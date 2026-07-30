@@ -37,15 +37,16 @@ export default async function GameOverviewPage({ params, searchParams }: { param
 
   const canViewVideo = staffCanView && hasClubPermission(access, "video.view");
   const canManage = staffCanView && hasClubPermission(access, "games.create");
+  const canPrepare = staffCanView && (hasClubPermission(access, "games.planning.manage") || hasClubPermission(access, "games.selection.manage")
+    || hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.tag_link.create"));
+  const canViewSelection = staffCanView && hasClubPermission(access, "games.selection.view");
   const canManagePublicInfo = staffCanView && hasClubPermission(access, "games.communication.manage");
   const editing = canManage && searchParams?.edit === "1";
   const [{ data: matchVideos }, { data: options }, { data: club }, { data: clubTeam }] = await Promise.all([
     canViewVideo
       ? admin.from("match_videos").select("video_id").eq("match_id", match.id)
       : Promise.resolve({ data: [] }),
-    staffCanView
-      ? admin.from("club_match_options").select("id, label").eq("club_id", match.club_id)
-      : Promise.resolve({ data: [] }),
+    admin.from("club_match_options").select("id, label").eq("club_id", match.club_id).eq("active", true),
     canManagePublicInfo
       ? admin.from("clubs").select("clip_advertising_enabled, general_sponsor_url").eq("id", match.club_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -55,7 +56,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   ]);
   const videoIds = (matchVideos ?? []).map(item => item.video_id);
   const [{ data: selectedPlayers }, { data: guestPlayers }, { data: dossier }, { data: clips }, { data: completedByProfile }] = staffCanView ? await Promise.all([
-    match.player_ids?.length
+    canViewSelection && match.player_ids?.length
       ? admin.from("players").select("id, first_name, last_name, jersey_number").in("id", match.player_ids).order("jersey_number")
       : Promise.resolve({ data: [] }),
     admin.from("match_guest_players").select("id, first_name, last_name, jersey_number").eq("match_id", match.id).order("created_at"),
@@ -76,6 +77,10 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     shareToken: clip.share_links?.[0]?.token ?? null
   }));
   const optionNames = new Map((options ?? []).map((option) => [option.id, option.label]));
+  const guardianPlayerIds = guardianPlayers.map(player => player.player_id);
+  const { data: guardianSelections } = !staffCanView && guardianPlayerIds.length
+    ? await admin.from("match_player_selections").select("player_id, selected").eq("match_id", match.id).in("player_id", guardianPlayerIds)
+    : { data: [] };
   const scoreKnown = match.score_a !== null && match.score_b !== null;
   const nowInBrussels = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Europe/Brussels", year: "numeric", month: "2-digit", day: "2-digit",
@@ -90,7 +95,8 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     <div className="flex flex-wrap items-center justify-between gap-3">
       <Link href="/dashboard" className="text-sm font-semibold text-accent hover:underline">← Terug naar dashboard</Link>
       <div className="flex flex-wrap gap-2">
-        {canManage && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : "Bewerken"}</Link>}
+        {canPrepare && <MatchPreparationButton match={match} />}
+        {canManage && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : "Wedstrijd bewerken"}</Link>}
         {canViewVideo && !!videoCount && <Link href={`/dashboard/matches/${match.id}`} className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page">Open videoviewer</Link>}
       </div>
     </div>
@@ -114,19 +120,20 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     </header>
 
     <section className="grid gap-4">
-      {staffCanView && <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-bold text-textBright">Voorbereiding</h2>
-          {editing && <MatchPreparationButton match={match} initialOpen />}
         </div>
-        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
           <Info label="Afgesproken tijdstip" value={match.meeting_time_enabled ? match.meeting_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />
           {!match.is_home_match && <Info label="Vertrek" value={match.departure_time_enabled ? match.departure_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />}
           <Info label="Verzamelplaats" value={match.meeting_place_custom || optionNames.get(match.meeting_place_option_id) || "Niet ingesteld"} />
           {match.is_home_match && <Info label="Veld" value={optionNames.get(match.field_option_id) || "Niet ingesteld"} />}
           {match.is_home_match && <Info label="Kleedkamer" value={optionNames.get(match.locker_room_option_id) || "Niet ingesteld"} />}
+          {match.is_home_match && <Info label="Kleedkamer bezoekers" value={optionNames.get(match.visitor_locker_room_option_id) || "Niet ingesteld"} />}
+          <Info label="Scheidsrechter" value={optionNames.get(match.referee_option_id) || "Aangeduid door KBVB"} />
         </dl>
-      </div>}
+      </div>
       {editing && canManagePublicInfo && <PublicMatchInfoEditor
         match={match}
         sponsorFeatureEnabled={club?.clip_advertising_enabled !== false}
@@ -137,7 +144,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
 
     {staffCanView && <MatchDossierTabs
       matchId={match.id}
-      players={[...(selectedPlayers ?? []), ...(guestPlayers ?? [])]}
+      players={canViewSelection ? [...(selectedPlayers ?? []), ...(guestPlayers ?? [])] : []}
       clips={dossierClips}
       initialDossier={dossier}
       editable={editing}
@@ -148,10 +155,14 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       homeTeamName={match.team_a_name}
       awayTeamName={match.team_b_name}
       completed={match.status === "finished"}
+      showSelection={canViewSelection}
     />}
 
     {!staffCanView && <p className="rounded-xl border border-borderSubtle bg-cardDeep p-4 text-sm text-textMuted">
-      Je ziet hier de algemene wedstrijdinformatie voor de ploeg van je kind. Extra voorbereiding, tagging en video zijn alleen beschikbaar voor bevoegde staf.
+      {guardianSelections?.length
+        ? guardianSelections.map(selection => <span key={selection.player_id} className="block font-semibold text-textPrimary">Jouw speler is {selection.selected ? "geselecteerd" : "niet geselecteerd"}.</span>)
+        : <span>De selectie voor jouw speler is nog niet bekend.</span>}
+      <span className="mt-2 block">Je ziet alleen de selectiestatus van je eigen kind. De volledige selectie en interne informatie zijn afgeschermd.</span>
     </p>}
   </main>;
 }

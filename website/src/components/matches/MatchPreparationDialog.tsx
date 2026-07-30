@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/client";
 import type { Match, Player } from "@/types/database";
 
-type Option = { id: string; option_type: "field" | "locker_room" | "meeting_place" | "non_selection_reason"; label: string };
+type Option = { id: string; option_type: "field" | "locker_room" | "visitor_locker_room" | "referee" | "meeting_place" | "non_selection_reason"; label: string };
 type Selection = { player_id: string; selected: boolean; jersey_number: number | null; non_selection_reason_id: string | null; note: string | null };
 type PlayerDraft = { playerId: string; selected: boolean; jerseyNumber: string; reasonId: string; note: string };
 type ExtraPlayer = Player & { team_name?: string };
@@ -12,7 +12,7 @@ type GuestDraft = { firstName: string; lastName: string; jerseyNumber: string; n
 
 const inputClass = "w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary";
 
-export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Match; onClose: () => void; onSaved: () => Promise<void> }) {
+export function MatchPreparationDialog({ match, onClose, onSaved, embedded = false }: { match: Match; onClose: () => void; onSaved: () => Promise<void>; embedded?: boolean }) {
   const { t } = useI18n();
   const [loadedMatch, setLoadedMatch] = useState<Match | null>(null);
   const [options, setOptions] = useState<Option[]>([]);
@@ -30,17 +30,27 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
   const [departureTime, setDepartureTime] = useState("");
   const [fieldOptionId, setFieldOptionId] = useState("");
   const [lockerRoomOptionId, setLockerRoomOptionId] = useState("");
+  const [visitorLockerRoomOptionId, setVisitorLockerRoomOptionId] = useState("");
+  const [refereeOptionId, setRefereeOptionId] = useState("");
+  const [tagNames, setTagNames] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState("");
   const [meetingPlaceOptionId, setMeetingPlaceOptionId] = useState("");
   const [meetingPlaceCustom, setMeetingPlaceCustom] = useState("");
   const [meetingPlaceEnabled, setMeetingPlaceEnabled] = useState(false);
   const [busy, setBusy] = useState(true);
   const [notice, setNotice] = useState("");
+  const [canPlan, setCanPlan] = useState(false);
+  const [canSelect, setCanSelect] = useState(false);
+  const [canUseTags, setCanUseTags] = useState(false);
 
   useEffect(() => {
     void fetch(`/api/matches/${match.id}/preparation`, { cache: "no-store" }).then(async response => {
       const body = await response.json();
       if (!response.ok) { setNotice(body.error || t("matchPrep.loadFailed")); setBusy(false); return; }
       const current = body.match as Match & Record<string, any>;
+      setCanPlan(body.capabilities?.canPlan === true);
+      setCanSelect(body.capabilities?.canSelect === true);
+      setCanUseTags(body.capabilities?.canTags === true || body.capabilities?.canCreateTagLink === true);
       const availableOptions = (body.options ?? []) as Option[];
       const defaultMeetingPlace = availableOptions.find(option =>
         option.option_type === "meeting_place" && option.label.trim().toLocaleLowerCase("nl") === "kleedkamer"
@@ -78,6 +88,9 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
       setDepartureTime(current.departure_time?.slice(0, 5) ?? "");
       setFieldOptionId(current.field_option_id ?? "");
       setLockerRoomOptionId(current.locker_room_option_id ?? "");
+      setVisitorLockerRoomOptionId(current.visitor_locker_room_option_id ?? "");
+      setRefereeOptionId(current.referee_option_id ?? availableOptions.find(option => option.option_type === "referee" && option.label === "Aangeduid door KBVB")?.id ?? "");
+      setTagNames(current.live_tag_names ?? []);
       setMeetingPlaceOptionId(current.meeting_place_option_id ?? defaultMeetingPlace?.id ?? "");
       setMeetingPlaceCustom(current.meeting_place_custom ?? "");
       setMeetingPlaceEnabled(!!current.meeting_place_option_id || !!current.meeting_place_custom || !!defaultMeetingPlace);
@@ -109,7 +122,8 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
         isHomeMatch, meetingTimeEnabled, meetingTime,
         departureTimeEnabled: !isHomeMatch && departureTimeEnabled,
         departureTime: !isHomeMatch ? departureTime : "",
-        fieldOptionId, lockerRoomOptionId, meetingPlaceEnabled, meetingPlaceOptionId, meetingPlaceCustom,
+        fieldOptionId, lockerRoomOptionId, visitorLockerRoomOptionId, refereeOptionId,
+        meetingPlaceEnabled, meetingPlaceOptionId, meetingPlaceCustom, tagNames,
         players: drafts.map(item => ({
           playerId: item.playerId, selected: item.selected,
           jerseyNumber: item.jerseyNumber === "" ? null : Number(item.jerseyNumber),
@@ -129,14 +143,14 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
   }
 
   const placeIsOther = meetingPlaceOptionId === "custom";
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-3" role="dialog" aria-modal="true">
-    <div className="max-h-[calc(100vh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-2xl border border-border bg-cardAlt shadow-2xl">
+  return <div className={embedded ? "w-full" : "fixed inset-0 z-50 grid place-items-center bg-black/75 p-3"} role={embedded ? undefined : "dialog"} aria-modal={embedded ? undefined : true}>
+    <div className={embedded ? "w-full rounded-2xl border border-border bg-cardAlt" : "max-h-[calc(100vh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-2xl border border-border bg-cardAlt shadow-2xl"}>
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-cardAlt p-4">
         <div className="min-w-0 flex-1"><h2 className="truncate text-xl font-bold text-textBright">{t("matchPrep.title")}</h2><p className="truncate text-sm text-textMuted">{match.team_a_name} – {match.team_b_name}</p></div>
-        <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-3 py-2 text-textPrimary">{t("common.close")}</button>
+        {!embedded && <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-3 py-2 text-textPrimary">{t("common.close")}</button>}
       </header>
       {busy && !loadedMatch ? <p className="p-6 text-textMuted">{t("common.loading")}</p> : <div className="space-y-3 p-4">
-        <section className="rounded-xl border border-border bg-card">
+        {canPlan && <section className="rounded-xl border border-border bg-card">
           <button type="button" onClick={() => setGeneralOpen(open => !open)} className="flex w-full items-center justify-between p-4 text-left font-bold text-textBright">
             {t("matchPrep.general")}<span className={`text-accent transition ${generalOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
@@ -152,6 +166,8 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
             </div>
             {isHomeMatch && <label className="text-sm text-textSecondary">{t("matchPrep.field")}<select value={fieldOptionId} onChange={event => setFieldOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("field").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
             {isHomeMatch && <label className="text-sm text-textSecondary">{t("matchPrep.lockerRoom")}<select value={lockerRoomOptionId} onChange={event => setLockerRoomOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("locker_room").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
+            {isHomeMatch && <label className="text-sm text-textSecondary">Kleedkamer bezoekers<select value={visitorLockerRoomOptionId} onChange={event => setVisitorLockerRoomOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("visitor_locker_room").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
+            <label className="text-sm text-textSecondary">Scheidsrechter<select value={refereeOptionId} onChange={event => setRefereeOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">Aangeduid door KBVB</option>{byType("referee").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm text-textPrimary"><input type="checkbox" checked={meetingPlaceEnabled} onChange={event => setMeetingPlaceEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.meetingPlace")}</label>
               {meetingPlaceEnabled && <><select value={meetingPlaceOptionId} onChange={event => setMeetingPlaceOptionId(event.target.value)} className={inputClass}><option value="">—</option>{byType("meeting_place").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}<option value="custom">{t("matchPrep.other")}</option></select>{placeIsOther && <input value={meetingPlaceCustom} onChange={event => setMeetingPlaceCustom(event.target.value)} placeholder={t("matchPrep.enterPlace")} className={`mt-2 ${inputClass}`} />}</>}
@@ -161,13 +177,14 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
               {departureTimeEnabled && <input type="time" value={departureTime} onChange={event => setDepartureTime(event.target.value)} className={inputClass} />}
             </div>}
           </div>}
-        </section>
-        <section className="rounded-xl border border-border bg-card">
+        </section>}
+        {canSelect && <section className="rounded-xl border border-border bg-card">
           <button type="button" onClick={() => setSelectionOpen(open => !open)} className="flex w-full items-center justify-between p-4 text-left font-bold text-textBright">
             <span>{t("matchPrep.selection")} <span className="font-normal text-textMuted">({drafts.filter(item => item.selected).length}/{drafts.length})</span></span><span className={`text-accent transition ${selectionOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
           {selectionOpen && <div className="space-y-3 border-t border-borderSubtle p-4">
-            <div className="rounded-lg border border-borderSubtle bg-cardDeep p-3">
+            <p className="rounded-lg border border-borderSubtle bg-cardDeep p-3 text-sm text-textMuted">Alleen spelers die aan deze ploeg zijn toegewezen, kunnen geselecteerd worden.</p>
+            <div className="hidden">
               <h3 className="text-sm font-bold text-textBright">Extra speler uit spelerslijst</h3>
               <div className="mt-2 flex flex-wrap gap-2">
                 <select value={extraPlayerId} onChange={event => setExtraPlayerId(event.target.value)} className={`${inputClass} min-w-60 flex-1`}>
@@ -178,7 +195,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
                 <button type="button" disabled={!extraPlayerId} onClick={addExtraPlayer} className="rounded-lg border border-accent px-3 py-2 text-sm font-bold text-accent disabled:opacity-40">Toevoegen</button>
               </div>
             </div>
-            <div className="rounded-lg border border-borderSubtle bg-cardDeep p-3">
+            <div className="hidden">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-bold text-textBright">Testspeler</h3>
                 <button type="button" onClick={() => setGuestPlayers(current => [...current, { firstName: "", lastName: "", jerseyNumber: "", note: "" }])}
@@ -201,9 +218,16 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
               <input value={draft.note} onChange={event => updatePlayer(player.id, { note: event.target.value })} placeholder={t("matchPrep.note")} className={inputClass} />
             </div>;
           })}</div>}
-        </section>
+        </section>}
+        {canUseTags && <section className="rounded-xl border border-border bg-card p-4">
+          <h2 className="font-bold text-textBright">Tags en taglink</h2>
+          <p className="mt-1 text-xs text-textMuted">Bepaal de tagknoppen voor deze wedstrijd en maak de externe link.</p>
+          <div className="mt-3 flex flex-wrap gap-2">{tagNames.map(tag => <span key={tag} className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accentDim px-3 py-1.5 text-sm text-accent">{tag}<button type="button" onClick={() => setTagNames(current => current.filter(item => item !== tag))}>×</button></span>)}</div>
+          <div className="mt-3 flex gap-2"><input value={newTag} onChange={event => setNewTag(event.target.value)} placeholder="Nieuwe tag" className={inputClass} /><button type="button" onClick={() => { const tag = newTag.trim(); if (tag && !tagNames.includes(tag)) setTagNames(current => [...current, tag]); setNewTag(""); }} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent">Toevoegen</button></div>
+          <button type="button" onClick={async () => { const response = await fetch(`/api/matches/${match.id}/tag-link`, { method: "POST" }); const body = await response.json(); if (!response.ok || !body.token) return setNotice(body.error || "Taglink kon niet worden gemaakt."); await navigator.clipboard.writeText(`${window.location.origin}/tag/${body.token}`); setNotice("Taglink gekopieerd."); }} className="mt-3 rounded-lg bg-accent px-4 py-2 font-bold text-page">Taglink genereren en kopiëren</button>
+        </section>}
         {notice && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">{notice}</p>}
-        <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-4 py-2 text-textPrimary">{t("common.cancel")}</button><button type="button" disabled={busy} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{t("common.save")}</button></div>
+        <div className="flex justify-end gap-2">{!embedded && <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-4 py-2 text-textPrimary">{t("common.cancel")}</button>}<button type="button" disabled={busy} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{t("common.save")}</button></div>
       </div>}
     </div>
   </div>;
