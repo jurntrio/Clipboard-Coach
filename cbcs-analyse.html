@@ -1,0 +1,365 @@
+<title>Clipboard Coach Studio — Codebase-analyse</title>
+<style>
+  :root{
+    --bg: #f5f7f4;
+    --bg-elevated: #ffffff;
+    --text: #1c231f;
+    --text-muted: #59645d;
+    --border: #dbe2dc;
+    --accent: #2f6b4f;
+    --accent-strong: #1f4a36;
+    --accent-soft: #e1eee6;
+    --sev-high: #b3391f;
+    --sev-high-soft: #f7e4de;
+    --sev-med: #96660c;
+    --sev-med-soft: #f5ecd9;
+    --sev-low: #35648a;
+    --sev-low-soft: #dfe9f1;
+    --sev-info: #6b7570;
+    --sev-info-soft: #eaece9;
+    --sev-good: #2f6b4f;
+    --sev-good-soft: #e1eee6;
+    --shadow: 0 1px 2px rgba(28,35,31,0.06), 0 6px 20px rgba(28,35,31,0.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #13160f;
+      --bg-elevated: #1a1e17;
+      --text: #e9ece6;
+      --text-muted: #9aa59c;
+      --border: #2b312a;
+      --accent: #6fbb92;
+      --accent-strong: #8fd0ac;
+      --accent-soft: #1e2e24;
+      --sev-high: #e2836a;
+      --sev-high-soft: #2e2019;
+      --sev-med: #d9b356;
+      --sev-med-soft: #2c2717;
+      --sev-low: #86b3d6;
+      --sev-low-soft: #1b2530;
+      --sev-info: #94a096;
+      --sev-info-soft: #20241f;
+      --sev-good: #6fbb92;
+      --sev-good-soft: #1a2a21;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg: #13160f; --bg-elevated: #1a1e17; --text: #e9ece6; --text-muted: #9aa59c;
+    --border: #2b312a; --accent: #6fbb92; --accent-strong: #8fd0ac; --accent-soft: #1e2e24;
+    --sev-high: #e2836a; --sev-high-soft: #2e2019; --sev-med: #d9b356; --sev-med-soft: #2c2717;
+    --sev-low: #86b3d6; --sev-low-soft: #1b2530; --sev-info: #94a096; --sev-info-soft: #20241f;
+    --sev-good: #6fbb92; --sev-good-soft: #1a2a21;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+  :root[data-theme="light"]{
+    --bg: #f5f7f4; --bg-elevated: #ffffff; --text: #1c231f; --text-muted: #59645d;
+    --border: #dbe2dc; --accent: #2f6b4f; --accent-strong: #1f4a36; --accent-soft: #e1eee6;
+    --sev-high: #b3391f; --sev-high-soft: #f7e4de; --sev-med: #96660c; --sev-med-soft: #f5ecd9;
+    --sev-low: #35648a; --sev-low-soft: #dfe9f1; --sev-info: #6b7570; --sev-info-soft: #eaece9;
+    --sev-good: #2f6b4f; --sev-good-soft: #e1eee6;
+    --shadow: 0 1px 2px rgba(28,35,31,0.06), 0 6px 20px rgba(28,35,31,0.05);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Seravek", "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 56px 24px 90px;
+  }
+  .page{ max-width: 760px; margin: 0 auto; }
+
+  h1,h2,h3{
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    font-weight: 600;
+    text-wrap: balance;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  code, .mono{
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  }
+
+  header.masthead{
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+  .eyebrow{
+    font-family: "Seravek", "Segoe UI", sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  h1.title{
+    font-size: 34px;
+    margin: 0 0 10px;
+    line-height: 1.15;
+  }
+  .subtitle{
+    color: var(--text-muted);
+    font-size: 16.5px;
+    max-width: 58ch;
+    margin: 0 0 16px;
+  }
+  .meta{
+    display:flex; gap: 18px; flex-wrap: wrap;
+    font-size: 13px; color: var(--text-muted);
+  }
+  .meta span b{ color: var(--text); font-weight: 600; }
+
+  .verdict{
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 28px 0 40px;
+    box-shadow: var(--shadow);
+  }
+  .verdict .label{
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent-strong); margin-bottom: 8px;
+  }
+  .verdict p{ margin: 0 0 8px; }
+  .verdict p:last-child{ margin-bottom: 0; }
+
+  section{ margin-bottom: 46px; }
+  h2.section-title{
+    font-size: 22px;
+    display:flex; align-items:baseline; gap: 10px;
+    margin: 0 0 6px;
+  }
+  .section-note{
+    color: var(--text-muted); font-size: 14.5px; margin: 0 0 20px; max-width: 62ch;
+  }
+
+  .strengths{ display:flex; flex-direction:column; gap: 14px; }
+  .strength{
+    display:grid; grid-template-columns: 26px 1fr; gap: 12px;
+    padding: 4px 0;
+  }
+  .strength .mark{ color: var(--sev-good); font-size: 18px; line-height: 1.5; }
+  .strength .body b{ display:block; margin-bottom: 2px; }
+  .strength .body span{ color: var(--text-muted); font-size: 15px; }
+
+  .domain{ margin-bottom: 30px; }
+  .domain h3{
+    font-size: 15px; margin: 0 0 14px;
+    color: var(--text-muted); font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .finding{
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 14px;
+    align-items: start;
+  }
+  .chip{
+    font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 99px;
+    white-space: nowrap; align-self: start; margin-top: 2px;
+  }
+  .chip.hoog{ background: var(--sev-high-soft); color: var(--sev-high); }
+  .chip.gemiddeld{ background: var(--sev-med-soft); color: var(--sev-med); }
+  .chip.laag{ background: var(--sev-low-soft); color: var(--sev-low); }
+  .chip.info{ background: var(--sev-info-soft); color: var(--sev-info); }
+  .finding .ftitle{ font-weight: 600; }
+  .finding .fdesc{
+    grid-column: 2; color: var(--text-muted); font-size: 15px; margin: 0;
+  }
+  .finding .fref{
+    grid-column: 2; font-size: 12.5px; color: var(--text-muted);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+    padding: 2px 7px; width: fit-content; margin-top: 2px;
+  }
+
+  ol.actions{ padding-left: 0; list-style: none; counter-reset: act; display:flex; flex-direction:column; gap:16px; }
+  ol.actions li{
+    counter-increment: act;
+    display:grid; grid-template-columns: 30px 1fr; gap: 12px;
+    background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; box-shadow: var(--shadow);
+  }
+  ol.actions li::before{
+    content: counter(act);
+    font-family: "Iowan Old Style", Georgia, serif;
+    font-weight: 700; font-size: 17px; color: var(--accent);
+  }
+  ol.actions b{ display:block; margin-bottom: 3px; }
+  ol.actions span{ color: var(--text-muted); font-size: 15px; }
+
+  footer{
+    margin-top: 50px; padding-top: 20px; border-top: 1px solid var(--border);
+    color: var(--text-muted); font-size: 13px; line-height: 1.7;
+  }
+
+  @media (max-width: 600px){
+    body{ padding: 34px 16px 70px; }
+    h1.title{ font-size: 27px; }
+    .finding{ grid-template-columns: 1fr; }
+    .fdesc, .fref{ grid-column: 1; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <div class="eyebrow">Codebase-analyse · website/</div>
+    <h1 class="title">Clipboard Coach Studio</h1>
+    <p class="subtitle">Sterke punten, mogelijke problemen en verbeterpunten in de Next.js/Supabase-website, op basis van een leesanalyse van broncode, migraties en tests.</p>
+    <div class="meta">
+      <span>Datum: <b>31 juli 2026</b></span>
+      <span>Omvang: <b>49 API-routes · 90 migraties · 10 testbestanden</b></span>
+      <span>Wijzigingen: <b>geen — alleen analyse</b></span>
+    </div>
+  </header>
+
+  <div class="verdict">
+    <div class="label">Kort samengevat</div>
+    <p>Ongewoon solide fundament voor een soloproject: consistente Row Level Security, een goed doordacht account-claim-mechanisme en een backfill met echte dry-run en rollback. <b>Geen kritieke of hoge beveiligingsproblemen gevonden.</b></p>
+    <p>De grootste risico's zitten niet in wat vandaag draait, maar in wat nog moet landen: de nieuwe people/accounts/club-rollen-laag (migraties 0086–0090) staat nog niet gecommit, en de bestaande pgTAP-tests draaien nergens automatisch — dus zonder regressienet tenzij je ze handmatig uitvoert.</p>
+  </div>
+
+  <section>
+    <h2 class="section-title">Sterke punten</h2>
+    <p class="section-note">Dingen die goed genoeg zijn om expliciet te benoemen, niet als vanzelfsprekend te beschouwen.</p>
+    <div class="strengths">
+      <div class="strength"><div class="mark">✓</div><div class="body">
+        <b>Row Level Security consistent toegepast</b>
+        <span>Alle gecontroleerde club-scoped tabellen hebben RLS aan staan, nergens een <code>using (true)</code>-policy gevonden. Mutaties lopen via <code>SECURITY DEFINER</code>-functies die de rol serverside herverifiëren, ook als de API-route al gecheckt heeft.</span>
+      </div></div>
+      <div class="strength"><div class="mark">✓</div><div class="body">
+        <b>Service role netjes ingeperkt</b>
+        <span>Toegang tot de Supabase service-role zit op één plek (<code class="mono">src/lib/supabase/admin.ts</code>), nooit bereikbaar vanuit een <code>"use client"</code>-bestand, en elke route die hem gebruikt doet eerst een eigen sessie- en rolcheck.</span>
+      </div></div>
+      <div class="strength"><div class="mark">✓</div><div class="body">
+        <b>Account-claim-mechanisme lost het naam-only-risico echt op</b>
+        <span>Migratie 0088 voorkomt precies het scenario dat het ontwerpdocument als grootste risico noemt: iemand die zich koppelt aan een bestaand persoon puur op naamgelijkenis. Dubbelzinnige matches gaan altijd naar een menselijke review, nooit automatisch samenvoegen.</span>
+      </div></div>
+      <div class="strength"><div class="mark">✓</div><div class="body">
+        <b>Backfill met echte dry-run, hash-locking en archief-rollback</b>
+        <span>Migratie 0090 heeft een preview-functie die elke rij classificeert vóór er iets geschreven wordt, weigert te draaien op een verouderd plan, en faalt hard als er nog rijen wachten op review — in lijn met het al bewezen patroon uit migratie 0031.</span>
+      </div></div>
+      <div class="strength"><div class="mark">✓</div><div class="body">
+        <b>Strikte TypeScript-discipline</b>
+        <span><code>strict: true</code>, een lage <code>any</code>-dichtheid (26 keer in de hele <code class="mono">src/</code>-boom) en nul <code>@ts-ignore</code>/<code>@ts-expect-error</code>.</span>
+      </div></div>
+      <div class="strength"><div class="mark">✓</div><div class="body">
+        <b>Dunne API-routes, logica in de database</b>
+        <span><code class="mono">src/lib/auth/club-access.ts</code> is een degelijke, gecachete permissiehelper die door 35 van de 49 routes wordt hergebruikt; routes blijven kort en delegeren echte businesslogica naar Postgres-RPC's.</span>
+      </div></div>
+      <div class="strength"><div class="mark">✓</div><div class="body">
+        <b>Zoekfunctie voor personen bewust buiten de database gehouden</b>
+        <span>De in het ontwerpdocument voorziene <code>club_people_search.sql</code>-RPC is nooit geschreven — in plaats daarvan zoekt <code class="mono">GET /api/club/people</code> in <code>club_people</code>/<code>people</code>, beperkt tot de actieve club, met een server-side rolcheck en zonder automatische merge. Migratie 0089 was dus nooit een openstaand gat, maar een bewust andere aanpak in fase 5.</span>
+      </div></div>
+      <div class="strength"><div class="mark">✓</div><div class="body">
+        <b>Gezonde migratiegeschiedenis</b>
+        <span>90 migraties klinkt veel, maar slechts ~5,5% is een fix/restore van een eerdere migratie, geclusterd in één lastige vroege feature. Nergens een destructieve <code>drop table</code> of <code>drop column</code>. Dit oogt als gedisciplineerde iteratie, niet als plannen-vervangen-door-patchen.</span>
+      </div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Mogelijke problemen</h2>
+    <p class="section-note">Gegroepeerd per domein, met een inschatting van impact. Niets hieronder is kritiek — de zwaarste items zijn procesgaten (geen CI), geen gaten in productie.</p>
+
+    <div class="domain">
+      <h3>Beveiliging</h3>
+      <div class="finding">
+        <span class="chip laag">Laag</span><span class="ftitle">Race-conditie bij eenmalig gebruik van speler-uitnodigingen</span>
+        <p class="fdesc">De <code>club_registration_invites</code>-tak locked de rij (<code>for update</code>) vóór het als "gebruikt" markeren; de <code>player_invites</code>-tak doet een gewone <code>select</code>. Twee bijna-gelijktijdige registraties met dezelfde token zouden in theorie allebei kunnen slagen.</p>
+        <p class="fref mono">supabase/migrations/0059_single_use_club_invitations.sql:77-79</p>
+      </div>
+      <div class="finding">
+        <span class="chip laag">Laag</span><span class="ftitle">Geen restrictie op bestandstype bij video-upload</span>
+        <p class="fdesc">De upload-key zelf is correct beperkt tot de eigen namespace van de gebruiker (geen path traversal mogelijk), maar <code>contentType</code> wordt niet gevalideerd tegen video/afbeelding-MIME-types voor persoonlijke uploads.</p>
+        <p class="fref mono">src/app/api/videos/upload-url/route.ts:31-38</p>
+      </div>
+      <div class="finding">
+        <span class="chip info">Info</span><span class="ftitle">Inconsistente tokenopslag tussen oud en nieuw</span>
+        <p class="fdesc">Oudere uitnodigingstokens staan als platte UUID in de database; de nieuwe 0088-tokens worden SHA-256-gehasht opgeslagen. Niet exploiteerbaar (UUIDv4 is niet te raden), maar de moeite waard om ooit gelijk te trekken.</p>
+      </div>
+    </div>
+
+    <div class="domain">
+      <h3>Architectuur &amp; codekwaliteit</h3>
+      <div class="finding">
+        <span class="chip hoog">Hoog</span><span class="ftitle">Wedstrijdpagina is een monster-component</span>
+        <p class="fdesc">1127 regels met 16 <code>useState</code>-hooks in één clientcomponent: dataophaling, mutaties en UI zitten allemaal door elkaar. Grootste losse risico voor onderhoudbaarheid in de hele codebase.</p>
+        <p class="fref mono">src/app/dashboard/matches/[matchId]/page.tsx</p>
+      </div>
+      <div class="finding">
+        <span class="chip gemiddeld">Gemiddeld</span><span class="ftitle">Trainingsbouwer heeft hetzelfde patroon</span>
+        <p class="fdesc">1158 regels, vergelijkbare mix van verantwoordelijkheden als de wedstrijdpagina.</p>
+        <p class="fref mono">src/components/training/TrainingBuilder.tsx</p>
+      </div>
+      <div class="finding">
+        <span class="chip gemiddeld">Gemiddeld</span><span class="ftitle">Handmatige database-types lopen achter op recente migraties</span>
+        <p class="fdesc"><code class="mono">database.ts</code> is handgeschreven, niet gegenereerd. Geen van de nieuwe tabellen uit migratie 0086 (<code>people</code>, <code>person_accounts</code>, <code>club_people</code>, <code>club_role_assignments</code>, …) staat erin — queries daarop zijn dus ongetypeerd.</p>
+        <p class="fref mono">src/types/database.ts</p>
+      </div>
+      <div class="finding">
+        <span class="chip gemiddeld">Gemiddeld</span><span class="ftitle">API-foutmeldingen omzeilen het eigen i18n-systeem</span>
+        <p class="fdesc">312 hardcoded <code>NextResponse.json({ error })</code>-strings, met zichtbare drift: oudere routes in het Engels ("Unauthorized"), nieuwere in het Nederlands ("Niet aangemeld."). Een Engelstalige gebruiker krijgt dus soms Nederlandse foutmeldingen te zien.</p>
+      </div>
+      <div class="finding">
+        <span class="chip gemiddeld">Gemiddeld</span><span class="ftitle">Weinig expliciete foutafhandeling in API-routes</span>
+        <p class="fdesc">Slechts 9 van de 49 routes hebben een <code>try/catch</code>; de meeste vallen terug op Next's standaard 500-afhandeling zonder server-side logging van wat er misging.</p>
+      </div>
+      <div class="finding">
+        <span class="chip laag">Laag</span><span class="ftitle">Kleine duplicatie in auth-checks</span>
+        <p class="fdesc"><code class="mono">account/*</code> en <code class="mono">videos/*</code>-routes herhalen een inline <code>auth.getUser()</code>-check in plaats van een gedeelde <code>requireUser()</code>-helper te gebruiken.</p>
+      </div>
+    </div>
+
+    <div class="domain">
+      <h3>Database &amp; tests</h3>
+      <div class="finding">
+        <span class="chip hoog">Hoog</span><span class="ftitle">Bestaande tests draaien nergens automatisch</span>
+        <p class="fdesc">10 pgTAP-testbestanden, goed geschreven, maar geen CI-workflow, geen teststap in <code>netlify.toml</code>, geen script in <code>package.json</code>. Zonder dat iemand er handmatig aan denkt, bieden ze geen regressienet.</p>
+        <p class="fref mono">supabase/tests/*.test.sql</p>
+      </div>
+      <div class="finding">
+        <span class="chip gemiddeld">Gemiddeld</span><span class="ftitle">RLS-policies zelf worden nooit getest</span>
+        <p class="fdesc">Geen enkel testbestand wisselt naar de <code>authenticated</code>-rol (geen <code>SET ROLE</code> / JWT-claims). Tests draaien allemaal als superuser en omzeilen RLS dus volledig — ze testen de onderliggende functies, niet de select-policies die clubgegevens afschermen.</p>
+      </div>
+      <div class="finding">
+        <span class="chip laag">Laag</span><span class="ftitle">Ontbrekende index voor toekomstige "Mijn loopbaan"-functie</span>
+        <p class="fdesc">Geen index op <code>person_accounts(person_id, created_at)</code> voor de geplande geschiedenisweergave per persoon. Niet urgent zolang die UI er nog niet is.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Aanbevolen verbeteringen</h2>
+    <p class="section-note">Op volgorde van verhouding tussen impact en moeite.</p>
+    <ol class="actions">
+      <li><div><b>Zet de bestaande tests in CI</b><span>Voeg een script toe dat <code>supabase test db</code> draait bij elke push of PR. De tests bestaan al en zijn goed — dit is puur bedrading, de grootste winst voor het minste werk.</span></div></li>
+      <li><div><b>Voor 0086–0090 naar productie gaan: voeg een RLS-test toe als <code>authenticated</code>-rol</b><span>Minstens één test die de select-policies van <code>people</code>/<code>club_people</code>/<code>person_accounts</code> echt als ingelogde gebruiker uitvoert, niet alleen de onderliggende functies.</span></div></li>
+      <li><div><b>Splits de wedstrijdpagina op</b><span><code class="mono">matches/[matchId]/page.tsx</code> opdelen in een servercomponent-schil met gerichte subcomponenten/hooks, vóór hij nog groter wordt.</span></div></li>
+      <li><div><b>Synchroniseer <code>database.ts</code> met de nieuwe tabellen</b><span>Via <code>supabase gen types</code> of handmatige aanvulling, zodat de nieuwe people/roles-laag ook typeveiligheid krijgt.</span></div></li>
+      <li><div><b>Route API-foutmeldingen door het bestaande i18n-systeem</b><span>Voorkomt de huidige mix van Engelse en Nederlandse foutmeldingen voor dezelfde app.</span></div></li>
+      <li><div><b>Kleine, niet-dringende opruiming</b><span><code>FOR UPDATE</code>-lock op de <code>player_invites</code>-tokencheck; contentType-restrictie op de persoonlijke R2-upload-prefix.</span></div></li>
+    </ol>
+  </section>
+
+  <footer>
+    Methode: leesanalyse door drie gerichte deelonderzoeken — beveiliging &amp; autorisatie, architectuur &amp; codekwaliteit, database &amp; tests — over de Next.js/Supabase-website in <code class="mono">website/</code>. De losstaande Electron-desktopapp in de hoofdmap is niet in detail meegenomen. Er zijn geen bestanden gewijzigd.
+  </footer>
+
+</div>

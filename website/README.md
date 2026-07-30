@@ -74,8 +74,9 @@ Not needed yet, only once you build those phases:
 
 ## 2. Environment variables
 
-Copy `.env.local.example` to `.env.local` and fill in the values from the
-services above.
+Create a local, untracked `.env.local` and fill in the values from the services
+above. Configure the same variables directly in the hosting provider. Never
+commit local environment files or secret values.
 
 ## 3. Database setup
 
