@@ -20,3 +20,6 @@ electron/tracking/tmp-poc/
 
 # Local Netlify folder
 .netlify
+
+# Local analysis exports
+/cbcs-analyse.html
