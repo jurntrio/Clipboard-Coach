@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { TRAINING_AGE_CATEGORIES } from "@/lib/training-categories";
 
@@ -14,7 +15,8 @@ export type IntradeskTrainingRow = {
   author: string;
 };
 
-export function IntradeskLibrary({ trainings }: { trainings: IntradeskTrainingRow[] }) {
+export function IntradeskLibrary({ trainings, canEdit = false }: { trainings: IntradeskTrainingRow[]; canEdit?: boolean }) {
+  const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [expanded, setExpanded] = useState(true);
   const [query, setQuery] = useState("");
@@ -79,10 +81,19 @@ export function IntradeskLibrary({ trainings }: { trainings: IntradeskTrainingRo
                 <th className="px-4 py-3 font-bold">Gewijzigd op</th>
                 <th className="px-4 py-3 font-bold">Auteur</th>
                 <th className="px-4 py-3 font-bold">Versie</th>
+                {canEdit && <th className="px-4 py-3 text-right font-bold">Actie</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-borderSubtle">
-              {visible.map(training => <tr key={training.id} className="group transition hover:bg-cardHover">
+              {visible.map(training => <tr key={training.id} tabIndex={0}
+                onClick={() => router.push(`/dashboard/intradesk/${training.id}`)}
+                onKeyDown={event => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    router.push(`/dashboard/intradesk/${training.id}`);
+                  }
+                }}
+                className="group cursor-pointer transition hover:bg-cardHover focus:bg-cardHover focus:outline-none">
                 <td className="px-5 py-4">
                   <Link href={`/dashboard/intradesk/${training.id}`} className="flex items-center gap-3 font-bold text-textPrimary group-hover:text-accent">
                     <DocumentIcon />
@@ -95,6 +106,11 @@ export function IntradeskLibrary({ trainings }: { trainings: IntradeskTrainingRo
                 <td className="px-4 py-4 text-sm text-textSecondary">{new Date(training.updatedAt).toLocaleDateString("nl-BE")}</td>
                 <td className="px-4 py-4 text-sm text-textSecondary">{training.author}</td>
                 <td className="px-4 py-4 text-sm font-semibold text-textSecondary">v{training.version}</td>
+                {canEdit && <td className="px-4 py-4 text-right">
+                  <Link href={`/dashboard/training/new?edit=${training.id}`} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()} className="inline-flex rounded-lg border border-accent px-3 py-1.5 text-sm font-bold text-accent hover:bg-accent hover:text-page">
+                    Edit
+                  </Link>
+                </td>}
               </tr>)}
             </tbody>
           </table>

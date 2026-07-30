@@ -115,8 +115,11 @@ function mappedFixture(summary: string, teamName: string, clubName: string) {
   const clubKey = normalize(clubName);
   const homeIsClub = normalize(source.home).includes(clubKey);
   const awayIsClub = normalize(source.away).includes(clubKey);
-  if (awayIsClub && !homeIsClub) return { own: teamName, opponent: source.home, isHome: false };
-  return { own: teamName, opponent: source.away || source.home, isHome: true };
+  return {
+    home: source.home || teamName,
+    away: source.away || teamName,
+    isHome: homeIsClub || !awayIsClub
+  };
 }
 
 export async function syncFoot24Feed(teamId: string) {
@@ -180,8 +183,8 @@ export async function syncFoot24Feed(teamId: string) {
       club_id: team.club_id,
       club_team_id: team.id,
       team_a_id: operationalTeam.id,
-      team_a_name: fixture.own,
-      team_b_name: fixture.opponent,
+      team_a_name: fixture.home,
+      team_b_name: fixture.away,
       is_home_match: fixture.isHome,
       match_date: event.startsAt.toISOString().slice(0, 10),
       start_time: event.startsAt.toLocaleTimeString("nl-BE", { timeZone: "Europe/Brussels", hour12: false, hour: "2-digit", minute: "2-digit" }),

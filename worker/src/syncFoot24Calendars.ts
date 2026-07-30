@@ -29,8 +29,11 @@ function mappedFixture(summary: string, teamName: string, clubName: string) {
   const clubKey = normalize(clubName);
   const homeIsClub = normalize(source.home).includes(clubKey);
   const awayIsClub = normalize(source.away).includes(clubKey);
-  if (awayIsClub && !homeIsClub) return { own: teamName, opponent: source.home, isHome: false };
-  return { own: teamName, opponent: source.away || source.home, isHome: true };
+  return {
+    home: source.home || teamName,
+    away: source.away || teamName,
+    isHome: homeIsClub || !awayIsClub
+  };
 }
 
 async function syncFeed(feed: Record<string, any>) {
@@ -72,7 +75,7 @@ async function syncFeed(feed: Record<string, any>) {
     const externalMatchId = `${team.id}:${event.uid}`;
     const payload = {
       coach_id: owner.profile_id, club_id: team.club_id, club_team_id: team.id, team_a_id: operationalTeam.id,
-      team_a_name: names.own, team_b_name: names.opponent, is_home_match: names.isHome, match_date: event.startsAt.toISOString().slice(0, 10),
+      team_a_name: names.home, team_b_name: names.away, is_home_match: names.isHome, match_date: event.startsAt.toISOString().slice(0, 10),
       start_time: event.startsAt.toLocaleTimeString("nl-BE", { timeZone: "Europe/Brussels", hour12: false, hour: "2-digit", minute: "2-digit" }),
       status: event.cancelled ? "finished" : "scheduled", external_source: "foot24", external_match_id: externalMatchId
     };

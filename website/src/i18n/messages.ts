@@ -119,7 +119,7 @@ const nl = {
   "matchPrep.homeMatch": "Thuiswedstrijd",
   "matchPrep.lockerRoom": "Kleedkamer",
   "matchPrep.meetingPlace": "Afspraakplaats",
-  "matchPrep.meetingTime": "Verzameluur gebruiken",
+  "matchPrep.meetingTime": "Afgesproken tijdstip",
   "matchPrep.departureTime": "Vertrekuur gebruiken",
   "matchPrep.other": "Andere…",
   "matchPrep.enterPlace": "Vul de afspraakplaats in",
@@ -414,10 +414,10 @@ const nl = {
   ,"match.older": "Oudere wedstrijden"
   ,"match.localIntro": "Wedstrijden en tags worden opgeslagen; volledige video’s blijven lokaal op deze computer."
   ,"match.createNew": "Nieuwe wedstrijd aanmaken"
-  ,"match.last": "Laatste wedstrijden"
+  ,"match.last": "Afgelopen wedstrijden"
   ,"match.open": "Openen"
-  ,"match.noRecent": "Geen recente wedstrijd"
-  ,"match.viewOlder": "Oudere wedstrijden en video’s bekijken"
+  ,"match.noRecent": "Geen afgelopen wedstrijd"
+  ,"match.viewOlder": "Alle afgelopen wedstrijden bekijken"
   ,"match.noneSaved": "Nog geen opgeslagen wedstrijden."
   ,"match.information": "Wedstrijdgegevens"
   ,"match.enterName": "Naam invoeren"
@@ -948,7 +948,7 @@ const en: Record<MessageKey, string> = {
   "matchPrep.homeMatch": "Home match",
   "matchPrep.lockerRoom": "Locker room",
   "matchPrep.meetingPlace": "Meeting place",
-  "matchPrep.meetingTime": "Use meeting time",
+  "matchPrep.meetingTime": "Agreed arrival time",
   "matchPrep.departureTime": "Use departure time",
   "matchPrep.other": "Other…",
   "matchPrep.enterPlace": "Enter the meeting place",
@@ -1243,10 +1243,10 @@ const en: Record<MessageKey, string> = {
   ,"match.older": "Older matches"
   ,"match.localIntro": "Matches and tags are saved; full videos stay local on this computer."
   ,"match.createNew": "Create new match"
-  ,"match.last": "Last matches"
+  ,"match.last": "Past matches"
   ,"match.open": "Open"
-  ,"match.noRecent": "No recent match"
-  ,"match.viewOlder": "View older matches and videos"
+  ,"match.noRecent": "No past match"
+  ,"match.viewOlder": "View all past matches"
   ,"match.noneSaved": "No saved matches yet."
   ,"match.information": "Match information"
   ,"match.enterName": "Enter a name"

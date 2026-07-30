@@ -5,6 +5,7 @@ import { readSheet } from "read-excel-file/browser";
 import { useI18n } from "@/i18n/client";
 import { createClient } from "@/lib/supabase/client";
 import { TeamTrainingScheduler } from "@/components/teams/TeamTrainingScheduler";
+import { TeamMatchScheduler } from "@/components/teams/TeamMatchScheduler";
 import type { ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
 
 type PlayerRow = {
@@ -174,7 +175,7 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [assignStatus, setAssignStatus] = useState("");
-  const [activeTab, setActiveTab] = useState<"settings" | "trainings">("settings");
+  const [activeTab, setActiveTab] = useState<"settings" | "matches" | "trainings">("settings");
   const [rosterOpen, setRosterOpen] = useState(false);
 
   const missingPlayers = useMemo(() => {
@@ -308,9 +309,11 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
   return <div className="mt-4 border-t border-borderSubtle pt-4">
     <div className="mb-5 flex gap-2 border-b border-borderSubtle pb-3">
       <button type="button" onClick={() => setActiveTab("settings")} className={`rounded-lg px-4 py-2 text-sm font-bold ${activeTab === "settings" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Team bewerken</button>
+      <button type="button" onClick={() => setActiveTab("matches")} className={`rounded-lg px-4 py-2 text-sm font-bold ${activeTab === "matches" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Wedstrijden toevoegen</button>
       <button type="button" onClick={() => setActiveTab("trainings")} className={`rounded-lg px-4 py-2 text-sm font-bold ${activeTab === "trainings" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Trainingen toevoegen</button>
     </div>
-    {activeTab === "trainings" ? <TeamTrainingScheduler teamId={team.id} trainers={trainers}
+    {activeTab === "matches" ? <TeamMatchScheduler teamId={team.teams?.[0]?.id ?? ""} teamName={team.name} readOnly={readOnly || !team.teams?.[0]?.id} />
+      : activeTab === "trainings" ? <TeamTrainingScheduler teamId={team.id} trainers={trainers}
       assignedTrainerIds={[...new Set([...coordinatorTrainerIds, ...(team.club_trainer_teams ?? []).filter(link => link.status === "active").map(link => link.trainer_id)])]}
       options={options} readOnly={readOnly} /> : <div className="space-y-5">
     <div className="flex flex-wrap gap-3">

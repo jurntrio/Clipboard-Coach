@@ -192,7 +192,9 @@ export type Match = {
   club_team_id: string | null;
   external_source: string | null;
   external_match_id: string | null;
-  is_home_match: boolean;
+    is_home_match: boolean;
+    completed_by: string | null;
+    completed_at: string | null;
   meeting_time_enabled: boolean;
   meeting_time: string | null;
   departure_time_enabled: boolean;

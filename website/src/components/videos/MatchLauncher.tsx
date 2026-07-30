@@ -23,8 +23,8 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-export function MatchLauncher() {
-  const { t, locale } = useI18n();
+export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boolean }) {
+  const { t } = useI18n();
   const router = useRouter();
   const supabase = createClient();
   const fallbackInputRef = useRef<HTMLInputElement | null>(null);
@@ -75,26 +75,17 @@ export function MatchLauncher() {
     setTeams(teamResult.data ?? []);
   }
 
-  const matchedVideoIds = new Set(matches.flatMap((match) => match.match_videos.map((item) => item.video_id)));
+  const today = new Date().toISOString().slice(0, 10);
   const recentItems: RecentItem[] = [
-    ...matches.map((match): RecentItem => ({
+    ...matches.filter(match => !!match.match_date && match.match_date <= today).map((match): RecentItem => ({
       kind: "match",
       id: match.id,
       title: `${match.team_a_name || t("match.teamA")} – ${match.team_b_name || t("match.teamB")}`,
       date: match.match_date || t("match.noDate"),
-      openedAt: match.last_opened_at,
+      openedAt: `${match.match_date}T${match.start_time || "00:00:00"}`,
       count: match.match_videos.length,
       videoIds: match.match_videos.map((video) => video.video_id)
     })),
-    ...videos.filter((video) => !matchedVideoIds.has(video.id)).map((video): RecentItem => ({
-      kind: "video",
-      id: video.id,
-      title: video.title || t("video.untitled"),
-      date: new Date(video.created_at).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB"),
-      openedAt: video.created_at,
-      count: 1,
-      videoIds: [video.id]
-    }))
   ].sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime());
 
   async function openItem(item: RecentItem) {
@@ -362,7 +353,7 @@ export function MatchLauncher() {
 
         {mode === "recent" && (
           <>
-            <button type="button" onClick={() => { resetDraft(); setMode("create"); }} className="w-full rounded-xl bg-accent px-5 py-3 font-bold text-page">{t("match.createNew")}</button>
+            {canCreateMatch && <button type="button" onClick={() => { resetDraft(); setMode("create"); }} className="w-full rounded-xl bg-accent px-5 py-3 font-bold text-page">{t("match.createNew")}</button>}
             <div className="mt-5 space-y-2">
               <h2 className="text-sm font-semibold text-textSecondary">{t("match.last")}</h2>
               {supportsPersistentFileAccess === false && (
@@ -396,7 +387,7 @@ export function MatchLauncher() {
           </div>
         )}
 
-        {mode === "create" && (
+        {mode === "create" && canCreateMatch && (
           <form onSubmit={createMatch} className="space-y-5">
             {supportsPersistentFileAccess === false && (
               <div className="text-[11px] leading-tight text-amber-300">

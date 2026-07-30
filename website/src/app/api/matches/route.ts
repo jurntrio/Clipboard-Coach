@@ -7,6 +7,7 @@ type MatchInput = {
   id?: string; team_a_id?: string | null; team_a_name?: string; team_b_name?: string;
   match_date?: string | null; start_time?: string | null; status?: "scheduled" | "live" | "finished";
   score_a?: number | null; score_b?: number | null; player_ids?: string[]; live_tag_names?: string[];
+  is_home_match?: boolean;
 };
 
 export async function POST(request: Request) {
@@ -23,12 +24,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Beide ploegnamen zijn verplicht." }, { status: 400 });
   }
   const admin = createAdminClient();
+  let linkedClubTeamId: string | null = null;
   if (body.team_a_id) {
     const { data: team } = await admin.from("teams").select("id, club_team_id, club_teams(club_id, trainers_can_manage_matches)").eq("id", body.team_a_id).maybeSingle();
     const linkedClub = team?.club_teams as unknown as { club_id: string; trainers_can_manage_matches: boolean } | null;
     if (!team || linkedClub?.club_id !== context.activeClubId) {
       return NextResponse.json({ error: "Deze ploeg behoort niet tot de actieve club." }, { status: 400 });
     }
+    linkedClubTeamId = team.club_team_id;
     if (!canAccessTeam(authorization, team.club_team_id)) return NextResponse.json({ error: "Geen toegang tot deze ploeg." }, { status: 403 });
     if (authorization.teamIds !== null && !linkedClub?.trainers_can_manage_matches) {
       return NextResponse.json({ error: "De clubadmin staat niet toe dat trainers wedstrijden voor deze ploeg beheren." }, { status: 403 });
@@ -57,7 +60,8 @@ export async function POST(request: Request) {
     team_a_id: body.team_a_id ?? null, team_a_name: body.team_a_name.trim(), team_b_id: null,
     team_b_name: body.team_b_name.trim(), match_date: body.match_date ?? null, start_time: body.start_time ?? null,
     status: body.status ?? "scheduled", score_a: body.score_a ?? null, score_b: body.score_b ?? null,
-    player_ids: body.player_ids ?? [], live_tag_names: body.live_tag_names ?? [], club_id: context.activeClubId
+    player_ids: body.player_ids ?? [], live_tag_names: body.live_tag_names ?? [], club_id: context.activeClubId,
+    club_team_id: linkedClubTeamId, is_home_match: body.is_home_match !== false
   };
 
   if (body.id) {
