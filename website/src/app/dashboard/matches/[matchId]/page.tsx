@@ -108,6 +108,9 @@ function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleRevie
     onUpdateTimes(parsedStart, safeEnd);
   }
 
+  const seekTime = materializedTag
+    ? parseClockTime(startDraft) ?? materializedTag.start_time
+    : elapsed;
   const timeInput = "w-[58px] rounded border border-border bg-input px-1.5 py-1 text-center text-[11px] text-textPrimary focus:border-accent focus:outline-none";
 
   return (
@@ -119,7 +122,7 @@ function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleRevie
           <p className="truncate text-xs text-textMuted">{liveTag.tagger_name ? t("liveTags.by", { name: liveTag.tagger_name }) : t("liveTags.byUnknown")}</p>
         </div>
         <button type="button" onClick={onCalibrate} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">🎯</button>
-        {elapsed !== null && <button type="button" onClick={() => onSeek(elapsed)} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.goTo")}</button>}
+        {seekTime !== null && <button type="button" onClick={() => onSeek(seekTime)} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.goTo")}</button>}
         <button type="button" onClick={onDelete} title={t("liveTags.delete")} aria-label={t("liveTags.delete")} className="flex-shrink-0 px-1 text-sm text-textMuted hover:text-red-400">&times;</button>
       </div>
       {materializedTag ? (
