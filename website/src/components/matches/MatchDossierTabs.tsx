@@ -44,6 +44,10 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
   const [notice, setNotice] = useState("");
 
   function field(key: Exclude<keyof MatchDossier, "goal_events">, label: string, placeholder: string) {
+    if (!editable) return <div>
+      <span className="mb-1 block text-xs font-black uppercase tracking-wide text-textMuted">{label}</span>
+      <p className="min-h-12 whitespace-pre-wrap rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 text-sm text-textPrimary">{draft[key] || "Niet ingevuld"}</p>
+    </div>;
     return <label className="block">
       <span className="mb-1 block text-xs font-black uppercase tracking-wide text-textMuted">{label}</span>
       <textarea value={draft[key]} disabled={!editable} onChange={event => setDraft(current => ({ ...current, [key]: event.target.value }))}

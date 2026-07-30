@@ -140,10 +140,10 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
           <button type="button" onClick={() => setGeneralOpen(open => !open)} className="flex w-full items-center justify-between p-4 text-left font-bold text-textBright">
             {t("matchPrep.general")}<span className={`text-accent transition ${generalOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
-          {generalOpen && <div className="grid gap-4 border-t border-borderSubtle p-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
+          {generalOpen && <div className="grid gap-3 border-t border-borderSubtle p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-textPrimary"><input type="checkbox" checked={meetingTimeEnabled} onChange={event => setMeetingTimeEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.meetingTime")}</label>
-              {meetingTimeEnabled && <input type="time" value={meetingTime} onChange={event => setMeetingTime(event.target.value)} className={`${inputClass} max-w-xs`} />}
+              {meetingTimeEnabled && <input type="time" value={meetingTime} onChange={event => setMeetingTime(event.target.value)} className={inputClass} />}
               <p className="text-xs text-textMuted">Dit is het tijdstip waarop iedereen aanwezig moet zijn.</p>
             </div>
             <div className="rounded-lg border border-borderSubtle bg-cardDeep p-3 text-sm text-textSecondary">

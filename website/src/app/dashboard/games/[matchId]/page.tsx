@@ -17,7 +17,7 @@ function displayDate(value: string | null) {
   }).format(new Date(`${value}T12:00:00`));
 }
 
-export default async function GameOverviewPage({ params }: { params: { matchId: string } }) {
+export default async function GameOverviewPage({ params, searchParams }: { params: { matchId: string }; searchParams?: { edit?: string } }) {
   const supabase = createClient();
   const { user } = await getClubContext();
   if (!user) notFound();
@@ -38,6 +38,7 @@ export default async function GameOverviewPage({ params }: { params: { matchId: 
   const canViewVideo = staffCanView && hasClubPermission(access, "video.view");
   const canManage = staffCanView && hasClubPermission(access, "games.create");
   const canManagePublicInfo = staffCanView && hasClubPermission(access, "games.communication.manage");
+  const editing = canManage && searchParams?.edit === "1";
   const [{ data: matchVideos }, { data: options }, { data: club }, { data: clubTeam }] = await Promise.all([
     canViewVideo
       ? admin.from("match_videos").select("video_id").eq("match_id", match.id)
@@ -89,7 +90,7 @@ export default async function GameOverviewPage({ params }: { params: { matchId: 
     <div className="flex flex-wrap items-center justify-between gap-3">
       <Link href="/dashboard" className="text-sm font-semibold text-accent hover:underline">← Terug naar dashboard</Link>
       <div className="flex flex-wrap gap-2">
-        {canManage && <Link href="/dashboard/clips" className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">Wedstrijd beheren</Link>}
+        {canManage && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : "Bewerken"}</Link>}
         {canViewVideo && !!videoCount && <Link href={`/dashboard/matches/${match.id}`} className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page">Open videoviewer</Link>}
       </div>
     </div>
@@ -116,17 +117,17 @@ export default async function GameOverviewPage({ params }: { params: { matchId: 
       {staffCanView && <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-bold text-textBright">Voorbereiding</h2>
-          {canManage && <MatchPreparationButton match={match} />}
+          {editing && <MatchPreparationButton match={match} initialOpen />}
         </div>
-        <dl className="mt-4 space-y-3 text-sm">
-          <div className="flex justify-between gap-4"><dt className="text-textMuted">Afgesproken tijdstip</dt><dd className="font-semibold text-textPrimary">{match.meeting_time_enabled ? match.meeting_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"}</dd></div>
-          {!match.is_home_match && <div className="flex justify-between gap-4"><dt className="text-textMuted">Vertrek</dt><dd className="font-semibold text-textPrimary">{match.departure_time_enabled ? match.departure_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"}</dd></div>}
-          <div className="flex justify-between gap-4"><dt className="text-textMuted">Verzamelplaats</dt><dd className="text-right font-semibold text-textPrimary">{match.meeting_place_custom || optionNames.get(match.meeting_place_option_id) || "Niet ingesteld"}</dd></div>
-          {match.is_home_match && <div className="flex justify-between gap-4"><dt className="text-textMuted">Veld</dt><dd className="font-semibold text-textPrimary">{optionNames.get(match.field_option_id) || "Niet ingesteld"}</dd></div>}
-          {match.is_home_match && <div className="flex justify-between gap-4"><dt className="text-textMuted">Kleedkamer</dt><dd className="font-semibold text-textPrimary">{optionNames.get(match.locker_room_option_id) || "Niet ingesteld"}</dd></div>}
+        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <Info label="Afgesproken tijdstip" value={match.meeting_time_enabled ? match.meeting_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />
+          {!match.is_home_match && <Info label="Vertrek" value={match.departure_time_enabled ? match.departure_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />}
+          <Info label="Verzamelplaats" value={match.meeting_place_custom || optionNames.get(match.meeting_place_option_id) || "Niet ingesteld"} />
+          {match.is_home_match && <Info label="Veld" value={optionNames.get(match.field_option_id) || "Niet ingesteld"} />}
+          {match.is_home_match && <Info label="Kleedkamer" value={optionNames.get(match.locker_room_option_id) || "Niet ingesteld"} />}
         </dl>
       </div>}
-      {canManagePublicInfo && <PublicMatchInfoEditor
+      {editing && canManagePublicInfo && <PublicMatchInfoEditor
         match={match}
         sponsorFeatureEnabled={club?.clip_advertising_enabled !== false}
         hasClubSponsor={!!club?.general_sponsor_url}
@@ -139,7 +140,7 @@ export default async function GameOverviewPage({ params }: { params: { matchId: 
       players={[...(selectedPlayers ?? []), ...(guestPlayers ?? [])]}
       clips={dossierClips}
       initialDossier={dossier}
-      editable={canManage}
+      editable={editing}
       played={played}
       scoreA={match.score_a}
       scoreB={match.score_b}
@@ -153,4 +154,8 @@ export default async function GameOverviewPage({ params }: { params: { matchId: 
       Je ziet hier de algemene wedstrijdinformatie voor de ploeg van je kind. Extra voorbereiding, tagging en video zijn alleen beschikbaar voor bevoegde staf.
     </p>}
   </main>;
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl border border-borderSubtle bg-cardDeep p-3"><dt className="text-xs text-textMuted">{label}</dt><dd className="mt-1 font-semibold text-textPrimary">{value}</dd></div>;
 }
