@@ -1,0 +1,254 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+export type MatchDossier = {
+  lineup_notes: string;
+  general_report: string;
+  positives: string;
+  improvements: string;
+  highlights: string;
+  goals: string;
+  cards: string;
+  chances: string;
+  scouting: string;
+  goal_events: GoalEvent[];
+};
+
+type Player = { id: string; first_name: string; last_name: string; jersey_number: number | null };
+type Clip = { id: string; name: string; render_status: string; created_at: string; shareToken: string | null };
+type GoalEvent = {
+  id: string; team: "home" | "away"; scoreAfter: string; minute: number | null;
+  scorerType: "player" | "own_goal" | "custom"; scorerPlayerId: string; scorerName: string;
+  assistType: "player" | "own_goal" | "custom" | "none"; assistPlayerId: string; assistName: string;
+  description: string;
+};
+
+const emptyDossier: MatchDossier = {
+  lineup_notes: "", general_report: "", positives: "", improvements: "",
+  highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: []
+};
+
+export function MatchDossierTabs({ matchId, players, clips, initialDossier, editable, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed }: {
+  matchId: string; players: Player[]; clips: Clip[]; initialDossier?: Partial<MatchDossier> | null; editable: boolean;
+  played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean;
+}) {
+  const router = useRouter();
+  const expectedGoals = Array.from({ length: (scoreA ?? 0) + (scoreB ?? 0) }, (_, index) => ({ id: `goal-${index + 1}` }));
+  const savedGoals = initialDossier?.goal_events ?? [];
+  const normalizedGoals = expectedGoals.map((expected, index) => savedGoals[index] ? { ...savedGoals[index], id: expected.id } : newGoal(expected.id));
+  const [draft, setDraft] = useState<MatchDossier>({ ...emptyDossier, ...(initialDossier ?? {}), goal_events: normalizedGoals });
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  function field(key: Exclude<keyof MatchDossier, "goal_events">, label: string, placeholder: string) {
+    return <label className="block">
+      <span className="mb-1 block text-xs font-black uppercase tracking-wide text-textMuted">{label}</span>
+      <textarea value={draft[key]} disabled={!editable} onChange={event => setDraft(current => ({ ...current, [key]: event.target.value }))}
+        placeholder={placeholder} rows={4} className="w-full resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:opacity-70" />
+    </label>;
+  }
+
+  function goalValidationError() {
+    if (!played || scoreA == null || scoreB == null) return "";
+    let previousA = 0;
+    let previousB = 0;
+    for (let index = 0; index < draft.goal_events.length; index += 1) {
+      const next = parseScore(draft.goal_events[index].scoreAfter);
+      if (!next || !((next.a === previousA + 1 && next.b === previousB) || (next.a === previousA && next.b === previousB + 1))) {
+        return `Doelpunt ${index + 1}: vul een geldige volgende stand in.`;
+      }
+      previousA = next.a;
+      previousB = next.b;
+    }
+    return previousA === scoreA && previousB === scoreB ? "" : `De laatste stand moet ${scoreA}-${scoreB} zijn.`;
+  }
+
+  async function save(complete = false) {
+    const validationError = goalValidationError();
+    if (validationError) return setNotice(validationError);
+    setSaving(true);
+    setNotice("");
+    const response = await fetch(`/api/matches/${matchId}/dossier`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft)
+    });
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    if (!response.ok) { setSaving(false); return setNotice(body?.error || "Bewaren is mislukt."); }
+    if (complete) {
+      const completeResponse = await fetch(`/api/matches/${matchId}/dossier`, { method: "POST" });
+      const completeBody = await completeResponse.json().catch(() => null) as { error?: string } | null;
+      setSaving(false);
+      if (!completeResponse.ok) return setNotice(completeBody?.error || "Wedstrijd kon niet worden afgewerkt.");
+      setNotice("Wedstrijd afgewerkt.");
+      router.refresh();
+      return;
+    }
+    setSaving(false);
+    setNotice("Wedstrijddossier bewaard.");
+  }
+
+  return <section className="space-y-3">
+    <ClosedPanel title={`Clips (${clips.length})`}>
+      {clips.length ? <div className="grid gap-3 sm:grid-cols-2">
+        {clips.map(clip => <article key={clip.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
+          <strong className="block text-textBright">{clip.name}</strong>
+          <span className="mt-1 block text-xs text-textMuted">{new Date(clip.created_at).toLocaleDateString("nl-BE")} · {clip.render_status}</span>
+          {clip.shareToken && <Link href={`/share/${clip.shareToken}`} className="mt-3 inline-flex text-sm font-bold text-accent">Clip openen</Link>}
+        </article>)}
+      </div> : <Empty text="Nog geen clips voor deze wedstrijd." />}
+    </ClosedPanel>
+
+    <ClosedPanel title={`Selectie (${players.length})`}>
+      {players.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {players.map(player => <div key={player.id} className="rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 text-sm text-textPrimary">
+          {player.jersey_number != null && <span className="mr-2 font-black text-accent">{player.jersey_number}</span>}
+          {player.first_name} {player.last_name}
+        </div>)}
+      </div> : <Empty text="Nog geen spelers geselecteerd." />}
+    </ClosedPanel>
+
+    <ClosedPanel title="Opstelling">
+      {field("lineup_notes", "Opstelling", "Noteer de basisopstelling, formatie, posities en wissels…")}
+    </ClosedPanel>
+
+    {played && <ClosedPanel title="Wedstrijdverslag">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2">{field("general_report", "Algemeen wedstrijdverslag", "Beschrijf het wedstrijdverloop…")}</div>
+        {field("positives", "Pluspunten", "Wat liep goed?")}
+        {field("improvements", "Werkpunten", "Wat moet beter?")}
+        {field("highlights", "Hoogtepunten", "Belangrijke momenten…")}
+        <div className="md:col-span-2">
+          <GoalEditor goals={draft.goal_events} players={players} ownTeamSide={ownTeamSide} homeTeamName={homeTeamName}
+            awayTeamName={awayTeamName} editable={editable} onChange={goal_events => setDraft(current => ({ ...current, goal_events }))} />
+        </div>
+        {field("cards", "Kaarten", "Gele en rode kaarten…")}
+        {field("chances", "Kansen", "Grote kansen en gemiste mogelijkheden…")}
+      </div>
+    </ClosedPanel>}
+
+    {played && <ClosedPanel title="Scouting">
+      {field("scouting", "Scouting", "Observaties over eigen spelers, tegenstander en aandachtspunten…")}
+    </ClosedPanel>}
+
+    {editable && <div className="flex flex-wrap items-center justify-end gap-3">
+      {notice && <p className="mr-auto text-sm text-accent">{notice}</p>}
+      {played && !completed && <button type="button" disabled={saving} onClick={() => void save(true)} className="rounded-lg border border-accent px-5 py-2.5 text-sm font-black text-accent disabled:opacity-50">
+        Afgewerkt
+      </button>}
+      <button type="button" disabled={saving} onClick={() => void save(false)} className="rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:opacity-50">
+        {saving ? "Bewaren…" : "Wedstrijddossier bewaren"}
+      </button>
+    </div>}
+  </section>;
+}
+
+function newGoal(id: string): GoalEvent {
+  return { id, team: "home", scoreAfter: "", minute: null, scorerType: "custom", scorerPlayerId: "", scorerName: "", assistType: "none", assistPlayerId: "", assistName: "", description: "" };
+}
+
+function parseScore(value: string) {
+  const match = value.trim().match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
+  return match ? { a: Number(match[1]), b: Number(match[2]) } : null;
+}
+
+function GoalEditor({ goals, players, ownTeamSide, homeTeamName, awayTeamName, editable, onChange }: {
+  goals: GoalEvent[]; players: Player[]; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string;
+  editable: boolean; onChange: (goals: GoalEvent[]) => void;
+}) {
+  function update(id: string, patch: Partial<GoalEvent>) {
+    onChange(goals.map(goal => goal.id === id ? { ...goal, ...patch } : goal));
+  }
+  if (!goals.length) return <Empty text="Geen doelpunten in deze wedstrijd." />;
+  return <div>
+    <h4 className="text-xs font-black uppercase tracking-wide text-textMuted">Doelpunten ({goals.length})</h4>
+    <div className="mt-2 space-y-3">{goals.map((goal, index) => {
+      const previous = index === 0 ? { a: 0, b: 0 } : parseScore(goals[index - 1].scoreAfter);
+      const current = parseScore(goal.scoreAfter);
+      const scoringSide: "home" | "away" | null = previous && current
+        ? current.a === previous.a + 1 && current.b === previous.b ? "home"
+          : current.a === previous.a && current.b === previous.b + 1 ? "away" : null
+        : null;
+      const ownGoal = scoringSide === ownTeamSide;
+      const teamName = scoringSide === "home" ? homeTeamName : scoringSide === "away" ? awayTeamName : "Stand nog invullen";
+      return <article key={goal.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <strong className="text-textBright">Doelpunt {index + 1} · {teamName}</strong>
+          <label className="text-xs font-bold text-textSecondary">Stand na doelpunt
+            <input value={goal.scoreAfter} disabled={!editable}
+              placeholder={index === 0 ? "1-0 of 0-1" : previous ? `${previous.a + 1}-${previous.b} of ${previous.a}-${previous.b + 1}` : "Vul vorige stand in"}
+              onChange={event => {
+                const next = parseScore(event.target.value);
+                update(goal.id, { scoreAfter: event.target.value, team: next && previous && next.a === previous.a + 1 ? "home" : "away" });
+              }}
+              className="ml-2 w-32 rounded-lg border border-border bg-input px-2 py-1.5 text-textPrimary" />
+          </label>
+          <label className="text-xs font-bold text-textSecondary">Minuut
+            <input type="number" min={0} max={120} value={goal.minute ?? ""} disabled={!editable}
+              onChange={event => update(goal.id, { minute: event.target.value === "" ? null : Math.max(0, Math.min(120, Number(event.target.value))) })}
+              className="ml-2 w-20 rounded-lg border border-border bg-input px-2 py-1.5 text-textPrimary" />
+          </label>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {scoringSide === null ? <p className="text-sm text-textMuted md:col-span-2">Vul eerst een geldige stand na dit doelpunt in.</p> : ownGoal
+            ? <PersonChoice label="Doelpuntenmaker" type={goal.scorerType} playerId={goal.scorerPlayerId} name={goal.scorerName}
+                players={players} editable={editable} allowNone={false}
+                onChange={patch => update(goal.id, { scorerType: patch.type as GoalEvent["scorerType"], scorerPlayerId: patch.playerId, scorerName: patch.name })} />
+            : <TextPerson label="Doelpuntenmaker tegenstander" value={goal.scorerName} editable={editable} onChange={scorerName => update(goal.id, { scorerType: "custom", scorerName })} />}
+          {scoringSide !== null && (ownGoal
+            ? <PersonChoice label="Assist" type={goal.assistType} playerId={goal.assistPlayerId} name={goal.assistName}
+                players={players} editable={editable} allowNone
+                onChange={patch => update(goal.id, { assistType: patch.type as GoalEvent["assistType"], assistPlayerId: patch.playerId, assistName: patch.name })} />
+            : <TextPerson label="Assist tegenstander" value={goal.assistName} editable={editable} onChange={assistName => update(goal.id, { assistType: assistName ? "custom" : "none", assistName })} />)}
+        </div>
+        <label className="mt-3 block text-xs font-bold text-textSecondary">Korte beschrijving
+          <textarea rows={2} value={goal.description} disabled={!editable} onChange={event => update(goal.id, { description: event.target.value })}
+            className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary" />
+        </label>
+      </article>;
+    })}</div>
+  </div>;
+}
+
+function PersonChoice({ label, type, playerId, name, players, editable, allowNone, onChange }: {
+  label: string; type: string; playerId: string; name: string; players: Player[]; editable: boolean; allowNone: boolean;
+  onChange: (value: { type: string; playerId: string; name: string }) => void;
+}) {
+  const value = type === "player" ? `player:${playerId}` : type;
+  return <label className="text-xs font-bold text-textSecondary">{label}
+    <select value={value} disabled={!editable} onChange={event => {
+      const next = event.target.value;
+      onChange(next.startsWith("player:") ? { type: "player", playerId: next.slice(7), name: "" } : { type: next, playerId: "", name: "" });
+    }} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary">
+      {allowNone && <option value="none">Geen assist</option>}
+      {!allowNone && <option value="custom">Naam intikken</option>}
+      {players.map(player => <option key={player.id} value={`player:${player.id}`}>{player.jersey_number != null ? `${player.jersey_number} · ` : ""}{player.first_name} {player.last_name}</option>)}
+      <option value="own_goal">{allowNone ? "Via tegenstander" : "Owngoal"}</option>
+      {allowNone && <option value="custom">Naam intikken</option>}
+    </select>
+    {type === "custom" && <input value={name} disabled={!editable} onChange={event => onChange({ type: "custom", playerId: "", name: event.target.value })}
+      placeholder="Naam" className="mt-2 w-full rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary" />}
+  </label>;
+}
+
+function TextPerson({ label, value, editable, onChange }: { label: string; value: string; editable: boolean; onChange: (value: string) => void }) {
+  return <label className="text-xs font-bold text-textSecondary">{label}
+    <input value={value} disabled={!editable} onChange={event => onChange(event.target.value)} placeholder="Naam"
+      className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary" />
+  </label>;
+}
+
+function ClosedPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return <details className="group overflow-hidden rounded-2xl border border-border bg-card">
+    <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-4 font-black text-textBright hover:bg-cardHover">
+      <span className="text-accent transition group-open:rotate-90">▶</span>
+      {title}
+    </summary>
+    <div className="border-t border-border p-5">{children}</div>
+  </details>;
+}
+
+function Empty({ text }: { text: string }) {
+  return <p className="rounded-lg border border-dashed border-border p-4 text-sm text-textMuted">{text}</p>;
+}

@@ -3,6 +3,7 @@ import { IntradeskLibrary } from "@/components/intradesk/IntradeskLibrary";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getClubContext } from "@/lib/auth/active-club";
+import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 type LibraryTraining = {
   id: string;
@@ -49,9 +50,11 @@ export default async function IntradeskPage() {
     updatedAt: training.updated_at,
     author: names.get(training.updated_by) ?? "Trainer"
   }));
+  const access = user && context.activeClubId ? await getClubAccess(context.activeClubId, user) : null;
+  const canEdit = access ? hasClubPermission(access, "training.manage") : false;
 
   return <div className="mx-auto max-w-[1500px] p-4 sm:p-8">
     <SectionHeader title="Intradesk" subtitle="De gedeelde trainingsbibliotheek van je club, geordend per leeftijd." artworkSrc="/branding/intradesk.png" showHome={false} />
-    <IntradeskLibrary trainings={rows} />
+    <IntradeskLibrary trainings={rows} canEdit={canEdit} />
   </div>;
 }

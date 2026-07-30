@@ -75,7 +75,16 @@ function splitFixture(summary: string, ownTeamName: string) {
 }
 
 function cleanSummary(summary: string) {
-  return summary.replace(/^[^\p{L}\p{N}]+/u, "").replace(/\s+/g, " ").trim();
+  return summary.replace(/\s+/g, " ").trim();
+}
+
+const HOME_MARKER = /(?:\u26bd|\u{1f535}|âš½)/giu;
+function hasHomeMarker(value: string) {
+  HOME_MARKER.lastIndex = 0;
+  return HOME_MARKER.test(value);
+}
+function withoutHomeMarker(value: string) {
+  return value.replace(HOME_MARKER, "").replace(/\s+/g, " ").trim();
 }
 
 export function isFoot24Advertisement(summary: string) {
@@ -113,10 +122,17 @@ function mappedFixture(summary: string, teamName: string, clubName: string) {
   const source = splitFixture(cleanSummary(summary), teamName);
   const normalize = (value: string) => value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
   const clubKey = normalize(clubName);
-  const homeIsClub = normalize(source.home).includes(clubKey);
-  const awayIsClub = normalize(source.away).includes(clubKey);
-  if (awayIsClub && !homeIsClub) return { own: teamName, opponent: source.home, isHome: false };
-  return { own: teamName, opponent: source.away || source.home, isHome: true };
+  const markerOnHome = hasHomeMarker(source.home);
+  const markerOnAway = hasHomeMarker(source.away);
+  const home = withoutHomeMarker(markerOnAway && !markerOnHome ? source.away : source.home) || teamName;
+  const away = withoutHomeMarker(markerOnAway && !markerOnHome ? source.home : source.away) || teamName;
+  const homeIsClub = normalize(home).includes(clubKey);
+  const awayIsClub = normalize(away).includes(clubKey);
+  return {
+    home,
+    away,
+    isHome: homeIsClub || !awayIsClub
+  };
 }
 
 export async function syncFoot24Feed(teamId: string) {
@@ -180,8 +196,8 @@ export async function syncFoot24Feed(teamId: string) {
       club_id: team.club_id,
       club_team_id: team.id,
       team_a_id: operationalTeam.id,
-      team_a_name: fixture.own,
-      team_b_name: fixture.opponent,
+      team_a_name: fixture.home,
+      team_b_name: fixture.away,
       is_home_match: fixture.isHome,
       match_date: event.startsAt.toISOString().slice(0, 10),
       start_time: event.startsAt.toLocaleTimeString("nl-BE", { timeZone: "Europe/Brussels", hour12: false, hour: "2-digit", minute: "2-digit" }),

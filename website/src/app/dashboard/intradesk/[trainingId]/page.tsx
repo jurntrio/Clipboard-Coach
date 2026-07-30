@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { TrainingReadOnlyView } from "@/components/training/TrainingBuilder";
+import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 export default async function IntradeskTrainingPage({ params }: { params: { trainingId: string } }) {
   const supabase = createClient();
@@ -23,8 +25,10 @@ export default async function IntradeskTrainingPage({ params }: { params: { trai
   const current = versions?.[0];
   const content = (current?.content ?? {}) as {
     team?: string; date?: string; playerCount?: number; keeperCount?: number;
-    trainers?: string[]; themes?: string[]; material?: string; blocks?: { id: string; label?: string; code?: string; minutes?: number; active?: boolean }[];
+    trainers?: string[]; themes?: string[]; material?: string; blocks?: Record<string, any>[];
   };
+  const access = await getClubAccess(training.club_id, user);
+  const canEdit = hasClubPermission(access, "training.manage");
 
   return <div className="mx-auto max-w-5xl p-4 sm:p-8">
     <SectionHeader title={training.title} subtitle={`${training.age_category} · versie ${training.current_version}`} artworkSrc="/branding/intradesk.png" backHref="/dashboard/intradesk" showHome={false} />
@@ -40,14 +44,8 @@ export default async function IntradeskTrainingPage({ params }: { params: { trai
     </section>
 
     <section className="mt-5 rounded-2xl border border-border bg-card p-5">
-      <h2 className="text-xl font-black text-textBright">Oefeningen</h2>
-      <div className="mt-3 space-y-2">
-        {(content.blocks ?? []).filter(block => block.active !== false).map((block, index) =>
-          <div key={block.id} className="flex items-center justify-between rounded-lg border border-borderSubtle bg-cardDeep px-4 py-3">
-            <span className="font-semibold text-textPrimary">{block.label || block.code || `Oefening ${index + 1}`}</span>
-            <span className="text-sm text-textMuted">{block.minutes ?? 0} min.</span>
-          </div>)}
-      </div>
+      <h2 className="mb-4 text-xl font-black text-textBright">Training</h2>
+      <TrainingReadOnlyView blocks={content.blocks} />
     </section>
 
     <section className="mt-5 rounded-2xl border border-border bg-card p-5">
@@ -60,9 +58,14 @@ export default async function IntradeskTrainingPage({ params }: { params: { trai
       </div>
     </section>
 
-    <Link href={`/dashboard/training/new?source=${training.id}`} className="mt-5 inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-black text-page">
-      Aanpassen als nieuwe versie
-    </Link>
+    {canEdit && <div className="mt-5 flex flex-wrap gap-3">
+      <Link href={`/dashboard/training/new?edit=${training.id}`} className="inline-flex rounded-lg border border-accent px-4 py-2 text-sm font-black text-accent">
+        Edit
+      </Link>
+      <Link href={`/dashboard/training/new?source=${training.id}`} className="inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-black text-page">
+        Aanpassen als nieuwe versie
+      </Link>
+    </div>}
   </div>;
 }
 

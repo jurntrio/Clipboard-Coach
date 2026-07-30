@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useActiveClub } from "./ActiveClubProvider";
 
-export function ActiveClubBar() {
+export type DashboardNavItem = { href: string; label: string; icon: string };
+
+export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavItem[] }) {
   const { clubs, activeClub, activeClubId, isPlatformAdmin, changing, selectClub } = useActiveClub();
   const router = useRouter();
   const showClubSelector = isPlatformAdmin || clubs.length > 1;
@@ -57,7 +59,14 @@ export function ActiveClubBar() {
             {clubs.map((club) => <option key={club.id} value={club.id}>{club.name}</option>)}
           </select>
         )}
-        <div className="ml-auto hidden items-center gap-3 sm:flex">
+        <div className="ml-auto hidden min-w-0 items-center gap-2 sm:flex">
+          <nav aria-label="Dashboardmodules" className="flex min-w-0 items-center gap-2 overflow-x-auto py-1">
+            {navigation.map(item => (
+              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={actionClass}>
+                <Image src={item.icon} alt="" width={32} height={32} />
+              </Link>
+            ))}
+          </nav>
           <Link href="/dashboard/settings" title="Instellingen" aria-label="Instellingen" className={actionClass}>
             <Image src="/branding/settings.png" alt="" width={32} height={32} />
           </Link>
@@ -71,6 +80,12 @@ export function ActiveClubBar() {
         <details className="group relative ml-auto sm:hidden">
           <summary className={`${actionClass} cursor-pointer list-none text-xl font-bold text-textPrimary`} title="Menu" aria-label="Menu">•••</summary>
           <div className="absolute right-0 z-50 mt-2 grid min-w-48 gap-1 rounded-xl border border-border bg-cardAlt p-2 shadow-xl">
+            {navigation.map(item => (
+              <Link key={item.href} href={item.href} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-textPrimary hover:bg-cardHover">
+                <Image src={item.icon} alt="" width={28} height={28} />{item.label}
+              </Link>
+            ))}
+            {!!navigation.length && <div className="my-1 border-t border-borderSubtle" />}
             <Link href="/dashboard/settings" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-textPrimary hover:bg-cardHover"><Image src="/branding/settings.png" alt="" width={28} height={28} />Instellingen</Link>
             <Link href="/dashboard/help" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-textPrimary hover:bg-cardHover"><Image src="/branding/help.png" alt="" width={28} height={28} />Help</Link>
             <button type="button" onClick={() => void signOut()} className="flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-textPrimary hover:bg-cardHover"><Image src="/branding/exit.png" alt="" width={28} height={28} />Afmelden</button>

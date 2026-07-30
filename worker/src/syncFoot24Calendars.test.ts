@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseCalendar } from "./foot24CalendarParser";
-import { isFixtureForClub } from "./foot24Fixture";
+import { isFixtureForClub, mappedFoot24Fixture } from "./foot24Fixture";
 
 test("parses Foot24-style events and unfolded summaries", () => {
   const calendar = [
@@ -59,4 +59,15 @@ test("distinguishes Foot24 fixtures from advertising events", () => {
   assert.equal(isFixtureForClub("⚽ Ontdek ruim 80 internationale jeugdtoernooien! 👉 Gratis brochure", "KM Torhout"), false);
   assert.equal(isFixtureForClub("KM TORHOUT reeks 1 A – Internationaal tornooivoetbal beleven? Bestel nu de gratis brochure!", "KM Torhout"), false);
   assert.equal(isFixtureForClub("Foot24.be - Update voetbalkalender", "KM Torhout"), false);
+});
+
+test("uses the Foot24 ball marker as the authoritative home-team indicator", () => {
+  assert.deepEqual(
+    mappedFoot24Fixture("KMT B - ⚽ KSV. VEURNE", "KMT B", "KMT"),
+    { home: "KSV. VEURNE", away: "KMT B", isHome: false }
+  );
+  assert.deepEqual(
+    mappedFoot24Fixture("⚽ KMT A - KVV. ZELZATE (1 A)", "KMT A", "KMT"),
+    { home: "KMT A", away: "KVV. ZELZATE (1 A)", isHome: true }
+  );
 });

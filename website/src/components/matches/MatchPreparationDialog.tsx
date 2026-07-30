@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/client";
 import type { Match, Player } from "@/types/database";
 
 type Option = { id: string; option_type: "field" | "locker_room" | "meeting_place" | "non_selection_reason"; label: string };
 type Selection = { player_id: string; selected: boolean; jersey_number: number | null; non_selection_reason_id: string | null; note: string | null };
 type PlayerDraft = { playerId: string; selected: boolean; jerseyNumber: string; reasonId: string; note: string };
+type ExtraPlayer = Player & { team_name?: string };
+type GuestDraft = { firstName: string; lastName: string; jerseyNumber: string; note: string };
 
 const inputClass = "w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary";
 
@@ -15,6 +17,9 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
   const [loadedMatch, setLoadedMatch] = useState<Match | null>(null);
   const [options, setOptions] = useState<Option[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [extraPlayers, setExtraPlayers] = useState<ExtraPlayer[]>([]);
+  const [extraPlayerId, setExtraPlayerId] = useState("");
+  const [guestPlayers, setGuestPlayers] = useState<GuestDraft[]>([]);
   const [drafts, setDrafts] = useState<PlayerDraft[]>([]);
   const [generalOpen, setGeneralOpen] = useState(true);
   const [selectionOpen, setSelectionOpen] = useState(false);
@@ -27,6 +32,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
   const [lockerRoomOptionId, setLockerRoomOptionId] = useState("");
   const [meetingPlaceOptionId, setMeetingPlaceOptionId] = useState("");
   const [meetingPlaceCustom, setMeetingPlaceCustom] = useState("");
+  const [meetingPlaceEnabled, setMeetingPlaceEnabled] = useState(false);
   const [busy, setBusy] = useState(true);
   const [notice, setNotice] = useState("");
 
@@ -37,10 +43,20 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
       const current = body.match as Match & Record<string, any>;
       const selections = body.selections as Selection[];
       const selectionByPlayer = new Map(selections.map(item => [item.player_id, item]));
-      const roster = (body.players as Player[]).filter(player => player.role === "player");
+      const availableExtras = (body.extraPlayers as ExtraPlayer[] ?? []).filter(player => player.role === "player");
+      const savedExtraIds = new Set(selections.filter(item => item.selected).map(item => item.player_id));
+      const roster = [
+        ...(body.players as Player[]).filter(player => player.role === "player"),
+        ...availableExtras.filter(player => savedExtraIds.has(player.id) || (current.player_ids ?? []).includes(player.id))
+      ];
       setLoadedMatch(current);
       setOptions(body.options ?? []);
       setPlayers(roster);
+      setExtraPlayers(availableExtras);
+      setGuestPlayers((body.guestPlayers ?? []).map((guest: any) => ({
+        firstName: guest.first_name ?? "", lastName: guest.last_name ?? "",
+        jerseyNumber: guest.jersey_number?.toString() ?? "", note: guest.note ?? ""
+      })));
       setDrafts(roster.map(player => {
         const saved = selectionByPlayer.get(player.id);
         return {
@@ -60,16 +76,25 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
       setLockerRoomOptionId(current.locker_room_option_id ?? "");
       setMeetingPlaceOptionId(current.meeting_place_option_id ?? "");
       setMeetingPlaceCustom(current.meeting_place_custom ?? "");
+      setMeetingPlaceEnabled(!!current.meeting_place_option_id || !!current.meeting_place_custom);
       setBusy(false);
     });
   }, [match.id, t]);
 
   const byType = (type: Option["option_type"]) => options.filter(option => option.option_type === type);
-  const defaultMeetingPlace = useMemo(() => byType("meeting_place").find(option => option.label.toLocaleLowerCase("nl").includes("kleedkamer"))?.id ?? "", [options]);
-  useEffect(() => { if (!meetingPlaceOptionId && defaultMeetingPlace) setMeetingPlaceOptionId(defaultMeetingPlace); }, [defaultMeetingPlace, meetingPlaceOptionId]);
 
   function updatePlayer(playerId: string, update: Partial<PlayerDraft>) {
     setDrafts(current => current.map(item => item.playerId === playerId ? { ...item, ...update } : item));
+  }
+
+  function addExtraPlayer() {
+    const player = extraPlayers.find(item => item.id === extraPlayerId);
+    if (!player || players.some(item => item.id === player.id)) return;
+    setPlayers(current => [...current, player]);
+    setDrafts(current => [...current, {
+      playerId: player.id, selected: true, jerseyNumber: player.jersey_number?.toString() ?? "", reasonId: "", note: ""
+    }]);
+    setExtraPlayerId("");
   }
 
   async function save() {
@@ -78,11 +103,15 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         isHomeMatch, meetingTimeEnabled, meetingTime, departureTimeEnabled, departureTime,
-        fieldOptionId, lockerRoomOptionId, meetingPlaceOptionId, meetingPlaceCustom,
+        fieldOptionId, lockerRoomOptionId, meetingPlaceEnabled, meetingPlaceOptionId, meetingPlaceCustom,
         players: drafts.map(item => ({
           playerId: item.playerId, selected: item.selected,
           jerseyNumber: item.jerseyNumber === "" ? null : Number(item.jerseyNumber),
           reasonId: item.reasonId, note: item.note
+        })),
+        guestPlayers: guestPlayers.map(item => ({
+          firstName: item.firstName, lastName: item.lastName,
+          jerseyNumber: item.jerseyNumber === "" ? null : Number(item.jerseyNumber), note: item.note
         }))
       })
     });
@@ -106,17 +135,20 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
             {t("matchPrep.general")}<span className={`text-accent transition ${generalOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
           {generalOpen && <div className="grid gap-4 border-t border-borderSubtle p-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-textPrimary"><input type="checkbox" checked={meetingTimeEnabled} onChange={event => setMeetingTimeEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.meetingTime")}</label>
+              {meetingTimeEnabled && <input type="time" value={meetingTime} onChange={event => setMeetingTime(event.target.value)} className={`${inputClass} max-w-xs`} />}
+              <p className="text-xs text-textMuted">Dit is het tijdstip waarop iedereen aanwezig moet zijn.</p>
+            </div>
             <div className="rounded-lg border border-borderSubtle bg-cardDeep p-3 text-sm text-textSecondary">
               <strong className="block text-textBright">{match.team_a_name} – {match.team_b_name}</strong>
               <span>{match.match_date || "—"}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</span>
             </div>
-            <label className="flex items-center gap-2 text-sm font-semibold text-textPrimary"><input type="checkbox" checked={isHomeMatch} onChange={event => setIsHomeMatch(event.target.checked)} className="accent-accent" />{t("matchPrep.homeMatch")}</label>
             {isHomeMatch && <label className="text-sm text-textSecondary">{t("matchPrep.field")}<select value={fieldOptionId} onChange={event => setFieldOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("field").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
             {isHomeMatch && <label className="text-sm text-textSecondary">{t("matchPrep.lockerRoom")}<select value={lockerRoomOptionId} onChange={event => setLockerRoomOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("locker_room").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
-            <label className="text-sm text-textSecondary">{t("matchPrep.meetingPlace")}<select value={meetingPlaceOptionId} onChange={event => setMeetingPlaceOptionId(event.target.value)} className={`mt-1 ${inputClass}`}>{byType("meeting_place").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}<option value="custom">{t("matchPrep.other")}</option></select>{placeIsOther && <input value={meetingPlaceCustom} onChange={event => setMeetingPlaceCustom(event.target.value)} placeholder={t("matchPrep.enterPlace")} className={`mt-2 ${inputClass}`} />}</label>
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm text-textPrimary"><input type="checkbox" checked={meetingTimeEnabled} onChange={event => setMeetingTimeEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.meetingTime")}</label>
-              {meetingTimeEnabled && <input type="time" value={meetingTime} onChange={event => setMeetingTime(event.target.value)} className={inputClass} />}
+              <label className="flex items-center gap-2 text-sm text-textPrimary"><input type="checkbox" checked={meetingPlaceEnabled} onChange={event => setMeetingPlaceEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.meetingPlace")}</label>
+              {meetingPlaceEnabled && <><select value={meetingPlaceOptionId} onChange={event => setMeetingPlaceOptionId(event.target.value)} className={inputClass}><option value="">—</option>{byType("meeting_place").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}<option value="custom">{t("matchPrep.other")}</option></select>{placeIsOther && <input value={meetingPlaceCustom} onChange={event => setMeetingPlaceCustom(event.target.value)} placeholder={t("matchPrep.enterPlace")} className={`mt-2 ${inputClass}`} />}</>}
             </div>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm text-textPrimary"><input type="checkbox" checked={departureTimeEnabled} onChange={event => setDepartureTimeEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.departureTime")}</label>
@@ -128,7 +160,33 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
           <button type="button" onClick={() => setSelectionOpen(open => !open)} className="flex w-full items-center justify-between p-4 text-left font-bold text-textBright">
             <span>{t("matchPrep.selection")} <span className="font-normal text-textMuted">({drafts.filter(item => item.selected).length}/{drafts.length})</span></span><span className={`text-accent transition ${selectionOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
-          {selectionOpen && <div className="space-y-2 border-t border-borderSubtle p-4">{players.map(player => {
+          {selectionOpen && <div className="space-y-3 border-t border-borderSubtle p-4">
+            <div className="rounded-lg border border-borderSubtle bg-cardDeep p-3">
+              <h3 className="text-sm font-bold text-textBright">Extra speler uit spelerslijst</h3>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <select value={extraPlayerId} onChange={event => setExtraPlayerId(event.target.value)} className={`${inputClass} min-w-60 flex-1`}>
+                  <option value="">Kies een speler…</option>
+                  {extraPlayers.filter(player => !players.some(current => current.id === player.id)).map(player =>
+                    <option key={player.id} value={player.id}>{player.first_name} {player.last_name}{player.team_name ? ` · ${player.team_name}` : ""}</option>)}
+                </select>
+                <button type="button" disabled={!extraPlayerId} onClick={addExtraPlayer} className="rounded-lg border border-accent px-3 py-2 text-sm font-bold text-accent disabled:opacity-40">Toevoegen</button>
+              </div>
+            </div>
+            <div className="rounded-lg border border-borderSubtle bg-cardDeep p-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-bold text-textBright">Testspeler</h3>
+                <button type="button" onClick={() => setGuestPlayers(current => [...current, { firstName: "", lastName: "", jerseyNumber: "", note: "" }])}
+                  className="rounded-lg border border-accent px-3 py-1.5 text-xs font-bold text-accent">Testspeler toevoegen</button>
+              </div>
+              <div className="mt-2 space-y-2">{guestPlayers.map((guest, index) => <div key={index} className="grid gap-2 md:grid-cols-[1fr_1fr_80px_1fr_auto]">
+                <input value={guest.firstName} onChange={event => setGuestPlayers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, firstName: event.target.value } : item))} placeholder="Voornaam" className={inputClass} />
+                <input value={guest.lastName} onChange={event => setGuestPlayers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, lastName: event.target.value } : item))} placeholder="Naam" className={inputClass} />
+                <input type="number" min="0" max="99" value={guest.jerseyNumber} onChange={event => setGuestPlayers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, jerseyNumber: event.target.value } : item))} placeholder="#" className={inputClass} />
+                <input value={guest.note} onChange={event => setGuestPlayers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, note: event.target.value } : item))} placeholder="Notitie" className={inputClass} />
+                <button type="button" onClick={() => setGuestPlayers(current => current.filter((_, itemIndex) => itemIndex !== index))} className="px-2 text-red-300">×</button>
+              </div>)}</div>
+            </div>
+            {players.map(player => {
             const draft = drafts.find(item => item.playerId === player.id)!;
             return <div key={player.id} className="grid gap-2 rounded-lg border border-borderSubtle bg-cardDeep p-3 md:grid-cols-[70px_minmax(160px,1fr)_150px_minmax(180px,1fr)] md:items-center">
               <input type="number" min="0" max="99" value={draft.jerseyNumber} onChange={event => updatePlayer(player.id, { jerseyNumber: event.target.value })} placeholder="#" className={inputClass} />

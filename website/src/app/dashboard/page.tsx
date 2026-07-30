@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getClubContext } from "@/lib/auth/active-club";
-import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
-import { ProfileOverview, type ProfileActivity, type ProfileContext, type ProfileQuickLink } from "@/components/profile/ProfileOverview";
+import { getClubAccess } from "@/lib/auth/club-access";
+import { ProfileOverview, type ProfileActivity, type ProfileContext } from "@/components/profile/ProfileOverview";
 
 type GuardianRow = {
   child_key: string;
@@ -24,16 +24,13 @@ export default async function DashboardHomePage() {
     clubId ? getClubAccess(clubId, user) : Promise.resolve(null)
   ]);
 
-  const [{ data: trainer }, { data: guardianRowsRaw }, { data: entitlements }] = await Promise.all([
+  const [{ data: trainer }, { data: guardianRowsRaw }] = await Promise.all([
     clubId
       ? admin.from("club_trainers")
           .select("id, display_name, club_trainer_teams(club_team_id, status, club_teams(name))")
           .eq("club_id", clubId).eq("profile_id", user.id).maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase.rpc("guardian_dashboard_players"),
-    clubId
-      ? admin.from("club_module_entitlements").select("module_key, enabled").eq("club_id", clubId)
-      : Promise.resolve({ data: [] })
+    supabase.rpc("guardian_dashboard_players")
   ]);
 
   const guardianRows = (guardianRowsRaw as GuardianRow[] | null) ?? [];
@@ -147,28 +144,12 @@ export default async function DashboardHomePage() {
     href: "/dashboard/training"
   })));
 
-  const enabledModules = new Set((entitlements ?? []).filter(item => item.enabled).map(item => item.module_key));
-  const moduleOn = (key: string) => !clubId || clubContext.isPlatformAdmin || !entitlements?.length || enabledModules.has(key);
-  const quickLinks: ProfileQuickLink[] = [];
-  if (access && hasClubPermission(access, "teams.view") && moduleOn("teams")) quickLinks.push({ href: "/dashboard/teams", label: "Teams", icon: "/branding/teams.png" });
-  if (access && hasClubPermission(access, "video.view") && moduleOn("video_viewer")) quickLinks.push({ href: "/dashboard/videos", label: "Video Viewer", icon: "/branding/video-viewer.png" });
-  if (access && hasClubPermission(access, "games.view") && moduleOn("matches")) quickLinks.push({ href: "/dashboard/clips", label: "Games", icon: "/branding/games.png" });
-  if (access && hasClubPermission(access, "training.view") && moduleOn("training")) quickLinks.push({ href: "/dashboard/training", label: "Training", icon: "/branding/training.png" });
-  if (access && hasClubPermission(access, "intradesk.view") && moduleOn("intradesk")) quickLinks.push({ href: "/dashboard/intradesk", label: "Intradesk", icon: "/branding/intradesk.png" });
-  if (groupedChildren.size) quickLinks.push({ href: "/dashboard/parent", label: "Spelers & clips", icon: "/branding/clips.png" });
-  if (access && ["club_admin", "club_admin_viewer", "platform_admin"].includes(access.role) && moduleOn("club_management")) {
-    quickLinks.push({ href: "/dashboard/club", label: "Clubbeheer", icon: "/branding/clubadmin.png" });
-  }
-  if (clubContext.isPlatformAdmin || profile?.account_role === "admin_viewer") {
-    quickLinks.push({ href: "/dashboard/admin", label: "Algemene Admin", icon: "/branding/admin.png" });
-  }
-
   return <ProfileOverview
     name={profile?.full_name?.trim() || user.email?.split("@")[0] || "Gebruiker"}
     email={user.email || ""}
     clubName={clubContext.clubs.find(club => club.id === clubId)?.name ?? null}
     contexts={contexts}
     activities={activities}
-    quickLinks={quickLinks}
+    quickLinks={[]}
   />;
 }
