@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CLUB_FEATURE_PERMISSIONS, CLUB_MODULE_BUNDLES, CLUB_MODULES, type ClubFeaturePermissionKey, type ClubModuleBundleKey, type ClubModuleKey } from "@/lib/club-modules";
+import { CLUB_FUNCTION_ROLES } from "@/lib/club-access-options";
 
 // A ~100 year ban is the conventional way to permanently block a Supabase
 // auth user; there is no dedicated "disabled" flag on auth.users.
@@ -200,7 +201,8 @@ export async function updateTrainerAssignment(input: {
   fullName: string;
   phoneNumber: string;
   clubId: string;
-  role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst";
+  role: string;
+  customRoleName?: string;
   teamIds: string[];
 }) {
   const platformAdmin = await requireAdmin();
@@ -208,6 +210,12 @@ export async function updateTrainerAssignment(input: {
   const fullName = input.fullName.trim();
   if (!fullName) throw new Error("Geef de naam van de trainer in.");
   if (!input.clubId) throw new Error("Kies een club.");
+  if (!CLUB_FUNCTION_ROLES.some(([role]) => role === input.role)) throw new Error("Onbekende clubfunctie.");
+  const customRoleName = input.role === "custom" ? input.customRoleName?.trim() ?? "" : "";
+  if (input.role === "custom" && !customRoleName) throw new Error("Geef de aangepaste clubfunctie een naam.");
+  const membershipRole = input.role === "club_admin" || input.role === "club_admin_viewer"
+    ? input.role
+    : input.role === "video_analyst" ? "analyst" : "trainer";
   const admin = createAdminClient();
   const [{ data: club }, { data: profile }, { data: validTeams }] = await Promise.all([
     admin.from("clubs").select("id").eq("id", input.clubId).maybeSingle(),
@@ -221,19 +229,15 @@ export async function updateTrainerAssignment(input: {
 
   const { error: profileError } = await admin.from("profiles").update({
     full_name: fullName,
-    account_role: input.role === "trainer" ? "coach" : input.role
+    account_role: membershipRole === "trainer" ? "coach" : membershipRole
   }).eq("id", input.profileId);
   if (profileError) throw new Error(profileError.message);
 
-  await admin.from("club_memberships").delete().eq("profile_id", input.profileId).neq("club_id", input.clubId);
   const { error: membershipError } = await admin.from("club_memberships").upsert(
-    { club_id: input.clubId, profile_id: input.profileId, role: input.role },
+    { club_id: input.clubId, profile_id: input.profileId, role: membershipRole, function_role: input.role, custom_role_name: customRoleName || null, team_scope: ["club_admin", "club_admin_viewer"].includes(membershipRole) ? "all" : "assigned" },
     { onConflict: "club_id,profile_id" }
   );
   if (membershipError) throw new Error(membershipError.message);
-
-  const { data: otherTrainerRows } = await admin.from("club_trainers").select("id").eq("profile_id", input.profileId).neq("club_id", input.clubId);
-  if (otherTrainerRows?.length) await admin.from("club_trainers").delete().in("id", otherTrainerRows.map((item) => item.id));
 
   let { data: trainer } = await admin.from("club_trainers").select("id").eq("club_id", input.clubId).eq("profile_id", input.profileId).maybeSingle();
   if (!trainer) {

@@ -184,7 +184,7 @@ export type CoachDetail = {
   clipCount: number;
   clipStorageBytes: number;
   clubOptions: { id: string; name: string; teams: { id: string; name: string }[] }[];
-  clubAssignment: { club_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst"; team_ids: string[]; phone_number: string } | null;
+  clubAssignment: { club_id: string; function_role: string; custom_role_name: string; team_ids: string[]; phone_number: string } | null;
 };
 
 export async function getCoachDetail(coachId: string): Promise<CoachDetail | null> {
@@ -196,7 +196,7 @@ export async function getCoachDetail(coachId: string): Promise<CoachDetail | nul
     admin.from("teams").select("*, players(*)").eq("coach_id", coachId).order("created_at", { ascending: false }),
     admin.from("clips").select("id, rendered_segments").eq("coach_id", coachId),
     admin.from("clubs").select("id, name, club_teams:club_teams!club_teams_club_id_fkey(id, name)").order("name"),
-    admin.from("club_memberships").select("club_id, role").eq("profile_id", coachId),
+    admin.from("club_memberships").select("club_id, role, function_role, custom_role_name").eq("profile_id", coachId),
     admin.from("club_trainers").select("club_id, phone_number, club_trainer_teams(club_team_id)").eq("profile_id", coachId)
   ]);
 
@@ -224,7 +224,8 @@ export async function getCoachDetail(coachId: string): Promise<CoachDetail | nul
     clubOptions: (clubs ?? []).map((club) => ({ id: club.id, name: club.name, teams: (club.club_teams ?? []) as { id: string; name: string }[] })),
     clubAssignment: memberships?.[0] ? {
       club_id: memberships[0].club_id,
-      role: memberships[0].role as "trainer" | "club_admin" | "club_admin_viewer" | "analyst",
+      function_role: memberships[0].function_role || (memberships[0].role === "analyst" ? "video_analyst" : memberships[0].role),
+      custom_role_name: memberships[0].custom_role_name ?? "",
       team_ids: clubTrainers?.find((trainer) => trainer.club_id === memberships[0].club_id)
         ?.club_trainer_teams.map((item) => item.club_team_id) ?? [],
       phone_number: clubTrainers?.find((trainer) => trainer.club_id === memberships[0].club_id)?.phone_number ?? ""

@@ -9,6 +9,7 @@ import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { ClubMemberAccessManager } from "./ClubMemberAccessManager";
 import { ClubInvitationCreator } from "./ClubInvitationCreator";
 import { ClubMatchOptionsManager, type ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
+import { ClubMatchCsvImporter } from "./ClubMatchCsvImporter";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean };
 type Team = {
@@ -233,6 +234,7 @@ export function ClubDashboard() {
       {moduleEnabled("matches") && <section className="mt-4 rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Wedstrijden toewijzen</h2>
         <p className="mt-1 text-sm text-textMuted">De ploegtoewijzing wordt automatisch aangevinkt. Elke wijziging hieronder is een handmatige override.</p>
+        <ClubMatchCsvImporter teams={teams} readOnly={readOnly} onImported={load} />
         <MatchAssignmentManager matches={matches} trainers={trainers} teamNames={teamNames}
           assignments={data.assignments} saving={saving} readOnly={readOnly} onToggle={toggle} />
       </section>}
