@@ -59,7 +59,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
             {clubs.map((club) => <option key={club.id} value={club.id}>{club.name}</option>)}
           </select>
         )}
-        <div className="ml-auto hidden min-w-0 items-center gap-2 sm:flex">
+        <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2">
           <nav aria-label="Dashboardmodules" className="flex min-w-0 items-center gap-2 overflow-x-auto py-1">
             {navigation.map(item => (
               <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={actionClass}>
@@ -77,20 +77,6 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
             <Image src="/branding/exit.png" alt="" width={32} height={32} />
           </button>
         </div>
-        <details className="group relative ml-auto sm:hidden">
-          <summary className={`${actionClass} cursor-pointer list-none text-xl font-bold text-textPrimary`} title="Menu" aria-label="Menu">•••</summary>
-          <div className="absolute right-0 z-50 mt-2 grid min-w-48 gap-1 rounded-xl border border-border bg-cardAlt p-2 shadow-xl">
-            {navigation.map(item => (
-              <Link key={item.href} href={item.href} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-textPrimary hover:bg-cardHover">
-                <Image src={item.icon} alt="" width={28} height={28} />{item.label}
-              </Link>
-            ))}
-            {!!navigation.length && <div className="my-1 border-t border-borderSubtle" />}
-            <Link href="/dashboard/settings" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-textPrimary hover:bg-cardHover"><Image src="/branding/settings.png" alt="" width={28} height={28} />Instellingen</Link>
-            <Link href="/dashboard/help" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-textPrimary hover:bg-cardHover"><Image src="/branding/help.png" alt="" width={28} height={28} />Help</Link>
-            <button type="button" onClick={() => void signOut()} className="flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-textPrimary hover:bg-cardHover"><Image src="/branding/exit.png" alt="" width={28} height={28} />Afmelden</button>
-          </div>
-        </details>
       </div>
     </div>
   );
