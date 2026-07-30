@@ -118,8 +118,8 @@ export default async function GameOverviewPage({ params }: { params: { matchId: 
           {canManage && <MatchPreparationButton match={match} />}
         </div>
         <dl className="mt-4 space-y-3 text-sm">
-          <div className="flex justify-between gap-4"><dt className="text-textMuted">Verzamelen</dt><dd className="font-semibold text-textPrimary">{match.meeting_time_enabled ? match.meeting_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"}</dd></div>
-          <div className="flex justify-between gap-4"><dt className="text-textMuted">Vertrek</dt><dd className="font-semibold text-textPrimary">{match.departure_time_enabled ? match.departure_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"}</dd></div>
+          <div className="flex justify-between gap-4"><dt className="text-textMuted">Afgesproken tijdstip</dt><dd className="font-semibold text-textPrimary">{match.meeting_time_enabled ? match.meeting_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"}</dd></div>
+          {!match.is_home_match && <div className="flex justify-between gap-4"><dt className="text-textMuted">Vertrek</dt><dd className="font-semibold text-textPrimary">{match.departure_time_enabled ? match.departure_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"}</dd></div>}
           <div className="flex justify-between gap-4"><dt className="text-textMuted">Verzamelplaats</dt><dd className="text-right font-semibold text-textPrimary">{match.meeting_place_custom || optionNames.get(match.meeting_place_option_id) || "Niet ingesteld"}</dd></div>
           {match.is_home_match && <div className="flex justify-between gap-4"><dt className="text-textMuted">Veld</dt><dd className="font-semibold text-textPrimary">{optionNames.get(match.field_option_id) || "Niet ingesteld"}</dd></div>}
           {match.is_home_match && <div className="flex justify-between gap-4"><dt className="text-textMuted">Kleedkamer</dt><dd className="font-semibold text-textPrimary">{optionNames.get(match.locker_room_option_id) || "Niet ingesteld"}</dd></div>}

@@ -41,6 +41,10 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
       const body = await response.json();
       if (!response.ok) { setNotice(body.error || t("matchPrep.loadFailed")); setBusy(false); return; }
       const current = body.match as Match & Record<string, any>;
+      const availableOptions = (body.options ?? []) as Option[];
+      const defaultMeetingPlace = availableOptions.find(option =>
+        option.option_type === "meeting_place" && option.label.trim().toLocaleLowerCase("nl") === "kleedkamer"
+      );
       const selections = body.selections as Selection[];
       const selectionByPlayer = new Map(selections.map(item => [item.player_id, item]));
       const availableExtras = (body.extraPlayers as ExtraPlayer[] ?? []).filter(player => player.role === "player");
@@ -50,7 +54,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
         ...availableExtras.filter(player => savedExtraIds.has(player.id) || (current.player_ids ?? []).includes(player.id))
       ];
       setLoadedMatch(current);
-      setOptions(body.options ?? []);
+      setOptions(availableOptions);
       setPlayers(roster);
       setExtraPlayers(availableExtras);
       setGuestPlayers((body.guestPlayers ?? []).map((guest: any) => ({
@@ -67,16 +71,16 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
           note: saved?.note ?? ""
         };
       }));
-      setMeetingTimeEnabled(current.meeting_time_enabled === true);
+      setMeetingTimeEnabled(current.meeting_time_enabled === true || !current.meeting_time);
       setIsHomeMatch(current.is_home_match !== false);
       setMeetingTime(current.meeting_time?.slice(0, 5) ?? "");
       setDepartureTimeEnabled(current.departure_time_enabled === true);
       setDepartureTime(current.departure_time?.slice(0, 5) ?? "");
       setFieldOptionId(current.field_option_id ?? "");
       setLockerRoomOptionId(current.locker_room_option_id ?? "");
-      setMeetingPlaceOptionId(current.meeting_place_option_id ?? "");
+      setMeetingPlaceOptionId(current.meeting_place_option_id ?? defaultMeetingPlace?.id ?? "");
       setMeetingPlaceCustom(current.meeting_place_custom ?? "");
-      setMeetingPlaceEnabled(!!current.meeting_place_option_id || !!current.meeting_place_custom);
+      setMeetingPlaceEnabled(!!current.meeting_place_option_id || !!current.meeting_place_custom || !!defaultMeetingPlace);
       setBusy(false);
     });
   }, [match.id, t]);
@@ -102,7 +106,9 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
     const response = await fetch(`/api/matches/${match.id}/preparation`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        isHomeMatch, meetingTimeEnabled, meetingTime, departureTimeEnabled, departureTime,
+        isHomeMatch, meetingTimeEnabled, meetingTime,
+        departureTimeEnabled: !isHomeMatch && departureTimeEnabled,
+        departureTime: !isHomeMatch ? departureTime : "",
         fieldOptionId, lockerRoomOptionId, meetingPlaceEnabled, meetingPlaceOptionId, meetingPlaceCustom,
         players: drafts.map(item => ({
           playerId: item.playerId, selected: item.selected,
@@ -150,10 +156,10 @@ export function MatchPreparationDialog({ match, onClose, onSaved }: { match: Mat
               <label className="flex items-center gap-2 text-sm text-textPrimary"><input type="checkbox" checked={meetingPlaceEnabled} onChange={event => setMeetingPlaceEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.meetingPlace")}</label>
               {meetingPlaceEnabled && <><select value={meetingPlaceOptionId} onChange={event => setMeetingPlaceOptionId(event.target.value)} className={inputClass}><option value="">—</option>{byType("meeting_place").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}<option value="custom">{t("matchPrep.other")}</option></select>{placeIsOther && <input value={meetingPlaceCustom} onChange={event => setMeetingPlaceCustom(event.target.value)} placeholder={t("matchPrep.enterPlace")} className={`mt-2 ${inputClass}`} />}</>}
             </div>
-            <div className="space-y-2">
+            {!isHomeMatch && <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm text-textPrimary"><input type="checkbox" checked={departureTimeEnabled} onChange={event => setDepartureTimeEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.departureTime")}</label>
               {departureTimeEnabled && <input type="time" value={departureTime} onChange={event => setDepartureTime(event.target.value)} className={inputClass} />}
-            </div>
+            </div>}
           </div>}
         </section>
         <section className="rounded-xl border border-border bg-card">

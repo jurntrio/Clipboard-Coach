@@ -85,14 +85,15 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       return NextResponse.json({ error: "Invalid club option." }, { status: 400 });
     }
   }
+  const isHomeMatch = ctx.match.is_home_match !== false;
   const matchUpdate = {
-    is_home_match: body?.isHomeMatch !== false,
+    is_home_match: isHomeMatch,
     meeting_time_enabled: body?.meetingTimeEnabled === true,
     meeting_time: body?.meetingTimeEnabled === true ? time(body?.meetingTime) : null,
-    departure_time_enabled: body?.departureTimeEnabled === true,
-    departure_time: body?.departureTimeEnabled === true ? time(body?.departureTime) : null,
-    field_option_id: body?.isHomeMatch !== false ? id(body?.fieldOptionId) : null,
-    locker_room_option_id: body?.isHomeMatch !== false ? id(body?.lockerRoomOptionId) : null,
+    departure_time_enabled: !isHomeMatch && body?.departureTimeEnabled === true,
+    departure_time: !isHomeMatch && body?.departureTimeEnabled === true ? time(body?.departureTime) : null,
+    field_option_id: isHomeMatch ? id(body?.fieldOptionId) : null,
+    locker_room_option_id: isHomeMatch ? id(body?.lockerRoomOptionId) : null,
     meeting_place_option_id: body?.meetingPlaceEnabled === true ? id(body?.meetingPlaceOptionId) : null,
     meeting_place_custom: body?.meetingPlaceEnabled === true && typeof body?.meetingPlaceCustom === "string" ? body.meetingPlaceCustom.trim().slice(0, 150) || null : null,
     player_ids: selectedRows.filter((row: any) => row.selected).map((row: any) => row.player_id)
