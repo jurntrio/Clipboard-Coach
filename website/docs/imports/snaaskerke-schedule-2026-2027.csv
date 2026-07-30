@@ -1,0 +1,43 @@
+date,time,competition,home_team,away_team,is_snaaskerke_home,score_home,score_away,status,referee,notes
+2026-07-23,19:30,1e Ploegen 3-4 Prov,K.S.K. Snaaskerke,K. WS Oudenburg,true,0,3,played,,preseason friendly
+2026-07-26,15:00,1e Ploegen 3-4 Prov,K.S.K. Snaaskerke,KV Kortrijk,true,2,2,played,,preseason friendly
+2026-07-26,17:00,BvW Heren Groep 11 P3/P4,BS Geluveld,K.S.K. Snaaskerke,false,0,5,forfait,,cup group (likely reserves)
+2026-07-30,19:30,1e Ploegen 1-2 Prov,DAR. Brugge,K.S.K. Snaaskerke,false,,,scheduled,Angely Teshome,preseason friendly
+2026-07-30,20:00,1e Ploegen 3-4 Prov,K. FC Lissewege,K.S.K. Snaaskerke,false,,,scheduled,Tipuric Jerko,preseason friendly
+2026-08-02,17:00,BvW Heren Groep 11 P3/P4,K.S.K. Snaaskerke,E. Brugge,true,,,scheduled,Dewachter Freddy,cup group (likely reserves)
+2026-08-06,19:30,1e Ploegen 1-2 Prov,K.S.K. Snaaskerke,K. E. De Haan,true,,,scheduled,,preseason friendly
+2026-08-09,17:00,BvW Heren Groep 11 P3/P4,R. Three Stars Club Proven,K.S.K. Snaaskerke,false,,,scheduled,,cup group (likely reserves)
+2026-08-13,20:30,1e Ploegen 3-4 Prov,K.S.K. Snaaskerke,FC Beaufort Middelkerke,true,,,scheduled,,preseason friendly
+2026-08-16,16:00,BvW Heren Groep 11 P3/P4,K.S.K. Snaaskerke,Ol. Ledegem,true,,,scheduled,,cup group (likely reserves)
+2026-08-21,20:00,1e Ploegen 3-4 Prov,Fusion Oostende,K.S.K. Snaaskerke,false,,,scheduled,,preseason friendly
+2026-08-22,16:00,1e Ploegen 1-2 Prov,K.S.K. Snaaskerke,K.F.C. Eendracht Hooglede,true,,,scheduled,,preseason friendly
+2026-08-30,15:00,3 Provinciaal Wvl A,VV Westkapelle A,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2026-09-06,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,FC Veldegem,true,,,scheduled,,official league
+2026-09-13,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,KV Koksijde Oostduinkerke A,true,,,scheduled,,official league
+2026-09-19,18:00,3 Provinciaal Wvl A,K.S.V. Oostkamp B,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2026-09-27,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,Sp. Keiem,true,,,scheduled,,official league
+2026-10-04,15:00,3 Provinciaal Wvl A,K.FC Lichtervelde,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2026-10-11,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,V.V. Cercle Beernem A,true,,,scheduled,,official league
+2026-10-18,15:00,3 Provinciaal Wvl A,K. EG Gistel,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2026-10-25,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,FA Nieuwpoort A,true,,,scheduled,,official league
+2026-11-01,15:00,3 Provinciaal Wvl A,SV Loppem,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2026-11-08,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,S.K. Eernegem A,true,,,scheduled,,official league
+2026-11-15,15:00,3 Provinciaal Wvl A,K. SV Jabbeke B,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2026-11-22,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,K. Sp. Club Blankenberge B,true,,,scheduled,,official league
+2026-11-29,14:30,3 Provinciaal Wvl A,K. VV Aartrijke,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2026-12-06,14:30,3 Provinciaal Wvl A,K.S.K. Snaaskerke,K. SK Wenduine,true,,,scheduled,,official league
+2026-12-13,14:30,3 Provinciaal Wvl A,FC Veldegem,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2027-01-10,14:30,3 Provinciaal Wvl A,K.S.K. Snaaskerke,VV Westkapelle A,true,,,scheduled,,official league
+2027-01-17,15:00,3 Provinciaal Wvl A,KV Koksijde Oostduinkerke A,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2027-01-24,14:30,3 Provinciaal Wvl A,K. Sp. Club Blankenberge B,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2027-01-31,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,K. SV Jabbeke B,true,,,scheduled,,official league
+2027-02-14,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,K.S.V. Oostkamp B,true,,,scheduled,,official league
+2027-02-20,20:30,3 Provinciaal Wvl A,S.K. Eernegem A,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2027-02-28,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,SV Loppem,true,,,scheduled,,official league
+2027-03-06,19:30,3 Provinciaal Wvl A,V.V. Cercle Beernem A,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2027-03-14,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,K.FC Lichtervelde,true,,,scheduled,,official league
+2027-03-20,19:00,3 Provinciaal Wvl A,Sp. Keiem,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2027-04-03,19:30,3 Provinciaal Wvl A,K. SK Wenduine,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2027-04-11,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,K. VV Aartrijke,true,,,scheduled,,official league
+2027-04-17,20:00,3 Provinciaal Wvl A,FA Nieuwpoort A,K.S.K. Snaaskerke,false,,,scheduled,,official league
+2027-04-25,15:00,3 Provinciaal Wvl A,K.S.K. Snaaskerke,K. EG Gistel,true,,,scheduled,,official league

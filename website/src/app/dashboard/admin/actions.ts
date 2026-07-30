@@ -241,16 +241,22 @@ export async function updateTrainerAssignment(input: {
 
   let { data: trainer } = await admin.from("club_trainers").select("id").eq("club_id", input.clubId).eq("profile_id", input.profileId).maybeSingle();
   if (!trainer) {
-    const { data: placeholder } = await admin.from("club_trainers").select("id").eq("club_id", input.clubId).is("profile_id", null).ilike("display_name", fullName).maybeSingle();
-    if (placeholder) {
-      const { data: linked, error } = await admin.from("club_trainers").update({ profile_id: input.profileId, display_name: fullName, phone_number: input.phoneNumber.trim() || null, invitation_status: "linked" }).eq("id", placeholder.id).select("id").single();
-      if (error) throw new Error(error.message);
-      trainer = linked;
-    } else {
-      const { data: created, error } = await admin.from("club_trainers").insert({ club_id: input.clubId, profile_id: input.profileId, display_name: fullName, phone_number: input.phoneNumber.trim() || null, invitation_status: "linked" }).select("id").single();
-      if (error) throw new Error(error.message);
-      trainer = created;
-    }
+    // Never claim an unlinked placeholder by name. A same-name account gets its own
+    // compatibility row; identity linking only happens through a person-bound invite/review.
+    const { data: sameName } = await admin.from("club_trainers").select("id")
+      .eq("club_id", input.clubId).ilike("display_name", fullName);
+    const safeDisplayName = (sameName ?? []).length
+      ? `${fullName} · ${input.profileId.slice(0, 8)}`
+      : fullName;
+    const { data: created, error } = await admin.from("club_trainers").insert({
+      club_id: input.clubId,
+      profile_id: input.profileId,
+      display_name: safeDisplayName,
+      phone_number: input.phoneNumber.trim() || null,
+      invitation_status: "linked"
+    }).select("id").single();
+    if (error) throw new Error(error.message);
+    trainer = created;
   } else {
     await admin.from("club_trainers").update({ display_name: fullName, phone_number: input.phoneNumber.trim() || null, invitation_status: "linked" }).eq("id", trainer.id);
   }

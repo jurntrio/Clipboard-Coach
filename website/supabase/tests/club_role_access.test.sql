@@ -4,10 +4,20 @@ select plan(5);
 insert into public.clubs (id, name, normalized_name)
 values ('58000000-0000-0000-0000-000000000001', 'Scope Test Club', 'scope test club');
 
-insert into public.profiles (id, email, account_role)
+insert into auth.users (id, email)
 values
-  ('58000000-0000-0000-0000-000000000010', 'delegate@example.test', 'team_manager'),
-  ('58000000-0000-0000-0000-000000000011', 'viewer@example.test', 'club_admin_viewer');
+  ('58000000-0000-0000-0000-000000000010', 'delegate@example.test'),
+  ('58000000-0000-0000-0000-000000000011', 'viewer@example.test');
+
+update public.profiles
+set account_role = case id
+  when '58000000-0000-0000-0000-000000000010' then 'team_manager'
+  else 'club_admin_viewer'
+end
+where id in (
+  '58000000-0000-0000-0000-000000000010',
+  '58000000-0000-0000-0000-000000000011'
+);
 
 insert into public.club_teams (id, club_id, name)
 values
@@ -16,7 +26,7 @@ values
 
 insert into public.club_memberships (club_id, profile_id, role, status, function_role, team_scope)
 values
-  ('58000000-0000-0000-0000-000000000001', '58000000-0000-0000-000000000010', 'team_manager', 'active', 'team_manager', 'assigned'),
+  ('58000000-0000-0000-0000-000000000001', '58000000-0000-0000-0000-000000000010', 'team_manager', 'active', 'team_manager', 'assigned'),
   ('58000000-0000-0000-0000-000000000001', '58000000-0000-0000-0000-000000000011', 'club_admin_viewer', 'active', 'club_admin_viewer', 'all');
 
 insert into public.club_member_team_access (club_id, profile_id, club_team_id)

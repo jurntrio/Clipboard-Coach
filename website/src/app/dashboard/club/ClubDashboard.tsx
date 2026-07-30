@@ -8,6 +8,7 @@ import { ClubSponsorManager } from "@/components/clubs/ClubSponsorManager";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { ClubMemberAccessManager } from "./ClubMemberAccessManager";
 import { ClubInvitationCreator } from "./ClubInvitationCreator";
+import { ClubPeopleManager } from "./ClubPeopleManager";
 import { ClubMatchOptionsManager, type ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean };
@@ -244,6 +245,12 @@ export function ClubDashboard() {
           <p className="mt-1 text-sm text-textMuted">De rol Afgevaardigde bestaat technisch al als teammanager. De afzonderlijke rolselectie wordt hier verder uitgebouwd.</p>
         </div>
       </ModuleAccordion>}
+
+      <ModuleAccordion title="Personen & accounts" icon="/branding/clubadmin.png">
+        <ClubPeopleManager clubId={selectedClubId}
+          teams={teams.map((team) => ({ id: team.id, name: team.name }))}
+          readOnly={readOnly} />
+      </ModuleAccordion>
 
       <ClubMemberAccessManager clubId={selectedClubId}
         members={data.memberships.filter((item) => item.club_id === selectedClubId)}

@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Afbeelding Splitter</title>
+<style>
+  :root{
+    --bg:#111418; --panel:#181c22; --panel2:#1f242c; --border:#2a3038;
+    --accent:#4f8cff; --accent2:#ff7a4f; --text:#e8ebf0; --muted:#8993a3;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh;
+  }
+  header{
+    padding:16px 20px; border-bottom:1px solid var(--border);
+    display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+    background:var(--panel);
+  }
+  h1{ font-size:16px; margin:0 16px 0 0; font-weight:600; white-space:nowrap;}
+  .toolbar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; flex:1;}
+  .spacer{flex:1;}
+  button, .file-btn{
+    background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    padding:8px 14px; border-radius:8px; cursor:pointer; font-size:13px;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  button:hover, .file-btn:hover{ border-color:var(--accent); }
+  button.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary{ background:var(--accent2); border-color:var(--accent2); color:#fff; font-weight:600; }
+  button.primary:hover{ filter:brightness(1.1); }
+  button:disabled{ opacity:.4; cursor:not-allowed; }
+  input[type=file]{ display:none; }
+  .mode-group{ display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .mode-group button{ border:none; border-radius:0; }
+  .mode-group button + button{ border-left:1px solid var(--border); }
+
+  main{ padding:24px; display:flex; justify-content:center; }
+  #empty-state{ margin-top:80px; text-align:center; color:var(--muted); }
+  #empty-state .file-btn{ margin-top:12px; }
+
+  #workspace{ display:none; flex-direction:column; align-items:center; gap:8px; }
+  #workspace.visible{ display:flex; }
+
+  .zoom-bar{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
+  .zoom-bar button{ padding:4px 10px; font-size:13px; }
+  #zoom-label{ min-width:44px; text-align:center; color:var(--text); }
+
+  #scroll-container{
+    overflow:auto; border:1px solid var(--border); border-radius:6px; background:var(--panel);
+  }
+  .grid-wrap{
+    display:grid;
+    grid-template-columns: var(--rulerW,90px) auto;
+    grid-template-rows: var(--rulerH,60px) auto;
+  }
+  #corner{ position:sticky; top:0; left:0; z-index:3; background:var(--panel); }
+  #top-ruler{ position:sticky; top:0; z-index:2; background:var(--panel); }
+  #left-ruler{ position:sticky; left:0; z-index:2; background:var(--panel); }
+  #top-ruler, #left-ruler{ position:sticky; }
+  #canvas-holder{ position:relative; }
+  canvas{ display:block; background:#000; cursor:crosshair; border-radius:2px; }
+
+  .line-input{
+    position:absolute; display:flex; flex-direction:column; align-items:center; gap:2px;
+  }
+  #top-ruler .line-input{ top:4px; transform:translateX(-50%); }
+  #left-ruler .line-input{ left:4px; transform:translateY(-50%); flex-direction:row; }
+  .line-input input{
+    width:54px; background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    border-radius:5px; font-size:11px; padding:3px 2px; text-align:center;
+  }
+  .line-input .rm{
+    width:16px; height:16px; line-height:14px; padding:0; font-size:11px; border-radius:50%;
+    background:var(--panel2); border:1px solid var(--border); color:var(--muted); cursor:pointer;
+  }
+  .line-input .rm:hover{ background:#c0392b; color:#fff; border-color:#c0392b; }
+  #top-ruler .connector{
+    position:absolute; top:100%; width:1px; height:8px; background:var(--border);
+    transform:translateX(-50%);
+  }
+  #left-ruler .connector{
+    position:absolute; left:100%; height:1px; width:8px; background:var(--border);
+    transform:translateY(-50%);
+  }
+
+  .hint{ font-size:12px; color:var(--muted); padding:8px 20px 0; text-align:center; }
+  footer{ text-align:center; color:var(--muted); font-size:11px; padding:24px; }
+
+  .tag-chip{
+    position:absolute; transform:translateX(-50%);
+    min-width:26px; max-width:110px; height:22px; padding:0 8px;
+    background:var(--panel2); border:1px dashed var(--border); border-radius:5px;
+    color:var(--text); font-size:11px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .tag-chip.named{ border-style:solid; border-color:var(--accent); }
+  .tag-chip:hover{ border-color:var(--accent); color:#fff; }
+  #left-ruler .tag-chip{ transform:translateY(-50%); }
+
+  .tag-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
+  .tag-bar button{ padding:4px 10px; font-size:13px; }
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.55);
+    align-items:center; justify-content:center; z-index:100;
+  }
+  .modal-overlay.open{ display:flex; }
+  .modal-box{
+    background:var(--panel2); border:1px solid var(--border); border-radius:10px;
+    padding:20px; width:280px;
+  }
+  .modal-box h3{ margin:0 0 12px; font-size:14px; }
+  .modal-box input{
+    width:100%; background:var(--panel); color:var(--text); border:1px solid var(--border);
+    border-radius:6px; padding:8px 10px; font-size:14px;
+  }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Afbeelding Splitter</h1>
+  <div class="toolbar">
+    <label class="file-btn" for="file-input">📁 Afbeelding kiezen</label>
+    <input type="file" id="file-input" accept="image/*">
+
+    <div class="mode-group">
+      <button id="mode-h" title="Klik op de afbeelding om een horizontale lijn te zetten">➖ Horizontaal</button>
+      <button id="mode-v" title="Klik op de afbeelding om een verticale lijn te zetten">➗ Verticaal</button>
+    </div>
+
+    <button id="distribute-h" disabled>Horizontale lijnen verdelen</button>
+    <button id="distribute-v" disabled>Verticale lijnen verdelen</button>
+    <button id="clear-lines" disabled>Lijnen wissen</button>
+
+    <div class="spacer"></div>
+    <button id="generate" class="primary" disabled>⬇ Genereer ZIP</button>
+  </div>
+</header>
+
+<div class="hint" id="hint" style="display:none;">
+  Actieve modus: <b id="hint-mode">Horizontaal</b> — klik ergens op de afbeelding om daar een lijn te plaatsen.
+  Sleep een bestaande lijn om ze te verplaatsen, of typ een percentage in het veldje.
+</div>
+
+<main>
+  <div id="empty-state">
+    <div>Kies hierboven een afbeelding om te beginnen.</div>
+    <label class="file-btn" for="file-input">📁 Afbeelding kiezen</label>
+  </div>
+
+  <div id="workspace">
+    <div class="zoom-bar">
+      <button id="zoom-out" title="Uitzoomen">−</button>
+      <span id="zoom-label">100%</span>
+      <button id="zoom-in" title="Inzoomen">+</button>
+      <button id="zoom-reset" title="Zoom resetten">Reset</button>
+      <span>Scroll met je muiswiel op de afbeelding om in/uit te zoomen</span>
+    </div>
+    <div class="tag-bar">
+      <span>Verticale lijnen verschuiven:</span>
+      <button id="col-tag-left" title="Verschuif alle verticale lijnen naar links">◀</button>
+      <button id="col-tag-right" title="Verschuif alle verticale lijnen naar rechts">▶</button>
+      <span>Horizontale lijnen verschuiven:</span>
+      <button id="row-tag-up" title="Verschuif alle horizontale lijnen naar boven">▲</button>
+      <button id="row-tag-down" title="Verschuif alle horizontale lijnen naar onder">▼</button>
+      <span>Klik op een naam-veldje om een rij of kolom te benoemen (bv. AA, BB, 1, 2 — wordt gecombineerd tot bestandsnaam)</span>
+    </div>
+    <div id="scroll-container">
+      <div class="grid-wrap">
+        <div id="corner"></div>
+        <div id="top-ruler"></div>
+        <div id="left-ruler"></div>
+        <div id="canvas-holder">
+          <canvas id="canvas"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>Alles gebeurt lokaal in je browser — er wordt niets geüpload.</footer>
+
+<div class="modal-overlay" id="label-modal-overlay">
+  <div class="modal-box">
+    <h3 id="label-modal-title">Naam</h3>
+    <input type="text" id="label-modal-input" maxlength="40" placeholder="bv. AA">
+    <div class="modal-actions">
+      <button id="label-modal-cancel">Annuleren</button>
+      <button id="label-modal-ok" class="primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- State ----------
+  const state = {
+    img: null,          // HTMLImageElement
+    naturalW: 0, naturalH: 0,
+    baseW: 0, baseH: 0,  // "fit to view" size at zoom = 1, in CSS px
+    dispW: 0, dispH: 0,  // actual canvas display size in CSS px (base * zoom)
+    zoom: 1,
+    hLines: [],          // % (0-100) top->bottom, unsorted internally, sorted for render
+    vLines: [],          // % (0-100) left->right
+    rowLabels: [],       // names per row segment (top->bottom), one more than hLines.length
+    colLabels: [],       // names per column segment (left->right), one more than vLines.length
+    rulerW: 90, rulerH: 60, // actual (dynamic) ruler thickness, grows to fit staggered inputs/tags
+    mode: 'horizontal',
+    dragging: null,       // {type:'h'|'v', index}
+  };
+
+  const MAX_DISP_W = 900;
+  const MAX_DISP_H = 620;
+  const BASE_RULER_W = 90;
+  const BASE_RULER_H = 60;
+  const POS_ITEM_W = 62, POS_ITEM_H = 26;
+  const TAG_ITEM_W = 72, TAG_ITEM_H = 24;
+  const STAGGER_GAP = 6;
+  const LANE_GAP = 10;
+  const HIT_PX = 8;
+  const MIN_ZOOM = 0.3;
+  const MAX_ZOOM = 8;
+  const TAG_SHIFT_STEP = 3;
+
+  // ---------- DOM ----------
+  const fileInput = document.getElementById('file-input');
+  const emptyState = document.getElementById('empty-state');
+  const workspace = document.getElementById('workspace');
+  const gridWrap = document.querySelector('.grid-wrap');
+  const scrollContainer = document.getElementById('scroll-container');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const topRuler = document.getElementById('top-ruler');
+  const leftRuler = document.getElementById('left-ruler');
+  const modeHBtn = document.getElementById('mode-h');
+  const modeVBtn = document.getElementById('mode-v');
+  const distributeHBtn = document.getElementById('distribute-h');
+  const distributeVBtn = document.getElementById('distribute-v');
+  const clearBtn = document.getElementById('clear-lines');
+  const generateBtn = document.getElementById('generate');
+  const hint = document.getElementById('hint');
+  const hintMode = document.getElementById('hint-mode');
+  const zoomInBtn = document.getElementById('zoom-in');
+  const zoomOutBtn = document.getElementById('zoom-out');
+  const zoomResetBtn = document.getElementById('zoom-reset');
+  const zoomLabel = document.getElementById('zoom-label');
+  const colTagLeftBtn = document.getElementById('col-tag-left');
+  const colTagRightBtn = document.getElementById('col-tag-right');
+  const rowTagUpBtn = document.getElementById('row-tag-up');
+  const rowTagDownBtn = document.getElementById('row-tag-down');
+  const labelModalOverlay = document.getElementById('label-modal-overlay');
+  const labelModalTitle = document.getElementById('label-modal-title');
+  const labelModalInput = document.getElementById('label-modal-input');
+  const labelModalOk = document.getElementById('label-modal-ok');
+  const labelModalCancel = document.getElementById('label-modal-cancel');
+
+  scrollContainer.style.width = (BASE_RULER_W + MAX_DISP_W) + 'px';
+  scrollContainer.style.height = (BASE_RULER_H + MAX_DISP_H) + 'px';
+  scrollContainer.style.maxWidth = '90vw';
+
+  // ---------- Image loading ----------
+  fileInput.addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) loadImageFile(f);
+  });
+
+  ['dragover','drop'].forEach(evt => {
+    document.addEventListener(evt, (e) => { e.preventDefault(); });
+  });
+  document.addEventListener('drop', (e) => {
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) loadImageFile(f);
+  });
+
+  function loadImageFile(file){
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      state.img = img;
+      state.naturalW = img.naturalWidth;
+      state.naturalH = img.naturalHeight;
+      state.hLines = [];
+      state.vLines = [];
+      state.rowLabels = [];
+      state.colLabels = [];
+      state.zoom = 1;
+      URL.revokeObjectURL(url);
+      emptyState.style.display = 'none';
+      workspace.classList.add('visible');
+      hint.style.display = 'block';
+      generateBtn.disabled = false;
+      clearBtn.disabled = false;
+      layout();
+    };
+    img.src = url;
+  }
+
+  window.addEventListener('resize', () => { if (state.img) { computeBaseSize(); applyDisplaySize(); } });
+
+  // ---------- Layout / render ----------
+  function layout(){
+    computeBaseSize();
+    applyDisplaySize();
+  }
+
+  function computeBaseSize(){
+    const scale = Math.min(MAX_DISP_W / state.naturalW, MAX_DISP_H / state.naturalH, 1);
+    state.baseW = Math.round(state.naturalW * scale);
+    state.baseH = Math.round(state.naturalH * scale);
+  }
+
+  function applyDisplaySize(){
+    state.dispW = Math.round(state.baseW * state.zoom);
+    state.dispH = Math.round(state.baseH * state.zoom);
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.width = Math.round(state.dispW * dpr);
+    canvas.height = Math.round(state.dispH * dpr);
+    canvas.style.width = state.dispW + 'px';
+    canvas.style.height = state.dispH + 'px';
+
+    topRuler.style.width = state.dispW + 'px';
+    leftRuler.style.height = state.dispH + 'px';
+
+    zoomLabel.textContent = Math.round(state.zoom * 100) + '%';
+
+    render();
+  }
+
+  function render(){
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+    ctx.drawImage(state.img, 0, 0, canvas.width, canvas.height);
+
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6,4]);
+
+    ctx.strokeStyle = '#4f8cff';
+    state.hLines.forEach(pct => {
+      const y = pct/100 * canvas.height;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    });
+
+    ctx.strokeStyle = '#ff7a4f';
+    state.vLines.forEach(pct => {
+      const x = pct/100 * canvas.width;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    });
+
+    ctx.setLineDash([]);
+    renderRulers();
+  }
+
+  function computeStagger(centersPx, itemSize, minGap){
+    const arr = centersPx.map((pos,i)=>({pos,i})).sort((a,b)=>a.pos-b.pos);
+    const levelEnd = [];
+    const levels = new Array(centersPx.length).fill(0);
+    arr.forEach(({pos,i}) => {
+      const half = itemSize/2;
+      let lvl = 0;
+      while (levelEnd[lvl] !== undefined && pos - half < levelEnd[lvl] + minGap) lvl++;
+      levels[i] = lvl;
+      levelEnd[lvl] = pos + half;
+    });
+    const maxLevel = levels.length ? Math.max(...levels) : -1;
+    return { levels, maxLevel };
+  }
+
+  function segmentCenters(sortedPcts, dispSize){
+    const bounds = [0, ...sortedPcts, 100];
+    const centers = [];
+    for (let s=0; s<bounds.length-1; s++) centers.push((bounds[s]+bounds[s+1])/2);
+    return centers;
+  }
+
+  function renderRulers(){
+    topRuler.innerHTML = '';
+    leftRuler.innerHTML = '';
+
+    const sortedV = state.vLines.map((v,i)=>({v,i})).sort((a,b)=>a.v-b.v);
+    const sortedH = state.hLines.map((v,i)=>({v,i})).sort((a,b)=>a.v-b.v);
+
+    // ---- lane 1: line position inputs ----
+    const vPosX = sortedV.map(o => o.v/100 * state.dispW);
+    const vPosStagger = computeStagger(vPosX, POS_ITEM_W, STAGGER_GAP);
+    const hPosY = sortedH.map(o => o.v/100 * state.dispH);
+    const hPosStagger = computeStagger(hPosY, POS_ITEM_H, STAGGER_GAP);
+
+    const lane1Top = 6;
+    const posStepY = POS_ITEM_H + STAGGER_GAP;
+    const posStepX = POS_ITEM_W + STAGGER_GAP + 20; // + width of remove button
+
+    sortedV.forEach(({v,i}, idx) => {
+      const x = vPosX[idx];
+      const level = vPosStagger.levels[idx];
+
+      const conn = document.createElement('div');
+      conn.className = 'connector';
+      conn.style.left = x + 'px';
+      topRuler.appendChild(conn);
+
+      const wrap = document.createElement('div');
+      wrap.className = 'line-input';
+      wrap.style.left = x + 'px';
+      wrap.style.top = (lane1Top + level*posStepY) + 'px';
+      wrap.innerHTML = `
+        <input type="number" min="0" max="100" step="0.5" value="${round1(v)}">
+        <button class="rm" title="Verwijder lijn">×</button>
+      `;
+      const input = wrap.querySelector('input');
+      input.addEventListener('input', () => {
+        const val = clamp(parseFloat(input.value) || 0, 0, 100);
+        state.vLines[i] = val;
+        render();
+      });
+      input.addEventListener('blur', () => { input.value = round1(state.vLines[i]); });
+      wrap.querySelector('.rm').addEventListener('click', () => {
+        state.vLines.splice(i,1);
+        render();
+      });
+      topRuler.appendChild(wrap);
+    });
+
+    sortedH.forEach(({v,i}, idx) => {
+      const y = hPosY[idx];
+      const level = hPosStagger.levels[idx];
+
+      const conn = document.createElement('div');
+      conn.className = 'connector';
+      conn.style.top = y + 'px';
+      leftRuler.appendChild(conn);
+
+      const wrap = document.createElement('div');
+      wrap.className = 'line-input';
+      wrap.style.top = y + 'px';
+      wrap.style.left = (lane1Top + level*posStepX) + 'px';
+      wrap.innerHTML = `
+        <input type="number" min="0" max="100" step="0.5" value="${round1(v)}">
+        <button class="rm" title="Verwijder lijn">×</button>
+      `;
+      const input = wrap.querySelector('input');
+      input.addEventListener('input', () => {
+        const val = clamp(parseFloat(input.value) || 0, 0, 100);
+        state.hLines[i] = val;
+        render();
+      });
+      input.addEventListener('blur', () => { input.value = round1(state.hLines[i]); });
+      wrap.querySelector('.rm').addEventListener('click', () => {
+        state.hLines.splice(i,1);
+        render();
+      });
+      leftRuler.appendChild(wrap);
+    });
+
+    // ---- lane 2: row/column name tags ----
+    const colCenters = segmentCenters(sortedV.map(o=>o.v), state.dispW);
+    const rowCenters = segmentCenters(sortedH.map(o=>o.v), state.dispH);
+    if (state.colLabels.length !== colCenters.length) state.colLabels.length = colCenters.length;
+    if (state.rowLabels.length !== rowCenters.length) state.rowLabels.length = rowCenters.length;
+
+    const colTagX = colCenters.map(c => clamp(c, 0, 100) / 100 * state.dispW);
+    const colTagStagger = computeStagger(colTagX, TAG_ITEM_W, STAGGER_GAP);
+    const rowTagY = rowCenters.map(c => clamp(c, 0, 100) / 100 * state.dispH);
+    const rowTagStagger = computeStagger(rowTagY, TAG_ITEM_H, STAGGER_GAP);
+
+    const lane1HeightV = lane1Top + (vPosStagger.maxLevel+1)*posStepY;
+    const lane1WidthH = lane1Top + (hPosStagger.maxLevel+1)*posStepX;
+    const lane2Top = lane1HeightV + LANE_GAP;
+    const lane2Left = lane1WidthH + LANE_GAP;
+    const tagStepY = TAG_ITEM_H + STAGGER_GAP;
+    const tagStepX = TAG_ITEM_W + STAGGER_GAP;
+
+    colCenters.forEach((c, idx) => {
+      const x = colTagX[idx];
+      const level = colTagStagger.levels[idx];
+      const chip = document.createElement('div');
+      const label = state.colLabels[idx] || '';
+      chip.className = 'tag-chip' + (label ? ' named' : '');
+      chip.textContent = label || `+ naam`;
+      chip.title = 'Klik om deze kolom een naam te geven';
+      chip.style.left = x + 'px';
+      chip.style.top = (lane2Top + level*tagStepY) + 'px';
+      chip.addEventListener('click', () => openLabelModal('col', idx));
+      topRuler.appendChild(chip);
+    });
+
+    rowCenters.forEach((c, idx) => {
+      const y = rowTagY[idx];
+      const level = rowTagStagger.levels[idx];
+      const chip = document.createElement('div');
+      const label = state.rowLabels[idx] || '';
+      chip.className = 'tag-chip' + (label ? ' named' : '');
+      chip.textContent = label || `+ naam`;
+      chip.title = 'Klik om deze rij een naam te geven';
+      chip.style.top = y + 'px';
+      chip.style.left = (lane2Left + level*tagStepX) + 'px';
+      chip.addEventListener('click', () => openLabelModal('row', idx));
+      leftRuler.appendChild(chip);
+    });
+
+    state.rulerH = Math.max(BASE_RULER_H, lane2Top + (colTagStagger.maxLevel+1)*tagStepY + 6);
+    state.rulerW = Math.max(BASE_RULER_W, lane2Left + (rowTagStagger.maxLevel+1)*tagStepX + 6);
+    gridWrap.style.setProperty('--rulerW', state.rulerW + 'px');
+    gridWrap.style.setProperty('--rulerH', state.rulerH + 'px');
+  }
+
+  function round1(n){ return Math.round(n*10)/10; }
+  function clamp(n,min,max){ return Math.min(max, Math.max(min,n)); }
+
+  // ---------- Row/column naming ----------
+  let labelModalTarget = null;
+
+  function openLabelModal(axis, index){
+    labelModalTarget = { axis, index };
+    const arr = axis === 'row' ? state.rowLabels : state.colLabels;
+    labelModalTitle.textContent = axis === 'row' ? `Naam voor rij ${index+1}` : `Naam voor kolom ${index+1}`;
+    labelModalInput.value = arr[index] || '';
+    labelModalOverlay.classList.add('open');
+    labelModalInput.focus();
+    labelModalInput.select();
+  }
+  function closeLabelModal(){
+    labelModalOverlay.classList.remove('open');
+    labelModalTarget = null;
+  }
+  labelModalOk.addEventListener('click', () => {
+    if (!labelModalTarget) return;
+    const arr = labelModalTarget.axis === 'row' ? state.rowLabels : state.colLabels;
+    arr[labelModalTarget.index] = labelModalInput.value.trim();
+    closeLabelModal();
+    render();
+  });
+  labelModalCancel.addEventListener('click', closeLabelModal);
+  labelModalOverlay.addEventListener('click', (e) => { if (e.target === labelModalOverlay) closeLabelModal(); });
+  labelModalInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); labelModalOk.click(); }
+    if (e.key === 'Escape') closeLabelModal();
+  });
+
+  function shiftLines(arr, delta){
+    if (!state.img || arr.length === 0) return;
+    for (let i=0; i<arr.length; i++) arr[i] = clamp(arr[i] + delta, 0, 100);
+    render();
+  }
+  colTagLeftBtn.addEventListener('click', () => shiftLines(state.vLines, -TAG_SHIFT_STEP));
+  colTagRightBtn.addEventListener('click', () => shiftLines(state.vLines, TAG_SHIFT_STEP));
+  rowTagUpBtn.addEventListener('click', () => shiftLines(state.hLines, -TAG_SHIFT_STEP));
+  rowTagDownBtn.addEventListener('click', () => shiftLines(state.hLines, TAG_SHIFT_STEP));
+
+  // ---------- Mode toggle ----------
+  function setMode(m){
+    state.mode = m;
+    modeHBtn.classList.toggle('active', m==='horizontal');
+    modeVBtn.classList.toggle('active', m==='vertical');
+    hintMode.textContent = m==='horizontal' ? 'Horizontaal' : 'Verticaal';
+  }
+  modeHBtn.addEventListener('click', () => setMode('horizontal'));
+  modeVBtn.addEventListener('click', () => setMode('vertical'));
+  setMode('horizontal');
+
+  // ---------- Zoom ----------
+  function setZoom(newZoom, anchorClientX, anchorClientY){
+    if (!state.img) return;
+    newZoom = clamp(newZoom, MIN_ZOOM, MAX_ZOOM);
+    if (newZoom === state.zoom) return;
+
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const mouseVX = (anchorClientX !== undefined) ? anchorClientX - containerRect.left : scrollContainer.clientWidth/2;
+    const mouseVY = (anchorClientY !== undefined) ? anchorClientY - containerRect.top : scrollContainer.clientHeight/2;
+
+    const contentX = scrollContainer.scrollLeft + mouseVX;
+    const contentY = scrollContainer.scrollTop + mouseVY;
+    const fracX = clamp((contentX - state.rulerW) / state.dispW, 0, 1);
+    const fracY = clamp((contentY - state.rulerH) / state.dispH, 0, 1);
+
+    state.zoom = newZoom;
+    applyDisplaySize();
+
+    const newContentX = state.rulerW + fracX * state.dispW;
+    const newContentY = state.rulerH + fracY * state.dispH;
+    scrollContainer.scrollLeft = newContentX - mouseVX;
+    scrollContainer.scrollTop = newContentY - mouseVY;
+  }
+
+  scrollContainer.addEventListener('wheel', (e) => {
+    if (!state.img) return;
+    e.preventDefault();
+    const factor = Math.exp(-e.deltaY * 0.0015);
+    setZoom(state.zoom * factor, e.clientX, e.clientY);
+  }, { passive: false });
+
+  zoomInBtn.addEventListener('click', () => setZoom(state.zoom * 1.25));
+  zoomOutBtn.addEventListener('click', () => setZoom(state.zoom / 1.25));
+  zoomResetBtn.addEventListener('click', () => setZoom(1));
+
+  // ---------- Canvas interaction: click to add, drag to move ----------
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+
+    const hHit = findNearLine(state.hLines, cy / state.dispH * 100, HIT_PX / state.dispH * 100);
+    const vHit = findNearLine(state.vLines, cx / state.dispW * 100, HIT_PX / state.dispW * 100);
+
+    if (hHit !== -1) {
+      state.dragging = { type:'h', index: hHit };
+    } else if (vHit !== -1) {
+      state.dragging = { type:'v', index: vHit };
+    } else {
+      state.dragging = { type:'new', startX: cx, startY: cy };
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!state.dragging || !state.img) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = clamp(e.clientX - rect.left, 0, state.dispW);
+    const cy = clamp(e.clientY - rect.top, 0, state.dispH);
+
+    if (state.dragging.type === 'h') {
+      state.hLines[state.dragging.index] = clamp(cy/state.dispH*100, 0, 100);
+      render();
+    } else if (state.dragging.type === 'v') {
+      state.vLines[state.dragging.index] = clamp(cx/state.dispW*100, 0, 100);
+      render();
+    }
+  });
+
+  window.addEventListener('mouseup', (e) => {
+    if (!state.dragging || !state.img) { state.dragging = null; return; }
+
+    if (state.dragging.type === 'new') {
+      const rect = canvas.getBoundingClientRect();
+      const cx = clamp(e.clientX - rect.left, 0, state.dispW);
+      const cy = clamp(e.clientY - rect.top, 0, state.dispH);
+      const moved = Math.hypot(cx - state.dragging.startX, cy - state.dragging.startY);
+      if (moved < 4) {
+        if (state.mode === 'horizontal') {
+          state.hLines.push(clamp(cy/state.dispH*100, 0, 100));
+        } else {
+          state.vLines.push(clamp(cx/state.dispW*100, 0, 100));
+        }
+        render();
+      }
+    }
+    state.dragging = null;
+  });
+
+  function findNearLine(lines, pct, tolPct){
+    for (let i=0;i<lines.length;i++){
+      if (Math.abs(lines[i]-pct) <= tolPct) return i;
+    }
+    return -1;
+  }
+
+  // ---------- Distribute evenly ----------
+  distributeHBtn.addEventListener('click', () => {
+    const n = state.hLines.length;
+    if (n===0) return;
+    state.hLines = Array.from({length:n}, (_,i) => (i+1)/(n+1)*100);
+    render();
+  });
+  distributeVBtn.addEventListener('click', () => {
+    const n = state.vLines.length;
+    if (n===0) return;
+    state.vLines = Array.from({length:n}, (_,i) => (i+1)/(n+1)*100);
+    render();
+  });
+  clearBtn.addEventListener('click', () => {
+    state.hLines = [];
+    state.vLines = [];
+    render();
+  });
+
+  // ---------- Generate & download ZIP ----------
+  generateBtn.addEventListener('click', async () => {
+    if (!state.img) return;
+    generateBtn.disabled = true;
+    generateBtn.textContent = '⏳ Bezig...';
+    try {
+      const files = await sliceImage();
+      const zipBlob = makeZip(files);
+      downloadBlob(zipBlob, 'afbeelding-delen.zip');
+    } finally {
+      generateBtn.disabled = false;
+      generateBtn.textContent = '⬇ Genereer ZIP';
+    }
+  });
+
+  async function sliceImage(){
+    const hSorted = [...state.hLines].sort((a,b)=>a-b);
+    const vSorted = [...state.vLines].sort((a,b)=>a-b);
+    const rowBoundsPct = [0, ...hSorted, 100];
+    const colBoundsPct = [0, ...vSorted, 100];
+    const rows = rowBoundsPct.length - 1;
+    const cols = colBoundsPct.length - 1;
+
+    const W = state.naturalW, H = state.naturalH;
+    const files = [];
+    const usedNames = new Set();
+
+    for (let r=0; r<rows; r++){
+      const y0 = Math.round(rowBoundsPct[r]/100*H);
+      const y1 = Math.round(rowBoundsPct[r+1]/100*H);
+      const sh = Math.max(1, y1 - y0);
+      for (let c=0; c<cols; c++){
+        const x0 = Math.round(colBoundsPct[c]/100*W);
+        const x1 = Math.round(colBoundsPct[c+1]/100*W);
+        const sw = Math.max(1, x1 - x0);
+
+        const off = document.createElement('canvas');
+        off.width = sw; off.height = sh;
+        const octx = off.getContext('2d');
+        octx.drawImage(state.img, x0, y0, sw, sh, 0, 0, sw, sh);
+
+        const blob = await new Promise(res => off.toBlob(res, 'image/png'));
+        const buf = new Uint8Array(await blob.arrayBuffer());
+
+        const rowRaw = sanitizeName(state.rowLabels[r]);
+        const colRaw = sanitizeName(state.colLabels[c]);
+        const custom = !!(rowRaw || colRaw);
+        const rowLabel = rowRaw || String(r+1);
+        const colLabel = colRaw || String(c+1);
+
+        let base;
+        if (custom) {
+          if (cols === 1) base = rowLabel;
+          else if (rows === 1) base = colLabel;
+          else base = rowLabel + colLabel;
+        } else {
+          if (cols === 1 && rows === 1) base = 'deel_1';
+          else if (cols === 1) base = `deel_${rowLabel}`;
+          else if (rows === 1) base = `deel_${colLabel}`;
+          else base = `deel_r${rowLabel}_c${colLabel}`;
+        }
+
+        let name = base + '.png';
+        let n = 2;
+        while (usedNames.has(name)) { name = `${base}_${n}.png`; n++; }
+        usedNames.add(name);
+
+        files.push({ name, data: buf });
+      }
+    }
+    return files;
+  }
+
+  function sanitizeName(s){
+    return (s||'').trim().replace(/[\\/:*?"<>|]+/g,'_').replace(/\s+/g,'_').slice(0,40);
+  }
+
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  // ---------- Minimal ZIP writer (store / no compression) ----------
+  const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n=0; n<256; n++){
+      let c = n;
+      for (let k=0; k<8; k++){
+        c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      }
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(buf){
+    let crc = 0xFFFFFFFF;
+    for (let i=0; i<buf.length; i++){
+      crc = CRC_TABLE[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function dosDateTime(date){
+    const dosTime = ((date.getHours() & 0x1F) << 11) | ((date.getMinutes() & 0x3F) << 5) | ((date.getSeconds() >> 1) & 0x1F);
+    const dosDate = (((date.getFullYear()-1980) & 0x7F) << 9) | (((date.getMonth()+1) & 0xF) << 5) | (date.getDate() & 0x1F);
+    return { dosTime, dosDate };
+  }
+
+  function makeZip(files){
+    const now = new Date();
+    const { dosTime, dosDate } = dosDateTime(now);
+    const encoder = new TextEncoder();
+
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+
+    files.forEach(f => {
+      const nameBytes = encoder.encode(f.name);
+      const crc = crc32(f.data);
+      const size = f.data.length;
+
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true);
+      local.setUint16(4, 20, true);
+      local.setUint16(6, 0, true);
+      local.setUint16(8, 0, true);
+      local.setUint16(10, dosTime, true);
+      local.setUint16(12, dosDate, true);
+      local.setUint32(14, crc, true);
+      local.setUint32(18, size, true);
+      local.setUint32(22, size, true);
+      local.setUint16(26, nameBytes.length, true);
+      local.setUint16(28, 0, true);
+
+      localParts.push(new Uint8Array(local.buffer), nameBytes, f.data);
+
+      const central = new DataView(new ArrayBuffer(46));
+      central.setUint32(0, 0x02014b50, true);
+      central.setUint16(4, 20, true);
+      central.setUint16(6, 20, true);
+      central.setUint16(8, 0, true);
+      central.setUint16(10, 0, true);
+      central.setUint16(12, dosTime, true);
+      central.setUint16(14, dosDate, true);
+      central.setUint32(16, crc, true);
+      central.setUint32(20, size, true);
+      central.setUint32(24, size, true);
+      central.setUint16(28, nameBytes.length, true);
+      central.setUint16(30, 0, true);
+      central.setUint16(32, 0, true);
+      central.setUint16(34, 0, true);
+      central.setUint16(36, 0, true);
+      central.setUint32(38, 0, true);
+      central.setUint32(42, offset, true);
+
+      centralParts.push(new Uint8Array(central.buffer), nameBytes);
+
+      offset += 30 + nameBytes.length + size;
+    });
+
+    const centralStart = offset;
+    let centralSize = 0;
+    centralParts.forEach(p => centralSize += p.length);
+
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(4, 0, true);
+    end.setUint16(6, 0, true);
+    end.setUint16(8, files.length, true);
+    end.setUint16(10, files.length, true);
+    end.setUint32(12, centralSize, true);
+    end.setUint32(16, centralStart, true);
+    end.setUint16(20, 0, true);
+
+    return new Blob([...localParts, ...centralParts, new Uint8Array(end.buffer)], { type: 'application/zip' });
+  }
+
+})();
+</script>
+</body>
+</html>

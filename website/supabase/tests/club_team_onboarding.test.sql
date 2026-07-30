@@ -12,7 +12,7 @@ values (
 );
 select ok(exists(select 1 from public.clubs where rbfa_registration_number = 'TEST-991'), 'new club is registered');
 select ok(exists(select 1 from public.club_teams where name = 'U13 IP' and status = 'active'), 'first team is active');
-select ok(exists(select 1 from public.club_memberships where profile_id = '10000000-0000-0000-0000-000000000001' and role = 'club_admin'), 'new club creator becomes club admin');
+select ok(exists(select 1 from public.club_memberships where profile_id = '10000000-0000-0000-0000-000000000001' and role = 'trainer'), 'new club creator starts as trainer pending platform approval');
 
 insert into auth.users(id, email, raw_user_meta_data)
 select '10000000-0000-0000-0000-000000000002', 'coach@example.test',
@@ -49,12 +49,16 @@ select throws_ok(
 insert into public.club_teams(club_id,name,normalized_name,status,created_by)
 select id,'U13 Provincial','u13 provincial','active','10000000-0000-0000-0000-000000000001'
 from public.clubs where rbfa_registration_number='TEST-991';
+update public.club_memberships
+set role = 'club_admin', status = 'active'
+where profile_id = '10000000-0000-0000-0000-000000000001'
+  and club_id = (select id from public.clubs where rbfa_registration_number='TEST-991');
 select lives_ok(
   $$select public.merge_club_teams(
     (select id from public.club_teams where name='U13 Provincial'),
     (select id from public.club_teams where name='U13 IP'),
     '10000000-0000-0000-0000-000000000001', false
-  )$$, 'club admin can merge teams'
+  )$$, 'approved club admin can merge teams'
 );
 select ok(exists(select 1 from public.club_teams where name='U13 Provincial' and status='merged'), 'source team is retained as merged');
 select ok(exists(

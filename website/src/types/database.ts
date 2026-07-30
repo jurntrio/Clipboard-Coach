@@ -78,6 +78,7 @@ export type ClubSeason = {
 export type ClubPlayer = {
   id: string;
   club_id: string;
+  club_person_id: string | null;
   first_name: string;
   last_name: string;
   date_of_birth: string | null;
@@ -93,6 +94,106 @@ export type ClubPlayer = {
   match_key: string;
   created_at: string;
   updated_at: string;
+};
+
+export type Person = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string | null;
+  status: "active" | "merged" | "archived";
+  merged_into_person_id: string | null;
+  merge_reason: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PersonAccount = {
+  id: string;
+  person_id: string;
+  profile_id: string;
+  status: "pending" | "active" | "revoked" | "rejected";
+  link_method: "personal_invite" | "admin_review" | "verified_import";
+  verified_at: string | null;
+  verified_by: string | null;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  revoke_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClubPerson = {
+  id: string;
+  club_id: string;
+  person_id: string;
+  external_member_id: string | null;
+  status: "active" | "inactive";
+  joined_at: string;
+  left_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClubRoleType =
+  | "trainer"
+  | "assistant_trainer"
+  | "goalkeeper_coach"
+  | "team_manager"
+  | "scout"
+  | "hospitality_worker"
+  | "volunteer"
+  | "board_member"
+  | "club_employee";
+
+export type ClubRoleAssignment = {
+  id: string;
+  club_person_id: string;
+  role_type: ClubRoleType;
+  club_team_id: string | null;
+  valid_from: string;
+  valid_until: string | null;
+  status: "active" | "suspended" | "ended";
+  created_by: string | null;
+  ended_by: string | null;
+  ended_at: string | null;
+  end_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PersonBackfillPreview = {
+  club_player_id: string;
+  club_id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string | null;
+  existing_club_person_id: string | null;
+  existing_person_id: string | null;
+  candidate_person_ids: string[];
+  candidate_count: number;
+  classification:
+    | "already_linked"
+    | "create_new_person"
+    | "review_existing_candidate"
+    | "multiple_candidates";
+  certainty: "certain" | "certain_new_identity" | "requires_review";
+  missing_identifiers: boolean;
+  possible_duplicate: boolean;
+  proposed_mutation: string;
+};
+
+export type PersonBackfillRun = {
+  id: string;
+  preview_hash: string;
+  status: "running" | "completed" | "failed" | "rolled_back";
+  started_by: string | null;
+  started_at: string;
+  completed_at: string | null;
+  summary: Record<string, unknown>;
+  error_message: string | null;
 };
 
 export type PlayerTeamMembership = {
