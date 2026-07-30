@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { TeamTrainingScheduler } from "@/components/teams/TeamTrainingScheduler";
 import { TeamMatchScheduler } from "@/components/teams/TeamMatchScheduler";
 import type { ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
+import { ClubMatchCsvImporter } from "./ClubMatchCsvImporter";
 
 type PlayerRow = {
   firstName: string;
@@ -375,6 +376,9 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
         {calendarLastSync && <span className="text-xs text-textMuted">{t("clubTeams.lastSync", { date: new Date(calendarLastSync).toLocaleString("nl-BE") })}</span>}
       </div>
       {calendarStatus && <p className="mt-2 text-sm text-accent">{calendarStatus}</p>}
+      <div className="mt-4 border-t border-borderSubtle pt-4">
+        <ClubMatchCsvImporter teams={[{ id: team.id, name: team.name }]} readOnly={!!readOnly} onImported={onChanged} />
+      </div>
     </div>}
     {!readOnly && <div className="rounded-xl border border-borderSubtle p-4">
       <h4 className="font-semibold text-textPrimary">{t("clubTeams.addExistingHeading")}</h4>
