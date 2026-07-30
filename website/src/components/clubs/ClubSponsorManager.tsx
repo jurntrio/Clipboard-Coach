@@ -101,7 +101,7 @@ export function ClubSponsorManager({ clubId, generalUrl, useGeneral, teams, read
           Gebruik voor alle video’s
         </label>
       </div>
-      <p className="mt-2 text-xs text-textMuted">Wanneer dit aanstaat worden de individuele ploegsponsors tijdelijk niet gebruikt, maar hun instellingen blijven bewaard.</p>
+      <p className="mt-2 text-xs text-textMuted">Hoofdinstelling: wanneer dit aanstaat wordt deze sponsor standaard geselecteerd voor wedstrijden. Uitschakelen verwijdert de algemene sponsor ook uit de wedstrijdinstellingen; individuele ploegsponsors blijven bewaard.</p>
     </div>
     <div className={`rounded-xl border border-borderSubtle bg-cardDeep p-4 ${useGeneral ? "opacity-55" : ""}`}>
       <h3 className="font-semibold text-textPrimary">Sponsors per ploeg</h3>

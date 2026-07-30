@@ -49,6 +49,13 @@ export async function POST(request: Request) {
       .select("id, use_general_sponsor, general_sponsor_url")
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (body.useGeneralSponsor && club.general_sponsor_url) {
+      await admin.from("matches").update({ sponsor_source: "club" })
+        .eq("club_id", body.clubId).eq("sponsor_source", "none");
+    } else if (!body.useGeneralSponsor) {
+      await admin.from("matches").update({ sponsor_source: "none" })
+        .eq("club_id", body.clubId).eq("sponsor_source", "club");
+    }
     return NextResponse.json({ club });
   }
 
@@ -60,6 +67,13 @@ export async function POST(request: Request) {
       .select("id, general_sponsor_url, use_general_sponsor")
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (body.generalSponsorUrl && club.use_general_sponsor) {
+      await admin.from("matches").update({ sponsor_source: "club" })
+        .eq("club_id", body.clubId).eq("sponsor_source", "none");
+    } else if (!body.generalSponsorUrl) {
+      await admin.from("matches").update({ sponsor_source: "none" })
+        .eq("club_id", body.clubId).eq("sponsor_source", "club");
+    }
     return NextResponse.json({ club });
   }
 

@@ -19,6 +19,7 @@ export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSpo
   const [location, setLocation] = useState(match.public_location ?? "");
   const [showLocation, setShowLocation] = useState(match.show_public_location === true);
   const [sponsorSource, setSponsorSource] = useState(match.sponsor_source ?? "none");
+  const [sponsorEnabled, setSponsorEnabled] = useState(match.sponsor_source !== "none");
   const [sponsorCaption, setSponsorCaption] = useState(match.sponsor_caption ?? "");
   const [status, setStatus] = useState("");
 
@@ -26,7 +27,7 @@ export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSpo
     setStatus("Bewaren…");
     const response = await fetch(`/api/matches/${match.id}/public-info`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scoreA, scoreB, location, showLocation, sponsorSource, sponsorCaption })
+      body: JSON.stringify({ scoreA, scoreB, location, showLocation, sponsorSource: sponsorEnabled ? sponsorSource : "none", sponsorCaption })
     });
     const body = await response.json().catch(() => null);
     if (!response.ok) return setStatus(body?.error || "Kon niet worden bewaard.");
@@ -50,9 +51,14 @@ export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSpo
         <p className="mt-1 text-xs text-textMuted">Staat standaard uit.</p>
       </div>
       {sponsorFeatureEnabled ? <div>
+        <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-textPrimary"><input type="checkbox" checked={sponsorEnabled} onChange={(event) => {
+          const enabled = event.target.checked;
+          setSponsorEnabled(enabled);
+          if (enabled && sponsorSource === "none") setSponsorSource(hasClubSponsor ? "club" : hasTeamSponsor ? "team" : "none");
+        }} disabled={!hasClubSponsor && !hasTeamSponsor} className="h-4 w-4 accent-accent" />Sponsor tonen op gedeelde clips van deze wedstrijd</label>
         <label className="text-sm text-textSecondary">Sponsor voor deze wedstrijd
-          <select value={sponsorSource} onChange={(event) => setSponsorSource(event.target.value as typeof sponsorSource)} className={inputClass}>
-            <option value="none">Geen sponsor</option>
+          <select value={sponsorSource === "none" ? (hasClubSponsor ? "club" : hasTeamSponsor ? "team" : "none") : sponsorSource} onChange={(event) => setSponsorSource(event.target.value as typeof sponsorSource)} disabled={!sponsorEnabled} className={inputClass}>
+            {!hasClubSponsor && !hasTeamSponsor && <option value="none">Geen sponsor ingesteld</option>}
             <option value="club" disabled={!hasClubSponsor}>Algemene clubsponsor{!hasClubSponsor ? " — niet ingesteld" : ""}</option>
             <option value="team" disabled={!hasTeamSponsor}>Ploegsponsor{!hasTeamSponsor ? " — niet ingesteld" : ""}</option>
           </select>

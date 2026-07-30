@@ -75,7 +75,13 @@ export async function POST(request: Request) {
     if (payload.status === "finished") await admin.from("match_tag_links").update({ active: false }).eq("match_id", body.id);
     return NextResponse.json({ match: data });
   }
-  const { data, error } = await admin.from("matches").insert({ ...payload, coach_id: context.user.id }).select("id").single();
+  const { data: sponsorDefaults } = await admin.from("clubs")
+    .select("clip_advertising_enabled, use_general_sponsor, general_sponsor_url")
+    .eq("id", context.activeClubId).maybeSingle();
+  const sponsorSource = sponsorDefaults?.clip_advertising_enabled
+    && sponsorDefaults.use_general_sponsor
+    && sponsorDefaults.general_sponsor_url ? "club" : "none";
+  const { data, error } = await admin.from("matches").insert({ ...payload, sponsor_source: sponsorSource, coach_id: context.user.id }).select("id").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ match: data }, { status: 201 });
 }
