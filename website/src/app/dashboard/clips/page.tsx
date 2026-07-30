@@ -13,6 +13,7 @@ import { useI18n } from "@/i18n/client";
 import type { Match, Player, StandardTag, Team } from "@/types/database";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { MatchPreparationDialog } from "@/components/matches/MatchPreparationDialog";
+import { ClubMatchCsvImporter } from "@/app/dashboard/club/ClubMatchCsvImporter";
 
 type HubMatch = Match & { match_videos: { video_id: string }[] };
 type HubClip = {
@@ -56,6 +57,7 @@ export default function MatchesHubPage() {
   const [deletingMatch, setDeletingMatch] = useState(false);
   const [preparationMatch, setPreparationMatch] = useState<HubMatch | null>(null);
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
+  const [canManageMatches, setCanManageMatches] = useState(false);
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -73,6 +75,7 @@ export default function MatchesHubPage() {
     setTeams(teamData ?? []); setPlayers(playerData ?? []); setStandardTags(tagData ?? []);
     setClips(clipData ?? []);
     setIsPlatformAdmin(hub.isPlatformAdmin === true);
+    setCanManageMatches(hub.canManageMatches === true);
     setAccountRole((hub.role as typeof accountRole) ?? "coach");
     if (user) {
       setCurrentUserId(user.id);
@@ -189,7 +192,7 @@ export default function MatchesHubPage() {
     .sort((a, b) => `${a.match_date ?? "9999-99-99"}${a.start_time ?? ""}`.localeCompare(`${b.match_date ?? "9999-99-99"}${b.start_time ?? ""}`));
   const finished = teamFiltered.filter((match) => !upcoming.includes(match))
     .sort((a, b) => `${b.match_date ?? ""}${b.start_time ?? ""}`.localeCompare(`${a.match_date ?? ""}${a.start_time ?? ""}`));
-  const canManageMatches = !["analyst", "club_admin_viewer", "admin_viewer"].includes(accountRole);
+  const csvTeams = teams.flatMap((team) => team.club_team_id ? [{ id: team.club_team_id, name: team.name }] : []);
   const teamFilterLabel = selectedTeamIds.length ? teams.filter((team) => selectedTeamIds.includes(team.id)).map((team) => team.name).join(", ") : t("matchHub.allTeams");
 
   return (
@@ -214,6 +217,9 @@ export default function MatchesHubPage() {
         </div>
       </div>
       {notice && <button type="button" onClick={() => setNotice("")} className="mb-5 w-full rounded-xl border border-accent/30 bg-accentDim p-3 text-left text-sm text-textPrimary">{notice}</button>}
+      {canManageMatches && csvTeams.length > 0 && <div className="mb-6">
+        <ClubMatchCsvImporter teams={csvTeams} readOnly={false} onImported={load} />
+      </div>}
 
       <MatchSection title={t("matchHub.upcoming")} matches={showAllUpcoming ? upcoming : upcoming.slice(0, 3)} empty={t("matchHub.noUpcoming")} allowTagging={canManageMatches} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onEdit={setEditingMatch} onPrepare={setPreparationMatch} onDeleteMatch={setDeleteMatchTarget} onDeleteClip={setDeleteClipTarget} onTagLink={createTagLink} onClip={setSelectedClip} />
       {upcoming.length > 3 && <button type="button" onClick={() => setShowAllUpcoming(value => !value)} className="mt-3 rounded-lg border border-borderButton px-4 py-2 text-sm font-semibold text-accent">{showAllUpcoming ? t("matchHub.showFirstThree") : t("matchHub.showAllUpcoming")}</button>}

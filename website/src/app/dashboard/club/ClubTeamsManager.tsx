@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 import { TeamTrainingScheduler } from "@/components/teams/TeamTrainingScheduler";
 import { TeamMatchScheduler } from "@/components/teams/TeamMatchScheduler";
 import type { ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
-import { ClubMatchCsvImporter } from "./ClubMatchCsvImporter";
 
 type PlayerRow = {
   firstName: string;
@@ -313,10 +312,7 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
       <button type="button" onClick={() => setActiveTab("matches")} className={`rounded-lg px-4 py-2 text-sm font-bold ${activeTab === "matches" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Wedstrijden toevoegen</button>
       <button type="button" onClick={() => setActiveTab("trainings")} className={`rounded-lg px-4 py-2 text-sm font-bold ${activeTab === "trainings" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Trainingen toevoegen</button>
     </div>
-    {activeTab === "matches" ? <div className="space-y-4">
-      {!readOnly && <ClubMatchCsvImporter teams={[{ id: team.id, name: team.name }]} readOnly={false} onImported={onChanged} />}
-      <TeamMatchScheduler teamId={team.teams?.[0]?.id ?? ""} teamName={team.name} readOnly={readOnly || !team.teams?.[0]?.id} />
-    </div>
+    {activeTab === "matches" ? <TeamMatchScheduler teamId={team.teams?.[0]?.id ?? ""} teamName={team.name} readOnly={readOnly || !team.teams?.[0]?.id} />
       : activeTab === "trainings" ? <TeamTrainingScheduler teamId={team.id} trainers={trainers}
       assignedTrainerIds={[...new Set([...coordinatorTrainerIds, ...(team.club_trainer_teams ?? []).filter(link => link.status === "active").map(link => link.trainer_id)])]}
       options={options} readOnly={readOnly} /> : <div className="space-y-5">

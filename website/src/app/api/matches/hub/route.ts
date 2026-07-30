@@ -56,7 +56,8 @@ export async function GET() {
     clips: clips ?? [],
     role: membership.role,
     isPlatformAdmin: context.isPlatformAdmin,
-    canSeeViewCounts
+    canSeeViewCounts,
+    canManageMatches: hasClubPermission(access, "games.create")
   });
 }
 

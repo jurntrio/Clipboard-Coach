@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
-import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { parseClubMatchCsv } from "@/lib/club-match-csv";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 export async function POST(request: Request) {
   const supabase = createClient();
@@ -14,27 +14,23 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const { data: team } = await admin.from("club_teams").select("id, club_id, name").eq("id", body.teamId).maybeSingle();
   if (!team) return NextResponse.json({ error: "Ploeg niet gevonden." }, { status: 404 });
-  if (!isAdminEmail(user.email)) {
-    const { data: membership } = await admin.from("club_memberships").select("id").eq("club_id", team.club_id)
-      .eq("profile_id", user.id).eq("role", "club_admin").eq("status", "active").maybeSingle();
-    if (!membership) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
+  const access = await getClubAccess(team.club_id, user);
+  if (!hasClubPermission(access, "games.create") || !canAccessTeam(access, team.id)) {
+    return NextResponse.json({ error: "Je mag geen wedstrijden toevoegen voor deze ploeg." }, { status: 403 });
   }
   let rows;
   try { rows = parseClubMatchCsv(body.csv); }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Ongeldige CSV." }, { status: 400 }); }
   if (rows.length > 500) return NextResponse.json({ error: "Een CSV mag maximaal 500 wedstrijden bevatten." }, { status: 400 });
-  const [{ data: operationalTeam }, { data: owner }] = await Promise.all([
-    admin.from("teams").select("id").eq("club_team_id", team.id).maybeSingle(),
-    admin.from("club_memberships").select("profile_id").eq("club_id", team.club_id).eq("role", "club_admin").eq("status", "active").limit(1).maybeSingle()
-  ]);
-  if (!operationalTeam || !owner?.profile_id) return NextResponse.json({ error: "De ploeg of actieve clubadmin ontbreekt." }, { status: 400 });
+  const { data: operationalTeam } = await admin.from("teams").select("id").eq("club_team_id", team.id).maybeSingle();
+  if (!operationalTeam) return NextResponse.json({ error: "De gekozen ploeg heeft nog geen gekoppelde spelerslijst." }, { status: 400 });
   let imported = 0;
   let updated = 0;
   for (const row of rows) {
     const signature = `${team.id}|${row.date}|${row.time}|${row.homeTeam}|${row.awayTeam}`;
     const externalMatchId = `${team.id}:${createHash("sha256").update(signature).digest("hex").slice(0, 24)}`;
     const payload = {
-      coach_id: owner.profile_id, club_id: team.club_id, club_team_id: team.id, team_a_id: operationalTeam.id,
+      coach_id: user.id, club_id: team.club_id, club_team_id: team.id, team_a_id: operationalTeam.id,
       team_a_name: row.homeTeam, team_b_name: row.awayTeam, is_home_match: row.isHome,
       match_date: row.date, start_time: row.time, status: row.status, score_a: row.scoreHome, score_b: row.scoreAway,
       external_source: "voetbal_vlaanderen_csv", external_match_id: externalMatchId
