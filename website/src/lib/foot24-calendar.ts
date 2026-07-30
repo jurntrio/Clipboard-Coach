@@ -75,7 +75,16 @@ function splitFixture(summary: string, ownTeamName: string) {
 }
 
 function cleanSummary(summary: string) {
-  return summary.replace(/^[^\p{L}\p{N}]+/u, "").replace(/\s+/g, " ").trim();
+  return summary.replace(/\s+/g, " ").trim();
+}
+
+const HOME_MARKER = /(?:\u26bd|\u{1f535}|âš½)/giu;
+function hasHomeMarker(value: string) {
+  HOME_MARKER.lastIndex = 0;
+  return HOME_MARKER.test(value);
+}
+function withoutHomeMarker(value: string) {
+  return value.replace(HOME_MARKER, "").replace(/\s+/g, " ").trim();
 }
 
 export function isFoot24Advertisement(summary: string) {
@@ -113,11 +122,15 @@ function mappedFixture(summary: string, teamName: string, clubName: string) {
   const source = splitFixture(cleanSummary(summary), teamName);
   const normalize = (value: string) => value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
   const clubKey = normalize(clubName);
-  const homeIsClub = normalize(source.home).includes(clubKey);
-  const awayIsClub = normalize(source.away).includes(clubKey);
+  const markerOnHome = hasHomeMarker(source.home);
+  const markerOnAway = hasHomeMarker(source.away);
+  const home = withoutHomeMarker(markerOnAway && !markerOnHome ? source.away : source.home) || teamName;
+  const away = withoutHomeMarker(markerOnAway && !markerOnHome ? source.home : source.away) || teamName;
+  const homeIsClub = normalize(home).includes(clubKey);
+  const awayIsClub = normalize(away).includes(clubKey);
   return {
-    home: source.home || teamName,
-    away: source.away || teamName,
+    home,
+    away,
     isHome: homeIsClub || !awayIsClub
   };
 }

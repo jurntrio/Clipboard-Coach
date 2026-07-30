@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import { parseCalendar } from "./foot24CalendarParser";
-import { isFixtureForClub } from "./foot24Fixture";
+import { isFixtureForClub, mappedFoot24Fixture } from "./foot24Fixture";
 
 function validateUrl(raw: string) {
   const url = new URL(raw);
@@ -8,32 +8,6 @@ function validateUrl(raw: string) {
     throw new Error("Invalid Foot24 URL");
   }
   return url.toString();
-}
-
-function fixture(summary: string, teamName: string) {
-  const parts = summary.replace(/\s+/g, " ").trim().split(/\s+(?:-|–|—|vs?\.?|tegen)\s+/i).filter(Boolean);
-  return parts.length >= 2 ? { home: parts[0], away: parts.slice(1).join(" - ") } : { home: teamName, away: summary };
-}
-
-function cleanSummary(summary: string) {
-  return summary.replace(/^[^\p{L}\p{N}]+/u, "").replace(/\s+/g, " ").trim();
-}
-
-function normalizeTeamName(value: string) {
-  return value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
-}
-
-function mappedFixture(summary: string, teamName: string, clubName: string) {
-  const source = fixture(cleanSummary(summary), teamName);
-  const normalize = (value: string) => value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
-  const clubKey = normalize(clubName);
-  const homeIsClub = normalize(source.home).includes(clubKey);
-  const awayIsClub = normalize(source.away).includes(clubKey);
-  return {
-    home: source.home || teamName,
-    away: source.away || teamName,
-    isHome: homeIsClub || !awayIsClub
-  };
 }
 
 async function syncFeed(feed: Record<string, any>) {
@@ -71,7 +45,7 @@ async function syncFeed(feed: Record<string, any>) {
   let imported = 0;
   let updated = 0;
   for (const event of events) {
-    const names = mappedFixture(event.summary, team.name, clubName);
+    const names = mappedFoot24Fixture(event.summary, team.name, clubName);
     const externalMatchId = `${team.id}:${event.uid}`;
     const payload = {
       coach_id: owner.profile_id, club_id: team.club_id, club_team_id: team.id, team_a_id: operationalTeam.id,
