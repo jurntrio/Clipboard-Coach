@@ -15,8 +15,15 @@ function parseTime(value: string): number | null {
   return null;
 }
 
-function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate, onRename, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
+export type TagListMeta = {
+  badge: string;
+  byLabel: string;
+  onCalibrate?: () => void;
+};
+
+function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdate, onRename, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
   tag: Tag;
+  meta?: TagListMeta;
   selected: boolean;
   onToggleSelect: (tagId: string) => void;
   onSeek: (time: number) => void;
@@ -74,9 +81,11 @@ function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate, onR
         )}
         <span className={`h-2.5 w-2.5 flex-shrink-0 ${marker ? "rotate-45 rounded-sm" : "rounded-full"}`} style={{ backgroundColor: tag.color }} />
         {editingName ? <input autoFocus value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} onBlur={saveName} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { setNameDraft(tag.name); setEditingName(false); } }} className="min-w-0 flex-1 rounded border border-accent bg-input px-2 py-1 text-sm text-textPrimary outline-none" /> : <button onClick={() => onSeek(tag.start_time)} className="min-w-0 flex-1 truncate text-left text-sm font-medium text-textPrimary">{tag.name}</button>}
+        {meta?.onCalibrate && <button type="button" onClick={meta.onCalibrate} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="px-1 text-xs text-textMuted hover:text-accent">🎯</button>}
         {!marker && onRename && <button type="button" onClick={() => setEditingName(true)} className="px-1 text-xs text-textMuted hover:text-accent">{t("common.edit")}</button>}
         <button onClick={() => onDelete(tag.id)} className="px-1 text-sm text-textMuted hover:text-red-400" aria-label={t("tag.deleteNamed", { name: tag.name })}>&times;</button>
       </div>
+      {meta && <div className="mt-1 flex items-center gap-1.5 pl-8 text-[10px] text-textMuted"><span className="inline-grid h-4 w-4 place-items-center rounded bg-accentDim font-bold text-accent">{meta.badge}</span><span className="truncate">{meta.byLabel}</span></div>}
       <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-textMuted">
         {!marker && onDraw && currentTime !== undefined && currentTime >= tag.start_time && currentTime <= tag.end_time && (
           <button type="button" onClick={() => onDraw(tag)} className="mr-auto rounded border border-accent/60 bg-accentDim px-2 py-1 text-[11px] font-semibold text-accent hover:bg-accent hover:text-page">
@@ -99,8 +108,9 @@ function TagRow({ tag, selected, onToggleSelect, onSeek, onDelete, onUpdate, onR
   );
 }
 
-export function TagList({ tags, selectedTagIds, onToggleSelect, onSeek, onDelete, onUpdate, onRename, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
+export function TagList({ tags, tagMetaById, selectedTagIds, onToggleSelect, onSeek, onDelete, onUpdate, onRename, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
   tags: Tag[];
+  tagMetaById?: Record<string, TagListMeta>;
   selectedTagIds: string[];
   onToggleSelect: (tagId: string) => void;
   onSeek: (time: number) => void;
@@ -122,7 +132,7 @@ export function TagList({ tags, selectedTagIds, onToggleSelect, onSeek, onDelete
 
   return (
     <div className="flex flex-col gap-1 overflow-y-auto">
-      {sortedTags.map((tag) => <TagRow key={tag.id} tag={tag} selected={selectedTagIds.includes(tag.id)} onToggleSelect={onToggleSelect} onSeek={onSeek} onDelete={onDelete} onUpdate={onUpdate} onRename={onRename} onDraw={onDraw} currentTime={currentTime} onDrawingDurationChange={onDrawingDurationChange} onOpenDrawing={onOpenDrawing} />)}
+      {sortedTags.map((tag) => <TagRow key={tag.id} tag={tag} meta={tagMetaById?.[tag.id]} selected={selectedTagIds.includes(tag.id)} onToggleSelect={onToggleSelect} onSeek={onSeek} onDelete={onDelete} onUpdate={onUpdate} onRename={onRename} onDraw={onDraw} currentTime={currentTime} onDrawingDurationChange={onDrawingDurationChange} onOpenDrawing={onOpenDrawing} />)}
     </div>
   );
 }

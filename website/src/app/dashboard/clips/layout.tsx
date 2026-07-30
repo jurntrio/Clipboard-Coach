@@ -1,6 +1,6 @@
-import { requireClubModule } from "@/lib/auth/club-module";
+import { requireClubFeature } from "@/lib/auth/club-module";
 
 export default async function MatchesLayout({ children }: { children: React.ReactNode }) {
-  await requireClubModule("matches");
+  await requireClubFeature("matches");
   return children;
 }

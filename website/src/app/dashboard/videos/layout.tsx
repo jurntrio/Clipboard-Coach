@@ -1,7 +1,6 @@
-import { requireClubModule, requireClubPermission } from "@/lib/auth/club-module";
+import { requireClubFeature } from "@/lib/auth/club-module";
 
 export default async function VideosLayout({ children }: { children: React.ReactNode }) {
-  await requireClubModule("video_viewer");
-  await requireClubPermission("video.view");
+  await requireClubFeature("video_viewer", "video.view");
   return children;
 }

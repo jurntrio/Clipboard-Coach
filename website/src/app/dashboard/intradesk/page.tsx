@@ -1,7 +1,6 @@
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { IntradeskLibrary } from "@/components/intradesk/IntradeskLibrary";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import { getClubContext } from "@/lib/auth/active-club";
 import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
@@ -16,10 +15,9 @@ type LibraryTraining = {
 };
 
 export default async function IntradeskPage() {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
   const admin = createAdminClient();
   const context = await getClubContext();
+  const user = context.user;
   const { data: memberships } = user && !context.isPlatformAdmin
     ? await admin.from("club_memberships").select("club_id, role").eq("profile_id", user.id).eq("status", "active")
     : { data: [] };

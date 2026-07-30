@@ -17,3 +17,6 @@ electron/tracking/tmp-poc/
 
 # Machine-specific Claude Code settings
 .claude/settings.local.json
+
+# Local Netlify folder
+.netlify

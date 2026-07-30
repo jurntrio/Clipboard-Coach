@@ -81,14 +81,28 @@ export default async function DashboardHomePage() {
   }
   contexts.push(...groupedChildren.values());
 
+  // The profile overview only needs recent results and upcoming planning.
+  // Keeping this window bounded prevents the dashboard from loading a club's
+  // complete match and training history on every visit.
+  const today = new Date();
+  const activityFrom = dateOnly(addDays(today, -30));
+  const activityUntil = dateOnly(addDays(today, 120));
   const [{ data: matches }, { data: trainingSessions }, { data: trainingPlans }] = await Promise.all([
     clubId
       ? admin.from("matches").select("id, club_team_id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b")
-          .eq("club_id", clubId).order("match_date", { ascending: true, nullsFirst: false })
+          .eq("club_id", clubId)
+          .gte("match_date", activityFrom)
+          .lte("match_date", activityUntil)
+          .order("match_date", { ascending: true, nullsFirst: false })
+          .limit(200)
       : Promise.resolve({ data: [] }),
     clubId
       ? admin.from("team_training_sessions").select("id, club_team_id, training_date, start_time, club_teams(name)")
-          .eq("club_id", clubId).order("training_date", { ascending: true }).limit(100)
+          .eq("club_id", clubId)
+          .gte("training_date", activityFrom)
+          .lte("training_date", activityUntil)
+          .order("training_date", { ascending: true })
+          .limit(100)
       : Promise.resolve({ data: [] }),
     clubId
       ? admin.from("trainer_trainings").select("id, title, age_category, updated_at, publication_state")
@@ -152,4 +166,14 @@ export default async function DashboardHomePage() {
     activities={activities}
     quickLinks={[]}
   />;
+}
+
+function addDays(value: Date, days: number) {
+  const result = new Date(value);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+function dateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
 }

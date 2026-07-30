@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CLUB_PERMISSION_OPTIONS, type ClubPermissionKey, type TeamScope } from "@/lib/club-access-options";
@@ -7,20 +8,20 @@ const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view
 const analystDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.view_counts", "games.tag", "clips.share"]);
 const communicationsDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.communication.manage", "clips.share"]);
 
-export async function getClubAccess(clubId: string, user: { id: string; email?: string | null }) {
+async function loadClubAccess(clubId: string, userId: string, userEmail: string | null) {
   const admin = createAdminClient();
-  const { data: platformProfile } = isAdminEmail(user.email)
+  const { data: platformProfile } = isAdminEmail(userEmail)
     ? { data: { account_role: "platform_admin" } }
-    : await admin.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
-  if (isAdminEmail(user.email) || platformProfile?.account_role === "platform_admin") return {
+    : await admin.from("profiles").select("account_role").eq("id", userId).maybeSingle();
+  if (isAdminEmail(userEmail) || platformProfile?.account_role === "platform_admin") return {
     exists: true, role: "platform_admin", functionRole: "platform_admin", teamScope: "all" as TeamScope,
     readOnly: false, permissions: new Set(CLUB_PERMISSION_OPTIONS.map(([key]) => key)), teamIds: null as Set<string> | null
   };
   const [{ data: membership }, { data: explicit }, { data: selected }, { data: trainer }] = await Promise.all([
-    admin.from("club_memberships").select("role, status, function_role, team_scope").eq("club_id", clubId).eq("profile_id", user.id).maybeSingle(),
-    admin.from("club_member_permissions").select("permission_key, enabled").eq("club_id", clubId).eq("profile_id", user.id),
-    admin.from("club_member_team_access").select("club_team_id").eq("club_id", clubId).eq("profile_id", user.id),
-    admin.from("club_trainers").select("id").eq("club_id", clubId).eq("profile_id", user.id).maybeSingle()
+    admin.from("club_memberships").select("role, status, function_role, team_scope").eq("club_id", clubId).eq("profile_id", userId).maybeSingle(),
+    admin.from("club_member_permissions").select("permission_key, enabled").eq("club_id", clubId).eq("profile_id", userId),
+    admin.from("club_member_team_access").select("club_team_id").eq("club_id", clubId).eq("profile_id", userId),
+    admin.from("club_trainers").select("id").eq("club_id", clubId).eq("profile_id", userId).maybeSingle()
   ]);
   if (!membership || membership.status !== "active") return { exists: false, role: "", functionRole: "", teamScope: "none" as TeamScope, readOnly: true, permissions: new Set<ClubPermissionKey>(), teamIds: new Set<string>() };
   const readOnly = membership.role === "club_admin_viewer";
@@ -55,6 +56,12 @@ export async function getClubAccess(clubId: string, user: { id: string; email?: 
     teamScope: membership.team_scope as TeamScope, readOnly, permissions,
     teamIds: membership.role === "club_admin" || readOnly || membership.team_scope === "all" || permissions.has("teams.view_all") ? null : teamIds
   };
+}
+
+const getCachedClubAccess = cache(loadClubAccess);
+
+export function getClubAccess(clubId: string, user: { id: string; email?: string | null }) {
+  return getCachedClubAccess(clubId, user.id, user.email ?? null);
 }
 
 export function canAccessTeam(access: Awaited<ReturnType<typeof getClubAccess>>, clubTeamId: string | null | undefined) {

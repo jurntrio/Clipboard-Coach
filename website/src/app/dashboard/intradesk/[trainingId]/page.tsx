@@ -2,13 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import { TrainingReadOnlyView } from "@/components/training/TrainingBuilder";
 import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { getClubContext } from "@/lib/auth/active-club";
 
 export default async function IntradeskTrainingPage({ params }: { params: { trainingId: string } }) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getClubContext();
   if (!user) notFound();
   const admin = createAdminClient();
   const { data: training } = await admin.from("club_trainings").select("*")

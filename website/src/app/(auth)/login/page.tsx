@@ -10,7 +10,7 @@ import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 
 export default function LoginPage() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showHelp, setShowHelp] = useState(false);
@@ -36,7 +36,17 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    const legalResponse = await fetch("/api/legal-acceptance", { cache: "no-store" });
+    if (!legalResponse.ok) {
+      await supabase.auth.signOut();
+      setError(locale === "nl"
+        ? "Je juridische toestemming kon niet worden gecontroleerd. Probeer opnieuw."
+        : "Your legal acceptance could not be checked. Please try again.");
+      setLoading(false);
+      return;
+    }
+    const { accepted } = await legalResponse.json() as { accepted: boolean };
+    router.push(accepted ? "/dashboard" : "/legal-consent");
     router.refresh();
   }
 

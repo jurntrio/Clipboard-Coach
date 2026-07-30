@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LegalLinks } from "@/components/legal/LegalLinks";
-import { LEGAL_STATEMENT_VERSION, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 import { getClubContext } from "@/lib/auth/active-club";
 import { ActiveClubProvider } from "@/components/clubs/ActiveClubProvider";
 import { ActiveClubBar } from "@/components/clubs/ActiveClubBar";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { getClubModuleConfiguration } from "@/lib/auth/club-module";
+import type { ClubModuleKey } from "@/lib/club-modules";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const clubContext = await getClubContext();
@@ -15,31 +16,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const supabase = createClient();
   const admin = createAdminClient();
 
-  const { data: acceptance } = await supabase
-    .from("legal_acceptances")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("terms_version", TERMS_VERSION)
-    .eq("privacy_version", PRIVACY_VERSION)
-    .eq("statement_version", LEGAL_STATEMENT_VERSION)
-    .limit(1)
-    .maybeSingle();
-
-  if (!acceptance) {
-    redirect("/legal-consent");
-  }
-
   const clubId = clubContext.activeClubId;
-  const [access, { data: entitlements }, { data: profile }, { data: guardianRows }] = await Promise.all([
+  const [access, modules, { data: profile }, { data: guardianRows }] = await Promise.all([
     clubId ? getClubAccess(clubId, user) : Promise.resolve(null),
     clubId
-      ? admin.from("club_module_entitlements").select("module_key, enabled").eq("club_id", clubId)
-      : Promise.resolve({ data: [] }),
+      ? getClubModuleConfiguration(clubId)
+      : Promise.resolve({ configured: false, enabled: new Set() }),
     admin.from("profiles").select("account_role").eq("id", user.id).maybeSingle(),
     supabase.rpc("guardian_dashboard_players")
   ]);
-  const enabledModules = new Set((entitlements ?? []).filter(item => item.enabled).map(item => item.module_key));
-  const moduleOn = (key: string) => !clubId || clubContext.isPlatformAdmin || !entitlements?.length || enabledModules.has(key);
+  const moduleOn = (key: ClubModuleKey) => !clubId || clubContext.isPlatformAdmin || !modules.configured || modules.enabled.has(key);
   const navigation = [];
   if (access && hasClubPermission(access, "teams.view") && moduleOn("teams")) navigation.push({ href: "/dashboard/teams", label: "Teams", icon: "/branding/teams.png" });
   if (access && hasClubPermission(access, "video.view") && moduleOn("video_viewer")) navigation.push({ href: "/dashboard/videos", label: "Video Viewer", icon: "/branding/video-viewer.png" });

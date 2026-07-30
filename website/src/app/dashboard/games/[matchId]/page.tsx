@@ -6,6 +6,7 @@ import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club
 import { PublicMatchInfoEditor } from "@/components/matches/PublicMatchInfoEditor";
 import { MatchDossierTabs } from "@/components/matches/MatchDossierTabs";
 import { MatchPreparationButton } from "@/components/matches/MatchPreparationButton";
+import { getClubContext } from "@/lib/auth/active-club";
 
 type GuardianPlayer = { player_id: string; team_id: string | null };
 
@@ -18,7 +19,7 @@ function displayDate(value: string | null) {
 
 export default async function GameOverviewPage({ params }: { params: { matchId: string } }) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getClubContext();
   if (!user) notFound();
 
   const admin = createAdminClient();

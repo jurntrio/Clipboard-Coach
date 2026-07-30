@@ -262,6 +262,7 @@ export type TagDrawing = {
   id: string;
   url: string;
   key: string;
+  video_id?: string;
   video_time: number;
   duration_seconds: number;
   base_frame_url?: string;

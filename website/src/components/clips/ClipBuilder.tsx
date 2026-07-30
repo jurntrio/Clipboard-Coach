@@ -217,7 +217,11 @@ export function ClipBuilder({
                 source_end: tag.end_time,
                 drawing_time_base: "clip",
                 drawings: (tag.drawings ?? [])
-                  .filter((drawing) => drawing.video_time >= tag.start_time && drawing.video_time <= tag.end_time)
+                  .filter((drawing) =>
+                    (drawing.video_id ?? tag.video_id) === videoId
+                    && drawing.video_time >= tag.start_time
+                    && drawing.video_time <= tag.end_time
+                  )
                   .sort((first, second) => first.video_time - second.video_time)
                   .map((drawing) => ({
                     id: drawing.id,

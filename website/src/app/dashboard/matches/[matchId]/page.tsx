@@ -25,6 +25,7 @@ import { localMediaMessages } from "@/i18n/local-media";
 import { getTagEventKind } from "@/lib/tag-events";
 import { GoalTagDialog, type GoalTagDetails } from "@/components/tags/GoalTagDialog";
 import { EXTERNAL_RECORDING_CAMERAS, externalRecordingUrl } from "@/lib/external-recording";
+import { resolveVeoLink } from "@/lib/veo-browser";
 
 type MatchBlock = { id: string; sequence_order: number; label: string; is_primary: boolean; videos: Video | null };
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
@@ -168,6 +169,7 @@ export default function MatchViewerPage() {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [tags, setTags] = useState<Tag[]>([]);
   const [liveTags, setLiveTags] = useState<LiveMatchTag[]>([]);
+  const [hiddenLiveTaggers, setHiddenLiveTaggers] = useState<string[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [extraPlayers, setExtraPlayers] = useState<Player[]>([]);
@@ -176,11 +178,12 @@ export default function MatchViewerPage() {
   const [error, setError] = useState("");
   const [supportsPersistentFileAccess, setSupportsPersistentFileAccess] = useState<boolean | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [drawingFrame, setDrawingFrame] = useState<{ image: string; time: number; tagId: string | null; drawingId: string | null; key?: string; initialShapes?: WebDrawingShape[]; durationSeconds?: number } | null>(null);
+  const [drawingFrame, setDrawingFrame] = useState<{ image: string; time: number; videoId?: string; tagId: string | null; drawingId: string | null; key?: string; initialShapes?: WebDrawingShape[]; durationSeconds?: number } | null>(null);
   const [playingDrawing, setPlayingDrawing] = useState<TagDrawing | null>(null);
   const [pendingGoal, setPendingGoal] = useState<{ video: Video; label: string; localTime: number } | null>(null);
-  const [attachSource, setAttachSource] = useState<"file" | "external">("external");
+  const [attachSource, setAttachSource] = useState<"file" | "external" | "veo">("external");
   const [attachRecordingId, setAttachRecordingId] = useState("");
+  const [attachVeoUrl, setAttachVeoUrl] = useState("");
   const [attachCameras, setAttachCameras] = useState<number[]>([]);
   const [attaching, setAttaching] = useState(false);
   const [calibratingLiveTagId, setCalibratingLiveTagId] = useState<string | null>(null);
@@ -199,7 +202,9 @@ export default function MatchViewerPage() {
     if (time < previousTime - 0.25) handledDrawingIdsRef.current.clear();
     lastPlaybackTimeRef.current = time;
     if (playingDrawing) return;
-    const candidate = tags.flatMap((tag) => (tag.drawings ?? []).map((drawing) => ({ drawing, at: drawing.video_time + (offsets.map.get(tag.video_id) ?? 0) })))
+    const candidate = tags.flatMap((tag) => (tag.drawings ?? [])
+      .filter((drawing) => (drawing.video_id ?? tag.video_id) === currentVideo?.id)
+      .map((drawing) => ({ drawing, at: drawing.video_time + (offsets.map.get(drawing.video_id ?? tag.video_id) ?? 0) })))
       .sort((a, b) => a.at - b.at)
       .find(({ drawing, at }) => !handledDrawingIdsRef.current.has(drawing.id) && previousTime <= at && time >= at);
     const player = videoRef.current;
@@ -220,12 +225,12 @@ export default function MatchViewerPage() {
 
   function drawOnCurrentFrame(requestedTag?: Tag) {
     const player = videoRef.current;
-    if (!player) return;
+    if (!player || !currentVideo) return;
     const activeTag = requestedTag ?? displayTags.find((tag) => !isPeriodMarker(tag.name) && combinedTime >= tag.start_time && combinedTime <= tag.end_time);
     if (!activeTag) { setError(t("match.drawInsideTag")); return; }
     player.pause();
     try {
-      setDrawingFrame({ image: captureVideoFrame(player, t("drawing.frameNotReady")), time: player.currentTime, tagId: activeTag.id, drawingId: null });
+      setDrawingFrame({ image: captureVideoFrame(player, t("drawing.frameNotReady")), time: player.currentTime, videoId: currentVideo.id, tagId: activeTag.id, drawingId: null });
     } catch (captureError) {
       setError(messageFrom(captureError, "Could not capture this video frame."));
     }
@@ -236,7 +241,7 @@ export default function MatchViewerPage() {
     if (!player) return;
     player.pause();
     try {
-      setDrawingFrame({ image: captureVideoFrame(player, t("drawing.frameNotReady")), time: combinedTime, tagId: null, drawingId: null });
+      setDrawingFrame({ image: captureVideoFrame(player, t("drawing.frameNotReady")), time: combinedTime, videoId: currentVideo?.id, tagId: null, drawingId: null });
     } catch (captureError) {
       setError(messageFrom(captureError, "Could not capture this video frame."));
     }
@@ -254,7 +259,7 @@ export default function MatchViewerPage() {
       const baseBlob = await fetch(drawingFrame.image).then((response) => response.blob());
       baseFrameUrl = await uploadBlobToR2(baseBlob, `drawings/${match?.coach_id}/${tag.id}/${id}-base.png`, "image/png", () => undefined);
     }
-    const savedDrawing = { id, key, url, video_time: drawingFrame.time, duration_seconds: durationSeconds, base_frame_url: baseFrameUrl, shapes, created_at: new Date().toISOString() };
+    const savedDrawing = { id, key, url, video_id: drawingFrame.videoId ?? tag.video_id, video_time: drawingFrame.time, duration_seconds: durationSeconds, base_frame_url: baseFrameUrl, shapes, created_at: new Date().toISOString() };
     const drawings = drawingFrame.drawingId ? (tag.drawings ?? []).map((drawing) => drawing.id === id ? savedDrawing : drawing) : [...(tag.drawings ?? []), savedDrawing];
     if (tag.end_time - tag.start_time + drawingsSeconds(drawings) > MAX_CLIP_SECONDS) throw new Error(t("tag.tooLong"));
     const { error: saveError } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
@@ -266,7 +271,7 @@ export default function MatchViewerPage() {
   function openSavedDrawing(displayTag: Tag, drawing: TagDrawing) {
     const tag = tags.find((item) => item.id === displayTag.id);
     if (!tag) return;
-    setDrawingFrame({ image: drawing.base_frame_url ?? drawing.url, time: drawing.video_time, tagId: tag.id, drawingId: drawing.id, key: drawing.key, initialShapes: (drawing.shapes ?? []) as WebDrawingShape[], durationSeconds: drawing.duration_seconds });
+    setDrawingFrame({ image: drawing.base_frame_url ?? drawing.url, time: drawing.video_time, videoId: drawing.video_id ?? tag.video_id, tagId: tag.id, drawingId: drawing.id, key: drawing.key, initialShapes: (drawing.shapes ?? []) as WebDrawingShape[], durationSeconds: drawing.duration_seconds });
   }
 
   async function changeDrawingDuration(displayTag: Tag, drawingId: string, durationSeconds: number) {
@@ -350,6 +355,35 @@ export default function MatchViewerPage() {
       return aTime - bTime || a.occurred_at.localeCompare(b.occurred_at);
     });
   }, [displayTags, liveTags, match]);
+  const liveTaggers = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const liveTag of liveTags) {
+      const name = liveTag.tagger_name?.trim() || t("liveTags.unknownTagger");
+      byKey.set(name.toLocaleLowerCase(), name);
+    }
+    return [...byKey].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [liveTags, t]);
+  const visibleLiveTags = useMemo(() => sortedLiveTags.filter((liveTag) => {
+    const key = (liveTag.tagger_name?.trim() || t("liveTags.unknownTagger")).toLocaleLowerCase();
+    return !hiddenLiveTaggers.includes(key);
+  }), [hiddenLiveTaggers, sortedLiveTags, t]);
+  const visibleLiveTagByMaterializedId = useMemo(() => new Map(
+    visibleLiveTags.filter((liveTag) => liveTag.tag_id).map((liveTag) => [liveTag.tag_id as string, liveTag])
+  ), [visibleLiveTags]);
+  const allLiveMaterializedTagIds = useMemo(() => new Set(
+    liveTags.filter((liveTag) => liveTag.tag_id).map((liveTag) => liveTag.tag_id as string)
+  ), [liveTags]);
+  const rightColumnTags = useMemo(() => displayTags.filter((tag) =>
+    !isPeriodMarker(tag.name)
+    && (!allLiveMaterializedTagIds.has(tag.id) || visibleLiveTagByMaterializedId.has(tag.id))
+  ), [allLiveMaterializedTagIds, displayTags, visibleLiveTagByMaterializedId]);
+  const liveTagMetaById = useMemo(() => Object.fromEntries(
+    [...visibleLiveTagByMaterializedId].map(([tagId, liveTag]) => [tagId, {
+      badge: "L",
+      byLabel: liveTag.tagger_name ? t("liveTags.by", { name: liveTag.tagger_name }) : t("liveTags.byUnknown"),
+      onCalibrate: () => setCalibratingLiveTagId(liveTag.id)
+    }])
+  ), [t, visibleLiveTagByMaterializedId]);
   const markerTags = ["Start", "End"] as const;
   const clipTags = standardTags.filter((tag) => !isPeriodMarker(tag.name));
 
@@ -566,6 +600,38 @@ export default function MatchViewerPage() {
     }
   }
 
+  async function attachVeoRecording() {
+    if (!attachVeoUrl.trim() || !currentUserId) return;
+    setAttaching(true);
+    setError("");
+    try {
+      const veo = await resolveVeoLink(attachVeoUrl);
+      const { data: video, error: videoError } = await supabase.from("videos").insert({
+        coach_id: currentUserId,
+        team_id: match?.team_a_id ?? null,
+        video_url: veo.sourceUrl,
+        video_key: `veo/${veo.matchSlug}/standard`,
+        processing_status: "ready",
+        title: t("match.veoFollowCam")
+      }).select("id").single();
+      if (videoError) throw videoError;
+      const { error: linkError } = await supabase.from("match_videos").insert({
+        match_id: matchId,
+        video_id: video.id,
+        sequence_order: 0,
+        is_primary: true,
+        label: t("match.veoFollowCam")
+      });
+      if (linkError) throw linkError;
+      setAttachVeoUrl("");
+      await loadMatch();
+    } catch (attachError) {
+      setError(messageFrom(attachError, t("match.veoResolveFailed")));
+    } finally {
+      setAttaching(false);
+    }
+  }
+
   async function attachLocalFiles(selections: { file: File; handle: FileSystemFileHandle | null }[]) {
     if (!selections.length || !currentUserId) return;
     setAttaching(true);
@@ -700,6 +766,18 @@ export default function MatchViewerPage() {
     const { error: deleteError } = await supabase.from("live_match_tags").delete().eq("id", liveTag.id);
     if (deleteError) { setError(deleteError.message); return; }
     setLiveTags((current) => current.filter((item) => item.id !== liveTag.id));
+  }
+
+  function deleteDisplayedTag(tagId: string) {
+    const liveTag = liveTags.find((item) => item.tag_id === tagId);
+    if (liveTag) void deleteLiveTag(liveTag);
+    else void deleteTag(tagId);
+  }
+
+  function toggleLiveTagger(key: string) {
+    setHiddenLiveTaggers((current) => current.includes(key)
+      ? current.filter((item) => item !== key)
+      : [...current, key]);
   }
 
   async function toggleLiveTagReviewed(liveTag: LiveMatchTag) {
@@ -860,6 +938,10 @@ export default function MatchViewerPage() {
     const player = videoRef.current;
     pendingSeekRef.current = player?.currentTime ?? 0;
     autoPlayRef.current = !!player && !player.paused;
+    if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current);
+    drawingTimerRef.current = null;
+    setPlayingDrawing(null);
+    handledDrawingIdsRef.current.clear();
     setPreferredCameraNumber(cameraNumber);
   }
 
@@ -915,6 +997,7 @@ export default function MatchViewerPage() {
                   <div className="mt-4 flex justify-center overflow-hidden rounded-lg border border-borderButton text-xs font-semibold">
                     <button type="button" onClick={() => setAttachSource("external")} className={`px-3 py-1.5 ${attachSource === "external" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceExternal")}</button>
                     <button type="button" onClick={() => setAttachSource("file")} className={`px-3 py-1.5 ${attachSource === "file" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceFile")}</button>
+                    <button type="button" onClick={() => setAttachSource("veo")} className={`px-3 py-1.5 ${attachSource === "veo" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceVeo")}</button>
                   </div>
                   {attachSource === "external" ? (
                     <div className="mt-4">
@@ -932,9 +1015,17 @@ export default function MatchViewerPage() {
                       </div>
                       <button type="button" disabled={attaching || !attachRecordingId.trim() || !attachCameras.length} onClick={() => void attachExternalRecording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
                     </div>
-                  ) : (
+                  ) : attachSource === "file" ? (
                     <div className="mt-4">
                       <button type="button" disabled={attaching} onClick={() => void chooseLocalFilesToAttach()} className="w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <p className="text-xs text-textMuted">{t("match.veoLinkHelp")}</p>
+                      <label className="mt-3 block text-sm text-textSecondary">{t("match.veoLink")}
+                        <input type="url" value={attachVeoUrl} onChange={(event) => setAttachVeoUrl(event.target.value)} placeholder="https://app.veo.co/matches/..." className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
+                      </label>
+                      <button type="button" disabled={attaching || !attachVeoUrl.trim()} onClick={() => void attachVeoRecording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{attaching ? t("match.resolvingVeo") : t("match.attachAction")}</button>
                     </div>
                   )}
                 </div>
@@ -980,9 +1071,22 @@ export default function MatchViewerPage() {
         </main>
 
         <aside className="w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
-          {!!liveTags.length && <section className="min-h-0">
-            <h3 className="mb-1 font-semibold text-textBright">{t("liveTags.title")}</h3>
-            <p className="mb-2 text-xs text-textMuted">{t("liveTags.subtitle")}</p>
+          <section className="min-h-0">
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <h3 className="font-semibold text-textBright">{t("tag.tagsTitle")}</h3>
+              {!!liveTaggers.length && <details className="relative">
+                <summary className="cursor-pointer list-none rounded-lg border border-borderButton bg-button px-2.5 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.taggersFilter")}</summary>
+                <div className="absolute right-0 z-20 mt-1 w-56 rounded-xl border border-border bg-cardDeep p-3 shadow-xl">
+                  <p className="mb-2 text-xs text-textMuted">{t("liveTags.taggersFilterHelp")}</p>
+                  <div className="space-y-2">
+                    {liveTaggers.map((tagger) => <label key={tagger.key} className="flex cursor-pointer items-center gap-2 text-sm text-textPrimary">
+                      <input type="checkbox" checked={!hiddenLiveTaggers.includes(tagger.key)} onChange={() => toggleLiveTagger(tagger.key)} className="accent-accent" />
+                      <span className="truncate">{tagger.name}</span>
+                    </label>)}
+                  </div>
+                </div>
+              </details>}
+            </div>
             {calibratingLiveTagId && (
               <div className="mb-2 rounded-lg border border-accent bg-accentDim p-2.5">
                 <p className="text-xs font-semibold text-textBright">{t("liveTags.calibrateHelp", { name: liveTags.find((item) => item.id === calibratingLiveTagId)?.tag_name ?? "" })}</p>
@@ -992,14 +1096,14 @@ export default function MatchViewerPage() {
                 </div>
               </div>
             )}
-            <div className="space-y-2">
-              {sortedLiveTags.map((liveTag) => {
+            <TagList tags={rightColumnTags} tagMetaById={liveTagMetaById} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={deleteDisplayedTag} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={combinedTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
+            {!!visibleLiveTags.some((liveTag) => !liveTag.tag_id) && <div className="mt-1 space-y-1">
+              {visibleLiveTags.filter((liveTag) => !liveTag.tag_id).map((liveTag) => {
                 const elapsed = liveTagElapsedSeconds(liveTag);
-                const materializedTag = liveTag.tag_id ? displayTags.find((tag) => tag.id === liveTag.tag_id) : undefined;
                 return <LiveTagRow
                   key={liveTag.id}
                   liveTag={liveTag}
-                  materializedTag={materializedTag}
+                  materializedTag={undefined}
                   elapsed={elapsed}
                   reviewed={!!liveTag.reviewed_at}
                   onToggleReviewed={() => void toggleLiveTagReviewed(liveTag)}
@@ -1010,11 +1114,7 @@ export default function MatchViewerPage() {
                   t={t}
                 />;
               })}
-            </div>
-          </section>}
-          <section className="min-h-0">
-            <h3 className="mb-2 font-semibold text-textBright">{t("video.taggedClips")}</h3>
-            <TagList tags={displayTags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={(id) => void deleteTag(id)} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={combinedTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
+            </div>}
           </section>
           {videos[0] && <ClipBuilder videoId={videos[0].id} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} extraPlayers={extraPlayers} localVideo={isLocalVideoUrl(videos[0].video_url)} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={`${match?.team_a_name || t("match.teamA")} - ${match?.team_b_name || t("match.teamB")}`} onClipCreated={() => setSelectedTagIds([])} />}
         </aside>

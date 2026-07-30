@@ -22,18 +22,20 @@ async function downloadRemoteFile(url: string, destPath: string) {
 
 type RemoteSegmentRow = {
   id: string;
+  video_id: string | null;
   sequence_order: number;
   render_status: "pending" | "rendering" | "ready" | "failed";
   rendered_segment: RenderedRemoteSegment | null;
   render_attempts: number;
-  videos: { video_url: string } | null;
+  videos: { id: string; video_url: string } | null;
   tags: {
     name: string;
     color: string;
     start_time: number;
     end_time: number;
-    drawings: Array<{ key: string; video_time: number; duration_seconds: number }> | null;
-    videos: { video_url: string } | null;
+    video_id: string;
+    drawings: Array<{ key: string; video_id?: string; video_time: number; duration_seconds: number }> | null;
+    videos: { id: string; video_url: string } | null;
   } | null;
 };
 
@@ -77,7 +79,7 @@ export async function processRemoteClip(clipId: string) {
 
     const { data: segmentRows, error: segmentsError } = await supabase
       .from("clip_segments")
-      .select("id, sequence_order, render_status, rendered_segment, render_attempts, videos(video_url), tags(name, color, start_time, end_time, drawings, videos(video_url))")
+      .select("id, video_id, sequence_order, render_status, rendered_segment, render_attempts, videos(id, video_url), tags(name, color, start_time, end_time, video_id, drawings, videos(id, video_url))")
       .eq("clip_id", clipId)
       .order("sequence_order");
     if (segmentsError) throw segmentsError;
@@ -125,7 +127,9 @@ export async function processRemoteClip(clipId: string) {
 
       const drawingInputs = [];
       for (const [drawingIndex, drawing] of (tag.drawings ?? []).entries()) {
-        if (!drawing.key || drawing.video_time < tag.start_time || drawing.video_time > tag.end_time) continue;
+        const drawingVideoId = drawing.video_id ?? tag.video_id;
+        const segmentVideoId = segment.video_id ?? segment.videos?.id ?? tag.video_id;
+        if (drawingVideoId !== segmentVideoId || !drawing.key || drawing.video_time < tag.start_time || drawing.video_time > tag.end_time) continue;
         const imagePath = path.join(workDir, `${index}-drawing-${drawingIndex}.png`);
         await downloadToFile(drawing.key, imagePath);
         drawingInputs.push({ imagePath, atSeconds: drawing.video_time - tag.start_time, durationSeconds: drawing.duration_seconds });

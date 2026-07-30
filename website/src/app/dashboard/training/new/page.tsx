@@ -1,14 +1,12 @@
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TrainingBuilder } from "@/components/training/TrainingBuilder";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
 
 export default async function NewTrainingPage({ searchParams }: { searchParams?: { source?: string; edit?: string; sessionId?: string } }) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
   const admin = createAdminClient();
   const context = await getClubContext();
+  const user = context.user;
 
   let trainerName = "";
   let teamOptions: { id: string; name: string; assigned: boolean; clubLogoUrl: string | null }[] = [];

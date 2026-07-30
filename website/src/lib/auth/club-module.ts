@@ -1,27 +1,32 @@
 import { redirect } from "next/navigation";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { ClubModuleKey } from "@/lib/club-modules";
 import { getClubContext } from "@/lib/auth/active-club";
 import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import type { ClubPermissionKey } from "@/lib/club-access-options";
 
-export async function requireClubModule(moduleKey: ClubModuleKey) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  if (isAdminEmail(user.email)) return;
-  const context = await getClubContext();
-  if (!context.activeClubId) return;
-  const { data: allowed } = await supabase.from("club_module_entitlements")
-    .select("club_id").eq("club_id", context.activeClubId)
-    .eq("module_key", moduleKey).eq("enabled", true).limit(1).maybeSingle();
-  if (!allowed) redirect("/dashboard");
-}
+export const getClubModuleConfiguration = cache(async (clubId: string) => {
+  const { data } = await createClient()
+    .from("club_module_entitlements")
+    .select("module_key, enabled")
+    .eq("club_id", clubId);
+  return {
+    configured: !!data?.length,
+    enabled: new Set((data ?? []).filter((item) => item.enabled).map((item) => item.module_key as ClubModuleKey))
+  };
+});
 
-export async function requireClubPermission(permission: ClubPermissionKey) {
+export async function requireClubFeature(moduleKey: ClubModuleKey, permission?: ClubPermissionKey) {
   const context = await getClubContext();
-  if (!context.user || !context.activeClubId || context.isPlatformAdmin) return;
-  const access = await getClubAccess(context.activeClubId, context.user);
-  if (!hasClubPermission(access, permission)) redirect("/dashboard");
+  if (!context.user) redirect("/login");
+  if (context.isPlatformAdmin) return;
+  if (!context.activeClubId) return;
+
+  const [modules, access] = await Promise.all([
+    getClubModuleConfiguration(context.activeClubId),
+    permission ? getClubAccess(context.activeClubId, context.user) : Promise.resolve(null)
+  ]);
+  if (!modules.enabled.has(moduleKey)) redirect("/dashboard");
+  if (permission && (!access || !hasClubPermission(access, permission))) redirect("/dashboard");
 }
