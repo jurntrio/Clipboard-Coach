@@ -11,6 +11,7 @@ import { useI18n } from "@/i18n/client";
 import { localMediaMessages } from "@/i18n/local-media";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { resolveVeoLink } from "@/lib/veo-browser";
+import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 
 type Mode = "recent" | "all" | "create";
 type SelectedVideo = { file: File; handle: FileSystemFileHandle | null; info: LocalVideoInfo };
@@ -26,6 +27,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boolean }) {
   const { t } = useI18n();
+  const { activeClubId } = useActiveClub();
   const router = useRouter();
   const supabase = createClient();
   const fallbackInputRef = useRef<HTMLInputElement | null>(null);
@@ -55,21 +57,22 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
+    setMatches([]);
+    setTeams([]);
     void loadData();
     const supported = typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === "function";
     setSupportsPersistentFileAccess(supported);
-  }, []);
+  }, [activeClubId]);
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user || !activeClubId) return;
     const [matchResult, videoResult, teamResult] = await Promise.all([
-      // Let the database access policies determine the visible matches. Filtering
-      // by coach_id here hid club matches from admins even though they are allowed
-      // to review every match in their club.
-      supabase.from("matches").select("*, match_videos(video_id)").order("last_opened_at", { ascending: false }),
+      // Platform admins can read every club, so the active club must always be
+      // an explicit query boundary instead of relying on row-level access alone.
+      supabase.from("matches").select("*, match_videos(video_id)").eq("club_id", activeClubId).order("last_opened_at", { ascending: false }),
       supabase.from("videos").select("*").eq("coach_id", user.id).eq("status", "active").order("created_at", { ascending: false }),
-      supabase.from("teams").select("*").order("name")
+      supabase.from("teams").select("*, club_teams!inner(club_id)").eq("club_teams.club_id", activeClubId).order("name")
     ]);
     if (matchResult.error && matchResult.error.code !== "42P01") setError(matchResult.error.message);
     setMatches((matchResult.data as (Match & { match_videos: { video_id: string }[] })[] | null) ?? []);
