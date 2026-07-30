@@ -142,6 +142,15 @@ export async function setClubModuleEntitlement(clubId: string, moduleKey: ClubMo
   revalidatePath("/dashboard/club");
 }
 
+export async function setClubSponsorEntitlement(clubId: string, enabled: boolean) {
+  await requireAdmin();
+  const admin = createAdminClient();
+  const { error } = await admin.from("clubs").update({ clip_advertising_enabled: enabled }).eq("id", clubId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard/admin/clubs");
+  revalidatePath("/dashboard/club");
+}
+
 export async function setClubFeaturePermission(clubId: string, permissionKey: ClubFeaturePermissionKey, enabled: boolean) {
   const platformAdmin = await requireAdmin();
   if (!CLUB_FEATURE_PERMISSIONS.some((permission) => permission.key === permissionKey)) throw new Error("Onbekend deelrecht.");

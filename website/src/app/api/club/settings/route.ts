@@ -40,20 +40,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ permissions: rows });
   }
 
-  if (typeof body.clipAdvertisingEnabled === "boolean") {
-    const { data: club, error } = await admin
-      .from("clubs")
-      .update({ clip_advertising_enabled: body.clipAdvertisingEnabled })
-      .eq("id", body.clubId)
-      .select("id, clip_advertising_enabled")
-      .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ club });
-  }
-
   if (typeof body.useGeneralSponsor === "boolean") {
+    const { data: entitlement } = await admin.from("clubs").select("clip_advertising_enabled").eq("id", body.clubId).maybeSingle();
+    if (!entitlement?.clip_advertising_enabled) return NextResponse.json({ error: "De sponsormodule is niet actief voor deze club." }, { status: 403 });
     const { data: club, error } = await admin.from("clubs")
-      .update({ use_general_sponsor: body.useGeneralSponsor, clip_advertising_enabled: body.useGeneralSponsor })
+      .update({ use_general_sponsor: body.useGeneralSponsor })
       .eq("id", body.clubId)
       .select("id, use_general_sponsor, general_sponsor_url")
       .single();

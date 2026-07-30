@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createClub, removeClubMembership, setClubMembership, setClubModuleEntitlement } from "../actions";
+import { createClub, removeClubMembership, setClubMembership, setClubModuleEntitlement, setClubSponsorEntitlement } from "../actions";
 import { CLUB_MODULES, type ClubModuleKey } from "@/lib/club-modules";
 import { ClubLogoUploader } from "@/components/clubs/ClubLogoUploader";
 
@@ -12,7 +12,7 @@ type Membership = { profile_id: string; role: "trainer" | "club_admin" | "club_a
 type ClubTrainer = { id: string; profile_id: string | null; display_name: string; phone_number: string | null; invitation_status: string; profiles: { email: string } | { email: string }[] | null; club_trainer_teams: { club_teams: { name: string } | { name: string }[] | null }[] };
 type ClubTeam = { id: string; name: string };
 type ClubUsage = { teams: number; players: number; members: number; trainings: number; matches: number; videos: number; clips: number; videoBytes: number; clipBytes: number; trainingBytes: number; clipsWithUnknownSize: number };
-type ClubRow = { id: string; name: string; rbfa_registration_number: string | null; logo_url: string | null; teams: ClubTeam[]; memberships: Membership[]; trainers: ClubTrainer[]; modules: { module_key: string; enabled: boolean }[]; usage: ClubUsage };
+type ClubRow = { id: string; name: string; rbfa_registration_number: string | null; logo_url: string | null; clip_advertising_enabled: boolean; teams: ClubTeam[]; memberships: Membership[]; trainers: ClubTrainer[]; modules: { module_key: string; enabled: boolean }[]; usage: ClubUsage };
 
 const memberRoleLabel: Record<Membership["role"], string> = { club_admin: "Club Admin", club_admin_viewer: "Club Admin (viewer)", analyst: "Analyst", trainer: "Trainer" };
 const memberRoleClass: Record<Membership["role"], string> = { club_admin: "bg-blue-500/15 text-blue-300", club_admin_viewer: "bg-blue-500/10 text-blue-200", analyst: "bg-cyan-500/15 text-cyan-300", trainer: "bg-accent/15 text-accent" };
@@ -124,6 +124,10 @@ function ClubDetails({ club, profiles, pending, run, readOnly }: { club: ClubRow
             </div>;
           })}
         </div>
+        <label className="mt-4 flex items-start gap-3 rounded-lg border border-accent/30 bg-accent/5 p-4 text-sm text-textPrimary">
+          <input type="checkbox" checked={club.clip_advertising_enabled} disabled={pending || readOnly} onChange={(event) => run(() => setClubSponsorEntitlement(club.id, event.target.checked))} className="mt-0.5 h-4 w-4 accent-accent" />
+          <span><strong className="block text-textBright">Extra: sponsoring op gedeelde wedstrijdbeelden</strong><span className="mt-1 block text-xs text-textMuted">Alleen de CBCS-platformadmin kan deze betalende optie per club activeren. Standaard actief voor nieuwe clubs.</span></span>
+        </label>
       </section>
 
       <section className="mb-5 rounded-lg border border-borderSubtle bg-cardDeep p-4">

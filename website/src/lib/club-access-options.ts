@@ -17,6 +17,7 @@ export const CLUB_PERMISSION_OPTIONS = [
   ["teams.view", "Andere teams buiten de eigen ploeg(en) bekijken"], ["teams.manage", "Teams en spelers beheren"], ["teams.import", "PSD/Excel importeren"],
   ["video.view", "Video Viewer gebruiken"],
   ["games.view", "Games bekijken"], ["games.create", "Wedstrijden aanmaken en aanpassen"],
+  ["games.communication.manage", "Publieke wedstrijdinfo en sponsoring beheren"],
   ["games.view_counts", "Kijkcijfers bekijken"], ["games.tag_link.create", "Taglink aanmaken en delen"], ["games.tag", "Wedstrijden taggen"],
   ["training.view", "Trainingen bekijken in Intradesk"], ["training.manage", "Trainingen toevoegen en versies maken"],
   ["intradesk.view", "Intradesk bekijken"], ["intradesk.manage", "Intradesk-onderdelen beheren"],
@@ -32,6 +33,7 @@ export const CLUB_PERMISSION_DESCRIPTIONS: Record<ClubPermissionKey, string> = {
   "video.view": "De Video Viewer openen en wedstrijdbeelden binnen de toegankelijke ploegen bekijken.",
   "games.view": "Geeft toegang tot Games: wedstrijden, tags en clips van de eigen/toegewezen of extra toegankelijke ploegen bekijken.",
   "games.create": "Wedstrijden aanmaken en aanpassen voor de eigen/toegewezen en eventueel extra toegankelijke ploegen. Wie toegang tot alle teams heeft, kan dit voor alle clubteams.",
+  "games.communication.manage": "Publieke wedstrijdinformatie, uitslag, locatie en de sponsor van gedeelde wedstrijdclips beheren.",
   "games.view_counts": "Bekijken hoe vaak gedeelde clips geopend werden.",
   "games.tag_link.create": "Een eenmalige of gedeelde link maken waarmee iemand een wedstrijd kan taggen.",
   "games.tag": "Tijdens of na een wedstrijd tags en momenten toevoegen of aanpassen.",
@@ -52,5 +54,6 @@ export function defaultPermissionsForRole(role: string): ClubPermissionKey[] {
     return ["video.view", "games.view", "games.tag_link.create", "games.tag", "training.view", "intradesk.view", "clips.share"];
   }
   if (role === "video_analyst") return ["video.view", "games.view", "games.view_counts", "games.tag", "intradesk.view", "clips.share"];
+  if (role === "communications") return ["games.view", "games.communication.manage", "clips.share"];
   return ["intradesk.view"];
 }

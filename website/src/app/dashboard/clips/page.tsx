@@ -16,7 +16,7 @@ import { MatchPreparationDialog } from "@/components/matches/MatchPreparationDia
 
 type HubMatch = Match & { match_videos: { video_id: string }[] };
 type HubClip = {
-  id: string; coach_id: string; video_id: string; name: string; render_status: string; created_at: string; audience_type: "full_team" | "selected_players" | "specific_players";
+  id: string; coach_id: string; video_id: string; name: string; display_number: number | null; render_status: string; created_at: string; audience_type: "full_team" | "selected_players" | "specific_players";
   audience_player_ids: string[];
   share_links: Array<{ token: string; view_count?: number }>;
   rendered_segments: Array<{ id: string; url: string; name: string; color: string; duration: number; play_start?: number; mobile_compatible?: boolean }>;
@@ -289,7 +289,7 @@ function ClipPills({ clips, onClip, onDelete, canDelete, empty }: { clips: HubCl
     const viewCount = clip.share_links?.reduce((sum, link) => sum + (link.view_count ?? 0), 0) ?? 0;
     return <span key={clip.id} className="inline-flex flex-col overflow-hidden rounded-xl border border-accent/40 bg-accentDim">
       <span className="inline-flex">
-        <button type="button" disabled={processing} onClick={() => onClip(clip)} title={clip.name} aria-label={`${clip.name} ${t("common.play")}`} className="flex h-8 min-w-10 items-center justify-center gap-1 px-2 text-xs font-bold text-accent hover:bg-accent hover:text-page disabled:cursor-wait disabled:opacity-70"><span aria-hidden="true">{processing ? "…" : "▶"}</span><span>{index + 1}</span></button>
+        <button type="button" disabled={processing} onClick={() => onClip(clip)} title={clip.name} aria-label={`${clip.name} ${t("common.play")}`} className="flex h-8 min-w-10 max-w-44 items-center justify-center gap-1 px-2 text-xs font-bold text-accent hover:bg-accent hover:text-page disabled:cursor-wait disabled:opacity-70"><span aria-hidden="true">{processing ? "…" : "▶"}</span><span className="truncate">{clip.display_number ?? clip.name}</span></button>
         {onDelete && canDelete?.(clip) && <button type="button" onClick={() => onDelete(clip)} title={`${clip.name} ${t("common.remove")}`} aria-label={`${clip.name} ${t("common.remove")}`} className="grid h-8 w-7 place-items-center border-l border-red-500/30 text-sm text-red-300 hover:bg-red-500/20">×</button>}
       </span>
       {processing && <span className="border-t border-accent/20 px-2 py-1 text-[9px] font-semibold text-textMuted" title={t("clip.estimateHelp")}>

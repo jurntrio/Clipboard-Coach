@@ -44,7 +44,7 @@ export async function GET() {
       ? admin.from("players").select("*").in("team_id", teamIds).neq("role", "staff").order("last_name")
       : Promise.resolve({ data: [] }),
     videoIds.length
-      ? admin.from("clips").select(`id, coach_id, video_id, name, render_status, created_at, audience_type, audience_player_ids, rendered_segments, share_links(token${canSeeViewCounts ? ", view_count" : ""}), videos(title, video_url), clip_segments(id, sequence_order, video_id, render_status, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))`)
+      ? admin.from("clips").select(`id, coach_id, video_id, name, display_number, render_status, created_at, audience_type, audience_player_ids, rendered_segments, share_links(token${canSeeViewCounts ? ", view_count" : ""}), videos(title, video_url), clip_segments(id, sequence_order, video_id, render_status, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))`)
           .in("video_id", videoIds).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] })
   ]);

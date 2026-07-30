@@ -178,6 +178,10 @@ export type Match = {
   status: "scheduled" | "live" | "finished";
   score_a: number | null;
   score_b: number | null;
+  public_location: string | null;
+  show_public_location: boolean;
+  sponsor_source: "none" | "club" | "team";
+  sponsor_caption: string | null;
   player_ids: string[];
   live_tag_names: string[];
   live_tag_offset_seconds: number;

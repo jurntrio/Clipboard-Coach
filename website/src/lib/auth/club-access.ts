@@ -5,6 +5,7 @@ import { CLUB_PERMISSION_OPTIONS, type ClubPermissionKey, type TeamScope } from 
 const readDefaults = new Set<ClubPermissionKey>(["teams.view", "games.view", "training.view", "intradesk.view"]);
 const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.create", "games.tag_link.create", "games.tag", "training.manage"]);
 const analystDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.view_counts", "games.tag", "clips.share"]);
+const communicationsDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.communication.manage", "clips.share"]);
 
 export async function getClubAccess(clubId: string, user: { id: string; email?: string | null }) {
   const admin = createAdminClient();
@@ -25,7 +26,9 @@ export async function getClubAccess(clubId: string, user: { id: string; email?: 
   const readOnly = membership.role === "club_admin_viewer";
   let permissions = membership.role === "club_admin" || readOnly
     ? new Set(CLUB_PERMISSION_OPTIONS.map(([key]) => key))
-    : membership.role === "analyst" || membership.function_role === "video_analyst"
+    : membership.function_role === "communications"
+      ? new Set(communicationsDefaults)
+      : membership.role === "analyst" || membership.function_role === "video_analyst"
       ? new Set(analystDefaults) : membership.role === "trainer" || membership.role === "coach"
         ? new Set(trainerDefaults) : new Set(readDefaults);
   if (readOnly) permissions = new Set([...permissions].filter((key) => !key.endsWith(".manage") && !["games.create", "games.tag_link.create", "games.tag", "clips.share", "teams.import"].includes(key)));

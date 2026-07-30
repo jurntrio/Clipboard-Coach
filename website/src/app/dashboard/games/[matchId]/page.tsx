@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { PublicMatchInfoEditor } from "@/components/matches/PublicMatchInfoEditor";
 
 type GuardianPlayer = { player_id: string; team_id: string | null };
 
@@ -39,13 +40,20 @@ export default async function GameOverviewPage({ params }: { params: { matchId: 
 
   const canViewVideo = staffCanView && hasClubPermission(access, "video.view");
   const canManage = staffCanView && hasClubPermission(access, "games.create");
-  const [{ count: videoCount }, { data: options }] = await Promise.all([
+  const canManagePublicInfo = staffCanView && hasClubPermission(access, "games.communication.manage");
+  const [{ count: videoCount }, { data: options }, { data: club }, { data: clubTeam }] = await Promise.all([
     canViewVideo
       ? admin.from("match_videos").select("id", { count: "exact", head: true }).eq("match_id", match.id)
       : Promise.resolve({ count: 0 }),
     staffCanView
       ? admin.from("club_match_options").select("id, label").eq("club_id", match.club_id)
-      : Promise.resolve({ data: [] })
+      : Promise.resolve({ data: [] }),
+    canManagePublicInfo
+      ? admin.from("clubs").select("clip_advertising_enabled, general_sponsor_url").eq("id", match.club_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    canManagePublicInfo && match.club_team_id
+      ? admin.from("club_teams").select("sponsor_url, sponsor_enabled").eq("id", match.club_team_id).maybeSingle()
+      : Promise.resolve({ data: null })
   ]);
   const optionNames = new Map((options ?? []).map((option) => [option.id, option.label]));
   const scoreKnown = match.score_a !== null && match.score_b !== null;
@@ -95,6 +103,12 @@ export default async function GameOverviewPage({ params }: { params: { matchId: 
           {match.is_home_match && <div className="flex justify-between gap-4"><dt className="text-textMuted">Kleedkamer</dt><dd className="font-semibold text-textPrimary">{optionNames.get(match.locker_room_option_id) || "Niet ingesteld"}</dd></div>}
         </dl>
       </div>}
+      {canManagePublicInfo && <PublicMatchInfoEditor
+        match={match}
+        sponsorFeatureEnabled={club?.clip_advertising_enabled !== false}
+        hasClubSponsor={!!club?.general_sponsor_url}
+        hasTeamSponsor={clubTeam?.sponsor_enabled === true && !!clubTeam?.sponsor_url}
+      />}
     </section>
 
     {!staffCanView && <p className="rounded-xl border border-borderSubtle bg-cardDeep p-4 text-sm text-textMuted">
