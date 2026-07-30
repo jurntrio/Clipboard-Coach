@@ -120,11 +120,14 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     </header>
 
     <section className="grid gap-4">
-      <div className="rounded-2xl border border-border bg-card p-5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-bold text-textBright">Voorbereiding</h2>
-        </div>
-        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+      <PublicMatchInfoEditor
+        match={match}
+        sponsorFeatureEnabled={club?.clip_advertising_enabled !== false}
+        hasClubSponsor={!!club?.general_sponsor_url}
+        hasTeamSponsor={clubTeam?.sponsor_enabled === true && !!clubTeam?.sponsor_url}
+        canEdit={editing && canManagePublicInfo}
+      >
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <Info label="Afgesproken tijdstip" value={match.meeting_time_enabled ? match.meeting_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />
           {!match.is_home_match && <Info label="Vertrek" value={match.departure_time_enabled ? match.departure_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />}
           <Info label="Verzamelplaats" value={match.meeting_place_custom || optionNames.get(match.meeting_place_option_id) || "Niet ingesteld"} />
@@ -133,13 +136,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
           {match.is_home_match && <Info label="Kleedkamer bezoekers" value={optionNames.get(match.visitor_locker_room_option_id) || "Niet ingesteld"} />}
           <Info label="Scheidsrechter" value={optionNames.get(match.referee_option_id) || "Aangeduid door KBVB"} />
         </dl>
-      </div>
-      {editing && canManagePublicInfo && <PublicMatchInfoEditor
-        match={match}
-        sponsorFeatureEnabled={club?.clip_advertising_enabled !== false}
-        hasClubSponsor={!!club?.general_sponsor_url}
-        hasTeamSponsor={clubTeam?.sponsor_enabled === true && !!clubTeam?.sponsor_url}
-      />}
+      </PublicMatchInfoEditor>
     </section>
 
     {staffCanView && <MatchDossierTabs

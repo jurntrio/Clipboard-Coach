@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 
 type MatchPublicInfo = {
   id: string; score_a: number | null; score_b: number | null;
@@ -9,8 +10,8 @@ type MatchPublicInfo = {
   sponsor_source: "none" | "club" | "team"; sponsor_caption: string | null;
 };
 
-export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSponsor, hasTeamSponsor }: {
-  match: MatchPublicInfo; sponsorFeatureEnabled: boolean; hasClubSponsor: boolean; hasTeamSponsor: boolean;
+export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSponsor, hasTeamSponsor, canEdit, children }: {
+  match: MatchPublicInfo; sponsorFeatureEnabled: boolean; hasClubSponsor: boolean; hasTeamSponsor: boolean; canEdit: boolean; children: ReactNode;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -36,11 +37,14 @@ export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSpo
   }
 
   return <section className="rounded-2xl border border-border bg-card p-5 sm:col-span-2">
-    <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-center justify-between text-left">
-      <span><strong className="block text-textBright">Publieke wedstrijdinformatie</strong><span className="mt-1 block text-xs text-textMuted">Zichtbaar op gedeelde cliplinks. Alleen voor bevoegde clubrollen.</span></span>
-      <span className="text-accent">{open ? "▲" : "▼"}</span>
+    <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-center gap-3 text-left">
+      <span className={`text-accent transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
+      <span><strong className="block text-textBright">Algemene info</strong><span className="mt-1 block text-xs text-textMuted">Praktische voorbereiding en publieke wedstrijdinformatie.</span></span>
     </button>
     {open && <div className="mt-5 space-y-5 border-t border-borderSubtle pt-5">
+      {children}
+      {canEdit && <div className="space-y-5 border-t border-borderSubtle pt-5">
+      <div><strong className="text-sm text-textBright">Publieke wedstrijdinformatie</strong><p className="mt-1 text-xs text-textMuted">Zichtbaar op gedeelde cliplinks.</p></div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm text-textSecondary">Score thuis<input type="number" min="0" value={scoreA} onChange={(event) => setScoreA(event.target.value)} className={inputClass} /></label>
         <label className="text-sm text-textSecondary">Score uit<input type="number" min="0" value={scoreB} onChange={(event) => setScoreB(event.target.value)} className={inputClass} /></label>
@@ -66,6 +70,7 @@ export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSpo
         <label className="mt-3 block text-sm text-textSecondary">Sponsortekst<input value={sponsorCaption} onChange={(event) => setSponsorCaption(event.target.value)} placeholder="Wedstrijdbeelden mogelijk gemaakt door …" className={inputClass} /></label>
       </div> : <p className="rounded-lg border border-borderSubtle bg-cardDeep p-3 text-sm text-textMuted">De extra sponsormodule is voor deze club niet actief.</p>}
       <div className="flex items-center gap-3"><button type="button" onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page">Bewaren</button><span className="text-sm text-textMuted">{status}</span></div>
+      </div>}
     </div>}
   </section>;
 }
