@@ -313,7 +313,10 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
       <button type="button" onClick={() => setActiveTab("matches")} className={`rounded-lg px-4 py-2 text-sm font-bold ${activeTab === "matches" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Wedstrijden toevoegen</button>
       <button type="button" onClick={() => setActiveTab("trainings")} className={`rounded-lg px-4 py-2 text-sm font-bold ${activeTab === "trainings" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Trainingen toevoegen</button>
     </div>
-    {activeTab === "matches" ? <TeamMatchScheduler teamId={team.teams?.[0]?.id ?? ""} teamName={team.name} readOnly={readOnly || !team.teams?.[0]?.id} />
+    {activeTab === "matches" ? <div className="space-y-4">
+      {!readOnly && <ClubMatchCsvImporter teams={[{ id: team.id, name: team.name }]} readOnly={false} onImported={onChanged} />}
+      <TeamMatchScheduler teamId={team.teams?.[0]?.id ?? ""} teamName={team.name} readOnly={readOnly || !team.teams?.[0]?.id} />
+    </div>
       : activeTab === "trainings" ? <TeamTrainingScheduler teamId={team.id} trainers={trainers}
       assignedTrainerIds={[...new Set([...coordinatorTrainerIds, ...(team.club_trainer_teams ?? []).filter(link => link.status === "active").map(link => link.trainer_id)])]}
       options={options} readOnly={readOnly} /> : <div className="space-y-5">
@@ -376,9 +379,6 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
         {calendarLastSync && <span className="text-xs text-textMuted">{t("clubTeams.lastSync", { date: new Date(calendarLastSync).toLocaleString("nl-BE") })}</span>}
       </div>
       {calendarStatus && <p className="mt-2 text-sm text-accent">{calendarStatus}</p>}
-      <div className="mt-4 border-t border-borderSubtle pt-4">
-        <ClubMatchCsvImporter teams={[{ id: team.id, name: team.name }]} readOnly={!!readOnly} onImported={onChanged} />
-      </div>
     </div>}
     {!readOnly && <div className="rounded-xl border border-borderSubtle p-4">
       <h4 className="font-semibold text-textPrimary">{t("clubTeams.addExistingHeading")}</h4>
