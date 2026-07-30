@@ -63,11 +63,11 @@ test("distinguishes Foot24 fixtures from advertising events", () => {
 
 test("uses the Foot24 ball marker as the authoritative home-team indicator", () => {
   assert.deepEqual(
-    mappedFoot24Fixture("KMT B - ⚽ KSV. VEURNE", "KMT B", "KMT"),
+    mappedFoot24Fixture("KMT B - ⚽ KSV. VEURNE", "KMT B", "KM Torhout"),
     { home: "KSV. VEURNE", away: "KMT B", isHome: false }
   );
   assert.deepEqual(
-    mappedFoot24Fixture("⚽ KMT A - KVV. ZELZATE (1 A)", "KMT A", "KMT"),
+    mappedFoot24Fixture("⚽ KMT A - KVV. ZELZATE (1 A)", "KMT A", "KM Torhout"),
     { home: "KMT A", away: "KVV. ZELZATE (1 A)", isHome: true }
   );
 });

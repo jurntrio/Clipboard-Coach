@@ -126,8 +126,11 @@ function mappedFixture(summary: string, teamName: string, clubName: string) {
   const markerOnAway = hasHomeMarker(source.away);
   const home = withoutHomeMarker(markerOnAway && !markerOnHome ? source.away : source.home) || teamName;
   const away = withoutHomeMarker(markerOnAway && !markerOnHome ? source.home : source.away) || teamName;
-  const homeIsClub = normalize(home).includes(clubKey);
-  const awayIsClub = normalize(away).includes(clubKey);
+  const teamKey = normalize(teamName);
+  const homeIsTeam = normalize(home).includes(teamKey) || teamKey.includes(normalize(home));
+  const awayIsTeam = normalize(away).includes(teamKey) || teamKey.includes(normalize(away));
+  const homeIsClub = homeIsTeam || (!awayIsTeam && normalize(home).includes(clubKey));
+  const awayIsClub = awayIsTeam || (!homeIsTeam && normalize(away).includes(clubKey));
   return {
     home,
     away,

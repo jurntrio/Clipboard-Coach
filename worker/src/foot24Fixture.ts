@@ -30,8 +30,11 @@ export function mappedFoot24Fixture(summary: string, teamName: string, clubName:
   const home = withoutHomeMarker(markerOnAway && !markerOnHome ? source.away : source.home) || teamName;
   const away = withoutHomeMarker(markerOnAway && !markerOnHome ? source.home : source.away) || teamName;
   const clubKey = normalizeTeamName(clubName);
-  const homeIsClub = normalizeTeamName(home).includes(clubKey);
-  const awayIsClub = normalizeTeamName(away).includes(clubKey);
+  const teamKey = normalizeTeamName(teamName);
+  const homeIsTeam = normalizeTeamName(home).includes(teamKey) || teamKey.includes(normalizeTeamName(home));
+  const awayIsTeam = normalizeTeamName(away).includes(teamKey) || teamKey.includes(normalizeTeamName(away));
+  const homeIsClub = homeIsTeam || (!awayIsTeam && normalizeTeamName(home).includes(clubKey));
+  const awayIsClub = awayIsTeam || (!homeIsTeam && normalizeTeamName(away).includes(clubKey));
   return { home, away, isHome: homeIsClub || !awayIsClub };
 }
 
