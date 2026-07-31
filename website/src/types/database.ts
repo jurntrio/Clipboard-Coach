@@ -55,6 +55,7 @@ export type ClubTeam = {
   trainers_can_manage_matches: boolean;
   sponsor_url: string | null;
   sponsor_enabled: boolean;
+  sponsor_source: "team" | "club" | "none";
   status: "active" | "inactive" | "pending" | "rejected" | "archived" | "merged";
   merged_into_id: string | null;
   external_provider: string | null;

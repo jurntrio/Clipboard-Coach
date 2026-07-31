@@ -141,7 +141,7 @@ function mappedFixture(summary: string, teamName: string, clubName: string) {
 export async function syncFoot24Feed(teamId: string) {
   const admin = createAdminClient();
   const [teamResult, feedResult] = await Promise.all([
-    admin.from("club_teams").select("id, club_id, name").eq("id", teamId).maybeSingle(),
+    admin.from("club_teams").select("id, club_id, name, sponsor_source").eq("id", teamId).maybeSingle(),
     admin.from("club_team_calendar_feeds").select("*").eq("club_team_id", teamId).maybeSingle()
   ]);
   if (teamResult.error) throw new Error(`Ploeg kon niet worden gelezen: ${teamResult.error.message}`);
@@ -208,7 +208,8 @@ export async function syncFoot24Feed(teamId: string) {
       start_time: event.startsAt.toLocaleTimeString("nl-BE", { timeZone: "Europe/Brussels", hour12: false, hour: "2-digit", minute: "2-digit" }),
       status: event.cancelled ? "finished" : "scheduled",
       external_source: "foot24",
-      external_match_id: externalMatchId
+      external_match_id: externalMatchId,
+      sponsor_source: team.sponsor_source ?? "none"
     };
     const { data: existing } = await admin.from("matches").select("id").eq("external_source", "foot24").eq("external_match_id", externalMatchId).maybeSingle();
     const result = existing

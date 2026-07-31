@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as { teamId?: string; csv?: string } | null;
   if (!body?.teamId || typeof body.csv !== "string") return NextResponse.json({ error: "Kies een ploeg en CSV-bestand." }, { status: 400 });
   const admin = createAdminClient();
-  const { data: team } = await admin.from("club_teams").select("id, club_id, name").eq("id", body.teamId).maybeSingle();
+  const { data: team } = await admin.from("club_teams").select("id, club_id, name, sponsor_source").eq("id", body.teamId).maybeSingle();
   if (!team) return NextResponse.json({ error: "Ploeg niet gevonden." }, { status: 404 });
   const access = await getClubAccess(team.club_id, user);
   if (!hasClubPermission(access, "games.create") || !canAccessTeam(access, team.id)) {
@@ -35,7 +35,8 @@ export async function POST(request: Request) {
       coach_id: user.id, club_id: team.club_id, club_team_id: team.id, team_a_id: operationalTeam.id,
       team_a_name: row.homeTeam, team_b_name: row.awayTeam, is_home_match: row.isHome,
       match_date: row.date, start_time: row.time, status: row.status, score_a: row.scoreHome, score_b: row.scoreAway,
-      external_source: "voetbal_vlaanderen_csv", external_match_id: externalMatchId
+      external_source: "voetbal_vlaanderen_csv", external_match_id: externalMatchId,
+      sponsor_source: team.sponsor_source ?? "none"
     };
     const { data: existing } = await admin.from("matches").select("id")
       .eq("external_source", "voetbal_vlaanderen_csv").eq("external_match_id", externalMatchId).maybeSingle();

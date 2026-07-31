@@ -19,6 +19,7 @@ type Team = {
   status: string;
   sponsor_url?: string | null;
   sponsor_enabled?: boolean;
+  sponsor_source?: "team" | "club" | "none";
   trainers_can_edit_roster: boolean;
   trainers_can_manage_matches: boolean;
   club_trainer_teams?: { trainer_id: string; role: string; status: string }[];
@@ -225,12 +226,21 @@ export function ClubDashboard() {
         </>
       )}
 
-      {(moduleEnabled("clips") || moduleEnabled("matches")) && <ModuleAccordion title="Games" icon="/branding/games.png">
-      {moduleEnabled("clips") && <section className="rounded-xl border border-border bg-card p-5">
-        <h2 className="text-xl font-semibold text-textBright">Clips</h2>
-        <p className="mt-1 text-sm text-textMuted">Beheer de zichtbaarheid en kijkcijfers van gedeelde wedstrijdclips.</p>
+      {moduleEnabled("clips") && <ModuleAccordion title="Sponsors" icon="/branding/clip-sponsors.png">
+        <section className="rounded-xl border border-border bg-card p-5">
+          <h2 className="text-xl font-semibold text-textBright">Sponsors & clips</h2>
+          <p className="mt-1 text-sm text-textMuted">Beheer de algemene sponsor, de keuze per ploeg en de toegang tot kijkcijfers.</p>
+          {club && <div className="mt-4">
+            <ClubSponsorManager
+              clubId={club.id}
+              generalUrl={club.general_sponsor_url ?? "/branding/clip-sponsors.png"}
+              teams={teams}
+              readOnly={readOnly}
+              onChanged={load}
+            />
+          </div>}
         <div className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-4">
-          <h3 className="font-semibold text-textPrimary">Wie mag kijkcijfers zien?</h3>
+          <h3 className="font-semibold text-textPrimary">Wie mag kijkcijfers van clips zien?</h3>
           <p className="mt-1 text-sm text-textMuted">Bepaal welke rollen het aantal geopende gedeelde clips in Matches zien. Clubadmins behouden altijd toegang.</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {([
@@ -250,26 +260,18 @@ export function ClubDashboard() {
             ))}
           </div>
         </div>
-      </section>}
+        </section>
+      </ModuleAccordion>}
 
-      {moduleEnabled("matches") && <section className="mt-4 rounded-xl border border-border bg-card p-5">
+      {moduleEnabled("matches") && <ModuleAccordion title="Games" icon="/branding/games.png">
+      <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Wedstrijden toewijzen</h2>
-        <p className="mt-1 text-sm text-textMuted">Wijzig de ploeg van een wedstrijd, beheer sponsoring en bepaal welke gebruikers toegang krijgen.</p>
-        {club && <div className="mt-4">
-          <ClubSponsorManager
-            clubId={club.id}
-            generalUrl={club.general_sponsor_url ?? "/branding/clip-sponsors.png"}
-            useGeneral={club.use_general_sponsor ?? club.clip_advertising_enabled !== false}
-            teams={teams}
-            readOnly={readOnly}
-            onChanged={load}
-          />
-        </div>}
+        <p className="mt-1 text-sm text-textMuted">Wijzig de ploeg van een wedstrijd en bepaal welke gebruikers toegang krijgen.</p>
         <MatchAssignmentManager matches={matches} trainers={trainers} teamNames={teamNames}
           activeTeams={teams.filter(team => team.status === "active")}
           assignments={data.assignments} saving={saving} readOnly={readOnly}
           onToggle={toggle} onChangeTeam={changeMatchTeam} onRemoveTrainer={removeTrainer} />
-      </section>}
+      </section>
       </ModuleAccordion>}
 
       {moduleEnabled("video_viewer") && <ModuleAccordion title="Video Viewer" icon="/branding/video-viewer.png">

@@ -94,12 +94,12 @@ export default async function SharePage({ params }: { params: { token: string } 
   } else if (!match && clip.team_id) {
     const { data: team } = await supabase.from("teams").select("club_team_id").eq("id", clip.team_id).maybeSingle();
     if (team?.club_team_id) {
-      const { data: clubTeam } = await supabase.from("club_teams").select("club_id, sponsor_url, sponsor_enabled").eq("id", team.club_team_id).maybeSingle();
+      const { data: clubTeam } = await supabase.from("club_teams").select("club_id, sponsor_url, sponsor_enabled, sponsor_source").eq("id", team.club_team_id).maybeSingle();
       if (clubTeam?.club_id) {
-        const { data: club } = await supabase.from("clubs").select("clip_advertising_enabled, general_sponsor_url, use_general_sponsor").eq("id", clubTeam.club_id).maybeSingle();
-        sponsorUrl = club?.clip_advertising_enabled === true
-          ? (club?.use_general_sponsor !== false ? club?.general_sponsor_url : (clubTeam.sponsor_enabled ? clubTeam.sponsor_url : null))
-          : null;
+        const { data: club } = await supabase.from("clubs").select("clip_advertising_enabled, general_sponsor_url").eq("id", clubTeam.club_id).maybeSingle();
+        sponsorUrl = club?.clip_advertising_enabled !== true || clubTeam.sponsor_source === "none"
+          ? null
+          : clubTeam.sponsor_source === "team" ? clubTeam.sponsor_url : club.general_sponsor_url;
       }
     }
   }

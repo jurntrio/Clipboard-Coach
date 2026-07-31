@@ -59,7 +59,7 @@ export async function syncVoetbalVlaanderenFeed(teamId: string) {
   const admin = createAdminClient();
   await removeFoot24Advertisements(teamId);
   const [{ data: team }, { data: feed }] = await Promise.all([
-    admin.from("club_teams").select("id, club_id, name").eq("id", teamId).maybeSingle(),
+    admin.from("club_teams").select("id, club_id, name, sponsor_source").eq("id", teamId).maybeSingle(),
     admin.from("club_team_calendar_feeds").select("*").eq("club_team_id", teamId).maybeSingle()
   ]);
   if (!team || !feed) throw new Error("Geen kalenderlink voor deze ploeg ingesteld.");
@@ -110,7 +110,8 @@ export async function syncVoetbalVlaanderenFeed(teamId: string) {
       score_a: ownIsHome ? game.outcome?.homeTeamGoals ?? null : game.outcome?.awayTeamGoals ?? null,
       score_b: ownIsHome ? game.outcome?.awayTeamGoals ?? null : game.outcome?.homeTeamGoals ?? null,
       external_source: "voetbal_vlaanderen",
-      external_match_id: externalMatchId
+      external_match_id: externalMatchId,
+      sponsor_source: team.sponsor_source ?? "none"
     };
     const result = existing
       ? await admin.from("matches").update(payload).eq("id", existing.id)

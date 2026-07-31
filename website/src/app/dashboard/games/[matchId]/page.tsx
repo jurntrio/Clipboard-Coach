@@ -124,7 +124,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
         match={match}
         sponsorFeatureEnabled={club?.clip_advertising_enabled !== false}
         hasClubSponsor={!!club?.general_sponsor_url}
-        hasTeamSponsor={clubTeam?.sponsor_enabled === true && !!clubTeam?.sponsor_url}
+        hasTeamSponsor={!!clubTeam?.sponsor_url}
         canEdit={editing && canManagePublicInfo}
       >
         <dl className="grid gap-3 text-sm sm:grid-cols-2">

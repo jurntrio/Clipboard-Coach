@@ -77,9 +77,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ club });
   }
 
+  if (["team", "club", "none"].includes(body.bulkTeamSponsorSource)) {
+    const source = body.bulkTeamSponsorSource as "team" | "club" | "none";
+    const { error: teamsError } = await admin.from("club_teams").update({
+      sponsor_source: source,
+      sponsor_enabled: source === "team"
+    }).eq("club_id", body.clubId).neq("status", "merged");
+    if (teamsError) return NextResponse.json({ error: teamsError.message }, { status: 400 });
+    const { error: matchesError } = await admin.from("matches")
+      .update({ sponsor_source: source }).eq("club_id", body.clubId);
+    if (matchesError) return NextResponse.json({ error: matchesError.message }, { status: 400 });
+    await admin.from("clubs").update({ use_general_sponsor: source === "club" }).eq("id", body.clubId);
+    return NextResponse.json({ source });
+  }
+
   if (body.teamSponsor && typeof body.teamSponsor.teamId === "string") {
-    const updates: { sponsor_url?: string | null; sponsor_enabled?: boolean } = {};
+    const updates: { sponsor_url?: string | null; sponsor_enabled?: boolean; sponsor_source?: "team" | "club" | "none" } = {};
     if (typeof body.teamSponsor.enabled === "boolean") updates.sponsor_enabled = body.teamSponsor.enabled;
+    if (["team", "club", "none"].includes(body.teamSponsor.source)) {
+      updates.sponsor_source = body.teamSponsor.source;
+      updates.sponsor_enabled = body.teamSponsor.source === "team";
+    }
     if (body.teamSponsor.sponsorUrl === null || (typeof body.teamSponsor.sponsorUrl === "string"
       && body.teamSponsor.sponsorUrl.startsWith(`${process.env.R2_PUBLIC_URL?.replace(/\/$/, "")}/clubs/${body.clubId}/sponsors/`))) {
       updates.sponsor_url = body.teamSponsor.sponsorUrl;
@@ -89,9 +107,14 @@ export async function POST(request: Request) {
       .update(updates)
       .eq("id", body.teamSponsor.teamId)
       .eq("club_id", body.clubId)
-      .select("id, sponsor_url, sponsor_enabled")
+      .select("id, sponsor_url, sponsor_enabled, sponsor_source")
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (updates.sponsor_source) {
+      const { error: matchesError } = await admin.from("matches").update({ sponsor_source: updates.sponsor_source })
+        .eq("club_id", body.clubId).eq("club_team_id", body.teamSponsor.teamId);
+      if (matchesError) return NextResponse.json({ error: matchesError.message }, { status: 400 });
+    }
     return NextResponse.json({ team });
   }
 
