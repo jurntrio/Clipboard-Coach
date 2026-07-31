@@ -77,7 +77,40 @@ export async function PATCH(request: Request) {
   const { data, error } = await ctx.admin.from("club_teams").update(update).eq("id", teamId).select("*").single();
   if (error?.code === "23505") return NextResponse.json({ error: "Dit team bestaat al binnen de club." }, { status: 409 });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (name) await ctx.admin.from("teams").update({ name }).eq("club_team_id", teamId);
+  if (data.status === "active") {
+    const { data: existingOperationalTeam } = await ctx.admin.from("teams")
+      .select("id").eq("club_team_id", teamId).maybeSingle();
+    let operationalTeamId = existingOperationalTeam?.id;
+    if (!operationalTeamId) {
+      const { data: createdOperationalTeam, error: operationalTeamError } = await ctx.admin.from("teams").insert({
+        coach_id: null,
+        club_team_id: teamId,
+        club_name: null,
+        name: data.name
+      }).select("id").single();
+      if (operationalTeamError) return NextResponse.json({
+        error: `De ploeg werd opgeslagen, maar de interne wedstrijdkoppeling kon niet worden aangemaakt: ${operationalTeamError.message}`
+      }, { status: 500 });
+      operationalTeamId = createdOperationalTeam.id;
+    } else if (name) {
+      await ctx.admin.from("teams").update({ name: data.name }).eq("id", operationalTeamId);
+    }
+
+    const { data: activeAssignments } = await ctx.admin.from("club_trainer_teams")
+      .select("club_trainers(profile_id)").eq("club_team_id", teamId).eq("status", "active");
+    const staffRows = (activeAssignments ?? []).flatMap((assignment) => {
+      const trainer = assignment.club_trainers as unknown as { profile_id: string | null } | null;
+      return trainer?.profile_id
+        ? [{ team_id: operationalTeamId!, user_id: trainer.profile_id, added_by: ctx.user.id }]
+        : [];
+    });
+    if (staffRows.length) {
+      await ctx.admin.from("team_staff_members").upsert(staffRows, {
+        onConflict: "team_id,user_id",
+        ignoreDuplicates: true
+      });
+    }
+  }
   if (status === "rejected") {
     await ctx.admin.from("club_trainer_teams").update({ status: "rejected" }).eq("club_team_id", teamId);
   } else if (status === "active") {

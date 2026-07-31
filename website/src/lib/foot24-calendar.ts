@@ -172,7 +172,9 @@ export async function syncFoot24Feed(teamId: string) {
     admin.from("clubs").select("name").eq("id", team.club_id).maybeSingle(),
     admin.from("teams").select("id").eq("club_team_id", team.id).maybeSingle()
   ]);
-  if (!operationalTeam) throw new Error("De ploeg heeft geen gekoppelde spelerslijst.");
+  if (!operationalTeam) {
+    throw new Error("De ploeg is intern nog niet klaar voor wedstrijden. Sla de ploeg opnieuw op en probeer daarna opnieuw te synchroniseren.");
+  }
   const clubName = club?.name ?? team.name;
   const events = feedEvents.filter((event) => isFixtureForClub(event.summary, clubName));
   if (!events.length) throw new Error("De kalender bevat geen wedstrijden voor deze club.");

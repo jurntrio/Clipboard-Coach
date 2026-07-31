@@ -23,7 +23,9 @@ export async function POST(request: Request) {
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Ongeldige CSV." }, { status: 400 }); }
   if (rows.length > 500) return NextResponse.json({ error: "Een CSV mag maximaal 500 wedstrijden bevatten." }, { status: 400 });
   const { data: operationalTeam } = await admin.from("teams").select("id").eq("club_team_id", team.id).maybeSingle();
-  if (!operationalTeam) return NextResponse.json({ error: "De gekozen ploeg heeft nog geen gekoppelde spelerslijst." }, { status: 400 });
+  if (!operationalTeam) return NextResponse.json({
+    error: "De gekozen ploeg is intern nog niet klaar voor wedstrijden. Sla de ploeg opnieuw op en probeer daarna opnieuw."
+  }, { status: 400 });
   let imported = 0;
   let updated = 0;
   for (const row of rows) {

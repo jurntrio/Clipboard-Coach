@@ -72,7 +72,10 @@ export async function syncVoetbalVlaanderenFeed(teamId: string) {
     admin.from("club_memberships").select("profile_id").eq("club_id", team.club_id)
       .eq("role", "club_admin").eq("status", "active").limit(1).maybeSingle()
   ]);
-  if (!operationalTeam || !owner?.profile_id) throw new Error("Ploeg of actieve clubadmin ontbreekt.");
+  if (!operationalTeam) {
+    throw new Error("De ploeg is intern nog niet klaar voor wedstrijden. Sla de ploeg opnieuw op en probeer daarna opnieuw te synchroniseren.");
+  }
+  if (!owner?.profile_id) throw new Error("De club heeft geen actieve clubadmin om de wedstrijden aan te koppelen.");
   const { data: standardTags } = await admin.from("standard_tags").select("name").eq("coach_id", owner.profile_id).order("created_at");
   const defaultTags = (standardTags ?? []).map((tag) => tag.name).filter((name) => !["start", "end"].includes(name.trim().toLowerCase()));
 
