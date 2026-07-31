@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -18,7 +18,7 @@ import type { MessageKey } from "@/i18n/messages";
 type PlayerWithTeam = Player & { teams: { name: string; club_team_id: string | null } | null };
 type Guardian = { id: string; profile_id: string; access_scope: string; valid_from: string; valid_until: string | null; revoked_at: string | null; created_at: string; profiles: { email: string; full_name: string | null } | null };
 type PendingInvite = { id: string; token: string; contact_label: string | null; contact_phone: string | null; created_at: string; expires_at: string };
-type ClubPlayerContact = { id: string; club_id: string; address: string | null; postal_code: string | null; city: string | null; email: string | null; phone: string | null };
+type ClubPlayerContact = { id: string; club_id: string; first_name: string; last_name: string; date_of_birth: string | null; address: string | null; postal_code: string | null; city: string | null; email: string | null; phone: string | null; national_registry_number: string | null; birth_place: string | null; photo_url: string | null };
 const accessScopeKeys: Record<string, MessageKey> = { current_season: "guardianInvite.scopeCurrentSeason", from_acceptance: "guardianInvite.scopeFromAcceptance", all_history: "guardianInvite.scopeAllHistory" };
 type PlayerClip = {
   id: string;
@@ -77,9 +77,13 @@ export default function PlayerClipsPage() {
   const [contactDrafts, setContactDrafts] = useState<{ label: string; phone: string }[]>([{ label: "", phone: "" }]);
   const [clubPlayerContact, setClubPlayerContact] = useState<ClubPlayerContact | null>(null);
   const [canEditChildInfo, setCanEditChildInfo] = useState(false);
-  const [childInfoDraft, setChildInfoDraft] = useState({ address: "", postalCode: "", city: "", email: "", phone: "" });
+  const [childInfoDraft, setChildInfoDraft] = useState({ address: "", postalCode: "", city: "", email: "", phone: "", nationalRegistryNumber: "", birthPlace: "" });
   const [childInfoSaving, setChildInfoSaving] = useState(false);
   const [childInfoSaved, setChildInfoSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState("contact");
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
 
   function updateContactDraft(index: number, field: "label" | "phone", value: string) {
@@ -106,14 +110,19 @@ export default function PlayerClipsPage() {
     if (!currentPlayer.membership_id) { setClubPlayerContact(null); return; }
     const { data: membership } = await supabase.from("player_team_memberships").select("club_player_id").eq("id", currentPlayer.membership_id).maybeSingle();
     if (!membership?.club_player_id) { setClubPlayerContact(null); return; }
-    const { data: clubPlayer } = await supabase.from("club_players").select("id, club_id, address, postal_code, city, email, phone").eq("id", membership.club_player_id).maybeSingle();
+    const { data: clubPlayer } = await supabase.from("club_players").select("id, club_id, first_name, last_name, date_of_birth, address, postal_code, city, email, phone, birth_place, photo_url").eq("id", membership.club_player_id).maybeSingle();
     if (!clubPlayer) { setClubPlayerContact(null); return; }
-    setClubPlayerContact(clubPlayer);
-    setChildInfoDraft({ address: clubPlayer.address ?? "", postalCode: clubPlayer.postal_code ?? "", city: clubPlayer.city ?? "", email: clubPlayer.email ?? "", phone: clubPlayer.phone ?? "" });
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data: membershipRow } = await supabase.from("club_memberships").select("role").eq("club_id", clubPlayer.club_id).eq("profile_id", user.id).eq("status", "active").maybeSingle();
-    setCanEditChildInfo(membershipRow?.role === "club_admin");
+    const canEdit = membershipRow?.role === "club_admin";
+    const { data: sensitive } = canEdit
+      ? await supabase.from("club_players").select("national_registry_number").eq("id", clubPlayer.id).maybeSingle()
+      : { data: null };
+    const completePlayer = { ...clubPlayer, national_registry_number: sensitive?.national_registry_number ?? null };
+    setClubPlayerContact(completePlayer);
+    setChildInfoDraft({ address: clubPlayer.address ?? "", postalCode: clubPlayer.postal_code ?? "", city: clubPlayer.city ?? "", email: clubPlayer.email ?? "", phone: clubPlayer.phone ?? "", nationalRegistryNumber: completePlayer.national_registry_number ?? "", birthPlace: clubPlayer.birth_place ?? "" });
+    setCanEditChildInfo(canEdit);
   }
 
   async function saveChildInfo() {
@@ -126,9 +135,36 @@ export default function PlayerClipsPage() {
       city: childInfoDraft.city.trim() || null,
       email: childInfoDraft.email.trim() || null,
       phone: childInfoDraft.phone.trim() || null,
+      national_registry_number: childInfoDraft.nationalRegistryNumber.trim() || null,
+      birth_place: childInfoDraft.birthPlace.trim() || null,
     }).eq("id", clubPlayerContact.id);
     setChildInfoSaving(false);
     if (!error) { setChildInfoSaved(true); await loadChildInfo(player as PlayerWithTeam); }
+  }
+
+  async function uploadPlayerPhoto(file: File) {
+    if (!clubPlayerContact || !canEditChildInfo) return;
+    setPhotoError("");
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) return setPhotoError("Kies een PNG-, JPEG- of WebP-afbeelding.");
+    if (file.size > 5 * 1024 * 1024) return setPhotoError("De spelersfoto mag maximaal 5 MB groot zijn.");
+    setPhotoBusy(true);
+    try {
+      const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+      const key = `clubs/${clubPlayerContact.club_id}/players/${clubPlayerContact.id}-${crypto.randomUUID()}.${extension}`;
+      const prepare = await fetch('/api/videos/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, contentType: file.type }) });
+      const prepared = await prepare.json();
+      if (!prepare.ok) throw new Error(prepared.error || "Upload kon niet worden voorbereid.");
+      const put = await fetch(prepared.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+      if (!put.ok) throw new Error(`Upload mislukt (HTTP ${put.status}).`);
+      const { error } = await supabase.from('club_players').update({ photo_url: prepared.publicUrl }).eq('id', clubPlayerContact.id);
+      if (error) throw error;
+      await loadChildInfo(player as PlayerWithTeam);
+    } catch (reason) {
+      setPhotoError(reason instanceof Error ? reason.message : "De spelersfoto kon niet worden geüpload.");
+    } finally {
+      setPhotoBusy(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
   }
 
   async function loadGuardians() {
@@ -242,17 +278,32 @@ export default function PlayerClipsPage() {
 
   return (
     <div className="mx-auto max-w-7xl p-6">
-      <header className="mb-8 flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+      <header className="mb-4 flex items-start gap-3 rounded-xl border border-border bg-card p-4">
         <Link href="/dashboard/teams" title={t("team.back")} className="grid h-14 w-14 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/back.png" alt={t("team.back")} width={38} height={38} /></Link>
-        <div className="ml-3 flex min-w-0 flex-1 items-center gap-3">
-          <div className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-full border-2 border-accent bg-avatar font-bold text-accent">{player?.initials || "–"}</div>
-          <div className="min-w-0">
+        <div className="ml-2 flex min-w-0 flex-1 items-start gap-4">
+          <div className="group/photo relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-2xl border-2 border-accent bg-avatar">
+            {clubPlayerContact?.photo_url ? <Image src={clubPlayerContact.photo_url} alt={player ? getPlayerDisplayName(player) : "Speler"} fill sizes="96px" className="object-cover" unoptimized /> : <div className="grid h-full w-full place-items-center text-xl font-bold text-accent">{player?.initials || "–"}</div>}
+            {canEditChildInfo && <><input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => event.target.files?.[0] && void uploadPlayerPhoto(event.target.files[0])} /><button type="button" disabled={photoBusy} onClick={() => photoInputRef.current?.click()} title="Spelersfoto uploaden" className="absolute inset-0 grid place-items-center bg-black/55 text-2xl font-bold text-white opacity-0 transition group-hover/photo:opacity-100">+</button></>}
+          </div>
+          <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-bold text-textBright">{player ? getPlayerDisplayName(player) : t("team.player")}</h1>
             <p className="text-sm text-textMuted">{player?.teams?.name || t("team.team")}{player?.position ? ` · ${player.position}` : ""}</p>
+            <dl className="mt-3 grid gap-x-5 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <ProfileFact label="Naam" value={clubPlayerContact?.last_name || player?.last_name} />
+              <ProfileFact label="Voornaam" value={clubPlayerContact?.first_name || player?.first_name} />
+              <ProfileFact label="Geboortedatum" value={(clubPlayerContact?.date_of_birth || player?.date_of_birth) ? new Date(`${clubPlayerContact?.date_of_birth || player?.date_of_birth}T12:00:00`).toLocaleDateString("nl-BE") : null} />
+              {canEditChildInfo && <ProfileFact label="Rijksregisternummer" value={clubPlayerContact?.national_registry_number} />}
+              <ProfileFact label="Geboorteplaats" value={clubPlayerContact?.birth_place} />
+              <ProfileFact label="Adres" value={clubPlayerContact?.address ? `${clubPlayerContact.address}, ${clubPlayerContact.postal_code ?? ""} ${clubPlayerContact.city ?? ""}`.trim() : null} wide />
+            </dl>
+            {photoError && <p className="mt-2 text-xs text-red-300">{photoError}</p>}
           </div>
         </div>
         <button type="button" onClick={() => setEditing(true)} disabled={!player} title={t("team.editPlayer")} aria-label={t("team.editPlayer")} className="ml-auto grid h-14 w-14 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button transition hover:border-accent disabled:opacity-40"><Image src="/branding/edit.png" alt={t("common.edit")} width={34} height={34} /></button>
       </header>
+      <nav aria-label="Spelersprofiel" className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5">
+        {["Contact", "Planning", "Trainingen", "Wedstrijden", "Evaluaties", "Medisch", "Clips", "Vragenlijsten"].map((tab) => <button key={tab} type="button" onClick={() => setActiveTab(tab.toLowerCase())} className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${activeTab === tab.toLowerCase() ? "bg-accent text-page" : "text-textSecondary hover:bg-cardHover hover:text-textPrimary"}`}>{tab}</button>)}
+      </nav>
       {inviteError && <p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{inviteError}</p>}
       {inviteLink && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" onClick={() => setInviteLink("")}>
@@ -268,6 +319,7 @@ export default function PlayerClipsPage() {
         </div>
       )}
 
+      {activeTab === "contact" && <>
       {player && (
         <section className="mb-8 rounded-xl border border-border bg-cardDeep p-4">
           <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">{t("guardianInvite.contacts")}</h2>
@@ -347,6 +399,8 @@ export default function PlayerClipsPage() {
               <input type="text" value={childInfoDraft.city} onChange={(event) => setChildInfoDraft((current) => ({ ...current, city: event.target.value }))} placeholder={t("guardianInvite.city")} className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
               <input type="email" value={childInfoDraft.email} onChange={(event) => setChildInfoDraft((current) => ({ ...current, email: event.target.value }))} placeholder={t("guardianInvite.childEmail")} className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
               <input type="tel" value={childInfoDraft.phone} onChange={(event) => setChildInfoDraft((current) => ({ ...current, phone: event.target.value }))} placeholder={t("guardianInvite.childPhone")} className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+              <input type="text" value={childInfoDraft.nationalRegistryNumber} onChange={(event) => setChildInfoDraft((current) => ({ ...current, nationalRegistryNumber: event.target.value }))} placeholder="Rijksregisternummer" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+              <input type="text" value={childInfoDraft.birthPlace} onChange={(event) => setChildInfoDraft((current) => ({ ...current, birthPlace: event.target.value }))} placeholder="Geboorteplaats" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
               <div className="flex items-center gap-3 sm:col-span-2">
                 <button type="button" disabled={childInfoSaving} onClick={() => void saveChildInfo()} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page hover:opacity-90 disabled:opacity-50">
                   {childInfoSaving ? t("guardianInvite.saving") : t("guardianInvite.save")}
@@ -371,7 +425,9 @@ export default function PlayerClipsPage() {
           <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">{t("team.phoneNumbers")}</p><p className="mt-1 text-sm text-textPrimary">{player.phone_numbers?.join(", ") || "–"}</p></div>
         </section>
       )}
+      </>}
 
+      {activeTab === "clips" && <>
       <div className="mb-3 flex items-center gap-2">
         <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">{t("playerPage.sharedClipsMatches")}</h2>
         <span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{clips.length}</span>
@@ -415,6 +471,9 @@ export default function PlayerClipsPage() {
       ) : (
         <div className="rounded-xl border border-border bg-cardDeep p-5 text-sm text-textMuted">{t("team.noTaggedClips")}</div>
       )}
+      </>}
+
+      {!['contact', 'clips'].includes(activeTab) && <section className="rounded-xl border border-dashed border-border bg-cardDeep p-8 text-center"><h2 className="text-lg font-semibold capitalize text-textBright">{activeTab}</h2><p className="mt-2 text-sm text-textMuted">Voor dit onderdeel zijn nog geen gegevens toegevoegd.</p></section>}
 
       {selectedClip && selectedClip.videos && (
         <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos.video_url} segments={segmentsFor(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} />
@@ -424,4 +483,8 @@ export default function PlayerClipsPage() {
       {editing && player && <EditPlayerModal player={player} onClose={() => setEditing(false)} onSaved={() => void loadPlayerAndClips()} />}
     </div>
   );
+}
+
+function ProfileFact({ label, value, wide = false }: { label: string; value: string | null | undefined; wide?: boolean }) {
+  return <div className={wide ? "sm:col-span-2" : ""}><dt className="text-[10px] font-bold uppercase tracking-wide text-textMuted">{label}</dt><dd className="mt-0.5 truncate text-textPrimary" title={value || undefined}>{value || "—"}</dd></div>;
 }

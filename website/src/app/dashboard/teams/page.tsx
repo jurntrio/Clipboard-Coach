@@ -92,14 +92,14 @@ export default function TeamsPage() {
 
   function contactValue(value: string | null | undefined, contact: PlayerContact | undefined) {
     if (!value || !contact) return "—";
-    return `${value} (${contact.full_name})`;
+    return value;
   }
 
   function contactsForPlayer(player: PlayerWithContacts): PlayerContact[] {
     if (player.contacts?.length) return player.contacts;
     const imported = [
-      { id: `${player.id}-import-1`, full_name: "naam niet vermeld", email: player.email, phone_number: player.phone_numbers?.[0] ?? null },
-      { id: `${player.id}-import-2`, full_name: "naam niet vermeld", email: null, phone_number: player.phone_numbers?.[1] ?? null }
+      { id: `${player.id}-import-1`, full_name: "xx xx", email: player.email, phone_number: player.phone_numbers?.[0] ?? null },
+      { id: `${player.id}-import-2`, full_name: "xx xx", email: null, phone_number: player.phone_numbers?.[1] ?? null }
     ];
     return imported.filter((contact) => contact.email || contact.phone_number);
   }
@@ -141,12 +141,12 @@ export default function TeamsPage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="mx-auto max-w-7xl p-5 sm:p-7">
       <SectionHeader title={t("common.teams")} artworkSrc="/branding/teams.png" showHome={false} />
 
       {staffInvitations.length > 0 && <div className="mb-6 space-y-3">{staffInvitations.map((invitation) => <div key={invitation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent/40 bg-accentDim p-4"><p className="text-sm text-textPrimary">{t("team.invitedTo", { team: invitation.team_name })}</p><div className="flex gap-2"><button type="button" onClick={() => void answerStaffInvitation(invitation.id, "decline")} className="rounded-lg border border-borderButton px-3 py-2 text-sm text-textSecondary">{t("team.declineInvitation")}</button><button type="button" onClick={() => void answerStaffInvitation(invitation.id, "accept")} className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page">{t("team.acceptInvitation")}</button></div></div>)}</div>}
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
         {teams.length === 0 && (
           <div className="border border-borderButton rounded-lg bg-cardAlt p-4 text-textSecondary">
             {t("team.none")}
@@ -162,7 +162,7 @@ export default function TeamsPage() {
 
           return (
             <article key={team.id} className="bg-card border border-border rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3.5 border-b border-borderSubtle bg-cardDeep">
+              <div className="flex items-center justify-between border-b border-borderSubtle bg-cardDeep px-4 py-2.5">
                 {editingTeamId === team.id ? (
                   <div className="flex items-center gap-2 w-full">
                     <input
@@ -208,45 +208,40 @@ export default function TeamsPage() {
               </div>
 
               {!collapsed[team.id] && <>
-              <div className="p-3.5">
-                {!!players.length && <div className="overflow-x-auto rounded-lg border border-borderSubtle">
-                  <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
-                    <thead className="bg-cardDeep text-xs uppercase tracking-wide text-textMuted">
+              <div>
+                {!!players.length && <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1020px] border-collapse text-left text-sm">
+                    <thead className="bg-accent text-[11px] uppercase tracking-wide text-page">
                       <tr>
-                        <th className="px-3 py-2.5">Naam</th>
-                        <th className="px-3 py-2.5">Voornaam</th>
-                        <th className="px-3 py-2.5">Geboortedatum</th>
-                        <th className="px-3 py-2.5">Gsm CP 1</th>
-                        <th className="px-3 py-2.5">Gsm CP 2</th>
-                        <th className="px-3 py-2.5">E-mail CP 1</th>
-                        <th className="px-3 py-2.5">E-mail CP 2</th>
-                        <th className="w-24 px-3 py-2.5 text-right">Acties</th>
+                        <th className="px-3 py-2">Naam</th>
+                        <th className="px-3 py-2">Voornaam</th>
+                        <th className="px-3 py-2">Geboortedatum</th>
+                        <th className="px-3 py-2 text-center">Gsm CP 1</th>
+                        <th className="px-3 py-2 text-center">Gsm CP 2</th>
+                        <th className="px-3 py-2">E-mail CP 1</th>
+                        <th className="px-3 py-2">E-mail CP 2</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-borderSubtle">
                       {players.map((player) => {
                         const [contact1, contact2] = contactsForPlayer(player);
                         return <tr key={player.id} className="bg-card hover:bg-cardHover">
-                          <td className="px-3 py-3 font-semibold text-textPrimary">{player.last_name || "—"}</td>
-                          <td className="px-3 py-3 text-textPrimary">{player.first_name || "—"}</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-textSecondary">{player.date_of_birth ? new Date(`${player.date_of_birth}T12:00:00`).toLocaleDateString("nl-BE") : "—"}</td>
-                          <td className="px-3 py-3 text-textSecondary">{contactValue(contact1?.phone_number, contact1)}</td>
-                          <td className="px-3 py-3 text-textSecondary">{contactValue(contact2?.phone_number, contact2)}</td>
-                          <td className="px-3 py-3 text-textSecondary">{contactValue(contact1?.email, contact1)}</td>
-                          <td className="px-3 py-3 text-textSecondary">{contactValue(contact2?.email, contact2)}</td>
-                          <td className="px-3 py-3 text-right">
-                            <a href={`/dashboard/teams/players/${player.id}`} className="mr-3 font-semibold text-accent hover:underline">Open</a>
-                            {canEditRoster && <button type="button" onClick={() => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() })} className="text-red-300 hover:underline">Verwijder</button>}
-                          </td>
+                          <td className="px-3 py-2 font-semibold"><a href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.last_name || "—"}</a></td>
+                          <td className="px-3 py-2"><a href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.first_name || "—"}</a></td>
+                          <td className="whitespace-nowrap px-3 py-2 text-textSecondary">{player.date_of_birth ? new Date(`${player.date_of_birth}T12:00:00`).toLocaleDateString("nl-BE") : "—"}</td>
+                          <td title={contact1?.full_name} className="px-3 py-2 text-center text-textSecondary">{contactValue(contact1?.phone_number, contact1)}</td>
+                          <td title={contact2?.full_name} className="px-3 py-2 text-center text-textSecondary">{contactValue(contact2?.phone_number, contact2)}</td>
+                          <td title={contact1?.full_name} className="px-3 py-2 text-textSecondary">{contactValue(contact1?.email, contact1)}</td>
+                          <td title={contact2?.full_name} className="px-3 py-2 text-textSecondary">{contactValue(contact2?.email, contact2)}</td>
                         </tr>;
                       })}
                     </tbody>
                   </table>
                 </div>}
-                {!players.length && <p className="rounded-lg border border-dashed border-borderSubtle p-5 text-center text-sm text-textMuted">Nog geen spelers in deze ploeg.</p>}
+                {!players.length && <p className="p-4 text-center text-sm text-textMuted">Nog geen spelers in deze ploeg.</p>}
               </div>
 
-              <div className="mt-1 pt-2.5 mx-3.5 mb-3.5 border-t border-borderSubtle">
+              <div className="border-t border-borderSubtle px-3.5 py-2.5">
                 <p className="text-textMuted text-xs font-bold uppercase tracking-wide mb-2">{t("team.staff")}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                   {staff.map((player) => (

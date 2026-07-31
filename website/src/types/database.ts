@@ -30,6 +30,9 @@ export type Club = {
   normalized_name: string;
   rbfa_registration_number: string | null;
   city: string | null;
+  national_registry_number: string | null;
+  birth_place: string | null;
+  photo_url: string | null;
   country: string;
   status: "active" | "inactive" | "pending" | "archived";
   external_provider: string | null;
