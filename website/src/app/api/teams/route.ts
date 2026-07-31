@@ -66,7 +66,7 @@ export async function GET() {
       : { data: [] };
     const { data: trainerAssignments } = allowedIds.length
       ? await admin.from("club_trainer_teams")
-        .select("id, club_team_id, trainer_id, club_trainers(profile_id, display_name)")
+        .select("club_team_id, trainer_id, club_trainers(profile_id, display_name)")
         .in("club_team_id", allowedIds).eq("status", "active")
       : { data: [] };
     const staffByClubTeam = new Map<string, Array<{ id: string; user_id: string; full_name: string; removable: boolean }>>();
@@ -75,7 +75,7 @@ export async function GET() {
       if (!trainer) continue;
       const current = staffByClubTeam.get(assignment.club_team_id) ?? [];
       current.push({
-        id: assignment.id,
+        id: `${assignment.club_team_id}:${assignment.trainer_id}`,
         user_id: trainer.profile_id ?? assignment.trainer_id,
         full_name: trainer.display_name?.trim() || "Trainer",
         removable: false
