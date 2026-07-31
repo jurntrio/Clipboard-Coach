@@ -89,7 +89,7 @@ export default async function DashboardHomePage() {
   const activityUntil = dateOnly(addDays(today, 120));
   const [{ data: matches }, { data: trainingSessions }, { data: trainingPlans }] = await Promise.all([
     clubId
-      ? admin.from("matches").select("id, club_team_id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b")
+      ? admin.from("matches").select("id, club_team_id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, completed_at")
           .eq("club_id", clubId)
           .gte("match_date", activityFrom)
           .lte("match_date", activityUntil)
@@ -124,6 +124,7 @@ export default async function DashboardHomePage() {
       title: `${match.team_a_name} – ${match.team_b_name}`,
       date: match.match_date,
       time: match.start_time?.slice(0, 5) || null,
+      sortAt: match.completed_at ?? `${match.match_date ?? ""}T${match.start_time?.slice(0, 5) ?? "00:00"}`,
       status: match.status,
       score: match.score_a !== null && match.score_b !== null ? `${match.score_a}–${match.score_b}` : null,
       contextIds,
@@ -140,6 +141,7 @@ export default async function DashboardHomePage() {
       title: `Training ${team?.name ?? ""}`.trim(),
       date: session.training_date,
       time: session.start_time?.slice(0, 5) || null,
+      sortAt: `${session.training_date}T${session.start_time?.slice(0, 5) ?? "00:00"}`,
       status: session.training_date >= new Date().toISOString().slice(0, 10) ? "scheduled" : "completed",
       score: null,
       contextIds,
@@ -152,6 +154,7 @@ export default async function DashboardHomePage() {
     title: plan.title,
     date: plan.created_at.slice(0, 10),
     time: null,
+    sortAt: plan.created_at,
     status: "completed",
     score: null,
     contextIds: contexts.filter(item => item.role === "Trainer").map(item => item.id),

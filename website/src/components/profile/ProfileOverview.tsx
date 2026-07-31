@@ -20,6 +20,7 @@ export type ProfileActivity = {
   title: string;
   date: string | null;
   time: string | null;
+  sortAt?: string | null;
   status: string;
   score: string | null;
   contextIds: string[];
@@ -50,7 +51,7 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
   const upcoming = filtered.filter(item => !!item.date && item.date >= today && item.status !== "finished" && item.status !== "completed")
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).slice(0, 6);
   const recent = filtered.filter(item => item.status === "completed" || item.status === "finished" || (!!item.date && item.date < today))
-    .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`)).slice(0, 6);
+    .sort((a, b) => (b.sortAt ?? `${b.date}${b.time ?? ""}`).localeCompare(a.sortAt ?? `${a.date}${a.time ?? ""}`)).slice(0, 6);
   const contextNames = new Map(contexts.map(item => [item.id, item.subject]));
 
   return <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-7">

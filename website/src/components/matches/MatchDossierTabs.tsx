@@ -38,15 +38,21 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
   const router = useRouter();
   const expectedGoals = Array.from({ length: (scoreA ?? 0) + (scoreB ?? 0) }, (_, index) => ({ id: `goal-${index + 1}` }));
   const savedGoals = initialDossier?.goal_events ?? [];
-  const normalizedGoals = expectedGoals.map((expected, index) => savedGoals[index] ? { ...savedGoals[index], id: expected.id } : newGoal(expected.id));
+  const normalizedGoals = expectedGoals.map((expected, index) => {
+    const saved = savedGoals[index] ? { ...savedGoals[index], id: expected.id } : newGoal(expected.id);
+    if (!saved.scoreAfter && scoreB === 0) return { ...saved, scoreAfter: `${index + 1}-0`, team: "home" as const };
+    if (!saved.scoreAfter && scoreA === 0) return { ...saved, scoreAfter: `0-${index + 1}`, team: "away" as const };
+    return saved;
+  });
   const [draft, setDraft] = useState<MatchDossier>({ ...emptyDossier, ...(initialDossier ?? {}), goal_events: normalizedGoals });
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
 
   function field(key: Exclude<keyof MatchDossier, "goal_events">, label: string, placeholder: string) {
+    if (!editable && !draft[key].trim()) return null;
     if (!editable) return <div>
       <span className="mb-1 block text-xs font-black uppercase tracking-wide text-textMuted">{label}</span>
-      <p className="min-h-12 whitespace-pre-wrap rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 text-sm text-textPrimary">{draft[key] || "Niet ingevuld"}</p>
+      <p className="whitespace-pre-wrap text-sm text-textPrimary">{draft[key]}</p>
     </div>;
     return <label className="block">
       <span className="mb-1 block text-xs font-black uppercase tracking-wide text-textMuted">{label}</span>
@@ -93,8 +99,11 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
     setNotice("Wedstrijddossier bewaard.");
   }
 
-  return <section className="space-y-3">
-    <ClosedPanel title={`Clips (${clips.length})`} expanded={played}>
+  const hasReport = editable || [draft.general_report, draft.positives, draft.improvements, draft.highlights, draft.cards, draft.chances].some(value => value.trim()) || draft.goal_events.length > 0;
+  const dossierClass = played ? "overflow-hidden rounded-2xl border border-border bg-card divide-y divide-border" : "space-y-3";
+
+  return <section className={dossierClass}>
+    {(clips.length > 0 || editable) && <ClosedPanel title={`Clips (${clips.length})`} expanded={played}>
       {clips.length ? <div className="grid gap-3 sm:grid-cols-2">
         {clips.map(clip => <article key={clip.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
           <strong className="block text-textBright">{clip.name}</strong>
@@ -102,13 +111,13 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
           {clip.shareToken && <Link href={`/share/${clip.shareToken}`} className="mt-3 inline-flex text-sm font-bold text-accent">Clip openen</Link>}
         </article>)}
       </div> : <Empty text="Nog geen clips voor deze wedstrijd." />}
-    </ClosedPanel>
+    </ClosedPanel>}
 
-    <ClosedPanel title="Opstelling" expanded={played}>
+    {(editable || !!draft.lineup_notes.trim()) && <ClosedPanel title="Opstelling" expanded={played}>
       {field("lineup_notes", "Opstelling", "Noteer de basisopstelling, formatie, posities en wissels…")}
-    </ClosedPanel>
+    </ClosedPanel>}
 
-    {played && <ClosedPanel title="Wedstrijdverslag" expanded>
+    {played && hasReport && <ClosedPanel title="Wedstrijdverslag" expanded>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">{field("general_report", "Algemeen wedstrijdverslag", "Beschrijf het wedstrijdverloop…")}</div>
         {field("positives", "Pluspunten", "Wat liep goed?")}
@@ -123,7 +132,7 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
       </div>
     </ClosedPanel>}
 
-    {showSelection && <ClosedPanel title={`Selectie (${players.length})`} expanded={played}>
+    {showSelection && (players.length > 0 || editable) && <ClosedPanel title={`Selectie (${players.length})`} expanded={played}>
       {players.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {players.map(player => <div key={player.id} className="rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 text-sm text-textPrimary">
           {player.jersey_number != null && <span className="mr-2 font-black text-accent">{player.jersey_number}</span>}
@@ -132,7 +141,7 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
       </div> : <Empty text="Nog geen spelers geselecteerd." />}
     </ClosedPanel>}
 
-    {played && showScouting && <ClosedPanel title="Scouting" expanded>
+    {played && showScouting && (scoutingEditable || !!draft.scouting.trim()) && <ClosedPanel title="Scouting" expanded>
       {scoutingEditable ? <label className="block"><span className="mb-1 block text-xs font-black uppercase tracking-wide text-textMuted">Scouting</span>
         <textarea value={draft.scouting} onChange={event => setDraft(current => ({ ...current, scouting: event.target.value }))}
           placeholder="Observaties over eigen spelers, tegenstander en aandachtspunten…" rows={4} className="w-full resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
@@ -168,6 +177,16 @@ function GoalEditor({ goals, players, ownTeamSide, homeTeamName, awayTeamName, e
     onChange(goals.map(goal => goal.id === id ? { ...goal, ...patch } : goal));
   }
   if (!goals.length) return <Empty text="Geen doelpunten in deze wedstrijd." />;
+  if (!editable) {
+    const scores = goals.map(goal => parseScore(goal.scoreAfter)).filter((score): score is { a: number; b: number } => !!score);
+    if (!scores.length) return null;
+    return <div>
+      <h4 className="text-xs font-black uppercase tracking-wide text-textMuted">Doelpunten</h4>
+      <div className="mt-2 flex flex-wrap gap-2">{scores.map((score, index) =>
+        <span key={`${score.a}-${score.b}-${index}`} className="rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 font-black text-textBright">{score.a}–{score.b}</span>
+      )}</div>
+    </div>;
+  }
   return <div>
     <h4 className="text-xs font-black uppercase tracking-wide text-textMuted">Doelpunten ({goals.length})</h4>
     <div className="mt-2 space-y-3">{goals.map((goal, index) => {
@@ -201,7 +220,7 @@ function GoalEditor({ goals, players, ownTeamSide, homeTeamName, awayTeamName, e
           </label>
         </div>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {scoringSide === null ? <p className="text-sm text-textMuted md:col-span-2">Vul eerst een geldige stand na dit doelpunt in.</p> : ownGoal
+          {scoringSide === null ? null : ownGoal
             ? <PersonChoice label="Doelpuntenmaker" type={goal.scorerType} playerId={goal.scorerPlayerId} name={goal.scorerName}
                 players={players} editable={editable} allowNone={false}
                 onChange={patch => update(goal.id, { scorerType: patch.type as GoalEvent["scorerType"], scorerPlayerId: patch.playerId, scorerName: patch.name })} />
@@ -212,10 +231,6 @@ function GoalEditor({ goals, players, ownTeamSide, homeTeamName, awayTeamName, e
                 onChange={patch => update(goal.id, { assistType: patch.type as GoalEvent["assistType"], assistPlayerId: patch.playerId, assistName: patch.name })} />
             : <TextPerson label="Assist tegenstander" value={goal.assistName} editable={editable} onChange={assistName => update(goal.id, { assistType: assistName ? "custom" : "none", assistName })} />)}
         </div>
-        <label className="mt-3 block text-xs font-bold text-textSecondary">Korte beschrijving
-          <textarea rows={2} value={goal.description} disabled={!editable} onChange={event => update(goal.id, { description: event.target.value })}
-            className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary" />
-        </label>
       </article>;
     })}</div>
   </div>;
@@ -250,7 +265,7 @@ function TextPerson({ label, value, editable, onChange }: { label: string; value
 }
 
 function ClosedPanel({ title, children, expanded = false }: { title: string; children: React.ReactNode; expanded?: boolean }) {
-  if (expanded) return <section className="overflow-hidden rounded-2xl border border-border bg-card">
+  if (expanded) return <section>
     <h3 className="border-b border-border px-5 py-4 font-black text-textBright">{title}</h3>
     <div className="p-5">{children}</div>
   </section>;
