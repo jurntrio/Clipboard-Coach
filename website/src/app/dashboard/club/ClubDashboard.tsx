@@ -10,6 +10,7 @@ import { ClubMemberAccessManager } from "./ClubMemberAccessManager";
 import { ClubInvitationCreator } from "./ClubInvitationCreator";
 import { ClubPeopleManager } from "./ClubPeopleManager";
 import { ClubMatchOptionsManager, type ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
+import { ClubMatchCsvImporter } from "./ClubMatchCsvImporter";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean };
 type Team = {
@@ -206,30 +207,44 @@ export function ClubDashboard() {
         </div>
       </section>
 
-      {moduleEnabled("teams") && <ModuleAccordion title="Teams" icon="/branding/teams.png">
+      <ModuleAccordion title="Clubgegevens & infrastructuur" icon="/branding/clubadmin.png">
+        <div className="mb-5">
+          <h2 className="text-xl font-semibold text-textBright">Locaties en wedstrijdopties</h2>
+          <p className="mt-1 text-sm text-textMuted">Beheer de vaste velden, kleedkamers, verzamelplaatsen en andere infrastructuur van de club.</p>
+        </div>
+        <ClubMatchOptionsManager clubId={selectedClubId} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} readOnly={readOnly} onChanged={load} />
+      </ModuleAccordion>
+
+      {moduleEnabled("teams") && <ModuleAccordion title="Teams & spelers" icon="/branding/teams.png">
         <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} coordinatorTrainerIds={youthCoordinatorTrainerIds} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} migrationIssues={migrationIssues} onChanged={load}
           readOnly={readOnly || !moduleEnabled("teams_manage")} allowImport={moduleEnabled("teams_import")} />
       </ModuleAccordion>}
 
-      <ModuleAccordion title="Algemene info & infrastructuur" icon="/branding/clubadmin.png">
-        <ClubMatchOptionsManager clubId={selectedClubId} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} readOnly={readOnly} onChanged={load} />
-      </ModuleAccordion>
+      {moduleEnabled("matches") && <ModuleAccordion title="Imports & koppelingen" icon="/branding/games.png">
+        <div className="space-y-5">
+          <div>
+            <h2 className="text-xl font-semibold text-textBright">Wedstrijdkalenders</h2>
+            <p className="mt-1 text-sm text-textMuted">Importeer of synchroniseer wedstrijdgegevens hier. De pagina Wedstrijden blijft zo gericht op de dagelijkse werking.</p>
+          </div>
+          <ClubMatchCsvImporter teams={teams.filter(team => team.status === "active").map(team => ({ id: team.id, name: team.name }))} readOnly={readOnly} onImported={load} />
+          <p className="rounded-lg border border-borderSubtle bg-cardDeep p-4 text-sm text-textSecondary">Automatische kalenderkoppelingen worden per ploeg ingesteld bij Teams & spelers.</p>
+        </div>
+      </ModuleAccordion>}
 
       {(moduleEnabled("training") || moduleEnabled("intradesk")) && trainingSettings && (
-        <>
-          {moduleEnabled("training") && <ModuleAccordion title="Training" icon="/branding/training.png">
+        <ModuleAccordion title="Modules & beleid" icon="/branding/training.png">
+          <div className="space-y-5">
+          {moduleEnabled("training") && <div>
             <TrainingModuleSettings settings={trainingSettings} saving={saving === "training-settings"} readOnly={readOnly} onSave={saveTrainingSettings} />
-          </ModuleAccordion>}
-          {moduleEnabled("intradesk") && <ModuleAccordion title="Intradesk" icon="/branding/intradesk.png">
-            <div className="rounded-xl border border-borderSubtle bg-cardDeep p-4 text-sm text-textSecondary">Hier komen de rechten om nieuwe onderdelen en versies aan de gedeelde trainingsbibliotheek toe te voegen.</div>
-          </ModuleAccordion>}
-        </>
+          </div>}
+          </div>
+        </ModuleAccordion>
       )}
 
-      {moduleEnabled("clips") && <ModuleAccordion title="Sponsors" icon="/branding/clip-sponsors.png">
+      {moduleEnabled("clips") && <ModuleAccordion title="Media & sponsoring" icon="/branding/clip-sponsors.png">
         <section className="rounded-xl border border-border bg-card p-5">
-          <h2 className="text-xl font-semibold text-textBright">Sponsors & clips</h2>
-          <p className="mt-1 text-sm text-textMuted">Beheer de algemene sponsor, de keuze per ploeg en de toegang tot kijkcijfers.</p>
+          <h2 className="text-xl font-semibold text-textBright">Media & sponsoring</h2>
+          <p className="mt-1 text-sm text-textMuted">Beheer de algemene sponsor, de keuze per ploeg en de zichtbaarheid van clipstatistieken.</p>
           {club && <div className="mt-4">
             <ClubSponsorManager
               clubId={club.id}
@@ -241,7 +256,7 @@ export function ClubDashboard() {
           </div>}
         <div className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-4">
           <h3 className="font-semibold text-textPrimary">Wie mag kijkcijfers van clips zien?</h3>
-          <p className="mt-1 text-sm text-textMuted">Bepaal welke rollen het aantal geopende gedeelde clips in Matches zien. Clubadmins behouden altijd toegang.</p>
+          <p className="mt-1 text-sm text-textMuted">Bepaal welke rollen het aantal geopende gedeelde clips bij Wedstrijden zien. Clubadmins behouden altijd toegang.</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {([
               ["club_admin", "Clubadmins"],
@@ -263,7 +278,7 @@ export function ClubDashboard() {
         </section>
       </ModuleAccordion>}
 
-      {moduleEnabled("matches") && <ModuleAccordion title="Games" icon="/branding/games.png">
+      {moduleEnabled("matches") && <ModuleAccordion title="Wedstrijdtoegang" icon="/branding/games.png">
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Wedstrijden toewijzen</h2>
         <p className="mt-1 text-sm text-textMuted">Wijzig de ploeg van een wedstrijd en bepaal welke gebruikers toegang krijgen.</p>
@@ -274,27 +289,31 @@ export function ClubDashboard() {
       </section>
       </ModuleAccordion>}
 
-      {moduleEnabled("video_viewer") && <ModuleAccordion title="Video Viewer" icon="/branding/video-viewer.png">
-        <div className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
-          <h3 className="font-semibold text-textPrimary">Wie mag de Video Viewer gebruiken?</h3>
-          <p className="mt-1 text-sm text-textMuted">De rol Afgevaardigde bestaat technisch al als teammanager. De afzonderlijke rolselectie wordt hier verder uitgebouwd.</p>
-        </div>
-      </ModuleAccordion>}
-
-      <ModuleAccordion title="Personen & accounts" icon="/branding/clubadmin.png">
+      <ModuleAccordion title="Personen & toegang" icon="/branding/clubadmin.png">
+        <div className="space-y-6">
         <ClubPeopleManager clubId={selectedClubId}
           teams={teams.map((team) => ({ id: team.id, name: team.name }))}
           readOnly={readOnly} />
+        <ClubInvitationCreator
+          clubId={selectedClubId}
+          readOnly={readOnly}
+          teams={teams.map((team) => ({
+            id: team.id,
+            name: team.name,
+            players: (team.teams ?? []).flatMap((operationalTeam) => operationalTeam.players)
+              .filter((player) => player.role === "player")
+              .map((player) => ({ id: player.id, name: `${player.first_name} ${player.last_name}`.trim() }))
+          }))}
+        />
+        <ClubMemberAccessManager clubId={selectedClubId}
+          members={data.memberships.filter((item) => item.club_id === selectedClubId)}
+          trainers={trainers} teams={teams}
+          permissions={data.memberPermissions.filter((item) => item.club_id === selectedClubId)}
+          teamAccess={data.memberTeamAccess.filter((item) => item.club_id === selectedClubId)}
+          roleDefaults={data.rolePermissionDefaults.filter((item) => item.club_id === selectedClubId)}
+          readOnly={readOnly} onChanged={load} />
+        </div>
       </ModuleAccordion>
-
-      <ClubMemberAccessManager clubId={selectedClubId}
-        members={data.memberships.filter((item) => item.club_id === selectedClubId)}
-        trainers={trainers} teams={teams}
-        permissions={data.memberPermissions.filter((item) => item.club_id === selectedClubId)}
-        teamAccess={data.memberTeamAccess.filter((item) => item.club_id === selectedClubId)}
-        roleDefaults={data.rolePermissionDefaults.filter((item) => item.club_id === selectedClubId)}
-        readOnly={readOnly} onChanged={load} />
-      <ClubInvitationCreator clubId={selectedClubId} readOnly={readOnly} />
     </div>
   );
 }

@@ -34,9 +34,9 @@ export default async function TrainingPage() {
   const optionNames = Object.fromEntries((options ?? []).map(option => [option.id, option.label]));
 
   return <div className="mx-auto max-w-6xl p-4 sm:p-8">
-    <SectionHeader title="Trainingen" subtitle="Bekijk de planning, locatie, staff en aanwezigheden van elke ploeg." artworkSrc="/branding/training.png" showHome={false} />
+    <SectionHeader title="Trainingen" artworkSrc="/branding/training.png" showHome={false} />
     <div className="mb-5 flex flex-wrap gap-3">
-      <Link href="/dashboard/training/new" className="rounded-lg bg-accent px-5 py-3 text-sm font-black text-page hover:brightness-110">Nieuw trainingsplan</Link>
+      <Link href="/dashboard/training/new" className="rounded-lg bg-accent px-5 py-3 text-sm font-black text-page hover:brightness-110">Maak een training</Link>
       {intradeskEntitlement && <Link href="/dashboard/intradesk" className="rounded-lg border border-borderButton px-5 py-3 text-sm font-bold text-textPrimary hover:border-accent">Open Intradesk</Link>}
     </div>
     <TrainingOverview sessions={visible as any} teams={filterTeams} optionNames={optionNames} />

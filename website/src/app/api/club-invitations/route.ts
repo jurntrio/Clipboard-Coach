@@ -9,8 +9,8 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Niet aangemeld." }, { status: 401 });
   const body = await request.json().catch(() => null);
-  if (!body || typeof body.clubId !== "string" || typeof body.functionRole !== "string") {
-    return NextResponse.json({ error: "Kies een club en rol." }, { status: 400 });
+  if (!body || typeof body.clubId !== "string" || typeof body.teamId !== "string" || typeof body.functionRole !== "string") {
+    return NextResponse.json({ error: "Kies een club, ploeg en rol." }, { status: 400 });
   }
   const access = await getClubAccess(body.clubId, user);
   if (!["club_admin", "platform_admin"].includes(access.role)) {
@@ -23,8 +23,10 @@ export async function POST(request: Request) {
     : body.functionRole === "club_admin_viewer" ? "club_admin_viewer" : "trainer";
   const expectedName = typeof body.expectedName === "string" ? body.expectedName.trim().replace(/\s+/g, " ").slice(0, 120) : "";
   const admin = createAdminClient();
+  const { data: team } = await admin.from("club_teams").select("id").eq("id", body.teamId).eq("club_id", body.clubId).maybeSingle();
+  if (!team) return NextResponse.json({ error: "De gekozen ploeg hoort niet bij deze club." }, { status: 400 });
   const { data, error } = await admin.from("club_registration_invites").insert({
-    club_id: body.clubId, technical_role: technicalRole, function_role: body.functionRole,
+    club_id: body.clubId, club_team_id: team.id, technical_role: technicalRole, function_role: body.functionRole,
     expected_name: expectedName || null, created_by: user.id
   }).select("token, expires_at").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

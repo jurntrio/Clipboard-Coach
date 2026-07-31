@@ -168,7 +168,6 @@ export default function TeamsPage() {
                   <>
                     <div className="flex items-center gap-2.5">
                       <strong className="text-textCardTitle">{team.name}</strong>
-                      {team.club_managed && <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-300">{canEditRoster ? "Clubteam · bewerken toegestaan" : "Beheerd door club"}</span>}
                       <small className="text-textMuted text-sm">
                         {t("team.summary", { players: players.length, staff: staff.length + registeredStaff.length })}
                       </small>

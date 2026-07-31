@@ -16,11 +16,13 @@ type PendingChange = {
 export function AdminClubModuleToggles({
   clubId,
   clubName,
-  entitlements
+  entitlements,
+  teams
 }: {
   clubId: string;
   clubName: string;
   entitlements: { module_key: string; enabled: boolean }[];
+  teams: { id: string; name: string; players: { id: string; name: string }[] }[];
 }) {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
@@ -67,7 +69,7 @@ export function AdminClubModuleToggles({
         })}
       </div>
       {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
-      <div className="mt-3"><ClubInvitationCreator clubId={clubId} readOnly={false} compact /></div>
+      <div className="mt-3"><ClubInvitationCreator clubId={clubId} teams={teams} readOnly={false} compact /></div>
     </div>
     <ConfirmDialog
       open={!!pendingChange}

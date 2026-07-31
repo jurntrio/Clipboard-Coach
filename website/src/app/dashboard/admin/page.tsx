@@ -17,7 +17,7 @@ export default async function AdminOverviewPage() {
     getCoachOverviews(),
     admin
       .from("clubs")
-      .select("id, name, rbfa_registration_number, club_teams:club_teams!club_teams_club_id_fkey(id, name), club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))")
+      .select("id, name, rbfa_registration_number, club_teams:club_teams!club_teams_club_id_fkey(id, name, teams(id, players(id, first_name, last_name, role))), club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))")
       .order("name")
   ]);
   const { locale, t } = getServerI18n();
@@ -82,6 +82,13 @@ export default async function AdminOverviewPage() {
               profiles: { email: string } | { email: string }[] | null;
               club_trainer_teams: { club_teams: { name: string } | { name: string }[] | null }[];
             }[];
+            const invitationTeams = (club.club_teams ?? []).map((team) => ({
+              id: team.id,
+              name: team.name,
+              players: (team.teams ?? []).flatMap((operationalTeam) => operationalTeam.players ?? [])
+                .filter((player) => player.role === "player")
+                .map((player) => ({ id: player.id, name: `${player.first_name} ${player.last_name}`.trim() }))
+            }));
             return (
               <details key={club.id} className="group rounded-lg border border-borderSubtle bg-cardDeep">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
@@ -100,6 +107,7 @@ export default async function AdminOverviewPage() {
                 <AdminClubModuleToggles
                   clubId={club.id}
                   clubName={club.name}
+                  teams={invitationTeams}
                   entitlements={(club.club_module_entitlements ?? []) as { module_key: string; enabled: boolean }[]}
                 />
                 <div className="border-t border-borderSubtle px-4 py-3">
@@ -178,7 +186,13 @@ export default async function AdminOverviewPage() {
       {isFullAdmin && <PlatformInvitationCreator clubs={(clubs ?? []).map((club) => ({
         id: club.id,
         name: club.name,
-        teams: (club.club_teams ?? []) as { id: string; name: string }[]
+        teams: (club.club_teams ?? []).map((team) => ({
+          id: team.id,
+          name: team.name,
+          players: (team.teams ?? []).flatMap((operationalTeam) => operationalTeam.players ?? [])
+            .filter((player) => player.role === "player")
+            .map((player) => ({ id: player.id, name: `${player.first_name} ${player.last_name}`.trim() }))
+        }))
       }))} />}
 
       <details className="group/users mt-8 overflow-hidden rounded-xl border border-border bg-card">

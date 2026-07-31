@@ -15,7 +15,8 @@ export async function POST(request: Request, { params }: { params: { playerId: s
   const { data: team } = await admin.from("teams").select("id, coach_id, club_team_id").eq("id", player.team_id).maybeSingle();
   if (!team) return NextResponse.json({ error: "Team niet gevonden." }, { status: 404 });
 
-  let allowed = isAdminEmail(user.email) || team.coach_id === user.id;
+  const { data: profile } = await admin.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
+  let allowed = isAdminEmail(user.email) || profile?.account_role === "platform_admin" || team.coach_id === user.id;
   if (!allowed && team.club_team_id) {
     const { data: clubTeam } = await admin.from("club_teams").select("club_id, trainers_can_edit_roster").eq("id", team.club_team_id).maybeSingle();
     if (clubTeam) {
