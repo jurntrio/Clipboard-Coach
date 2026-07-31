@@ -45,9 +45,15 @@ export async function PATCH(request: Request) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await request.json().catch(() => null) as { matchId?: string; clubTeamId?: string } | null;
+  const body = await request.json().catch(() => null) as { matchId?: string; clubTeamId?: string; matchDate?: string | null; startTime?: string | null } | null;
   if (!body?.matchId || !body.clubTeamId) {
     return NextResponse.json({ error: "Wedstrijd en ploeg zijn verplicht." }, { status: 400 });
+  }
+  if (body.matchDate && !/^\d{4}-\d{2}-\d{2}$/.test(body.matchDate)) {
+    return NextResponse.json({ error: "Gebruik een geldige wedstrijddatum." }, { status: 400 });
+  }
+  if (body.startTime && !/^\d{2}:\d{2}$/.test(body.startTime)) {
+    return NextResponse.json({ error: "Gebruik een geldig aanvangsuur." }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -78,7 +84,9 @@ export async function PATCH(request: Request) {
   if (clearError) return NextResponse.json({ error: clearError.message }, { status: 500 });
   const { data, error } = await admin.from("matches").update({
     club_team_id: targetTeam.id,
-    team_a_id: operationalTeam.id
+    team_a_id: operationalTeam.id,
+    match_date: body.matchDate || null,
+    start_time: body.startTime || null
   }).eq("id", match.id).select("id, club_team_id").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ match: data, teamName: targetTeam.name });

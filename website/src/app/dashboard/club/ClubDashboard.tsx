@@ -107,13 +107,13 @@ export function ClubDashboard() {
     } : current);
   }
 
-  async function changeMatchTeam(match: Match, clubTeamId: string) {
+  async function changeMatchDetails(match: Match, clubTeamId: string, matchDate: string, startTime: string) {
     setSaving(`match-team:${match.id}`);
     setError("");
     const response = await fetch("/api/club/assignments", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matchId: match.id, clubTeamId })
+      body: JSON.stringify({ matchId: match.id, clubTeamId, matchDate: matchDate || null, startTime: startTime || null })
     });
     const body = await response.json();
     setSaving("");
@@ -285,7 +285,7 @@ export function ClubDashboard() {
         <MatchAssignmentManager matches={matches} trainers={trainers} teamNames={teamNames}
           activeTeams={teams.filter(team => team.status === "active")}
           assignments={data.assignments} saving={saving} readOnly={readOnly}
-          onToggle={toggle} onChangeTeam={changeMatchTeam} onRemoveTrainer={removeTrainer} />
+          onToggle={toggle} onChangeDetails={changeMatchDetails} onRemoveTrainer={removeTrainer} />
       </section>
       </ModuleAccordion>}
 
@@ -318,7 +318,7 @@ export function ClubDashboard() {
   );
 }
 
-function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, assignments, saving, readOnly, onToggle, onChangeTeam, onRemoveTrainer }: {
+function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, assignments, saving, readOnly, onToggle, onChangeDetails, onRemoveTrainer }: {
   matches: Match[];
   trainers: Trainer[];
   teamNames: Map<string, string>;
@@ -327,7 +327,7 @@ function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, ass
   saving: string;
   readOnly: boolean;
   onToggle: (match: Match, trainer: Trainer) => Promise<void>;
-  onChangeTeam: (match: Match, clubTeamId: string) => Promise<void>;
+  onChangeDetails: (match: Match, clubTeamId: string, matchDate: string, startTime: string) => Promise<void>;
   onRemoveTrainer: (trainer: Trainer) => Promise<void>;
 }) {
   const [matchQuery, setMatchQuery] = useState("");
@@ -336,6 +336,8 @@ function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, ass
   const [dateTo, setDateTo] = useState("");
   const [selectedMatchId, setSelectedMatchId] = useState("");
   const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [selectedMatchDate, setSelectedMatchDate] = useState("");
+  const [selectedStartTime, setSelectedStartTime] = useState("");
   const [personQuery, setPersonQuery] = useState("");
   const [accessFilter, setAccessFilter] = useState<"all" | "assigned" | "unassigned">("all");
   const normalizedMatchQuery = matchQuery.trim().toLocaleLowerCase("nl");
@@ -349,7 +351,9 @@ function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, ass
   const selectedMatch = matches.find(match => match.id === selectedMatchId) ?? null;
   useEffect(() => {
     setSelectedTeamId(selectedMatch?.club_team_id ?? "");
-  }, [selectedMatchId, selectedMatch?.club_team_id]);
+    setSelectedMatchDate(selectedMatch?.match_date ?? "");
+    setSelectedStartTime(selectedMatch?.start_time?.slice(0, 5) ?? "");
+  }, [selectedMatchId, selectedMatch?.club_team_id, selectedMatch?.match_date, selectedMatch?.start_time]);
 
   function assignmentState(match: Match, trainer: Trainer) {
     const explicit = assignments.find(item => item.match_id === match.id && item.trainer_id === trainer.id);
@@ -382,17 +386,21 @@ function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, ass
           {Array.from(teamNames).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         </select>
         <div className="grid grid-cols-2 gap-2">
-          <input type="date" aria-label="Datum vanaf" value={dateFrom} onChange={event => setDateFrom(event.target.value)}
-            className="min-w-0 rounded-lg border border-border bg-input px-2 py-2 text-xs text-textPrimary" />
-          <input type="date" aria-label="Datum tot" value={dateTo} onChange={event => setDateTo(event.target.value)}
-            className="min-w-0 rounded-lg border border-border bg-input px-2 py-2 text-xs text-textPrimary" />
+          <label className="text-xs font-semibold text-textMuted">Van
+            <input type="date" aria-label="Datum vanaf" value={dateFrom} onChange={event => setDateFrom(event.target.value)}
+              className="mt-1 w-full min-w-0 rounded-lg border border-border bg-input px-2 py-2 text-xs text-textPrimary" />
+          </label>
+          <label className="text-xs font-semibold text-textMuted">Tot
+            <input type="date" aria-label="Datum tot" value={dateTo} onChange={event => setDateTo(event.target.value)}
+              className="mt-1 w-full min-w-0 rounded-lg border border-border bg-input px-2 py-2 text-xs text-textPrimary" />
+          </label>
         </div>
       </div>
       <div className="mt-3 max-h-96 space-y-2 overflow-y-auto">
         {filteredMatches.map(match => <button key={match.id} type="button" onClick={() => setSelectedMatchId(match.id)}
           className={`w-full rounded-lg border p-3 text-left ${selectedMatchId === match.id ? "border-accent bg-accent/10" : "border-border bg-card hover:border-borderButton"}`}>
           <span className="block text-sm font-semibold text-textPrimary">{match.team_a_name} – {match.team_b_name}</span>
-          <span className="mt-1 block text-xs text-textMuted">{match.match_date || "Datum onbekend"} · {match.club_team_id ? teamNames.get(match.club_team_id) ?? "Ploeg onbekend" : "Nog niet gekoppeld"}</span>
+          <span className="mt-1 block text-xs text-textMuted">{match.match_date || "Datum onbekend"}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""} · {match.club_team_id ? teamNames.get(match.club_team_id) ?? "Ploeg onbekend" : "Nog niet gekoppeld"}</span>
         </button>)}
         {!filteredMatches.length && <p className="py-6 text-center text-sm text-textMuted">Geen wedstrijden gevonden.</p>}
       </div>
@@ -403,23 +411,31 @@ function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, ass
       <h3 className="font-semibold text-textPrimary">2. Controleer de ploeg en wijs gebruikers toe</h3>
       {!selectedMatch ? <p className="mt-4 text-sm text-textMuted">Selecteer eerst links een wedstrijd.</p> : <>
         <p className="mt-1 text-xs text-textMuted">{selectedMatch.team_a_name} – {selectedMatch.team_b_name}</p>
-        <label className="mt-3 block text-sm text-textSecondary">Toegewezen ploeg
-          <div className="mt-1 flex gap-2">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="text-sm text-textSecondary sm:col-span-2">Toegewezen ploeg
             <select value={selectedTeamId}
               onChange={event => setSelectedTeamId(event.target.value)}
               disabled={readOnly || saving === `match-team:${selectedMatch.id}`}
-              className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:opacity-50">
+              className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:opacity-50">
               <option value="" disabled>Kies een ploeg</option>
               {activeTeams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}
             </select>
-            <button type="button"
-              disabled={readOnly || !selectedTeamId || selectedTeamId === selectedMatch.club_team_id || saving === `match-team:${selectedMatch.id}`}
-              onClick={() => void onChangeTeam(selectedMatch, selectedTeamId)}
-              className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page disabled:opacity-50">
-              {saving === `match-team:${selectedMatch.id}` ? "Opslaan…" : "Ploeg opslaan"}
-            </button>
-          </div>
-        </label>
+          </label>
+          <label className="text-sm text-textSecondary">Wedstrijddatum
+            <input type="date" value={selectedMatchDate} onChange={event => setSelectedMatchDate(event.target.value)} disabled={readOnly || saving === `match-team:${selectedMatch.id}`}
+              className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:opacity-50" />
+          </label>
+          <label className="text-sm text-textSecondary">Aanvangsuur
+            <input type="time" value={selectedStartTime} onChange={event => setSelectedStartTime(event.target.value)} disabled={readOnly || saving === `match-team:${selectedMatch.id}`}
+              className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:opacity-50" />
+          </label>
+          <button type="button"
+            disabled={readOnly || !selectedTeamId || saving === `match-team:${selectedMatch.id}` || (selectedTeamId === selectedMatch.club_team_id && selectedMatchDate === (selectedMatch.match_date ?? "") && selectedStartTime === (selectedMatch.start_time?.slice(0, 5) ?? ""))}
+            onClick={() => void onChangeDetails(selectedMatch, selectedTeamId, selectedMatchDate, selectedStartTime)}
+            className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page disabled:opacity-50 sm:col-span-2">
+            {saving === `match-team:${selectedMatch.id}` ? "Opslaan…" : "Wedstrijd opslaan"}
+          </button>
+        </div>
         <h4 className="mt-4 text-sm font-semibold text-textPrimary">3. Zoek een gebruiker</h4>
         <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
           <input value={personQuery} onChange={event => setPersonQuery(event.target.value)}

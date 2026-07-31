@@ -14,7 +14,9 @@ import { useI18n } from "@/i18n/client";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { ImportRosterModal } from "@/components/teams/ImportRosterModal";
 
-type TeamWithPlayers = Team & { players: Player[]; can_edit_roster?: boolean; can_import_roster?: boolean; club_managed?: boolean };
+type PlayerContact = { id: string; full_name: string; email: string | null; phone_number: string | null };
+type PlayerWithContacts = Player & { contacts?: PlayerContact[] };
+type TeamWithPlayers = Team & { players: PlayerWithContacts[]; can_edit_roster?: boolean; can_import_roster?: boolean; club_managed?: boolean };
 type ClipSummary = {
   id: string;
   team_id: string | null;
@@ -88,6 +90,11 @@ export default function TeamsPage() {
       if (clip.audience_player_ids.includes(player.id) || clip.clip_segments.some((segment) => segment.tags?.player_ids.includes(player.id))) return true;
       return clip.team_id === team.id && clip.audience_type === "full_team";
     }).length;
+  }
+
+  function contactValue(value: string | null | undefined, contact: PlayerContact | undefined) {
+    if (!value || !contact) return "—";
+    return `${value} (${contact.full_name})`;
   }
 
   async function saveTeamName(teamId: string) {
@@ -194,12 +201,46 @@ export default function TeamsPage() {
               </div>
 
               {!collapsed[team.id] && <>
-              <div className="flex flex-col gap-2.5 p-3.5">
-                {players.map((player) => (
-                  <PlayerCard key={player.id} player={player} clipCount={clipCountFor(team, player)} onDelete={canEditRoster ? () => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() }) : undefined} />
-                ))}
+              <div className="p-3.5">
+                {!!players.length && <div className="overflow-x-auto rounded-lg border border-borderSubtle">
+                  <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
+                    <thead className="bg-cardDeep text-xs uppercase tracking-wide text-textMuted">
+                      <tr>
+                        <th className="px-3 py-2.5">Naam</th>
+                        <th className="px-3 py-2.5">Voornaam</th>
+                        <th className="px-3 py-2.5">Geboortedatum</th>
+                        <th className="px-3 py-2.5">Gsm CP 1</th>
+                        <th className="px-3 py-2.5">Gsm CP 2</th>
+                        <th className="px-3 py-2.5">E-mail CP 1</th>
+                        <th className="px-3 py-2.5">E-mail CP 2</th>
+                        <th className="w-24 px-3 py-2.5 text-right">Acties</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-borderSubtle">
+                      {players.map((player) => {
+                        const [contact1, contact2] = player.contacts ?? [];
+                        return <tr key={player.id} className="bg-card hover:bg-cardHover">
+                          <td className="px-3 py-3 font-semibold text-textPrimary">{player.last_name || "—"}</td>
+                          <td className="px-3 py-3 text-textPrimary">{player.first_name || "—"}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-textSecondary">{player.date_of_birth ? new Date(`${player.date_of_birth}T12:00:00`).toLocaleDateString("nl-BE") : "—"}</td>
+                          <td className="px-3 py-3 text-textSecondary">{contactValue(contact1?.phone_number, contact1)}</td>
+                          <td className="px-3 py-3 text-textSecondary">{contactValue(contact2?.phone_number, contact2)}</td>
+                          <td className="px-3 py-3 text-textSecondary">{contactValue(contact1?.email, contact1)}</td>
+                          <td className="px-3 py-3 text-textSecondary">{contactValue(contact2?.email, contact2)}</td>
+                          <td className="px-3 py-3 text-right">
+                            <a href={`/dashboard/teams/players/${player.id}`} className="mr-3 font-semibold text-accent hover:underline">Open</a>
+                            {canEditRoster && <button type="button" onClick={() => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() })} className="text-red-300 hover:underline">Verwijder</button>}
+                          </td>
+                        </tr>;
+                      })}
+                    </tbody>
+                  </table>
+                </div>}
+                {!players.length && <p className="rounded-lg border border-dashed border-borderSubtle p-5 text-center text-sm text-textMuted">Nog geen spelers in deze ploeg.</p>}
+                <div className="mt-3 flex flex-wrap gap-2.5">
                 {canEditRoster && <button type="button" onClick={() => setAddPlayerTarget({ teamId: team.id, teamName: team.name, role: "player" })} className="min-h-14 rounded-lg border border-dashed border-accent/60 bg-accentDim px-4 py-3 text-left text-sm font-semibold text-accent hover:border-accent">+ {t("team.addPlayer").replace("+ ", "")}</button>}
                 {(ownsTeam || team.can_import_roster === true) && <button type="button" onClick={() => setImportRosterTarget({ teamId: team.id, clubTeamId: team.club_team_id ?? null, teamName: team.name })} className="min-h-11 rounded-lg border border-borderButton bg-button px-4 py-2 text-left text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent">PSD/Excel spelerslijst importeren</button>}
+                </div>
               </div>
 
               <div className="mt-1 pt-2.5 mx-3.5 mb-3.5 border-t border-borderSubtle">
