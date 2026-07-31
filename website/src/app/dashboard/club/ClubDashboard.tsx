@@ -105,6 +105,35 @@ export function ClubDashboard() {
     } : current);
   }
 
+  async function changeMatchTeam(match: Match, clubTeamId: string) {
+    setSaving(`match-team:${match.id}`);
+    setError("");
+    const response = await fetch("/api/club/assignments", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ matchId: match.id, clubTeamId })
+    });
+    const body = await response.json();
+    setSaving("");
+    if (!response.ok) return setError(body.error || "De ploegtoewijzing kon niet worden gewijzigd.");
+    await load();
+  }
+
+  async function removeTrainer(trainer: Trainer) {
+    if (!window.confirm(`${trainer.display_name} uit ${club?.name ?? "de club"} verwijderen? Het loginaccount zelf blijft bestaan.`)) return;
+    setSaving(`remove-trainer:${trainer.id}`);
+    setError("");
+    const response = await fetch("/api/club/trainers", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clubId: selectedClubId, trainerId: trainer.id })
+    });
+    const body = await response.json();
+    setSaving("");
+    if (!response.ok) return setError(body.error || "De persoon kon niet worden verwijderd.");
+    await load();
+  }
+
   async function setClipViewRole(role: string, enabled: boolean) {
     if (!club || readOnly || role === "club_admin") return;
     const current = club.clip_view_count_roles ?? ["club_admin"];
@@ -199,15 +228,7 @@ export function ClubDashboard() {
       {(moduleEnabled("clips") || moduleEnabled("matches")) && <ModuleAccordion title="Games" icon="/branding/games.png">
       {moduleEnabled("clips") && <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Clips</h2>
-        <p className="mt-1 text-sm text-textMuted">Bepaal wat er onderaan de publieke gedeelde clips van deze club verschijnt.</p>
-        {club && <ClubSponsorManager
-          clubId={club.id}
-          generalUrl={club.general_sponsor_url ?? "/branding/clip-sponsors.png"}
-          useGeneral={club.use_general_sponsor ?? club.clip_advertising_enabled !== false}
-          teams={teams}
-          readOnly={readOnly}
-          onChanged={load}
-        />}
+        <p className="mt-1 text-sm text-textMuted">Beheer de zichtbaarheid en kijkcijfers van gedeelde wedstrijdclips.</p>
         <div className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-4">
           <h3 className="font-semibold text-textPrimary">Wie mag kijkcijfers zien?</h3>
           <p className="mt-1 text-sm text-textMuted">Bepaal welke rollen het aantal geopende gedeelde clips in Matches zien. Clubadmins behouden altijd toegang.</p>
@@ -233,9 +254,21 @@ export function ClubDashboard() {
 
       {moduleEnabled("matches") && <section className="mt-4 rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Wedstrijden toewijzen</h2>
-        <p className="mt-1 text-sm text-textMuted">De ploegtoewijzing wordt automatisch aangevinkt. Elke wijziging hieronder is een handmatige override.</p>
+        <p className="mt-1 text-sm text-textMuted">Wijzig de ploeg van een wedstrijd, beheer sponsoring en bepaal welke gebruikers toegang krijgen.</p>
+        {club && <div className="mt-4">
+          <ClubSponsorManager
+            clubId={club.id}
+            generalUrl={club.general_sponsor_url ?? "/branding/clip-sponsors.png"}
+            useGeneral={club.use_general_sponsor ?? club.clip_advertising_enabled !== false}
+            teams={teams}
+            readOnly={readOnly}
+            onChanged={load}
+          />
+        </div>}
         <MatchAssignmentManager matches={matches} trainers={trainers} teamNames={teamNames}
-          assignments={data.assignments} saving={saving} readOnly={readOnly} onToggle={toggle} />
+          activeTeams={teams.filter(team => team.status === "active")}
+          assignments={data.assignments} saving={saving} readOnly={readOnly}
+          onToggle={toggle} onChangeTeam={changeMatchTeam} onRemoveTrainer={removeTrainer} />
       </section>}
       </ModuleAccordion>}
 
@@ -264,20 +297,24 @@ export function ClubDashboard() {
   );
 }
 
-function MatchAssignmentManager({ matches, trainers, teamNames, assignments, saving, readOnly, onToggle }: {
+function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, assignments, saving, readOnly, onToggle, onChangeTeam, onRemoveTrainer }: {
   matches: Match[];
   trainers: Trainer[];
   teamNames: Map<string, string>;
+  activeTeams: Team[];
   assignments: Assignment[];
   saving: string;
   readOnly: boolean;
   onToggle: (match: Match, trainer: Trainer) => Promise<void>;
+  onChangeTeam: (match: Match, clubTeamId: string) => Promise<void>;
+  onRemoveTrainer: (trainer: Trainer) => Promise<void>;
 }) {
   const [matchQuery, setMatchQuery] = useState("");
   const [teamFilter, setTeamFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedMatchId, setSelectedMatchId] = useState("");
+  const [selectedTeamId, setSelectedTeamId] = useState("");
   const [personQuery, setPersonQuery] = useState("");
   const [accessFilter, setAccessFilter] = useState<"all" | "assigned" | "unassigned">("all");
   const normalizedMatchQuery = matchQuery.trim().toLocaleLowerCase("nl");
@@ -289,6 +326,9 @@ function MatchAssignmentManager({ matches, trainers, teamNames, assignments, sav
       && (!dateTo || (match.match_date ?? "") <= dateTo);
   }).slice(0, 50);
   const selectedMatch = matches.find(match => match.id === selectedMatchId) ?? null;
+  useEffect(() => {
+    setSelectedTeamId(selectedMatch?.club_team_id ?? "");
+  }, [selectedMatchId, selectedMatch?.club_team_id]);
 
   function assignmentState(match: Match, trainer: Trainer) {
     const explicit = assignments.find(item => item.match_id === match.id && item.trainer_id === trainer.id);
@@ -339,9 +379,27 @@ function MatchAssignmentManager({ matches, trainers, teamNames, assignments, sav
     </div>
 
     <div className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
-      <h3 className="font-semibold text-textPrimary">2. Zoek een gebruiker</h3>
+      <h3 className="font-semibold text-textPrimary">2. Controleer de ploeg en wijs gebruikers toe</h3>
       {!selectedMatch ? <p className="mt-4 text-sm text-textMuted">Selecteer eerst links een wedstrijd.</p> : <>
         <p className="mt-1 text-xs text-textMuted">{selectedMatch.team_a_name} – {selectedMatch.team_b_name}</p>
+        <label className="mt-3 block text-sm text-textSecondary">Toegewezen ploeg
+          <div className="mt-1 flex gap-2">
+            <select value={selectedTeamId}
+              onChange={event => setSelectedTeamId(event.target.value)}
+              disabled={readOnly || saving === `match-team:${selectedMatch.id}`}
+              className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:opacity-50">
+              <option value="" disabled>Kies een ploeg</option>
+              {activeTeams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}
+            </select>
+            <button type="button"
+              disabled={readOnly || !selectedTeamId || selectedTeamId === selectedMatch.club_team_id || saving === `match-team:${selectedMatch.id}`}
+              onClick={() => void onChangeTeam(selectedMatch, selectedTeamId)}
+              className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page disabled:opacity-50">
+              {saving === `match-team:${selectedMatch.id}` ? "Opslaan…" : "Ploeg opslaan"}
+            </button>
+          </div>
+        </label>
+        <h4 className="mt-4 text-sm font-semibold text-textPrimary">3. Zoek een gebruiker</h4>
         <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
           <input value={personQuery} onChange={event => setPersonQuery(event.target.value)}
             placeholder="Voornaam, achternaam of e-mail…" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
@@ -356,14 +414,20 @@ function MatchAssignmentManager({ matches, trainers, teamNames, assignments, sav
           {people.map(trainer => {
             const state = assignmentState(selectedMatch, trainer);
             const key = `${selectedMatch.id}:${trainer.id}`;
-            return <label key={trainer.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
+            return <div key={trainer.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
               <input type="checkbox" checked={state.visible} disabled={readOnly || saving === key}
+                aria-label={`${trainer.display_name} toegang tot wedstrijd`}
                 onChange={() => void onToggle(selectedMatch, trainer)} className="h-5 w-5 accent-accent disabled:opacity-50" />
               <span className="min-w-0 flex-1">
                 <strong className="block truncate text-sm text-textPrimary">{trainer.display_name}</strong>
                 <span className="block truncate text-xs text-textMuted">{trainer.profiles?.email || "Geen gekoppeld e-mailadres"} · {state.source}</span>
               </span>
-            </label>;
+              {!readOnly && <button type="button" disabled={!!saving}
+                onClick={() => void onRemoveTrainer(trainer)}
+                className="rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs text-red-300 disabled:opacity-50">
+                Verwijderen
+              </button>}
+            </div>;
           })}
           {!people.length && <p className="py-6 text-center text-sm text-textMuted">Geen gebruikers gevonden.</p>}
         </div>
