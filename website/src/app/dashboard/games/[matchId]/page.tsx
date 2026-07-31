@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { PublicMatchInfoEditor } from "@/components/matches/PublicMatchInfoEditor";
 import { MatchDossierTabs } from "@/components/matches/MatchDossierTabs";
-import { MatchPreparationButton } from "@/components/matches/MatchPreparationButton";
+import { MatchPreparationEditor } from "@/components/matches/MatchPreparationEditor";
 import { getClubContext } from "@/lib/auth/active-club";
 
 type GuardianPlayer = { player_id: string; team_id: string | null };
@@ -41,7 +41,10 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     || hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.tag_link.create"));
   const canViewSelection = staffCanView && hasClubPermission(access, "games.selection.view");
   const canManagePublicInfo = staffCanView && hasClubPermission(access, "games.communication.manage");
-  const editing = canManage && searchParams?.edit === "1";
+  const canViewScouting = staffCanView && hasClubPermission(access, "games.scouting.view");
+  const canManageScouting = staffCanView && hasClubPermission(access, "games.scouting.manage");
+  const canEditAnything = canManage || canPrepare || canManagePublicInfo || canManageScouting;
+  const editing = canEditAnything && searchParams?.edit === "1";
   const [{ data: matchVideos }, { data: options }, { data: club }, { data: clubTeam }] = await Promise.all([
     canViewVideo
       ? admin.from("match_videos").select("video_id").eq("match_id", match.id)
@@ -95,8 +98,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     <div className="flex flex-wrap items-center justify-between gap-3">
       <Link href="/dashboard" className="text-sm font-semibold text-accent hover:underline">← Terug naar dashboard</Link>
       <div className="flex flex-wrap gap-2">
-        {canPrepare && <MatchPreparationButton match={match} />}
-        {canManage && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : "Wedstrijd bewerken"}</Link>}
+        {canEditAnything && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : "Wedstrijd bewerken"}</Link>}
         {canViewVideo && !!videoCount && <Link href={`/dashboard/matches/${match.id}`} className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page">Open videoviewer</Link>}
       </div>
     </div>
@@ -126,8 +128,9 @@ export default async function GameOverviewPage({ params, searchParams }: { param
         hasClubSponsor={!!club?.general_sponsor_url}
         hasTeamSponsor={!!clubTeam?.sponsor_url}
         canEdit={editing && canManagePublicInfo}
+        expanded={played}
       >
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        {staffCanView && hasClubPermission(access, "games.planning.manage") && <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <Info label="Afgesproken tijdstip" value={match.meeting_time_enabled ? match.meeting_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />
           {!match.is_home_match && <Info label="Vertrek" value={match.departure_time_enabled ? match.departure_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />}
           <Info label="Verzamelplaats" value={match.meeting_place_custom || optionNames.get(match.meeting_place_option_id) || "Niet ingesteld"} />
@@ -135,16 +138,21 @@ export default async function GameOverviewPage({ params, searchParams }: { param
           {match.is_home_match && <Info label="Kleedkamer" value={optionNames.get(match.locker_room_option_id) || "Niet ingesteld"} />}
           {match.is_home_match && <Info label="Kleedkamer bezoekers" value={optionNames.get(match.visitor_locker_room_option_id) || "Niet ingesteld"} />}
           <Info label="Scheidsrechter" value={optionNames.get(match.referee_option_id) || "Aangeduid door KBVB"} />
-        </dl>
+        </dl>}
+        {match.show_public_location && match.public_location && <Info label="Locatie" value={match.public_location} />}
       </PublicMatchInfoEditor>
     </section>
+
+    {editing && canPrepare && <MatchPreparationEditor match={match} />}
 
     {staffCanView && <MatchDossierTabs
       matchId={match.id}
       players={canViewSelection ? [...(selectedPlayers ?? []), ...(guestPlayers ?? [])] : []}
       clips={dossierClips}
-      initialDossier={dossier}
-      editable={editing}
+      initialDossier={dossier ? { ...dossier, scouting: canViewScouting ? dossier.scouting : "" } : null}
+      editable={editing && canManage}
+      scoutingEditable={editing && canManageScouting}
+      showScouting={canViewScouting}
       played={played}
       scoreA={match.score_a}
       scoreB={match.score_b}

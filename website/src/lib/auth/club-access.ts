@@ -7,6 +7,7 @@ const readDefaults = new Set<ClubPermissionKey>(["teams.view", "games.view", "tr
 const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.create", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.manage"]);
 const analystDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.view_counts", "games.tag", "clips.share"]);
 const communicationsDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.communication.manage", "clips.share"]);
+const scoutDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.scouting.view", "games.scouting.manage"]);
 
 async function loadClubAccess(clubId: string, userId: string, userEmail: string | null) {
   const admin = createAdminClient();
@@ -29,6 +30,8 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
     ? new Set(CLUB_PERMISSION_OPTIONS.map(([key]) => key))
     : membership.function_role === "communications"
       ? new Set(communicationsDefaults)
+      : membership.function_role === "scout"
+        ? new Set(scoutDefaults)
       : membership.role === "analyst" || membership.function_role === "video_analyst"
       ? new Set(analystDefaults) : membership.role === "trainer" || membership.role === "coach"
         ? new Set(trainerDefaults) : new Set(readDefaults);
@@ -46,6 +49,7 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
   } else if (permissions.has("teams.view_all")) {
     permissions.add("teams.view");
   }
+  if (permissions.has("games.scouting.manage")) permissions.add("games.scouting.view");
   const teamIds = new Set((selected ?? []).map((row) => row.club_team_id));
   if (membership.team_scope === "assigned" && trainer) {
     const { data: assignments } = await admin.from("club_trainer_teams").select("club_team_id").eq("trainer_id", trainer.id).eq("status", "active");

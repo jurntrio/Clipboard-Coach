@@ -21,7 +21,7 @@ type Player = { id: string; first_name: string; last_name: string; jersey_number
 type Clip = { id: string; name: string; render_status: string; created_at: string; shareToken: string | null };
 type GoalEvent = {
   id: string; team: "home" | "away"; scoreAfter: string; minute: number | null;
-  scorerType: "player" | "own_goal" | "custom"; scorerPlayerId: string; scorerName: string;
+  scorerType: "" | "player" | "own_goal" | "custom"; scorerPlayerId: string; scorerName: string;
   assistType: "player" | "own_goal" | "custom" | "none"; assistPlayerId: string; assistName: string;
   description: string;
 };
@@ -31,9 +31,9 @@ const emptyDossier: MatchDossier = {
   highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: []
 };
 
-export function MatchDossierTabs({ matchId, players, clips, initialDossier, editable, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, showSelection = true }: {
+export function MatchDossierTabs({ matchId, players, clips, initialDossier, editable, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, showSelection = true, showScouting = false }: {
   matchId: string; players: Player[]; clips: Clip[]; initialDossier?: Partial<MatchDossier> | null; editable: boolean;
-  played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean; showSelection?: boolean;
+  scoutingEditable?: boolean; played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean; showSelection?: boolean; showScouting?: boolean;
 }) {
   const router = useRouter();
   const expectedGoals = Array.from({ length: (scoreA ?? 0) + (scoreB ?? 0) }, (_, index) => ({ id: `goal-${index + 1}` }));
@@ -94,7 +94,7 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
   }
 
   return <section className="space-y-3">
-    <ClosedPanel title={`Clips (${clips.length})`}>
+    <ClosedPanel title={`Clips (${clips.length})`} expanded={played}>
       {clips.length ? <div className="grid gap-3 sm:grid-cols-2">
         {clips.map(clip => <article key={clip.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
           <strong className="block text-textBright">{clip.name}</strong>
@@ -104,20 +104,11 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
       </div> : <Empty text="Nog geen clips voor deze wedstrijd." />}
     </ClosedPanel>
 
-    {showSelection && <ClosedPanel title={`Selectie (${players.length})`}>
-      {players.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {players.map(player => <div key={player.id} className="rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 text-sm text-textPrimary">
-          {player.jersey_number != null && <span className="mr-2 font-black text-accent">{player.jersey_number}</span>}
-          {player.first_name} {player.last_name}
-        </div>)}
-      </div> : <Empty text="Nog geen spelers geselecteerd." />}
-    </ClosedPanel>}
-
-    <ClosedPanel title="Opstelling">
+    <ClosedPanel title="Opstelling" expanded={played}>
       {field("lineup_notes", "Opstelling", "Noteer de basisopstelling, formatie, posities en wissels…")}
     </ClosedPanel>
 
-    {played && <ClosedPanel title="Wedstrijdverslag">
+    {played && <ClosedPanel title="Wedstrijdverslag" expanded>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">{field("general_report", "Algemeen wedstrijdverslag", "Beschrijf het wedstrijdverloop…")}</div>
         {field("positives", "Pluspunten", "Wat liep goed?")}
@@ -132,13 +123,25 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
       </div>
     </ClosedPanel>}
 
-    {played && <ClosedPanel title="Scouting">
-      {field("scouting", "Scouting", "Observaties over eigen spelers, tegenstander en aandachtspunten…")}
+    {showSelection && <ClosedPanel title={`Selectie (${players.length})`} expanded={played}>
+      {players.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {players.map(player => <div key={player.id} className="rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 text-sm text-textPrimary">
+          {player.jersey_number != null && <span className="mr-2 font-black text-accent">{player.jersey_number}</span>}
+          {player.first_name} {player.last_name}
+        </div>)}
+      </div> : <Empty text="Nog geen spelers geselecteerd." />}
     </ClosedPanel>}
 
-    {editable && <div className="flex flex-wrap items-center justify-end gap-3">
+    {played && showScouting && <ClosedPanel title="Scouting" expanded>
+      {scoutingEditable ? <label className="block"><span className="mb-1 block text-xs font-black uppercase tracking-wide text-textMuted">Scouting</span>
+        <textarea value={draft.scouting} onChange={event => setDraft(current => ({ ...current, scouting: event.target.value }))}
+          placeholder="Observaties over eigen spelers, tegenstander en aandachtspunten…" rows={4} className="w-full resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+      </label> : field("scouting", "Scouting", "Observaties over eigen spelers, tegenstander en aandachtspunten…")}
+    </ClosedPanel>}
+
+    {(editable || scoutingEditable) && <div className="flex flex-wrap items-center justify-end gap-3">
       {notice && <p className="mr-auto text-sm text-accent">{notice}</p>}
-      {played && !completed && <button type="button" disabled={saving} onClick={() => void save(true)} className="rounded-lg border border-accent px-5 py-2.5 text-sm font-black text-accent disabled:opacity-50">
+      {editable && played && !completed && <button type="button" disabled={saving} onClick={() => void save(true)} className="rounded-lg border border-accent px-5 py-2.5 text-sm font-black text-accent disabled:opacity-50">
         Afgewerkt
       </button>}
       <button type="button" disabled={saving} onClick={() => void save(false)} className="rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:opacity-50">
@@ -149,7 +152,7 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
 }
 
 function newGoal(id: string): GoalEvent {
-  return { id, team: "home", scoreAfter: "", minute: null, scorerType: "custom", scorerPlayerId: "", scorerName: "", assistType: "none", assistPlayerId: "", assistName: "", description: "" };
+  return { id, team: "home", scoreAfter: "", minute: null, scorerType: "", scorerPlayerId: "", scorerName: "", assistType: "none", assistPlayerId: "", assistName: "", description: "" };
 }
 
 function parseScore(value: string) {
@@ -179,15 +182,18 @@ function GoalEditor({ goals, players, ownTeamSide, homeTeamName, awayTeamName, e
       return <article key={goal.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <strong className="text-textBright">Doelpunt {index + 1} · {teamName}</strong>
-          <label className="text-xs font-bold text-textSecondary">Stand na doelpunt
-            <input value={goal.scoreAfter} disabled={!editable}
-              placeholder={index === 0 ? "1-0 of 0-1" : previous ? `${previous.a + 1}-${previous.b} of ${previous.a}-${previous.b + 1}` : "Vul vorige stand in"}
-              onChange={event => {
-                const next = parseScore(event.target.value);
-                update(goal.id, { scoreAfter: event.target.value, team: next && previous && next.a === previous.a + 1 ? "home" : "away" });
-              }}
-              className="ml-2 w-32 rounded-lg border border-border bg-input px-2 py-1.5 text-textPrimary" />
-          </label>
+          <fieldset className="flex items-center gap-2 text-xs font-bold text-textSecondary"><legend className="sr-only">Stand na doelpunt</legend>
+            <span>Stand</span>
+            <input type="number" min={0} value={current?.a ?? previous?.a ?? 0} disabled={!editable || !previous}
+              aria-label={`Doelpunten ${homeTeamName} na doelpunt ${index + 1}`}
+              onChange={event => { const a = Math.max(0, Number(event.target.value)); const b = current?.b ?? previous?.b ?? 0; update(goal.id, { scoreAfter: `${a}-${b}`, team: previous && a === previous.a + 1 ? "home" : "away" }); }}
+              className="w-16 rounded-lg border border-border bg-input px-2 py-1.5 text-center text-textPrimary" />
+            <span>–</span>
+            <input type="number" min={0} value={current?.b ?? previous?.b ?? 0} disabled={!editable || !previous}
+              aria-label={`Doelpunten ${awayTeamName} na doelpunt ${index + 1}`}
+              onChange={event => { const a = current?.a ?? previous?.a ?? 0; const b = Math.max(0, Number(event.target.value)); update(goal.id, { scoreAfter: `${a}-${b}`, team: previous && b === previous.b + 1 ? "away" : "home" }); }}
+              className="w-16 rounded-lg border border-border bg-input px-2 py-1.5 text-center text-textPrimary" />
+          </fieldset>
           <label className="text-xs font-bold text-textSecondary">Minuut
             <input type="number" min={0} max={120} value={goal.minute ?? ""} disabled={!editable}
               onChange={event => update(goal.id, { minute: event.target.value === "" ? null : Math.max(0, Math.min(120, Number(event.target.value))) })}
@@ -226,13 +232,13 @@ function PersonChoice({ label, type, playerId, name, players, editable, allowNon
       onChange(next.startsWith("player:") ? { type: "player", playerId: next.slice(7), name: "" } : { type: next, playerId: "", name: "" });
     }} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary">
       {allowNone && <option value="none">Geen assist</option>}
-      {!allowNone && <option value="custom">Naam intikken</option>}
+      {!allowNone && <option value="">Kies een doelpuntenmaker…</option>}
       {players.map(player => <option key={player.id} value={`player:${player.id}`}>{player.jersey_number != null ? `${player.jersey_number} · ` : ""}{player.first_name} {player.last_name}</option>)}
       <option value="own_goal">{allowNone ? "Via tegenstander" : "Owngoal"}</option>
-      {allowNone && <option value="custom">Naam intikken</option>}
+      <option value="custom">Andere / vrije invoer</option>
     </select>
     {type === "custom" && <input value={name} disabled={!editable} onChange={event => onChange({ type: "custom", playerId: "", name: event.target.value })}
-      placeholder="Naam" className="mt-2 w-full rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary" />}
+      placeholder="Naam of vrije omschrijving" className="mt-2 w-full rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary" />}
   </label>;
 }
 
@@ -243,7 +249,11 @@ function TextPerson({ label, value, editable, onChange }: { label: string; value
   </label>;
 }
 
-function ClosedPanel({ title, children }: { title: string; children: React.ReactNode }) {
+function ClosedPanel({ title, children, expanded = false }: { title: string; children: React.ReactNode; expanded?: boolean }) {
+  if (expanded) return <section className="overflow-hidden rounded-2xl border border-border bg-card">
+    <h3 className="border-b border-border px-5 py-4 font-black text-textBright">{title}</h3>
+    <div className="p-5">{children}</div>
+  </section>;
   return <details className="group overflow-hidden rounded-2xl border border-border bg-card">
     <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-4 font-black text-textBright hover:bg-cardHover">
       <span className="text-accent transition group-open:rotate-90">▶</span>

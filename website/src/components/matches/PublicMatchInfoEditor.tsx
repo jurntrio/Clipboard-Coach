@@ -10,11 +10,11 @@ type MatchPublicInfo = {
   sponsor_source: "none" | "club" | "team"; sponsor_caption: string | null;
 };
 
-export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSponsor, hasTeamSponsor, canEdit, children }: {
-  match: MatchPublicInfo; sponsorFeatureEnabled: boolean; hasClubSponsor: boolean; hasTeamSponsor: boolean; canEdit: boolean; children: ReactNode;
+export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSponsor, hasTeamSponsor, canEdit, expanded = false, children }: {
+  match: MatchPublicInfo; sponsorFeatureEnabled: boolean; hasClubSponsor: boolean; hasTeamSponsor: boolean; canEdit: boolean; expanded?: boolean; children: ReactNode;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(expanded);
   const [scoreA, setScoreA] = useState(match.score_a?.toString() ?? "");
   const [scoreB, setScoreB] = useState(match.score_b?.toString() ?? "");
   const [location, setLocation] = useState(match.public_location ?? "");
@@ -37,8 +37,8 @@ export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSpo
   }
 
   return <section className="rounded-2xl border border-border bg-card p-5 sm:col-span-2">
-    <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-center gap-3 text-left">
-      <span className={`text-accent transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
+    <button type="button" onClick={() => !expanded && setOpen((value) => !value)} className={`flex w-full items-center gap-3 text-left ${expanded ? "cursor-default" : ""}`}>
+      {!expanded && <span className={`text-accent transition-transform ${open ? "rotate-90" : ""}`}>▶</span>}
       <span><strong className="block text-textBright">Algemene info</strong><span className="mt-1 block text-xs text-textMuted">Praktische voorbereiding en publieke wedstrijdinformatie.</span></span>
     </button>
     {open && <div className="mt-5 space-y-5 border-t border-borderSubtle pt-5">

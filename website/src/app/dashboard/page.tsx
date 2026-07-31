@@ -105,8 +105,8 @@ export default async function DashboardHomePage() {
           .limit(100)
       : Promise.resolve({ data: [] }),
     clubId
-      ? admin.from("trainer_trainings").select("id, title, age_category, updated_at, publication_state")
-          .eq("club_id", clubId).eq("owner_id", user.id).order("updated_at", { ascending: false }).limit(6)
+      ? admin.from("trainer_trainings").select("id, title, age_category, created_at, publication_state")
+          .eq("club_id", clubId).eq("owner_id", user.id).order("created_at", { ascending: false }).limit(6)
       : Promise.resolve({ data: [] })
   ]);
 
@@ -150,7 +150,7 @@ export default async function DashboardHomePage() {
     id: `training:${plan.id}`,
     kind: "training" as const,
     title: plan.title,
-    date: plan.updated_at.slice(0, 10),
+    date: plan.created_at.slice(0, 10),
     time: null,
     status: "completed",
     score: null,
