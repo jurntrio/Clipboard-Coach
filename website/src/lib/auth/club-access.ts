@@ -8,6 +8,7 @@ const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view
 const analystDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.view_counts", "games.tag", "clips.share"]);
 const communicationsDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.communication.manage", "clips.share"]);
 const scoutDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.scouting.view", "games.scouting.manage"]);
+const coordinatorDefaults = new Set<ClubPermissionKey>(["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "intradesk.view"]);
 
 async function loadClubAccess(clubId: string, userId: string, userEmail: string | null) {
   const admin = createAdminClient();
@@ -28,6 +29,8 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
   const readOnly = membership.role === "club_admin_viewer";
   let permissions = membership.role === "club_admin" || readOnly
     ? new Set(CLUB_PERMISSION_OPTIONS.map(([key]) => key))
+    : ["youth_coordinator", "head_youth_development"].includes(membership.function_role ?? "")
+      ? new Set(coordinatorDefaults)
     : membership.function_role === "communications"
       ? new Set(communicationsDefaults)
       : membership.function_role === "scout"

@@ -28,24 +28,6 @@ export async function PUT(request: Request, { params }: { params: { teamId: stri
   if (!canAccessTeam(access, clubTeam.id) || !hasClubPermission(access, "teams.manage")) {
     return NextResponse.json({ error: "Geen beheerrechten voor dit team." }, { status: 403 });
   }
-  const { data: membership } = await admin.from("club_memberships").select("id").eq("club_id", clubTeam.club_id)
-    .eq("profile_id", user.id).eq("role", "club_admin").eq("status", "active").maybeSingle();
-  let authorized = !!membership || isAdminEmail(user.email);
-  // Spiegelt can_manage_club_roster (0023): een trainer met rosterrechten en een actieve
-  // toewijzing op dit team mag ook via de bulk-import opslaan, net zoals via de losse
-  // AddPlayerModal/EditPlayerModal-RLS-policies vandaag al kan.
-  if (!authorized && clubTeam.trainers_can_edit_roster) {
-    const { data: trainerLink } = await admin
-      .from("club_trainer_teams")
-      .select("id, club_trainers!inner(profile_id)")
-      .eq("club_team_id", clubTeam.id)
-      .eq("status", "active")
-      .eq("club_trainers.profile_id", user.id)
-      .maybeSingle();
-    authorized = !!trainerLink;
-  }
-  if (!authorized) return NextResponse.json({ error: "Geen toegang tot dit team." }, { status: 403 });
-
   const body = await request.json().catch(() => null) as { players?: PlayerInput[]; removePlayerIds?: unknown; source?: unknown } | null;
   const { data: permissions } = await admin.from("club_module_entitlements").select("module_key, enabled")
     .eq("club_id", clubTeam.club_id).in("module_key", ["teams_manage", "teams_import"]);

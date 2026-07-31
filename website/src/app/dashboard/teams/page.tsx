@@ -12,7 +12,6 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LinkStaffModal } from "@/components/teams/LinkStaffModal";
 import { useI18n } from "@/i18n/client";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
-import { ImportRosterModal } from "@/components/teams/ImportRosterModal";
 
 type PlayerContact = { id: string; full_name: string; email: string | null; phone_number: string | null };
 type PlayerWithContacts = Player & { contacts?: PlayerContact[] };
@@ -33,7 +32,7 @@ export default function TeamsPage() {
   const [teams, setTeams] = useState<TeamWithPlayers[]>([]);
   const [clips, setClips] = useState<ClipSummary[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [addPlayerTarget, setAddPlayerTarget] = useState<{ teamId: string; teamName: string; role: "player" | "staff" } | null>(null);
+  const [addPlayerTarget, setAddPlayerTarget] = useState<{ teamId: string; teamName: string; role: "staff" } | null>(null);
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [teamNameDraft, setTeamNameDraft] = useState("");
@@ -43,7 +42,6 @@ export default function TeamsPage() {
   const [linkedStaff, setLinkedStaff] = useState<LinkedStaff[]>([]);
   const [staffInvitations, setStaffInvitations] = useState<StaffInvitation[]>([]);
   const [linkStaffTarget, setLinkStaffTarget] = useState<{ teamId: string; teamName: string } | null>(null);
-  const [importRosterTarget, setImportRosterTarget] = useState<{ teamId: string; clubTeamId: string | null; teamName: string } | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -95,6 +93,15 @@ export default function TeamsPage() {
   function contactValue(value: string | null | undefined, contact: PlayerContact | undefined) {
     if (!value || !contact) return "—";
     return `${value} (${contact.full_name})`;
+  }
+
+  function contactsForPlayer(player: PlayerWithContacts): PlayerContact[] {
+    if (player.contacts?.length) return player.contacts;
+    const imported = [
+      { id: `${player.id}-import-1`, full_name: "naam niet vermeld", email: player.email, phone_number: player.phone_numbers?.[0] ?? null },
+      { id: `${player.id}-import-2`, full_name: "naam niet vermeld", email: null, phone_number: player.phone_numbers?.[1] ?? null }
+    ];
+    return imported.filter((contact) => contact.email || contact.phone_number);
   }
 
   async function saveTeamName(teamId: string) {
@@ -218,7 +225,7 @@ export default function TeamsPage() {
                     </thead>
                     <tbody className="divide-y divide-borderSubtle">
                       {players.map((player) => {
-                        const [contact1, contact2] = player.contacts ?? [];
+                        const [contact1, contact2] = contactsForPlayer(player);
                         return <tr key={player.id} className="bg-card hover:bg-cardHover">
                           <td className="px-3 py-3 font-semibold text-textPrimary">{player.last_name || "—"}</td>
                           <td className="px-3 py-3 text-textPrimary">{player.first_name || "—"}</td>
@@ -237,10 +244,6 @@ export default function TeamsPage() {
                   </table>
                 </div>}
                 {!players.length && <p className="rounded-lg border border-dashed border-borderSubtle p-5 text-center text-sm text-textMuted">Nog geen spelers in deze ploeg.</p>}
-                <div className="mt-3 flex flex-wrap gap-2.5">
-                {canEditRoster && <button type="button" onClick={() => setAddPlayerTarget({ teamId: team.id, teamName: team.name, role: "player" })} className="min-h-14 rounded-lg border border-dashed border-accent/60 bg-accentDim px-4 py-3 text-left text-sm font-semibold text-accent hover:border-accent">+ {t("team.addPlayer").replace("+ ", "")}</button>}
-                {(ownsTeam || team.can_import_roster === true) && <button type="button" onClick={() => setImportRosterTarget({ teamId: team.id, clubTeamId: team.club_team_id ?? null, teamName: team.name })} className="min-h-11 rounded-lg border border-borderButton bg-button px-4 py-2 text-left text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent">PSD/Excel spelerslijst importeren</button>}
-                </div>
               </div>
 
               <div className="mt-1 pt-2.5 mx-3.5 mb-3.5 border-t border-borderSubtle">
@@ -282,17 +285,8 @@ export default function TeamsPage() {
         />
       )}
 
-      {addPlayerTarget && (
-        <AddPlayerModal
-          teamId={addPlayerTarget.teamId}
-          teamName={addPlayerTarget.teamName}
-          role={addPlayerTarget.role}
-          onClose={() => setAddPlayerTarget(null)}
-          onAdded={loadTeams}
-        />
-      )}
       {linkStaffTarget && <LinkStaffModal teamId={linkStaffTarget.teamId} teamName={linkStaffTarget.teamName} onClose={() => setLinkStaffTarget(null)} onLinked={() => void loadLinkedStaff()} />}
-      {importRosterTarget && <ImportRosterModal teamId={importRosterTarget.teamId} clubTeamId={importRosterTarget.clubTeamId} teamName={importRosterTarget.teamName} onClose={() => setImportRosterTarget(null)} onImported={() => void loadTeams()} />}
+      {addPlayerTarget && <AddPlayerModal teamId={addPlayerTarget.teamId} teamName={addPlayerTarget.teamName} role="staff" onClose={() => setAddPlayerTarget(null)} onAdded={loadTeams} />}
       <ConfirmDialog open={!!deleteTarget} title={deleteTarget?.kind === "team" ? t("team.deleteTeam") : deleteTarget?.kind === "linked-staff" ? t("team.removeLinked") : t("team.deletePlayer")} message={deleteTarget?.kind === "team" ? t("team.deleteTeamMessage", { name: deleteTarget.name }) : t("team.removeMessage", { name: deleteTarget?.name ?? "" })} confirmLabel={deleteTarget?.kind === "linked-staff" ? t("common.remove") : t("team.delete")} busy={deleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDelete()} />
     </div>
   );

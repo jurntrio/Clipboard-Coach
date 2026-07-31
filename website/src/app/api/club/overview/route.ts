@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 export async function GET() {
   const context = await getClubContext();
@@ -9,8 +10,9 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
-  const activeAccess = context.clubs.find((club) => club.id === context.activeClubId);
-  const allowed = isAdminEmail(user.email) || activeAccess?.role === "club_admin" || activeAccess?.role === "club_admin_viewer";
+  const access = context.activeClubId ? await getClubAccess(context.activeClubId, user) : null;
+  const fullAdmin = isAdminEmail(user.email) || access?.role === "platform_admin" || access?.role === "club_admin" || access?.role === "club_admin_viewer";
+  const allowed = fullAdmin || !!(access && (hasClubPermission(access, "teams.manage") || hasClubPermission(access, "teams.import")));
   if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const clubIds = context.activeClubId ? [context.activeClubId] : [];
@@ -70,10 +72,12 @@ export async function GET() {
     };
   });
 
+  const visibleTeams = fullAdmin || !access ? (teams ?? []) : (teams ?? []).filter((team) => canAccessTeam(access, team.id));
   return NextResponse.json({
-    clubs: clubs ?? [], teams: teams ?? [], trainers: trainers ?? [], matches: matches ?? [],
-    assignments: assignments ?? [], memberships: clubMemberships ?? [], moduleEntitlements: moduleEntitlements ?? [],
-    trainingSettings: trainingSettings ?? [], memberPermissions: memberPermissions ?? [],
-    memberTeamAccess: memberTeamAccess ?? [], rolePermissionDefaults: rolePermissionDefaults ?? [], matchOptions: matchOptions ?? [], migrationIssues
+    clubs: clubs ?? [], teams: visibleTeams, trainers: trainers ?? [], matches: fullAdmin ? matches ?? [] : [],
+    assignments: fullAdmin ? assignments ?? [] : [], memberships: fullAdmin ? clubMemberships ?? [] : (clubMemberships ?? []).filter((membership) => membership.profile_id === user.id), moduleEntitlements: moduleEntitlements ?? [],
+    trainingSettings: fullAdmin ? trainingSettings ?? [] : [], memberPermissions: fullAdmin ? memberPermissions ?? [] : [],
+    memberTeamAccess: fullAdmin ? memberTeamAccess ?? [] : [], rolePermissionDefaults: fullAdmin ? rolePermissionDefaults ?? [] : [], matchOptions: matchOptions ?? [], migrationIssues: fullAdmin ? migrationIssues : [],
+    currentAccess: access ? { role: access.role, functionRole: access.functionRole, permissions: Array.from(access.permissions) } : null
   });
 }

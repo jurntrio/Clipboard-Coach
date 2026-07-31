@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 const teamRoles = new Set(["coach", "assistant_coach", "team_manager"]);
 const teamStatuses = new Set(["active", "inactive", "pending", "rejected", "archived"]);
@@ -16,9 +17,16 @@ async function context(request: Request) {
 
 async function canManage(admin: ReturnType<typeof createAdminClient>, userId: string, clubId: string, platformAdmin: boolean) {
   if (platformAdmin) return true;
-  const { data } = await admin.from("club_memberships").select("id").eq("club_id", clubId)
-    .eq("profile_id", userId).eq("role", "club_admin").eq("status", "active").maybeSingle();
-  return !!data;
+  const { data: profile } = await admin.from("profiles").select("email").eq("id", userId).maybeSingle();
+  const access = await getClubAccess(clubId, { id: userId, email: profile?.email });
+  return hasClubPermission(access, "teams.manage_all");
+}
+
+async function canManageTeam(admin: ReturnType<typeof createAdminClient>, userId: string, clubId: string, teamId: string, platformAdmin: boolean) {
+  if (platformAdmin) return true;
+  const { data: profile } = await admin.from("profiles").select("email").eq("id", userId).maybeSingle();
+  const access = await getClubAccess(clubId, { id: userId, email: profile?.email });
+  return hasClubPermission(access, "teams.manage") && canAccessTeam(access, teamId);
 }
 
 function text(value: unknown, max = 120) {
@@ -61,7 +69,7 @@ export async function PATCH(request: Request) {
   const teamId = text(body?.teamId, 36);
   const { data: team } = await ctx.admin.from("club_teams").select("id, club_id, status").eq("id", teamId).maybeSingle();
   if (!team) return NextResponse.json({ error: "Team niet gevonden." }, { status: 404 });
-  if (!await canManage(ctx.admin, ctx.user.id, team.club_id, ctx.platformAdmin)) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
+  if (!await canManageTeam(ctx.admin, ctx.user.id, team.club_id, team.id, ctx.platformAdmin)) return NextResponse.json({ error: "Geen toegang tot deze ploeg." }, { status: 403 });
 
   const status = text(body?.status, 20);
   if (status && !teamStatuses.has(status)) return NextResponse.json({ error: "Ongeldige status." }, { status: 400 });
@@ -129,7 +137,7 @@ export async function PUT(request: Request) {
   const remove = body?.remove === true;
   if (!teamId || !profileId || (!remove && !teamRoles.has(role))) return NextResponse.json({ error: "Ongeldige gebruikerstoewijzing." }, { status: 400 });
   const { data: team } = await ctx.admin.from("club_teams").select("club_id").eq("id", teamId).maybeSingle();
-  if (!team || !await canManage(ctx.admin, ctx.user.id, team.club_id, ctx.platformAdmin)) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
+  if (!team || !await canManageTeam(ctx.admin, ctx.user.id, team.club_id, teamId, ctx.platformAdmin)) return NextResponse.json({ error: "Geen toegang tot deze ploeg." }, { status: 403 });
   const { data: trainer } = await ctx.admin.from("club_trainers").select("id").eq("club_id", team.club_id).eq("profile_id", profileId).maybeSingle();
   if (!trainer) return NextResponse.json({ error: "Gebruiker is geen lid van deze club." }, { status: 400 });
   const { data: operationalTeam } = await ctx.admin.from("teams").select("id").eq("club_team_id", teamId).maybeSingle();

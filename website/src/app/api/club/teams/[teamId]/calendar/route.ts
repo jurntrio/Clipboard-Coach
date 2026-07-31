@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { syncFoot24Feed, validateFoot24Url } from "@/lib/foot24-calendar";
 import { parseVoetbalVlaanderenUrl, syncVoetbalVlaanderenFeed } from "@/lib/voetbal-vlaanderen-calendar";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 async function authorize(teamId: string) {
   const supabase = createClient();
@@ -12,11 +13,9 @@ async function authorize(teamId: string) {
   const admin = createAdminClient();
   const { data: team } = await admin.from("club_teams").select("id, club_id").eq("id", teamId).maybeSingle();
   if (!team) return { response: NextResponse.json({ error: "Ploeg niet gevonden." }, { status: 404 }) };
-  if (!isAdminEmail(user.email)) {
-    const { data: membership } = await admin.from("club_memberships").select("id").eq("club_id", team.club_id)
-      .eq("profile_id", user.id).eq("role", "club_admin").eq("status", "active").maybeSingle();
-    if (!membership) return { response: NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 }) };
-  }
+  const access = await getClubAccess(team.club_id, user);
+  if (!isAdminEmail(user.email) && (!canAccessTeam(access, team.id) || !hasClubPermission(access, "teams.manage")))
+    return { response: NextResponse.json({ error: "Geen beheerrechten voor deze ploeg." }, { status: 403 }) };
   return { admin, team };
 }
 
