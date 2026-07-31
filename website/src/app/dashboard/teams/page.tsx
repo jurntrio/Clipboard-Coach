@@ -15,7 +15,7 @@ import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 
 type PlayerContact = { id: string; full_name: string; email: string | null; phone_number: string | null };
 type PlayerWithContacts = Player & { contacts?: PlayerContact[] };
-type TeamWithPlayers = Team & { players: PlayerWithContacts[]; can_edit_roster?: boolean; can_import_roster?: boolean; club_managed?: boolean };
+type TeamWithPlayers = Team & { players: PlayerWithContacts[]; linked_staff?: Omit<LinkedStaff, "team_id">[]; can_edit_roster?: boolean; can_import_roster?: boolean; club_managed?: boolean };
 type ClipSummary = {
   id: string;
   team_id: string | null;
@@ -158,7 +158,9 @@ export default function TeamsPage() {
           const canEditRoster = ownsTeam || team.can_edit_roster === true;
           const players = [...team.players].filter((p) => p.role !== "staff");
           const staff = [...team.players].filter((p) => p.role === "staff");
-          const registeredStaff = linkedStaff.filter((member) => member.team_id === team.id);
+          const registeredStaff = team.club_managed
+            ? (team.linked_staff ?? []).map((member) => ({ ...member, team_id: team.id }))
+            : linkedStaff.filter((member) => member.team_id === team.id);
 
           return (
             <article key={team.id} className="bg-card border border-border rounded-xl overflow-hidden">

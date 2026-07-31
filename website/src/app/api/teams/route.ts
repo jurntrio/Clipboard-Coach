@@ -64,12 +64,36 @@ export async function GET() {
     const { data: teams } = allowedIds.length
       ? await admin.from("teams").select("*, players(*), club_teams!inner(trainers_can_edit_roster)").in("club_team_id", allowedIds)
       : { data: [] };
+    const { data: trainerAssignments } = allowedIds.length
+      ? await admin.from("club_trainer_teams")
+        .select("id, club_team_id, trainer_id, club_trainers(profile_id, display_name)")
+        .in("club_team_id", allowedIds).eq("status", "active")
+      : { data: [] };
+    const staffByClubTeam = new Map<string, Array<{ id: string; user_id: string; full_name: string; removable: boolean }>>();
+    for (const assignment of trainerAssignments ?? []) {
+      const trainer = assignment.club_trainers as unknown as { profile_id: string | null; display_name: string | null } | null;
+      if (!trainer) continue;
+      const current = staffByClubTeam.get(assignment.club_team_id) ?? [];
+      current.push({
+        id: assignment.id,
+        user_id: trainer.profile_id ?? assignment.trainer_id,
+        full_name: trainer.display_name?.trim() || "Trainer",
+        removable: false
+      });
+      staffByClubTeam.set(assignment.club_team_id, current);
+    }
     const enrichedTeams = await addPlayerContacts(admin, (teams ?? []) as TeamRow[]);
     return NextResponse.json({ teams: enrichedTeams.map((team) => {
       const settings = team.club_teams as unknown as { trainers_can_edit_roster: boolean };
       const canEdit = teamsManageEnabled && hasClubPermission(authorization, "teams.manage")
         && (authorization.role === "platform_admin" || authorization.role === "club_admin" || settings.trainers_can_edit_roster);
-      return { ...team, can_edit_roster: canEdit, can_import_roster: canEdit && teamsImportEnabled && hasClubPermission(authorization, "teams.import"), club_managed: true };
+      return {
+        ...team,
+        linked_staff: staffByClubTeam.get(team.club_team_id as string) ?? [],
+        can_edit_roster: canEdit,
+        can_import_roster: canEdit && teamsImportEnabled && hasClubPermission(authorization, "teams.import"),
+        club_managed: true
+      };
     }) });
   }
 

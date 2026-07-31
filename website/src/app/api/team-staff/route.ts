@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getClubContext } from "@/lib/auth/active-club";
-import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 async function currentUser() {
   const supabase = createClient();
@@ -11,50 +9,10 @@ async function currentUser() {
 }
 
 export async function GET() {
-  const clubContext = await getClubContext();
-  const user = clubContext.user;
+  const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
-  if (clubContext.activeClubId) {
-    const access = clubContext.clubs.find((club) => club.id === clubContext.activeClubId);
-    if (!access) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
-    const authorization = await getClubAccess(clubContext.activeClubId, user);
-    if (!hasClubPermission(authorization, "teams.view")) return NextResponse.json({ error: "Geen toegang tot Teams." }, { status: 403 });
-
-    const { data: clubTeams } = await admin.from("club_teams")
-      .select("id").eq("club_id", clubContext.activeClubId).eq("status", "active");
-    let allowedClubTeamIds = (clubTeams ?? []).map((team) => team.id);
-    if (authorization.teamIds !== null) {
-      allowedClubTeamIds = allowedClubTeamIds.filter((teamId) => canAccessTeam(authorization, teamId));
-    }
-    const { data: operationalTeams } = allowedClubTeamIds.length
-      ? await admin.from("teams").select("id, club_team_id").in("club_team_id", allowedClubTeamIds)
-      : { data: [] };
-    const operationalTeamByClubTeam = new Map((operationalTeams ?? []).map((team) => [team.club_team_id, team.id]));
-    const { data: assignments } = allowedClubTeamIds.length
-      ? await admin.from("club_trainer_teams")
-        .select("id, club_team_id, trainer_id, club_trainers(profile_id, display_name)")
-        .in("club_team_id", allowedClubTeamIds).eq("status", "active")
-      : { data: [] };
-
-    return NextResponse.json({
-      members: (assignments ?? []).flatMap((assignment) => {
-        const teamId = operationalTeamByClubTeam.get(assignment.club_team_id);
-        const trainer = assignment.club_trainers as unknown as { profile_id: string | null; display_name: string | null } | null;
-        if (!teamId || !trainer) return [];
-        return [{
-          id: assignment.id,
-          team_id: teamId,
-          user_id: trainer.profile_id ?? assignment.trainer_id,
-          full_name: trainer.display_name?.trim() || "Trainer",
-          removable: false
-        }];
-      }),
-      invitations: []
-    });
-  }
-
   const [{ data: ownedTeams }, { data: ownMemberships }, { data: invitations }] = await Promise.all([
     admin.from("teams").select("id, coach_id").eq("coach_id", user.id),
     admin.from("team_staff_members").select("team_id").eq("user_id", user.id),
