@@ -31,9 +31,9 @@ const emptyDossier: MatchDossier = {
   highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: []
 };
 
-export function MatchDossierTabs({ matchId, players, clips, initialDossier, editable, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, showSelection = true, showScouting = false }: {
+export function MatchDossierTabs({ matchId, players, clips, initialDossier, editable, canComplete = false, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, showSelection = true, showReport = false, showScouting = false }: {
   matchId: string; players: Player[]; clips: Clip[]; initialDossier?: Partial<MatchDossier> | null; editable: boolean;
-  scoutingEditable?: boolean; played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean; showSelection?: boolean; showScouting?: boolean;
+  canComplete?: boolean; scoutingEditable?: boolean; played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean; showSelection?: boolean; showReport?: boolean; showScouting?: boolean;
 }) {
   const router = useRouter();
   const expectedGoals = Array.from({ length: (scoreA ?? 0) + (scoreB ?? 0) }, (_, index) => ({ id: `goal-${index + 1}` }));
@@ -77,6 +77,14 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
   }
 
   async function save(complete = false) {
+    if (complete && !editable) {
+      setSaving(true); setNotice("");
+      const completeResponse = await fetch(`/api/matches/${matchId}/dossier`, { method: "POST" });
+      const completeBody = await completeResponse.json().catch(() => null) as { error?: string } | null;
+      setSaving(false);
+      if (!completeResponse.ok) return setNotice(completeBody?.error || "Wedstrijd kon niet worden afgewerkt.");
+      setNotice("Wedstrijd afgewerkt."); router.refresh(); return;
+    }
     const validationError = goalValidationError();
     if (validationError) return setNotice(validationError);
     setSaving(true);
@@ -117,7 +125,7 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
       {field("lineup_notes", "Opstelling", "Noteer de basisopstelling, formatie, posities en wissels…")}
     </ClosedPanel>}
 
-    {played && hasReport && <ClosedPanel title="Wedstrijdverslag" expanded>
+    {played && showReport && hasReport && <ClosedPanel title="Wedstrijdverslag" expanded>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">{field("general_report", "Algemeen wedstrijdverslag", "Beschrijf het wedstrijdverloop…")}</div>
         {field("positives", "Pluspunten", "Wat liep goed?")}
@@ -148,14 +156,14 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
       </label> : field("scouting", "Scouting", "Observaties over eigen spelers, tegenstander en aandachtspunten…")}
     </ClosedPanel>}
 
-    {(editable || scoutingEditable) && <div className="flex flex-wrap items-center justify-end gap-3">
+    {(editable || canComplete || scoutingEditable) && <div className="flex flex-wrap items-center justify-end gap-3 p-5">
       {notice && <p className="mr-auto text-sm text-accent">{notice}</p>}
-      {editable && played && !completed && <button type="button" disabled={saving} onClick={() => void save(true)} className="rounded-lg border border-accent px-5 py-2.5 text-sm font-black text-accent disabled:opacity-50">
+      {canComplete && played && !completed && <button type="button" disabled={saving} onClick={() => void save(true)} className="rounded-lg border border-accent px-5 py-2.5 text-sm font-black text-accent disabled:opacity-50">
         Afgewerkt
       </button>}
-      <button type="button" disabled={saving} onClick={() => void save(false)} className="rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:opacity-50">
+      {(editable || scoutingEditable) && <button type="button" disabled={saving} onClick={() => void save(false)} className="rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:opacity-50">
         {saving ? "Bewaren…" : "Wedstrijddossier bewaren"}
-      </button>
+      </button>}
     </div>}
   </section>;
 }
@@ -178,13 +186,30 @@ function GoalEditor({ goals, players, ownTeamSide, homeTeamName, awayTeamName, e
   }
   if (!goals.length) return <Empty text="Geen doelpunten in deze wedstrijd." />;
   if (!editable) {
-    const scores = goals.map(goal => parseScore(goal.scoreAfter)).filter((score): score is { a: number; b: number } => !!score);
-    if (!scores.length) return null;
+    const playerName = (id: string) => {
+      const player = players.find(item => item.id === id);
+      return player ? `${player.first_name} ${player.last_name}`.trim() : "";
+    };
+    const personLabel = (type: string, playerId: string, name: string, assist = false) =>
+      type === "player" ? playerName(playerId) : type === "own_goal" ? (assist ? "Via tegenstander" : "Owngoal") : type === "custom" ? name.trim() : "";
+    const visibleGoals = goals.flatMap((goal, index) => {
+      const score = parseScore(goal.scoreAfter);
+      if (!score) return [];
+      return [{ goal, score, index }];
+    });
+    if (!visibleGoals.length) return null;
     return <div>
       <h4 className="text-xs font-black uppercase tracking-wide text-textMuted">Doelpunten</h4>
-      <div className="mt-2 flex flex-wrap gap-2">{scores.map((score, index) =>
-        <span key={`${score.a}-${score.b}-${index}`} className="rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 font-black text-textBright">{score.a}–{score.b}</span>
-      )}</div>
+      <div className="mt-2 space-y-2">{visibleGoals.map(({ goal, score, index }) => {
+        const scorer = personLabel(goal.scorerType, goal.scorerPlayerId, goal.scorerName);
+        const assist = personLabel(goal.assistType, goal.assistPlayerId, goal.assistName, true);
+        return <div key={`${score.a}-${score.b}-${index}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2">
+          <strong className="text-textBright">{score.a}–{score.b}</strong>
+          {goal.minute !== null && <span className="text-sm text-textSecondary">{goal.minute}&apos;</span>}
+          {scorer && <span className="text-sm text-textPrimary">Doelpunt: <strong>{scorer}</strong></span>}
+          {assist && <span className="text-sm text-textSecondary">Assist: {assist}</span>}
+        </div>;
+      })}</div>
     </div>;
   }
   return <div>

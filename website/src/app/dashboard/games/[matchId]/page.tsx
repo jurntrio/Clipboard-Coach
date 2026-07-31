@@ -40,10 +40,12 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   const canPrepare = staffCanView && (hasClubPermission(access, "games.planning.manage") || hasClubPermission(access, "games.selection.manage")
     || hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.tag_link.create"));
   const canViewSelection = staffCanView && hasClubPermission(access, "games.selection.view");
+  const canViewReport = staffCanView && hasClubPermission(access, "games.report.view");
+  const canManageReport = staffCanView && hasClubPermission(access, "games.report.manage");
   const canManagePublicInfo = staffCanView && hasClubPermission(access, "games.communication.manage");
   const canViewScouting = staffCanView && hasClubPermission(access, "games.scouting.view");
   const canManageScouting = staffCanView && hasClubPermission(access, "games.scouting.manage");
-  const canEditAnything = canManage || canPrepare || canManagePublicInfo || canManageScouting;
+  const canEditAnything = canManage || canPrepare || canManagePublicInfo || canManageReport || canManageScouting;
   const editing = canEditAnything && searchParams?.edit === "1";
   const [{ data: matchVideos }, { data: options }, { data: club }, { data: clubTeam }] = await Promise.all([
     canViewVideo
@@ -149,8 +151,14 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       matchId={match.id}
       players={canViewSelection ? [...(selectedPlayers ?? []), ...(guestPlayers ?? [])] : []}
       clips={dossierClips}
-      initialDossier={dossier ? { ...dossier, scouting: canViewScouting ? dossier.scouting : "" } : null}
-      editable={editing && canManage}
+      initialDossier={dossier ? {
+        ...dossier,
+        ...(!canViewReport ? { lineup_notes: "", general_report: "", positives: "", improvements: "", highlights: "", goals: "", cards: "", chances: "", goal_events: [] } : {}),
+        scouting: canViewScouting ? dossier.scouting : ""
+      } : null}
+      editable={editing && canManageReport}
+      canComplete={editing && canManage}
+      showReport={canViewReport}
       scoutingEditable={editing && canManageScouting}
       showScouting={canViewScouting}
       played={played}

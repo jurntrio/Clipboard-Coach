@@ -16,7 +16,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const { data: match } = await admin.from("matches").select("id, club_id, club_team_id").eq("id", params.id).maybeSingle();
   if (!match?.club_id) return NextResponse.json({ error: "Wedstrijd niet gevonden." }, { status: 404 });
   const access = await getClubAccess(match.club_id, user);
-  const canEditDossier = hasClubPermission(access, "games.create");
+  const canEditDossier = hasClubPermission(access, "games.report.manage");
   const canEditScouting = hasClubPermission(access, "games.scouting.manage");
   if ((!canEditDossier && !canEditScouting) || !canAccessTeam(access, match.club_team_id)) {
     return NextResponse.json({ error: "Je mag dit wedstrijddossier niet aanpassen." }, { status: 403 });

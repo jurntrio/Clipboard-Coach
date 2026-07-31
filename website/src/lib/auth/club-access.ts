@@ -50,6 +50,7 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
     permissions.add("teams.view");
   }
   if (permissions.has("games.scouting.manage")) permissions.add("games.scouting.view");
+  if (permissions.has("games.report.manage")) permissions.add("games.report.view");
   const teamIds = new Set((selected ?? []).map((row) => row.club_team_id));
   if (membership.team_scope === "assigned" && trainer) {
     const { data: assignments } = await admin.from("club_trainer_teams").select("club_team_id").eq("trainer_id", trainer.id).eq("status", "active");
