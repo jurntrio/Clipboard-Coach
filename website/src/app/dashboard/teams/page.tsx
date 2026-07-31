@@ -210,12 +210,21 @@ export default function TeamsPage() {
               {!collapsed[team.id] && <>
               <div>
                 {!!players.length && <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1020px] border-collapse text-left text-sm">
+                  <table className="w-full min-w-[1020px] table-fixed border-collapse text-left text-sm">
+                    <colgroup>
+                      <col className="w-[15%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[13%]" />
+                      <col className="w-[13%]" />
+                      <col className="w-[13%]" />
+                      <col className="w-[20%]" />
+                      <col className="w-[16%]" />
+                    </colgroup>
                     <thead className="bg-accent text-[11px] uppercase tracking-wide text-page">
                       <tr>
                         <th className="px-3 py-2">Naam</th>
                         <th className="px-3 py-2">Voornaam</th>
-                        <th className="px-3 py-2">Geboortedatum</th>
+                        <th className="px-3 py-2 text-center">Geboortedatum</th>
                         <th className="px-3 py-2 text-center">Gsm CP 1</th>
                         <th className="px-3 py-2 text-center">Gsm CP 2</th>
                         <th className="px-3 py-2">E-mail CP 1</th>
@@ -228,7 +237,7 @@ export default function TeamsPage() {
                         return <tr key={player.id} className="bg-card hover:bg-cardHover">
                           <td className="px-3 py-2 font-semibold"><a href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.last_name || "—"}</a></td>
                           <td className="px-3 py-2"><a href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.first_name || "—"}</a></td>
-                          <td className="whitespace-nowrap px-3 py-2 text-textSecondary">{player.date_of_birth ? new Date(`${player.date_of_birth}T12:00:00`).toLocaleDateString("nl-BE") : "—"}</td>
+                          <td className="whitespace-nowrap px-3 py-2 text-center text-textSecondary">{player.date_of_birth ? new Date(`${player.date_of_birth}T12:00:00`).toLocaleDateString("nl-BE") : "—"}</td>
                           <td title={contact1?.full_name} className="px-3 py-2 text-center text-textSecondary">{contactValue(contact1?.phone_number, contact1)}</td>
                           <td title={contact2?.full_name} className="px-3 py-2 text-center text-textSecondary">{contactValue(contact2?.phone_number, contact2)}</td>
                           <td title={contact1?.full_name} className="px-3 py-2 text-textSecondary">{contactValue(contact1?.email, contact1)}</td>
