@@ -192,7 +192,7 @@ export default function MatchesHubPage() {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const canFilterByTeam = accountRole === "club_admin" || accountRole === "club_admin_viewer" || isPlatformAdmin || isAdminViewer;
+  const canFilterByTeam = teams.length > 1;
   const teamFiltered = canFilterByTeam && selectedTeamIds.length ? matches.filter((match) => match.team_a_id && selectedTeamIds.includes(match.team_a_id)) : matches;
   const upcoming = teamFiltered.filter((match) => match.status !== "finished" && (!match.match_date || match.match_date >= today))
     .sort((a, b) => `${a.match_date ?? "9999-99-99"}${a.start_time ?? ""}`.localeCompare(`${b.match_date ?? "9999-99-99"}${b.start_time ?? ""}`));

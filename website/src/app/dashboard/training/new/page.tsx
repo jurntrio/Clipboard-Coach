@@ -3,7 +3,7 @@ import { TrainingBuilder } from "@/components/training/TrainingBuilder";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
 
-export default async function NewTrainingPage({ searchParams }: { searchParams?: { source?: string; edit?: string; sessionId?: string } }) {
+export default async function NewTrainingPage({ searchParams }: { searchParams?: { source?: string; edit?: string; personal?: string; sessionId?: string } }) {
   const admin = createAdminClient();
   const context = await getClubContext();
   const user = context.user;
@@ -58,6 +58,21 @@ export default async function NewTrainingPage({ searchParams }: { searchParams?:
       .map(item => ({ id: item.id, name: item.name, assigned: assignedIds.has(item.id), clubLogoUrl: clubLogos.get(item.club_id) ?? null }))
       .sort((a, b) => Number(b.assigned) - Number(a.assigned) || a.name.localeCompare(b.name));
     trainerOptions = [...new Set([trainerName, ...(clubTrainers ?? []).map(item => item.display_name).filter(Boolean)])];
+    if (searchParams?.personal) {
+      const { data: personalTraining } = await admin.from("trainer_trainings")
+        .select("id, club_id, title, age_category, content")
+        .eq("id", searchParams.personal).eq("owner_id", user.id).maybeSingle();
+      if (personalTraining && clubIds.includes(personalTraining.club_id)
+        && personalTraining.content && typeof personalTraining.content === "object") {
+        initialTraining = {
+          ...(personalTraining.content as Record<string, any>),
+          name: personalTraining.title,
+          clubId: personalTraining.club_id,
+          ageCategory: personalTraining.age_category,
+          personalTrainingId: personalTraining.id
+        };
+      }
+    }
     const sourceTrainingId = searchParams?.edit ?? searchParams?.source;
     if (sourceTrainingId) {
       const { data: source } = await admin.from("club_trainings").select("id, club_id, age_category")
@@ -90,7 +105,7 @@ export default async function NewTrainingPage({ searchParams }: { searchParams?:
 
   return <div className="mx-auto max-w-[1680px] p-4 sm:p-8">
     <SectionHeader
-      title={searchParams?.edit ? "Training bewerken" : searchParams?.source ? "Nieuwe training op basis van bestaande" : "Nieuwe training"}
+      title={searchParams?.personal || searchParams?.edit ? "Training bewerken" : searchParams?.source ? "Nieuwe training op basis van bestaande" : "Nieuwe training"}
       subtitle={searchParams?.source ? "Pas de kopie aan en bewaar ze als een nieuwe training in Intradesk." : "Maak een training met oefeningen en tekeningen."}
       artworkSrc="/branding/training.png" backHref={searchParams?.edit || searchParams?.source ? `/dashboard/intradesk/${searchParams.edit ?? searchParams.source}` : "/dashboard/training"} showHome={false}
     />

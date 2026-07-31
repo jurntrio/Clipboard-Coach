@@ -55,7 +55,7 @@ export function AdminClubModuleToggles({
   return <>
     <div className="border-t border-borderSubtle px-4 py-3">
       <div className="space-y-2">
-        {CLUB_MODULES.filter((module) => ["matches", "video_viewer", "teams", "clips", "training", "intradesk"].includes(module.key)).map((module) => {
+        {CLUB_MODULES.filter((module) => ["matches", "video_viewer", "teams", "clips", "training", "intradesk", "media"].includes(module.key)).map((module) => {
           return <div key={module.key} className="rounded-lg border border-border bg-card">
             <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm text-textPrimary">
               <input type="checkbox" checked={enabledByKey[module.key]} disabled={busy}

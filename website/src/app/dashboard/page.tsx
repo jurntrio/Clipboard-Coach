@@ -158,7 +158,7 @@ export default async function DashboardHomePage() {
     status: "completed",
     score: null,
     contextIds: contexts.filter(item => item.role === "Trainer").map(item => item.id),
-    href: "/dashboard/training"
+    href: `/dashboard/training/new?personal=${plan.id}`
   })));
 
   return <ProfileOverview

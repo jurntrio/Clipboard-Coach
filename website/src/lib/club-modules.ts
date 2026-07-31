@@ -5,6 +5,7 @@ export const CLUB_MODULES = [
   { key: "clips", label: "Clips" },
   { key: "training", label: "Training" },
   { key: "intradesk", label: "Intradesk" },
+  { key: "media", label: "Media" },
   { key: "attendance", label: "Aanwezigheden" },
   { key: "club_management", label: "Clubbeheer" }
 ] as const;
@@ -32,6 +33,12 @@ export const CLUB_MODULE_BUNDLES = [
     label: "Videoanalyse",
     description: "Video Viewer, wedstrijden, tagging en clips.",
     modules: ["video_viewer", "matches", "clips"]
+  },
+  {
+    key: "media",
+    label: "Media",
+    description: "ClubTV, schermen, streams, sponsoring en communicatie.",
+    modules: ["media"]
   },
   {
     key: "club_teams",

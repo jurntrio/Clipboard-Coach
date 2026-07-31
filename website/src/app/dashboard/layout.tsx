@@ -32,6 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (access && hasClubPermission(access, "games.view") && moduleOn("matches")) navigation.push({ href: "/dashboard/clips", label: "Games", icon: "/branding/games.png" });
   if (access && hasClubPermission(access, "training.view") && moduleOn("training")) navigation.push({ href: "/dashboard/training", label: "Training", icon: "/branding/training.png" });
   if (access && hasClubPermission(access, "intradesk.view") && moduleOn("intradesk")) navigation.push({ href: "/dashboard/intradesk", label: "Intradesk", icon: "/branding/intradesk.png" });
+  if ((clubContext.isPlatformAdmin || (access && ["club_admin", "club_admin_viewer"].includes(access.role))) && moduleOn("media")) navigation.push({ href: "/dashboard/media", label: "Media", icon: "/branding/media.svg" });
   if (Array.isArray(guardianRows) && guardianRows.length) navigation.push({ href: "/dashboard/parent", label: "Spelers & clips", icon: "/branding/clips.png" });
   if (access && ["club_admin", "club_admin_viewer", "platform_admin"].includes(access.role) && moduleOn("club_management")) {
     navigation.push({ href: "/dashboard/club", label: "Clubbeheer", icon: "/branding/clubadmin.png" });

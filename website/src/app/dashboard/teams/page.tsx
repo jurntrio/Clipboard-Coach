@@ -57,6 +57,7 @@ export default function TeamsPage() {
     const body = await response.json() as { teams: TeamWithPlayers[] };
     const loaded = body.teams ?? [];
     setTeams([...loaded].sort((a, b) => Number(a.name.trim().toUpperCase() === "EXTRA") - Number(b.name.trim().toUpperCase() === "EXTRA") || a.name.localeCompare(b.name)));
+    setCollapsed(current => Object.fromEntries(loaded.map(team => [team.id, current[team.id] ?? true])));
   }
 
   async function loadClips() {
