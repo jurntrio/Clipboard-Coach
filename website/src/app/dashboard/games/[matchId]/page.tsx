@@ -6,6 +6,7 @@ import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club
 import { PublicMatchInfoEditor } from "@/components/matches/PublicMatchInfoEditor";
 import { MatchDossierTabs } from "@/components/matches/MatchDossierTabs";
 import { MatchPreparationEditor } from "@/components/matches/MatchPreparationEditor";
+import { MatchTagLinkButton } from "@/components/matches/MatchTagLinkButton";
 import { getClubContext } from "@/lib/auth/active-club";
 
 type GuardianPlayer = { player_id: string; team_id: string | null };
@@ -39,6 +40,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   const canManage = staffCanView && hasClubPermission(access, "games.create");
   const canPrepare = staffCanView && (hasClubPermission(access, "games.planning.manage") || hasClubPermission(access, "games.selection.manage")
     || hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.tag_link.create"));
+  const canCreateTagLink = staffCanView && hasClubPermission(access, "games.tag_link.create");
   const canViewSelection = staffCanView && hasClubPermission(access, "games.selection.view");
   const canViewReport = staffCanView && hasClubPermission(access, "games.report.view");
   const canManageReport = staffCanView && hasClubPermission(access, "games.report.manage");
@@ -100,6 +102,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     <div className="flex flex-wrap items-center justify-between gap-3">
       <Link href="/dashboard" className="text-sm font-semibold text-accent hover:underline">← Terug naar dashboard</Link>
       <div className="flex flex-wrap gap-2">
+        {canCreateTagLink && match.status !== "finished" && <MatchTagLinkButton matchId={match.id} />}
         {canEditAnything && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : "Wedstrijd bewerken"}</Link>}
         {canViewVideo && !!videoCount && <Link href={`/dashboard/matches/${match.id}`} className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page">Open videoviewer</Link>}
       </div>
