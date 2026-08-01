@@ -17,10 +17,12 @@ export default function SettingsPage() {
   const [newTagName, setNewTagName] = useState("");
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [tagNameDraft, setTagNameDraft] = useState("");
+  const [mailboxEmailNotifications, setMailboxEmailNotifications] = useState(true);
   const supabase = createClient();
 
   useEffect(() => {
     loadStandardTags();
+    loadMailboxPreference();
   }, []);
 
   async function loadStandardTags() {
@@ -31,6 +33,25 @@ export default function SettingsPage() {
 
     const { data } = await supabase.from("standard_tags").select("*").eq("coach_id", user.id).order("created_at");
     setStandardTags(data ?? []);
+  }
+
+  async function loadMailboxPreference() {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase.from("profiles").select("mailbox_email_notifications").eq("id", user.id).maybeSingle();
+    if (data) setMailboxEmailNotifications(data.mailbox_email_notifications);
+  }
+
+  async function toggleMailboxEmailNotifications(enabled: boolean) {
+    setMailboxEmailNotifications(enabled);
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("profiles").update({ mailbox_email_notifications: enabled }).eq("id", user.id);
   }
 
   async function addStandardTag(event: React.FormEvent) {
@@ -74,6 +95,16 @@ export default function SettingsPage() {
         <p className="text-textMuted text-sm mb-3">{t("settings.languageHelp")}</p>
         <LanguageSwitcher />
       </section>
+
+      <section className="mb-8">
+        <h2 className="text-textBright font-semibold mb-2">{t("settings.mailbox")}</h2>
+        <p className="text-textMuted text-sm mb-3">{t("settings.mailboxHelp")}</p>
+        <label className="flex items-center gap-3 text-textPrimary">
+          <input type="checkbox" checked={mailboxEmailNotifications} onChange={(event) => void toggleMailboxEmailNotifications(event.target.checked)} />
+          {t("settings.mailboxEmailLabel")}
+        </label>
+      </section>
+
 
       <section id="quick-tags">
         <h2 className="text-textBright font-semibold mb-2">{t("settings.quickTags")}</h2>

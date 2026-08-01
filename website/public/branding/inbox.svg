@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">Berichten</title>
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="#13231d" stroke="#4ade80" stroke-width="5"/>
+  <path d="M28 40h72a4 4 0 0 1 4 4v40a4 4 0 0 1-4 4H28a4 4 0 0 1-4-4V44a4 4 0 0 1 4-4Z" fill="none" stroke="#4ade80" stroke-width="6"/>
+  <path d="M26 42l38 30 38-30" fill="none" stroke="#4ade80" stroke-width="6" stroke-linecap="round"/>
+</svg>
