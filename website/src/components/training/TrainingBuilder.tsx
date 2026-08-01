@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { supportsBelgianTeamTactics, TRAINING_AGE_CATEGORIES } from "@/lib/training-categories";
 
 const ASSET_ROOT = "/branding/Training";
@@ -61,9 +61,10 @@ type PaletteAsset = { src: string; label: string };
 type FieldItem = PaletteAsset & { id: string; x: number; y: number; scale: number; rotation: number; stretchX?: number; stretchY?: number };
 type FieldLine = {
   id: string; x1: number; y1: number; x2: number; y2: number;
-  style: "solid" | "dashed"; color: string; number?: number;
+  style: "solid" | "dashed"; color: string; showArrow?: boolean; number?: number;
 };
 type AreaStyle = "outline" | "fill" | "hatched";
+type AreaShape = "polygon" | "rectangle";
 type FieldArea = { id: string; points: { x: number; y: number }[]; color: string; style: AreaStyle; number?: number };
 type FieldDribble = { id: string; points: { x: number; y: number }[]; color: string; number?: number };
 type SelectedDrawing = { kind: "line" | "area" | "dribble"; id: string } | null;
@@ -317,7 +318,7 @@ function PrintText({ label, value, compact = false }: { label: string; value: st
   return <section className={compact ? "" : "mt-4"}><h3 className={`${compact ? "text-[9px]" : "text-xs"} font-black uppercase tracking-wide text-[#169447]`}>{label}</h3><p className={`${compact ? "mt-0.5 text-[10px] leading-snug" : "mt-1 text-sm leading-relaxed"} whitespace-pre-wrap text-[#2e3832]`}>{value || "—"}</p></section>;
 }
 
-function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = false, onOpen, selectedId, selectedDrawing, drawingInteractive = true, onSelect, onDeleteItem, onSelectDrawing, onDrawingPointerDown, onDrawingPointerMove, onMove, onResize, onRotate, pendingLine, pendingLineStyle, pendingArea, pendingAreaStyle = "outline", pendingDribble, hoverPoint, drawingColor = "#111111" }: {
+function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = false, onOpen, selectedId, selectedDrawing, drawingInteractive = true, onSelect, onDeleteItem, onSelectDrawing, onDrawingPointerDown, onDrawingPointerMove, onMove, onResize, onRotate, pendingLine, pendingLineStyle, pendingLineArrow = true, pendingArea, pendingAreaStyle = "outline", pendingAreaShape = "polygon", pendingDribble, hoverPoint, drawingColor = "#111111" }: {
   fieldType?: FieldType; items: FieldItem[]; lines: FieldLine[]; areas: FieldArea[]; dribbles: FieldDribble[]; preview?: boolean; onOpen?: () => void; selectedId?: string | null;
   selectedDrawing?: SelectedDrawing;
   drawingInteractive?: boolean;
@@ -330,8 +331,10 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
   onRotate?: (event: React.PointerEvent<HTMLButtonElement>, id: string) => void;
   pendingLine?: { x: number; y: number } | null;
   pendingLineStyle?: "solid" | "dashed" | null;
+  pendingLineArrow?: boolean;
   pendingArea?: { x: number; y: number }[];
   pendingAreaStyle?: AreaStyle;
+  pendingAreaShape?: AreaShape;
   pendingDribble?: { x: number; y: number }[];
   hoverPoint?: { x: number; y: number } | null;
   drawingColor?: string;
@@ -371,7 +374,7 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
             <line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
               stroke={line.color || "#111111"} strokeWidth={selectedDrawing?.kind === "line" && selectedDrawing.id === line.id ? "1.35" : ".65"} vectorEffect="non-scaling-stroke"
               strokeDasharray={line.style === "dashed" ? "3 2" : undefined}
-              markerEnd={`url(#${preview ? "training-arrow-preview" : "training-arrow-editor"})`} />
+              markerEnd={line.showArrow === false ? undefined : `url(#${preview ? "training-arrow-preview" : "training-arrow-editor"})`} />
             {line.number && <>
               <circle cx={(line.x1 + line.x2) / 2} cy={(line.y1 + line.y2) / 2} r="1.35" fill="white" stroke={line.color || "#111111"} strokeWidth=".3" />
               <text x={(line.x1 + line.x2) / 2} y={(line.y1 + line.y2) / 2 + .45} textAnchor="middle" fontSize="1.3" fontWeight="700" fill={line.color || "#111111"}>{line.number}</text>
@@ -390,10 +393,14 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
         {!preview && pendingLine && hoverPoint && (
           <line x1={pendingLine.x} y1={pendingLine.y} x2={hoverPoint.x} y2={hoverPoint.y}
             stroke={drawingColor} strokeOpacity=".65" strokeWidth=".65" strokeDasharray={pendingLineStyle === "dashed" ? "3 2" : undefined}
-            markerEnd="url(#training-arrow-editor)" vectorEffect="non-scaling-stroke" />
+            markerEnd={pendingLineArrow ? "url(#training-arrow-editor)" : undefined} vectorEffect="non-scaling-stroke" />
         )}
         {!preview && pendingArea && pendingArea.length > 0 && (
-          pendingArea.length >= 2 && hoverPoint
+          pendingAreaShape === "rectangle" && hoverPoint
+            ? <polygon points={[pendingArea[0], { x: hoverPoint.x, y: pendingArea[0].y }, hoverPoint, { x: pendingArea[0].x, y: hoverPoint.y }].map(point => `${point.x},${point.y}`).join(" ")}
+                fill={pendingAreaStyle === "outline" ? "none" : pendingAreaStyle === "hatched" ? "url(#training-hatch-pending)" : drawingColor}
+                color={drawingColor} fillOpacity={pendingAreaStyle === "fill" ? ".18" : "1"} stroke={drawingColor} strokeOpacity=".75" strokeWidth=".65" strokeDasharray="2 1" vectorEffect="non-scaling-stroke" />
+            : pendingArea.length >= 2 && hoverPoint
             ? <polygon points={[...pendingArea, hoverPoint].map(point => `${point.x},${point.y}`).join(" ")}
                 fill={pendingAreaStyle === "outline" ? "none" : pendingAreaStyle === "hatched" ? "url(#training-hatch-pending)" : drawingColor}
                 color={drawingColor} fillOpacity={pendingAreaStyle === "fill" ? ".18" : "1"} stroke={drawingColor} strokeOpacity=".75" strokeWidth=".65" strokeDasharray="2 1" vectorEffect="non-scaling-stroke" />
@@ -526,15 +533,21 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   const editorFieldRef = useRef<HTMLDivElement>(null);
   const editorSnapshotRef = useRef<Block | null>(null);
   const drawingDragRef = useRef<{ drawing: Exclude<SelectedDrawing, null>; pointIndex?: number; last: { x: number; y: number } } | null>(null);
+  const draftBaselineRef = useRef("");
+  const initializeDraftRef = useRef(true);
+  const restoredUnfinishedDraftRef = useRef(false);
+  const unresolvedChangesRef = useRef(false);
   const [blocks, setBlocks] = useState<Block[]>(makeBlocks);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<PaletteAsset | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedDrawing, setSelectedDrawing] = useState<SelectedDrawing>(null);
   const [lineStyle, setLineStyle] = useState<"solid" | "dashed" | null>(null);
+  const [lineArrow, setLineArrow] = useState(true);
   const [numberLines, setNumberLines] = useState(false);
   const [lineStart, setLineStart] = useState<{ x: number; y: number } | null>(null);
   const [areaMode, setAreaMode] = useState(false);
+  const [areaShape, setAreaShape] = useState<AreaShape>("polygon");
   const [areaStyle, setAreaStyle] = useState<AreaStyle>("outline");
   const [areaPoints, setAreaPoints] = useState<{ x: number; y: number }[]>([]);
   const [dribbleMode, setDribbleMode] = useState(false);
@@ -559,12 +572,22 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   const [ageCategory, setAgeCategory] = useState("");
   const [personalTrainingId, setPersonalTrainingId] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
+  const [confirmNewTraining, setConfirmNewTraining] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const [hasUnresolvedChanges, setHasUnresolvedChanges] = useState(false);
 
   const activeBlock = activeIndex === null ? null : blocks[activeIndex];
   const selectedItem = activeBlock?.items.find(item => item.id === selectedId) ?? null;
   const totalMinutes = blocks.reduce((sum, block) => sum + (block.active ? block.minutes : 0), 0);
   const clubLogoUrl = customTeam ? null : teamOptions.find(option => option.name === team)?.clubLogoUrl ?? null;
   const teamTacticsEnabled = supportsBelgianTeamTactics(clubOptions.find(club => club.id === clubId)?.country);
+  const draft = useMemo(() => ({
+    version: 6, name, team, date, playerCount, keeperCount, trainers, teamTactics, themes, material, blocks,
+    clubId, ageCategory, personalTrainingId, updatedAt: new Date().toISOString()
+  }), [ageCategory, blocks, clubId, date, keeperCount, material, name, personalTrainingId, playerCount, team, teamTactics, themes, trainers]);
+  const draftSignature = useMemo(() => JSON.stringify({
+    name, team, date, playerCount, keeperCount, trainers, teamTactics, themes, material, blocks, clubId, ageCategory
+  }), [ageCategory, blocks, clubId, date, keeperCount, material, name, playerCount, team, teamTactics, themes, trainers]);
   const byColor = (families: readonly (readonly [string, string])[]) =>
     colors.flatMap(color => families.map(([file, label]) => ({
       src: path(`${file}${color.file}.png`), label: `${label} ${color.label}`
@@ -593,7 +616,11 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
 
   useEffect(() => {
     const raw = window.localStorage.getItem("cbcs.training-builder.v2");
-    if (!raw && !initialTraining) return;
+    restoredUnfinishedDraftRef.current = Boolean(raw && !initialTraining);
+    if (!raw && !initialTraining) {
+      setDraftReady(true);
+      return;
+    }
     try {
       const draft = initialTraining ?? JSON.parse(raw!);
       setName(draft.name ?? name); setTeam(draft.team ?? ""); setDate(draft.date ?? "");
@@ -625,10 +652,45 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
         setBlocks(makeBlocks());
       }
       setStatus(initialTraining ? "Gedeelde training geopend · wijzigingen worden een nieuwe versie" : "Lokaal concept hersteld");
-    } catch { /* een ongeldig oud concept negeren */ }
+    } catch {
+      restoredUnfinishedDraftRef.current = false;
+      window.localStorage.removeItem("cbcs.training-builder.v2");
+    }
+    setDraftReady(true);
     // Alleen eenmalig het lokale concept herstellen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    if (initializeDraftRef.current) {
+      initializeDraftRef.current = false;
+      draftBaselineRef.current = draftSignature;
+      setHasUnresolvedChanges(restoredUnfinishedDraftRef.current);
+      return;
+    }
+    setHasUnresolvedChanges(draftSignature !== draftBaselineRef.current);
+  }, [draftReady, draftSignature]);
+
+  useEffect(() => {
+    if (!draftReady || !hasUnresolvedChanges) return;
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem("cbcs.training-builder.v2", JSON.stringify(draft));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [draft, draftReady, hasUnresolvedChanges]);
+
+  useEffect(() => {
+    unresolvedChangesRef.current = hasUnresolvedChanges;
+    if (!hasUnresolvedChanges) return;
+    function warnBeforeLeaving(event: BeforeUnloadEvent) {
+      if (!unresolvedChangesRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [hasUnresolvedChanges]);
 
   useEffect(() => {
     if (activeIndex === null) return;
@@ -744,16 +806,13 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
     setConfirmClose(false);
     editorSnapshotRef.current = null;
   }
-  async function saveDraft() {
-    if (!clubId) return setStatus("Kies eerst de club waarvoor je bewaart.");
-    if (!ageCategory) return setStatus("Kies verplicht een leeftijdsjaar.");
-    if (!name.trim()) return setStatus("Geef de training eerst een naam.");
+  async function saveDraft(): Promise<boolean> {
+    if (!clubId) { setStatus("Kies eerst de club waarvoor je bewaart."); return false; }
+    if (!ageCategory) { setStatus("Kies verplicht een leeftijdsjaar."); return false; }
+    if (!name.trim()) { setStatus("Geef de training eerst een naam."); return false; }
     setSaving(true);
     setStatus("Training bewaren…");
-    window.localStorage.setItem("cbcs.training-builder.v2", JSON.stringify({
-      version: 5, name, team, date, playerCount, keeperCount, trainers, teamTactics, themes, material, blocks,
-      clubId, ageCategory, personalTrainingId, updatedAt: new Date().toISOString()
-    }));
+    window.localStorage.setItem("cbcs.training-builder.v2", JSON.stringify(draft));
     try {
       const response = await fetch("/api/trainings/save", {
         method: "POST",
@@ -776,11 +835,29 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
           ? "Persoonlijk bewaard en naar de clubadmin gestuurd"
           : "Persoonlijk bewaard";
       setStatus(`${message} · ${ageCategory}`);
+      draftBaselineRef.current = draftSignature;
+      setHasUnresolvedChanges(false);
+      window.localStorage.removeItem("cbcs.training-builder.v2");
+      return true;
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Bewaren is mislukt.");
+      return false;
     } finally {
       setSaving(false);
     }
+  }
+  function startEmptyTraining() {
+    unresolvedChangesRef.current = false;
+    setHasUnresolvedChanges(false);
+    window.localStorage.removeItem("cbcs.training-builder.v2");
+    window.location.assign("/dashboard/training/new");
+  }
+  async function saveAndStartEmptyTraining() {
+    if (await saveDraft()) startEmptyTraining();
+  }
+  function requestEmptyTraining() {
+    if (hasUnresolvedChanges) setConfirmNewTraining(true);
+    else startEmptyTraining();
   }
   function placeItem(event: React.MouseEvent<HTMLDivElement>) {
     if (activeIndex === null) return;
@@ -792,6 +869,21 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
       return;
     }
     if (areaMode) {
+      if (areaShape === "rectangle") {
+        if (!areaPoints.length) {
+          setAreaPoints([{ x, y }]);
+        } else {
+          const start = areaPoints[0];
+          const area: FieldArea = {
+            id: crypto.randomUUID(), points: [start, { x, y: start.y }, { x, y }, { x: start.x, y }], color: drawColor, style: areaStyle,
+            number: numberLines ? blocks[activeIndex].areas.filter(item => item.number).length + 1 : undefined
+          };
+          updateBlock(activeIndex, { areas: [...blocks[activeIndex].areas, area] });
+          setAreaPoints([]);
+          setHoverPoint(null);
+        }
+        return;
+      }
       setAreaPoints(current => [...current, { x, y }]);
       return;
     }
@@ -800,7 +892,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
         setLineStart({ x, y });
       } else {
         const line: FieldLine = {
-          id: crypto.randomUUID(), x1: lineStart.x, y1: lineStart.y, x2: x, y2: y, style: lineStyle, color: drawColor,
+          id: crypto.randomUUID(), x1: lineStart.x, y1: lineStart.y, x2: x, y2: y, style: lineStyle, color: drawColor, showArrow: lineArrow,
           number: numberLines ? blocks[activeIndex].lines.filter(item => item.number).length + 1 : undefined
         };
         updateBlock(activeIndex, { lines: [...blocks[activeIndex].lines, line] });
@@ -1001,6 +1093,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-accentDim px-4 py-2 text-sm font-black text-accent">Totale duur: {totalMinutes} minuten</span>
             <button type="button" onClick={() => setShowPrintPreview(true)} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-bold text-textPrimary">Afdrukvoorbeeld</button>
+            <button type="button" disabled={saving} onClick={requestEmptyTraining} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-bold text-textPrimary disabled:opacity-50">Nieuwe training</button>
             <button type="button" disabled={saving} onClick={() => void saveDraft()}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page disabled:opacity-50">
               {saving ? "Opslaan…" : editingTrainingId ? "Nieuwe versie opslaan" : "Opslaan"}
@@ -1008,6 +1101,18 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
           </div>
         </div>
       </section>
+
+      {confirmNewTraining && <div className="fixed inset-0 z-[120] grid place-items-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Nieuwe training starten">
+        <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">
+          <h2 className="text-xl font-black text-textBright">Wat wil je met deze training doen?</h2>
+          <p className="mt-2 text-sm text-textSecondary">Kies bewust of je deze training bewaart. Daarna start de trainingsplanner volledig leeg.</p>
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <button type="button" disabled={saving} onClick={() => setConfirmNewTraining(false)} className="rounded-lg border border-borderButton px-4 py-2 text-sm font-bold text-textPrimary">Annuleren</button>
+            <button type="button" disabled={saving} onClick={startEmptyTraining} className="rounded-lg border border-red-500/60 px-4 py-2 text-sm font-bold text-red-400">Niet opslaan</button>
+            <button type="button" disabled={saving} onClick={() => void saveAndStartEmptyTraining()} className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page disabled:opacity-50">{saving ? "Opslaan…" : "Opslaan"}</button>
+          </div>
+        </div>
+      </div>}
 
       <section className="space-y-4">
         {blocks.map((block, index) => (
@@ -1086,15 +1191,17 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
                         className={`rounded px-2.5 py-1.5 text-xs font-bold ${activeBlock.fieldType === value ? "bg-[#169447] text-white" : "bg-[#f7f9f8] text-[#36423b]"}`}>{label}</button>)}
                   </div>
                   <button type="button" onClick={() => { setLineStyle(null); setLineStart(null); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedDrawing(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${!lineStyle && !areaMode && !dribbleMode ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>↖ Selecteren</button>
-                  <button type="button" onClick={() => { setLineStyle("solid"); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setLineStart(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${lineStyle === "solid" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>→ Pass</button>
-                  <button type="button" onClick={() => { setLineStyle("dashed"); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setLineStart(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${lineStyle === "dashed" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>⇢ Looplijn</button>
+                  <button type="button" onClick={() => { setLineStyle("solid"); setLineArrow(true); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setLineStart(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${lineStyle === "solid" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>→ Pass</button>
+                  <button type="button" onClick={() => { setLineStyle("dashed"); setLineArrow(true); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setLineStart(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${lineStyle === "dashed" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>⇢ Looplijn</button>
                   <button type="button" onClick={() => { setDribbleMode(true); setDribblePoints([]); setAreaMode(false); setAreaPoints([]); setLineStyle(null); setLineStart(null); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${dribbleMode ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>〰 Dribbel</button>
-                  <button type="button" onClick={() => { setAreaMode(true); setDribbleMode(false); setDribblePoints([]); setLineStyle(null); setLineStart(null); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setAreaPoints([]); }} className={`rounded border px-3 py-2 text-xs font-bold ${areaMode ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>▱ Area</button>
+                  <button type="button" onClick={() => { setAreaMode(true); setAreaShape("polygon"); setDribbleMode(false); setDribblePoints([]); setLineStyle(null); setLineStart(null); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setAreaPoints([]); }} className={`rounded border px-3 py-2 text-xs font-bold ${areaMode && areaShape === "polygon" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>▱ Area</button>
+                  <button type="button" onClick={() => { setAreaMode(true); setAreaShape("rectangle"); setDribbleMode(false); setDribblePoints([]); setLineStyle(null); setLineStart(null); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setAreaPoints([]); }} className={`rounded border px-3 py-2 text-xs font-bold ${areaMode && areaShape === "rectangle" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>▭ Rechthoek</button>
+                  {lineStyle && <label className="flex items-center gap-2 rounded border border-[#cbd5cf] bg-white px-3 py-2 text-xs font-bold"><input type="checkbox" checked={lineArrow} onChange={event => setLineArrow(event.target.checked)} /> Pijl tonen</label>}
                   <label className="flex items-center gap-2 rounded border border-[#cbd5cf] bg-white px-3 py-2 text-xs font-bold"><input type="checkbox" checked={numberLines} onChange={e => setNumberLines(e.target.checked)} /> Pijlen & Areas nummeren</label>
                   <button type="button" onClick={() => setShowColorPanel(value => !value)} className="flex items-center gap-2 rounded border border-[#cbd5cf] bg-white px-3 py-2 text-xs font-bold">
                     <span className="h-4 w-4 rounded-full border" style={{ backgroundColor: drawColor }} /> Kleur ▾
                   </button>
-                  {areaMode && areaPoints.length >= 3 && <button type="button" onClick={finishArea} className="rounded bg-[#169447] px-3 py-2 text-xs font-bold text-white">Area voltooien</button>}
+                  {areaMode && areaShape === "polygon" && areaPoints.length >= 3 && <button type="button" onClick={finishArea} className="rounded bg-[#169447] px-3 py-2 text-xs font-bold text-white">Area voltooien</button>}
                   {dribbleMode && dribblePoints.length >= 2 && <button type="button" onClick={finishDribble} className="rounded bg-[#169447] px-3 py-2 text-xs font-bold text-white">Dribbel voltooien</button>}
                   {selectedDrawing && <button type="button" onClick={deleteSelected} className="rounded bg-[#9f2525] px-3 py-2 text-xs font-bold text-white">Selectie verwijderen</button>}
                   <button type="button" onClick={() => { updateBlock(activeIndex, { items: [], lines: [], areas: [], dribbles: [] }); setSelectedId(null); setSelectedDrawing(null); setLineStart(null); setAreaPoints([]); setDribblePoints([]); }} className="ml-auto rounded border border-[#cbd5cf] bg-white px-3 py-2 text-xs font-bold">Alles wissen</button>
@@ -1118,7 +1225,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
                     </div>
                   </div>}
                   <p className="basis-full px-1 text-[11px] text-[#66706b]">
-                    {dribbleMode ? (dribblePoints.length < 2 ? `Klik minstens 2 punten voor de dribbel (${dribblePoints.length}/2).` : `${dribblePoints.length} punten · blijf klikken of voltooi met de knop/Enter.`) : areaMode ? (areaPoints.length < 3 ? `Klik minstens 3 hoekpunten voor de Area (${areaPoints.length}/3).` : `${areaPoints.length} punten · klik “Area voltooien” of druk Enter.`) : lineStyle ? (lineStart ? "Beweeg de cursor en klik het eindpunt van de pijl." : "Klik het startpunt van de pijl.") : selectedItem ? "Sleep het groene bolletje om te schalen en ↻ om te draaien." : selectedAsset ? `Actief: ${selectedAsset.label} · Escape annuleert.` : "Kies links een icoon, beweging of Area. Escape annuleert de actieve tool."}
+                    {dribbleMode ? (dribblePoints.length < 2 ? `Klik minstens 2 punten voor de dribbel (${dribblePoints.length}/2).` : `${dribblePoints.length} punten · blijf klikken of voltooi met de knop/Enter.`) : areaMode && areaShape === "rectangle" ? (areaPoints.length ? "Beweeg naar de overstaande hoek en klik om de rechthoek te plaatsen." : "Klik de eerste hoek van de rechthoek.") : areaMode ? (areaPoints.length < 3 ? `Klik minstens 3 hoekpunten voor de Area (${areaPoints.length}/3).` : `${areaPoints.length} punten · klik “Area voltooien” of druk Enter.`) : lineStyle ? (lineStart ? `Beweeg de cursor en klik het eindpunt van de ${lineArrow ? "pijl" : "lijn"}.` : `Klik het startpunt van de ${lineArrow ? "pijl" : "lijn"}.`) : selectedItem ? "Sleep het groene bolletje om te schalen en ↻ om te draaien." : selectedAsset ? `Actief: ${selectedAsset.label} · Escape annuleert.` : "Kies links een icoon, beweging of Area. Escape annuleert de actieve tool."}
                   </p>
                 </div>
                 <div ref={editorFieldRef} onClick={placeItem} onPointerMove={trackDrawingPointer} onPointerLeave={() => setHoverPoint(null)} className="mx-auto w-full max-w-[620px] self-start overflow-hidden rounded border border-[#dbe2de] bg-white shadow-sm">
@@ -1127,7 +1234,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
                     onSelect={id => { setSelectedId(id); setSelectedDrawing(null); }} onDeleteItem={deleteFieldItem}
                     onSelectDrawing={selectDrawing} onDrawingPointerDown={startDrawingDrag} onDrawingPointerMove={moveDrawingDrag}
                     onMove={moveItem} onResize={resizeSelected} onRotate={rotateSelected} pendingLine={lineStart}
-                    pendingLineStyle={lineStyle} pendingArea={areaPoints} pendingAreaStyle={areaStyle} pendingDribble={dribblePoints}
+                    pendingLineStyle={lineStyle} pendingLineArrow={lineArrow} pendingArea={areaPoints} pendingAreaStyle={areaStyle} pendingAreaShape={areaShape} pendingDribble={dribblePoints}
                     hoverPoint={hoverPoint} drawingColor={drawColor} />
                 </div>
               </main>
