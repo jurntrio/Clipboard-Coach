@@ -65,7 +65,12 @@ export default function InboxPage() {
           </div>
           <div className="min-h-[50vh]">
             {selectedThread
-              ? <ThreadView thread={selectedThread} currentUserId={currentUserId} onReplySent={() => void load()} />
+              ? <ThreadView
+                  thread={selectedThread}
+                  currentUserId={currentUserId}
+                  onReplySent={() => void load()}
+                  onDeleted={() => { setSelectedThreadId(null); void load(); }}
+                />
               : <p className="p-5 text-textMuted">{t("mailbox.noThreadSelected")}</p>}
           </div>
         </div>

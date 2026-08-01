@@ -24,7 +24,8 @@ export async function GET() {
   const { data: recipientRows, error: recipientsError } = await admin
     .from("mailbox_recipients")
     .select("message_id, read_at, mailbox_messages(thread_id, club_id)")
-    .eq("profile_id", user.id);
+    .eq("profile_id", user.id)
+    .is("deleted_at", null);
   if (recipientsError) return NextResponse.json({ error: "Berichten konden niet geladen worden." }, { status: 500 });
 
   const threadIds = Array.from(new Set((recipientRows ?? [])
@@ -40,13 +41,31 @@ export async function GET() {
     .eq("club_id", activeClubId).in("thread_id", threadIds).order("created_at");
   if (messagesError) return NextResponse.json({ error: "Berichten konden niet geladen worden." }, { status: 500 });
 
+  const messageIds = (threadMessages ?? []).map((message) => message.id);
+  const { data: allRecipientRows, error: allRecipientsError } = messageIds.length
+    ? await admin.from("mailbox_recipients").select("message_id, profile_id, read_at").in("message_id", messageIds)
+    : { data: [], error: null };
+  if (allRecipientsError) return NextResponse.json({ error: "Leesstatus kon niet geladen worden." }, { status: 500 });
+
+  const recipientProfileIds = Array.from(new Set((allRecipientRows ?? []).map((row) => row.profile_id)));
+  const { data: recipientProfiles } = recipientProfileIds.length
+    ? await admin.from("profiles").select("id, full_name").in("id", recipientProfileIds)
+    : { data: [] as { id: string; full_name: string | null }[] };
+  const recipientNameById = new Map((recipientProfiles ?? []).map((profile) => [profile.id, profile.full_name?.trim() || "Clublid"]));
+  const recipientsByMessageId = new Map<string, Array<{ profileId: string; name: string; readAt: string | null }>>();
+  for (const row of allRecipientRows ?? []) {
+    const statuses = recipientsByMessageId.get(row.message_id) ?? [];
+    statuses.push({ profileId: row.profile_id, name: recipientNameById.get(row.profile_id) ?? "Clublid", readAt: row.read_at });
+    recipientsByMessageId.set(row.message_id, statuses);
+  }
+
   const senderIds = Array.from(new Set((threadMessages ?? []).map((m) => m.sender_id).filter((id): id is string => !!id)));
   const { data: senderProfiles } = senderIds.length
     ? await admin.from("profiles").select("id, full_name").in("id", senderIds)
     : { data: [] as { id: string; full_name: string | null }[] };
   const senderNameById = new Map((senderProfiles ?? []).map((p) => [p.id, p.full_name?.trim() || "Clublid"]));
 
-  const threadsById = new Map<string, { threadId: string; subject: string; messages: Array<{ id: string; senderId: string | null; senderName: string; body: string; createdAt: string; read: boolean }> }>();
+  const threadsById = new Map<string, { threadId: string; subject: string; messages: Array<{ id: string; senderId: string | null; senderName: string; body: string; createdAt: string; read: boolean; recipients: Array<{ profileId: string; name: string; readAt: string | null }> }> }>();
   for (const message of (threadMessages ?? []) as MailboxMessageRow[]) {
     if (!threadsById.has(message.thread_id)) threadsById.set(message.thread_id, { threadId: message.thread_id, subject: message.subject, messages: [] });
     threadsById.get(message.thread_id)!.messages.push({
@@ -55,7 +74,10 @@ export async function GET() {
       senderName: (message.sender_id && senderNameById.get(message.sender_id)) || "Onbekend",
       body: message.body,
       createdAt: message.created_at,
-      read: message.sender_id === user.id || !!readAtByMessageId.get(message.id)
+      read: message.sender_id === user.id || !!readAtByMessageId.get(message.id),
+      recipients: (recipientsByMessageId.get(message.id) ?? [])
+        .filter((recipient) => recipient.profileId !== message.sender_id)
+        .sort((a, b) => a.name.localeCompare(b.name, "nl"))
     });
   }
 

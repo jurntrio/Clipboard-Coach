@@ -5,7 +5,8 @@ export type MailboxTarget =
   | { type: "team_staff"; clubTeamId: string }
   | { type: "team_contacts"; clubTeamId: string }
   | { type: "user"; profileId: string };
-export type MailboxMessage = { id: string; senderId: string | null; senderName: string; body: string; createdAt: string; read: boolean };
+export type MailboxRecipientStatus = { profileId: string; name: string; readAt: string | null };
+export type MailboxMessage = { id: string; senderId: string | null; senderName: string; body: string; createdAt: string; read: boolean; recipients: MailboxRecipientStatus[] };
 export type MailboxThread = { threadId: string; subject: string; messages: MailboxMessage[]; unreadCount: number; lastMessageAt: string };
 
 export function targetKey(target: MailboxTarget): string {
