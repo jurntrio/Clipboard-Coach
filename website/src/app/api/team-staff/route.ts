@@ -8,11 +8,22 @@ async function currentUser() {
   return user;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
+  const invitationsOnly = new URL(request.url).searchParams.get("invitationsOnly") === "true";
+  if (invitationsOnly) {
+    const { data: invitations } = await admin.from("team_staff_invitations")
+      .select("id, team_id, created_at, teams(name)").eq("invited_user_id", user.id);
+    return NextResponse.json({ members: [], invitations: (invitations ?? []).map((invitation) => ({
+      id: invitation.id,
+      team_id: invitation.team_id,
+      team_name: (invitation.teams as unknown as { name: string } | null)?.name || "Team",
+      created_at: invitation.created_at
+    })) });
+  }
   const [{ data: ownedTeams }, { data: ownMemberships }, { data: invitations }] = await Promise.all([
     admin.from("teams").select("id, coach_id").eq("coach_id", user.id),
     admin.from("team_staff_members").select("team_id").eq("user_id", user.id),

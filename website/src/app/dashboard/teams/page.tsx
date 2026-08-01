@@ -15,7 +15,7 @@ import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 
 type PlayerContact = { id: string; full_name: string; email: string | null; phone_number: string | null };
 type PlayerWithContacts = Player & { contacts?: PlayerContact[] };
-type TeamWithPlayers = Team & { players: PlayerWithContacts[]; linked_staff?: Omit<LinkedStaff, "team_id">[]; can_edit_roster?: boolean; can_import_roster?: boolean; club_managed?: boolean };
+type TeamWithPlayers = Team & { players: PlayerWithContacts[]; linked_staff?: Omit<LinkedStaff, "team_id">[]; can_edit_roster?: boolean; can_import_roster?: boolean; club_managed?: boolean; details_loaded?: boolean };
 type ClipSummary = {
   id: string;
   team_id: string | null;
@@ -36,19 +36,19 @@ export default function TeamsPage() {
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [teamNameDraft, setTeamNameDraft] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<{ kind: "team" | "player" | "linked-staff"; id: string; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: "team" | "player" | "linked-staff"; id: string; name: string; teamId?: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState("");
   const [linkedStaff, setLinkedStaff] = useState<LinkedStaff[]>([]);
   const [staffInvitations, setStaffInvitations] = useState<StaffInvitation[]>([]);
+  const [loadingTeamIds, setLoadingTeamIds] = useState<string[]>([]);
   const [linkStaffTarget, setLinkStaffTarget] = useState<{ teamId: string; teamName: string } | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? ""));
     loadTeams();
-    loadClips();
-    loadLinkedStaff();
+    loadStaffInvitations();
   }, [activeClubId]);
 
   async function loadTeams() {
@@ -56,21 +56,40 @@ export default function TeamsPage() {
     if (!response.ok) return;
     const body = await response.json() as { teams: TeamWithPlayers[] };
     const loaded = body.teams ?? [];
-    setTeams([...loaded].sort((a, b) => Number(a.name.trim().toUpperCase() === "EXTRA") - Number(b.name.trim().toUpperCase() === "EXTRA") || a.name.localeCompare(b.name)));
+    const sorted = [...loaded].sort((a, b) => Number(a.name.trim().toUpperCase() === "EXTRA") - Number(b.name.trim().toUpperCase() === "EXTRA") || a.name.localeCompare(b.name));
+    setTeams((current) => sorted.map((summary) => {
+      const existing = current.find((team) => team.id === summary.id);
+      return existing?.details_loaded
+        ? { ...existing, ...summary, players: existing.players, linked_staff: existing.linked_staff, details_loaded: true }
+        : summary;
+    }));
     setCollapsed(current => Object.fromEntries(loaded.map(team => [team.id, current[team.id] ?? true])));
   }
 
-  async function loadClips() {
-    const { data } = await supabase.from("clips").select("id, team_id, audience_type, audience_player_ids, clip_segments(tags(player_ids))");
-    setClips((data as unknown as ClipSummary[] | null) ?? []);
-  }
-
-  async function loadLinkedStaff() {
-    const response = await fetch("/api/team-staff");
+  async function loadStaffInvitations() {
+    const response = await fetch("/api/team-staff?invitationsOnly=true");
     if (!response.ok) return;
     const body = await response.json() as { members: LinkedStaff[]; invitations?: StaffInvitation[] };
-    setLinkedStaff(body.members);
     setStaffInvitations(body.invitations ?? []);
+  }
+
+  async function loadTeamDetails(teamId: string, force = false) {
+    const team = teams.find((item) => item.id === teamId);
+    if ((!force && team?.details_loaded) || loadingTeamIds.includes(teamId)) return;
+    setLoadingTeamIds((current) => [...current, teamId]);
+    const response = await fetch(`/api/teams/${teamId}`);
+    if (response.ok) {
+      const body = await response.json() as { team: TeamWithPlayers; clips: ClipSummary[] };
+      setTeams((current) => current.map((item) => item.id === teamId ? { ...item, ...body.team } : item));
+      setClips((current) => [...current.filter((clip) => clip.team_id !== teamId), ...(body.clips ?? [])]);
+    }
+    setLoadingTeamIds((current) => current.filter((id) => id !== teamId));
+  }
+
+  function toggleTeam(team: TeamWithPlayers) {
+    const willOpen = collapsed[team.id] !== false;
+    setCollapsed((current) => ({ ...current, [team.id]: !willOpen }));
+    if (willOpen) void loadTeamDetails(team.id);
   }
 
   async function answerStaffInvitation(invitationId: string, action: "accept" | "decline") {
@@ -80,7 +99,7 @@ export default function TeamsPage() {
       body: JSON.stringify({ invitationId, action })
     });
     if (!response.ok) return;
-    await Promise.all([loadTeams(), loadLinkedStaff()]);
+    await Promise.all([loadTeams(), loadStaffInvitations()]);
   }
 
   function clipCountFor(team: Team, player: Player) {
@@ -123,7 +142,7 @@ export default function TeamsPage() {
       setDeleting(false);
       if (!response.ok) return;
       setDeleteTarget(null);
-      await loadLinkedStaff();
+      if (deleteTarget.teamId) await loadTeamDetails(deleteTarget.teamId, true);
       return;
     }
     await supabase.from(deleteTarget.kind === "team" ? "teams" : "players").delete().eq("id", deleteTarget.id);
@@ -137,7 +156,7 @@ export default function TeamsPage() {
     if (!user || teams.some((team) => team.name.trim().toUpperCase() === "EXTRA")) return;
     await supabase.from("teams").insert({ coach_id: user.id, name: "EXTRA" });
     await loadTeams();
-    await loadLinkedStaff();
+    await loadStaffInvitations();
   }
 
   return (
@@ -185,7 +204,7 @@ export default function TeamsPage() {
                     <div className="flex items-center gap-2.5">
                       <strong className="text-textCardTitle">{team.name}</strong>
                       <small className="text-textMuted text-sm">
-                        {t("team.summary", { players: players.length, staff: staff.length + registeredStaff.length })}
+                        {team.details_loaded ? t("team.summary", { players: players.length, staff: staff.length + registeredStaff.length }) : "Details worden geladen bij openen"}
                       </small>
                     </div>
                     {ownsTeam && <div className="flex gap-2">
@@ -202,7 +221,7 @@ export default function TeamsPage() {
                         {t("team.delete")}
                       </button>
                     </div>}
-                    <button type="button" onClick={() => setCollapsed((current) => ({ ...current, [team.id]: !current[team.id] }))} aria-label="Spelerslijst in- of uitklappen" className="ml-2 text-accent">
+                    <button type="button" onClick={() => toggleTeam(team)} aria-label="Spelerslijst in- of uitklappen" className="ml-2 text-accent">
                       <span className={`inline-block transition ${collapsed[team.id] ? "" : "rotate-90"}`}>▶</span>
                     </button>
                   </>
@@ -210,6 +229,8 @@ export default function TeamsPage() {
               </div>
 
               {!collapsed[team.id] && <>
+              {loadingTeamIds.includes(team.id) && <p className="p-4 text-center text-sm text-textMuted">Teamdetails laden…</p>}
+              {!loadingTeamIds.includes(team.id) && team.details_loaded && <>
               <div>
                 {!!players.length && <div className="overflow-x-auto">
                   <table className="w-full min-w-[1020px] table-fixed border-collapse text-left text-sm">
@@ -258,7 +279,7 @@ export default function TeamsPage() {
                   {staff.map((player) => (
                     <PlayerCard key={player.id} player={player} clipCount={clipCountFor(team, player)} onDelete={canEditRoster ? () => setDeleteTarget({ kind: "player", id: player.id, name: `${player.first_name} ${player.last_name}`.trim() }) : undefined} />
                   ))}
-                  {registeredStaff.map((member) => <div key={member.id} className="relative flex min-h-24 flex-col items-center justify-center rounded-lg border border-accent/40 bg-accentDim p-3 text-center"><div className="grid h-10 w-10 place-items-center rounded-full bg-avatar font-bold text-accent">{member.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div><span className="mt-2 text-sm text-textCard">{member.full_name}</span><span className="text-[10px] uppercase tracking-wide text-accent">{t("team.registeredStaff")}</span>{member.removable && <button type="button" onClick={() => setDeleteTarget({ kind: "linked-staff", id: member.id, name: member.full_name })} className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-xs text-textMuted hover:bg-red-500/15 hover:text-red-400" aria-label={t("team.removeMessage", { name: member.full_name })}>{t("common.remove")}</button>}</div>)}
+                  {registeredStaff.map((member) => <div key={member.id} className="relative flex min-h-24 flex-col items-center justify-center rounded-lg border border-accent/40 bg-accentDim p-3 text-center"><div className="grid h-10 w-10 place-items-center rounded-full bg-avatar font-bold text-accent">{member.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div><span className="mt-2 text-sm text-textCard">{member.full_name}</span><span className="text-[10px] uppercase tracking-wide text-accent">{t("team.registeredStaff")}</span>{member.removable && <button type="button" onClick={() => setDeleteTarget({ kind: "linked-staff", id: member.id, name: member.full_name, teamId: team.id })} className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-xs text-textMuted hover:bg-red-500/15 hover:text-red-400" aria-label={t("team.removeMessage", { name: member.full_name })}>{t("common.remove")}</button>}</div>)}
                   {ownsTeam && <AddPlayerTile
                     label={t("team.addStaff")}
                     onClick={() => setAddPlayerTarget({ teamId: team.id, teamName: team.name, role: "staff" })}
@@ -266,6 +287,7 @@ export default function TeamsPage() {
                   {ownsTeam && <button type="button" onClick={() => setLinkStaffTarget({ teamId: team.id, teamName: team.name })} className="min-h-24 rounded-lg border border-dashed border-accent/60 bg-accentDim p-3 text-sm font-semibold text-accent hover:border-accent">{t("team.linkRegistered")}</button>}
                 </div>
               </div>
+              </>}
               </>}
             </article>
           );
@@ -287,12 +309,12 @@ export default function TeamsPage() {
       {showCreateModal && (
         <CreateTeamModal
           onClose={() => setShowCreateModal(false)}
-          onCreated={() => { void Promise.all([loadTeams(), loadLinkedStaff()]); }}
+          onCreated={() => { void Promise.all([loadTeams(), loadStaffInvitations()]); }}
         />
       )}
 
-      {linkStaffTarget && <LinkStaffModal teamId={linkStaffTarget.teamId} teamName={linkStaffTarget.teamName} onClose={() => setLinkStaffTarget(null)} onLinked={() => void loadLinkedStaff()} />}
-      {addPlayerTarget && <AddPlayerModal teamId={addPlayerTarget.teamId} teamName={addPlayerTarget.teamName} role="staff" onClose={() => setAddPlayerTarget(null)} onAdded={loadTeams} />}
+      {linkStaffTarget && <LinkStaffModal teamId={linkStaffTarget.teamId} teamName={linkStaffTarget.teamName} onClose={() => setLinkStaffTarget(null)} onLinked={() => void loadTeamDetails(linkStaffTarget.teamId, true)} />}
+      {addPlayerTarget && <AddPlayerModal teamId={addPlayerTarget.teamId} teamName={addPlayerTarget.teamName} role="staff" onClose={() => setAddPlayerTarget(null)} onAdded={() => loadTeamDetails(addPlayerTarget.teamId, true)} />}
       <ConfirmDialog open={!!deleteTarget} title={deleteTarget?.kind === "team" ? t("team.deleteTeam") : deleteTarget?.kind === "linked-staff" ? t("team.removeLinked") : t("team.deletePlayer")} message={deleteTarget?.kind === "team" ? t("team.deleteTeamMessage", { name: deleteTarget.name }) : t("team.removeMessage", { name: deleteTarget?.name ?? "" })} confirmLabel={deleteTarget?.kind === "linked-staff" ? t("common.remove") : t("team.delete")} busy={deleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDelete()} />
     </div>
   );

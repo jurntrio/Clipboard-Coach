@@ -15,19 +15,32 @@ export default function InboxPage() {
   const requestedThreadId = searchParams.get("thread");
   const [threads, setThreads] = useState<MailboxThread[]>([]);
   const [sendTargets, setSendTargets] = useState<MailboxSendTargets>({ teamGroups: [] });
+  const [sendTargetsLoading, setSendTargetsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { void load(); }, [requestedThreadId]);
+  useEffect(() => {
+    void load();
+    void loadSendTargets();
+  }, [requestedThreadId]);
+
+  async function loadSendTargets() {
+    setSendTargetsLoading(true);
+    const response = await fetch("/api/mailbox/send-targets");
+    if (response.ok) {
+      const data = await response.json() as { sendTargets: MailboxSendTargets };
+      setSendTargets(data.sendTargets);
+    }
+    setSendTargetsLoading(false);
+  }
 
   async function load() {
     const response = await fetch("/api/mailbox");
     if (!response.ok) { setLoading(false); return; }
-    const data = await response.json() as { currentUserId: string; sendTargets: MailboxSendTargets; threads: MailboxThread[] };
+    const data = await response.json() as { currentUserId: string; threads: MailboxThread[] };
     setCurrentUserId(data.currentUserId);
-    setSendTargets(data.sendTargets);
     setThreads(data.threads);
     setLoading(false);
     setSelectedThreadId((current) => {
@@ -53,7 +66,7 @@ export default function InboxPage() {
       <SectionHeader title={t("mailbox.title")} artworkSrc="/branding/inbox.svg" showHome={false} />
 
       <div className="mb-4 flex justify-end">
-        <button type="button" onClick={() => setComposeOpen(true)} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page hover:opacity-90">{t("mailbox.newMessage")}</button>
+        <button type="button" onClick={() => setComposeOpen(true)} disabled={sendTargetsLoading} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page hover:opacity-90 disabled:cursor-wait disabled:opacity-50">{t("mailbox.newMessage")}</button>
       </div>
 
       {loading ? (

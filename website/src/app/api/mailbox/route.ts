@@ -19,7 +19,6 @@ export async function GET() {
   if (!user || !activeClubId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
-  const sendTargets = await getMailboxSendTargets(activeClubId, user);
 
   const { data: recipientRows, error: recipientsError } = await admin
     .from("mailbox_recipients")
@@ -32,7 +31,7 @@ export async function GET() {
     .filter((row) => (row.mailbox_messages as unknown as { club_id: string } | null)?.club_id === activeClubId)
     .map((row) => (row.mailbox_messages as unknown as { thread_id: string }).thread_id)));
 
-  if (!threadIds.length) return NextResponse.json({ currentUserId: user.id, sendTargets, threads: [] });
+  if (!threadIds.length) return NextResponse.json({ currentUserId: user.id, threads: [] });
 
   const readAtByMessageId = new Map((recipientRows ?? []).map((row) => [row.message_id, row.read_at as string | null]));
 
@@ -89,7 +88,7 @@ export async function GET() {
     }))
     .sort((a, b) => (a.lastMessageAt < b.lastMessageAt ? 1 : -1));
 
-  return NextResponse.json({ currentUserId: user.id, sendTargets, threads });
+  return NextResponse.json({ currentUserId: user.id, threads });
 }
 
 function labelForTarget(target: MailboxTarget, sendTargets: MailboxSendTargets): string {
