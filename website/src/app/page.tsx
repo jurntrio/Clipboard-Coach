@@ -1,29 +1,20 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { InlineSignIn } from "@/components/auth/InlineSignIn";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
-import { getServerI18n } from "@/i18n/server";
+import { useI18n } from "@/i18n/client";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 
-export default async function HomePage() {
-  const { t } = getServerI18n();
+export default function HomePage() {
+  const { t } = useI18n();
   const features = [
     { icon: "/branding/video-viewer.png", title: t("common.videoViewer"), body: t("home.videoBody") },
     { icon: "/branding/teams.png", title: t("common.teams"), body: t("home.teamsBody") },
     { icon: "/branding/clips.png", title: t("common.clips"), body: t("home.clipsBody") },
     { icon: "/branding/settings.png", title: t("common.settings"), body: t("home.settingsBody") }
   ];
-  const supabase = createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (user) {
-    redirect("/dashboard");
-  }
-
   return (
     <div className="min-h-screen bg-page">
       <header className="sticky top-0 z-20 bg-page border-b border-border">

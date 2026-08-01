@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { defaultLocale, isLocale, localeCookieName, type Locale } from "./config";
 import { messages, type MessageKey } from "./messages";
 
@@ -14,6 +14,17 @@ const I18nContext = createContext<I18nValue | null>(null);
 
 export function I18nProvider({ initialLocale, children }: { initialLocale: Locale; children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
+
+  useEffect(() => {
+    const cookieLocale = document.cookie
+      .split("; ")
+      .find((cookie) => cookie.startsWith(`${localeCookieName}=`))
+      ?.split("=")[1];
+    if (isLocale(cookieLocale) && cookieLocale !== initialLocale) {
+      document.documentElement.lang = cookieLocale;
+      setLocaleState(cookieLocale);
+    }
+  }, [initialLocale]);
 
   const value = useMemo<I18nValue>(() => ({
     locale,

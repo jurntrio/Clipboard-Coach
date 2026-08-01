@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Anton, Space_Mono, Manrope } from "next/font/google";
 import "./globals.css";
 import { I18nProvider } from "@/i18n/client";
-import { getServerI18n } from "@/i18n/server";
+import { defaultLocale } from "@/i18n/config";
 
 const anton = Anton({ subsets: ["latin"], weight: "400", variable: "--font-anton" });
 const spaceMono = Space_Mono({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-space-mono" });
@@ -14,9 +14,8 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const { locale } = getServerI18n();
   return (
-    <html lang={locale} className={`${anton.variable} ${spaceMono.variable} ${manrope.variable}`}>
+    <html lang={defaultLocale} className={`${anton.variable} ${spaceMono.variable} ${manrope.variable}`}>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -24,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="font-sans"><I18nProvider initialLocale={locale}>{children}</I18nProvider></body>
+      <body className="font-sans"><I18nProvider initialLocale={defaultLocale}>{children}</I18nProvider></body>
     </html>
   );
 }
