@@ -63,7 +63,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   ]);
   const videoIds = (matchVideos ?? []).map(item => item.video_id);
   const [{ data: selectedPlayers }, { data: guestPlayers }, { data: dossier }, { data: clips }, { data: completedByProfile }] = staffCanView ? await Promise.all([
-    canViewSelection && match.player_ids?.length
+    (canViewSelection || canViewReport) && match.player_ids?.length
       ? admin.from("players").select("id, first_name, last_name, jersey_number").in("id", match.player_ids).order("jersey_number")
       : Promise.resolve({ data: [] }),
     admin.from("match_guest_players").select("id, first_name, last_name, jersey_number").eq("match_id", match.id).order("created_at"),
@@ -76,6 +76,10 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       : Promise.resolve({ data: null })
   ]) : [{ data: [] }, { data: [] }, { data: null }, { data: [] }, { data: null }];
   const videoCount = videoIds.length;
+  const selectionPlayers = access.goalkeeperPlayerIds === null
+    ? [...(selectedPlayers ?? []), ...(guestPlayers ?? [])]
+    : (selectedPlayers ?? []).filter((player) => access.goalkeeperPlayerIds?.has(player.id));
+  const reportPlayers = [...(selectedPlayers ?? []), ...(guestPlayers ?? [])];
   const dossierClips = (clips ?? []).map((clip: any) => ({
     id: clip.id,
     name: clip.name,
@@ -152,7 +156,8 @@ export default async function GameOverviewPage({ params, searchParams }: { param
 
     {staffCanView && <MatchDossierTabs
       matchId={match.id}
-      players={canViewSelection ? [...(selectedPlayers ?? []), ...(guestPlayers ?? [])] : []}
+      players={canViewSelection ? selectionPlayers : []}
+      reportPlayers={canViewReport ? reportPlayers : []}
       clips={dossierClips}
       initialDossier={dossier ? {
         ...dossier,

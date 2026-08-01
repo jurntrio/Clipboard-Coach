@@ -18,7 +18,7 @@ export function PlayerCard({ player, clipCount, onDelete }: { player: Player; cl
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-avatar text-sm font-bold text-accent">{player.initials}</div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium text-textCard">{getPlayerDisplayName(player)}</div>
-          {player.position && <div className="truncate text-xs text-textMuted">{player.position}</div>}
+          <div className="flex items-center gap-2">{player.position && <span className="truncate text-xs text-textMuted">{player.position}</span>}{player.is_goalkeeper && <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-300">Doelman</span>}</div>
         </div>
         <span className="flex flex-shrink-0 items-center gap-1.5 rounded-full bg-accentDim px-2.5 py-1 text-xs font-semibold text-accent" title={t("team.taggedClips", { count: clipCount })}>
           <span className="grid h-4 w-4 place-items-center rounded-full border border-accent" aria-hidden="true">

@@ -82,11 +82,18 @@ export async function GET() {
       });
       staffByClubTeam.set(assignment.club_team_id, current);
     }
-    const enrichedTeams = await addPlayerContacts(admin, (teams ?? []) as TeamRow[]);
+    const restrictedTeams = (teams ?? []).map((team) => ({
+      ...team,
+      players: authorization.goalkeeperPlayerIds === null
+        ? team.players
+        : (team.players ?? []).filter((player: { id: string }) => authorization.goalkeeperPlayerIds?.has(player.id))
+    }));
+    const enrichedTeams = await addPlayerContacts(admin, restrictedTeams as TeamRow[]);
     return NextResponse.json({ teams: enrichedTeams.map((team) => {
       const settings = team.club_teams as unknown as { trainers_can_edit_roster: boolean };
+      const privilegedRosterRole = ["youth_coordinator", "head_youth_development"].includes(authorization.functionRole ?? "");
       const canEdit = teamsManageEnabled && hasClubPermission(authorization, "teams.manage")
-        && (authorization.role === "platform_admin" || authorization.role === "club_admin" || settings.trainers_can_edit_roster);
+        && (authorization.role === "platform_admin" || authorization.role === "club_admin" || privilegedRosterRole || settings.trainers_can_edit_roster);
       return {
         ...team,
         linked_staff: staffByClubTeam.get(team.club_team_id as string) ?? [],

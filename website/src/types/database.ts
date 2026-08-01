@@ -246,6 +246,7 @@ export type Player = {
   phone_numbers: string[];
   jersey_number: number | null;
   role: "player" | "staff";
+  is_goalkeeper: boolean;
   membership_id: string | null;
   created_at: string;
 };

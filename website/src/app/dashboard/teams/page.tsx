@@ -237,7 +237,7 @@ export default function TeamsPage() {
                       {players.map((player) => {
                         const [contact1, contact2] = contactsForPlayer(player);
                         return <tr key={player.id} className="bg-card hover:bg-cardHover">
-                          <td className="px-3 py-2 font-semibold"><a href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.last_name || "—"}</a></td>
+                          <td className="px-3 py-2 font-semibold"><a href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.last_name || "—"}</a>{player.is_goalkeeper && <span className="ml-2 rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-300">Doelman</span>}</td>
                           <td className="px-3 py-2"><a href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.first_name || "—"}</a></td>
                           <td className="whitespace-nowrap px-3 py-2 text-center text-textSecondary">{player.date_of_birth ? new Date(`${player.date_of_birth}T12:00:00`).toLocaleDateString("nl-BE") : "—"}</td>
                           <td title={contact1?.full_name} className="px-3 py-2 text-center text-textSecondary">{contactValue(contact1?.phone_number, contact1)}</td>

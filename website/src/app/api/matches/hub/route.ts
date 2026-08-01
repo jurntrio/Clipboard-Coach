@@ -57,7 +57,7 @@ export async function GET() {
   return NextResponse.json({
     matches: visibleMatches,
     teams: teams ?? [],
-    players: players ?? [],
+    players: authorizationPlayers(players ?? [], access.goalkeeperPlayerIds),
     clips: clips ?? [],
     role: membership.role,
     isPlatformAdmin: context.isPlatformAdmin,
@@ -68,6 +68,10 @@ export async function GET() {
     canCreateTagLink: hasClubPermission(access, "games.tag_link.create"),
     matchOptions: matchOptions ?? []
   });
+}
+
+function authorizationPlayers<T extends { id: string }>(players: T[], allowedIds: Set<string> | null) {
+  return allowedIds === null ? players : players.filter((player) => allowedIds.has(player.id));
 }
 
 async function visibleTrainerMatches(admin: ReturnType<typeof createAdminClient>, userId: string, clubId: string, matches: any[]) {

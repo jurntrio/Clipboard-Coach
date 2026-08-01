@@ -24,6 +24,8 @@ export function EditPlayerModal({
   const [email, setEmail] = useState(player.email ?? "");
   const [phoneNumbers, setPhoneNumbers] = useState(player.phone_numbers?.join(", ") ?? "");
   const [teamId, setTeamId] = useState(player.team_id);
+  const [isGoalkeeper, setIsGoalkeeper] = useState(player.is_goalkeeper === true);
+  const [canManageGoalkeeper, setCanManageGoalkeeper] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -31,6 +33,10 @@ export function EditPlayerModal({
 
   useEffect(() => {
     void supabase.from("teams").select("*").order("name").then(({ data }) => setTeams([...(data ?? [])].sort((a, b) => Number(a.name.trim().toUpperCase() === "EXTRA") - Number(b.name.trim().toUpperCase() === "EXTRA") || a.name.localeCompare(b.name))));
+    void fetch(`/api/players/${player.id}`).then(async (response) => {
+      const body = await response.json().catch(() => null);
+      if (response.ok) setCanManageGoalkeeper(body?.canManageGoalkeeper === true);
+    });
   }, []);
 
   async function handleSave(event: React.FormEvent) {
@@ -40,24 +46,16 @@ export function EditPlayerModal({
     setSaving(true);
     setError("");
     const parsedJerseyNumber = jerseyNumber.trim() ? Number(jerseyNumber) : null;
-    const { error: updateError } = await supabase
-      .from("players")
-      .update({
-        team_id: teamId,
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        role,
-        jersey_number: parsedJerseyNumber,
-        position: position.trim() || null,
-        date_of_birth: dateOfBirth || null,
-        email: email.trim() || null,
-        phone_numbers: phoneNumbers.split(",").map((phone) => phone.trim()).filter(Boolean)
-      })
-      .eq("id", player.id);
+    const response = await fetch(`/api/players/${player.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      teamId, firstName, lastName, role, jerseyNumber: parsedJerseyNumber, position, dateOfBirth, email,
+      phoneNumbers: phoneNumbers.split(",").map((phone) => phone.trim()).filter(Boolean),
+      ...(canManageGoalkeeper ? { isGoalkeeper } : {})
+    }) });
+    const result = await response.json().catch(() => null);
 
     setSaving(false);
-    if (updateError) {
-      setError(updateError.message);
+    if (!response.ok) {
+      setError(result?.error || "De speler kon niet worden bewaard.");
       return;
     }
 
@@ -88,6 +86,7 @@ export function EditPlayerModal({
           </Field>
           <Field label={t("team.jerseyNumber")}><input type="number" min="0" max="999" value={jerseyNumber} onChange={(event) => setJerseyNumber(event.target.value)} className={inputClass} /></Field>
           <Field label={t("team.position")}><input value={position} onChange={(event) => setPosition(event.target.value)} className={inputClass} /></Field>
+          {canManageGoalkeeper && <label className="flex items-center gap-2 text-sm font-medium text-textSecondary"><input type="checkbox" checked={isGoalkeeper} onChange={(event) => setIsGoalkeeper(event.target.checked)} className="accent-accent" />Doelman</label>}
           <Field label={t("team.dateOfBirth")}><input type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} className={inputClass} /></Field>
           <Field label={t("auth.email")}><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} /></Field>
           <Field label={t("team.phoneNumbers")}><input value={phoneNumbers} onChange={(event) => setPhoneNumbers(event.target.value)} placeholder={t("team.phonePlaceholder")} className={inputClass} /></Field>

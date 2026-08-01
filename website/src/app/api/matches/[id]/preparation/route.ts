@@ -34,9 +34,12 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       ? ctx.admin.from("teams").select("id, players(*)").eq("id", ctx.match.team_a_id).maybeSingle()
       : Promise.resolve({ data: null })
   ]);
+  const allowedPlayerIds = ctx.access.goalkeeperPlayerIds;
   return NextResponse.json({
-    match: ctx.match, options: options ?? [], selections: selections ?? [],
-    players: team?.players ?? [], extraPlayers: [], guestPlayers: [], capabilities: { canPlan, canSelect, canTags, canCreateTagLink }
+    match: allowedPlayerIds === null ? ctx.match : { ...ctx.match, player_ids: (ctx.match.player_ids ?? []).filter((id: string) => allowedPlayerIds.has(id)) },
+    options: options ?? [], selections: allowedPlayerIds === null ? selections ?? [] : (selections ?? []).filter((selection) => allowedPlayerIds.has(selection.player_id)),
+    players: allowedPlayerIds === null ? team?.players ?? [] : (team?.players ?? []).filter((player) => allowedPlayerIds.has(player.id)),
+    extraPlayers: [], guestPlayers: [], capabilities: { canPlan, canSelect, canTags, canCreateTagLink }
   });
 }
 
@@ -66,6 +69,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const validIds = new Set((rosterPlayers ?? []).filter(player => player.team_id === ctx.match.team_a_id).map(player => player.id));
     if (validIds.size !== new Set(selectedRows.map((row: any) => row.player_id)).size) {
       return NextResponse.json({ error: "Ongeldige spelerselectie." }, { status: 400 });
+    }
+    if (ctx.access.goalkeeperPlayerIds !== null && selectedRows.some((row: any) => !ctx.access.goalkeeperPlayerIds?.has(row.player_id))) {
+      return NextResponse.json({ error: "Je kunt alleen toegewezen doelmannen in de selectie wijzigen." }, { status: 403 });
     }
   }
 
@@ -98,7 +104,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       meeting_place_custom: body?.meetingPlaceEnabled === true && typeof body?.meetingPlaceCustom === "string" ? body.meetingPlaceCustom.trim().slice(0, 150) || null : null,
       ...(canTags ? { live_tag_names: tags } : {})
     } : {}),
-    ...(canSelect ? { player_ids: selectedRows.filter((row: any) => row.selected).map((row: any) => row.player_id) } : {})
+    ...(canSelect ? { player_ids: ctx.access.goalkeeperPlayerIds === null
+      ? selectedRows.filter((row: any) => row.selected).map((row: any) => row.player_id)
+      : [
+          ...((ctx.match.player_ids ?? []) as string[]).filter((playerId) => !ctx.access.goalkeeperPlayerIds?.has(playerId)),
+          ...selectedRows.filter((row: any) => row.selected).map((row: any) => row.player_id)
+        ]
+    } : {})
   };
   const { error } = await ctx.admin.from("matches").update(update).eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

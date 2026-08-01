@@ -31,8 +31,8 @@ const emptyDossier: MatchDossier = {
   highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: []
 };
 
-export function MatchDossierTabs({ matchId, players, clips, initialDossier, editable, canComplete = false, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, showSelection = true, showReport = false, showScouting = false }: {
-  matchId: string; players: Player[]; clips: Clip[]; initialDossier?: Partial<MatchDossier> | null; editable: boolean;
+export function MatchDossierTabs({ matchId, players, reportPlayers = players, clips, initialDossier, editable, canComplete = false, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, showSelection = true, showReport = false, showScouting = false }: {
+  matchId: string; players: Player[]; reportPlayers?: Player[]; clips: Clip[]; initialDossier?: Partial<MatchDossier> | null; editable: boolean;
   canComplete?: boolean; scoutingEditable?: boolean; played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean; showSelection?: boolean; showReport?: boolean; showScouting?: boolean;
 }) {
   const router = useRouter();
@@ -132,7 +132,7 @@ export function MatchDossierTabs({ matchId, players, clips, initialDossier, edit
         {field("improvements", "Werkpunten", "Wat moet beter?")}
         {field("highlights", "Hoogtepunten", "Belangrijke momenten…")}
         <div className="md:col-span-2">
-          <GoalEditor goals={draft.goal_events} players={players} ownTeamSide={ownTeamSide} homeTeamName={homeTeamName}
+          <GoalEditor goals={draft.goal_events} players={reportPlayers} ownTeamSide={ownTeamSide} homeTeamName={homeTeamName}
             awayTeamName={awayTeamName} editable={editable} onChange={goal_events => setDraft(current => ({ ...current, goal_events }))} />
         </div>
         {field("cards", "Kaarten", "Gele en rode kaarten…")}

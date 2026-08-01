@@ -37,11 +37,27 @@ export async function PUT(request: Request) {
   }
   const teamIds = Array.isArray(body.teamIds) ? body.teamIds.filter((id: unknown): id is string => typeof id === "string") : [];
   const assignedTeamIds = Array.isArray(body.assignedTeamIds) ? body.assignedTeamIds.filter((id: unknown): id is string => typeof id === "string") : [];
+  const assignedPlayerIds = body.functionRole === "goalkeeper_coach" && Array.isArray(body.assignedPlayerIds)
+    ? [...new Set(body.assignedPlayerIds.filter((id: unknown): id is string => typeof id === "string"))]
+    : [];
   const allTeamIds = [...new Set([...teamIds, ...assignedTeamIds])];
   if (allTeamIds.length) {
     const { count } = await admin.from("club_teams").select("id", { count: "exact", head: true })
       .eq("club_id", body.clubId).in("id", allTeamIds);
     if (count !== allTeamIds.length) return NextResponse.json({ error: "Een geselecteerd team hoort niet bij deze club." }, { status: 400 });
+  }
+  if (assignedPlayerIds.length) {
+    const { data: players } = await admin.from("players").select("id, team_id, role, is_goalkeeper").in("id", assignedPlayerIds);
+    const playerTeamIds = [...new Set((players ?? []).map((player) => player.team_id))];
+    const { data: operationalTeams } = playerTeamIds.length
+      ? await admin.from("teams").select("id, club_team_id").in("id", playerTeamIds)
+      : { data: [] };
+    const clubTeamByOperationalTeam = new Map((operationalTeams ?? []).map((team) => [team.id, team.club_team_id]));
+    const validPlayers = (players ?? []).filter((player) => player.role === "player" && player.is_goalkeeper === true
+      && assignedTeamIds.includes(clubTeamByOperationalTeam.get(player.team_id) ?? ""));
+    if (validPlayers.length !== assignedPlayerIds.length) {
+      return NextResponse.json({ error: "Een toegewezen doelman hoort niet bij de gekozen ploeg of is niet als doelman gemarkeerd." }, { status: 400 });
+    }
   }
   const permissions = Array.isArray(body.permissions)
     ? body.permissions.filter((key: unknown): key is string => typeof key === "string" && permissionKeys.has(key as never))
@@ -79,6 +95,14 @@ export async function PUT(request: Request) {
         trainer_id: trainer.id, club_team_id: clubTeamId, role: "coach", status: "active"
       })));
       if (assignmentError) return NextResponse.json({ error: assignmentError.message }, { status: 400 });
+    }
+    const { error: clearPlayersError } = await admin.from("club_trainer_players").delete().eq("trainer_id", trainer.id);
+    if (clearPlayersError) return NextResponse.json({ error: clearPlayersError.message }, { status: 400 });
+    if (assignedPlayerIds.length) {
+      const { error: playerAssignmentError } = await admin.from("club_trainer_players").insert(assignedPlayerIds.map((playerId) => ({
+        trainer_id: trainer.id, player_id: playerId
+      })));
+      if (playerAssignmentError) return NextResponse.json({ error: playerAssignmentError.message }, { status: 400 });
     }
   }
   await admin.from("club_member_permissions").delete().eq("club_id", body.clubId).eq("profile_id", body.profileId);
