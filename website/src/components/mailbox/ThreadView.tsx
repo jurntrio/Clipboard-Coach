@@ -42,19 +42,20 @@ export function ThreadView({ thread, currentUserId, onReplySent }: {
       <div className="border-b border-border px-5 py-4">
         <h2 className="text-lg font-bold text-textBright">{thread.subject}</h2>
       </div>
-      <div className="flex-1 space-y-4 overflow-y-auto p-5">
+      <div className="flex-1 divide-y divide-border overflow-y-auto">
         {thread.messages.map((message) => (
-          <div key={message.id} className={`max-w-lg rounded-xl border border-border p-3 ${message.senderId === currentUserId ? "ml-auto bg-accentDim" : "bg-cardDeep"}`}>
-            <div className="flex items-center justify-between gap-3 text-xs text-textMuted">
-              <span className="font-semibold text-textSecondary">{message.senderName}</span>
+          <article key={message.id} className={`p-5 ${message.senderId === currentUserId ? "bg-accentDim/40" : "bg-cardDeep"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-textMuted">
+              <span><span className="mr-1">{t("mailbox.from")}:</span><strong className="text-textPrimary">{message.senderName}</strong>{message.senderId === currentUserId && <span className="ml-2 text-accent">· jij</span>}</span>
               <span>{formatDate(message.createdAt)}</span>
             </div>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-textPrimary">{message.body}</p>
-          </div>
+            <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-textPrimary">{message.body}</p>
+          </article>
         ))}
       </div>
       <div className="border-t border-border p-4">
         {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
+        <label className="mb-2 block text-sm font-semibold text-textSecondary">{t("mailbox.reply")}</label>
         <div className="flex gap-2">
           <textarea
             value={reply}

@@ -43,10 +43,10 @@ export async function sendMailboxNotificationEmails(notifications: MailboxNotifi
 
 function notificationHtml(params: MailboxNotification) {
   const inboxUrl = `${getAppOrigin()}/dashboard/inbox?thread=${encodeURIComponent(params.threadId)}`;
-  return `<p><strong>${escapeHtml(params.senderName)}</strong> stuurde een nieuw bericht in CBC Studio:</p>
+  return `<p><strong>${escapeHtml(params.senderName)}</strong> stuurde je een nieuwe e-mail via de CBC Studio-mailbox:</p>
     <p style="white-space: pre-wrap;">${escapeHtml(params.body)}</p>
-    <p><a href="${inboxUrl}">Bekijk en beantwoord in CBC Studio</a></p>
-    <p style="color: #888; font-size: 13px;">Beantwoorden? Log in op CBC Studio, deze mail zelf beantwoorden werkt niet.</p>`;
+    <p><a href="${inboxUrl}">Open deze e-mailthread in CBC Studio</a></p>
+    <p style="color: #888; font-size: 13px;">Antwoorden worden centraal in de CBC Studio-mailbox bewaard. Antwoord daarom niet rechtstreeks op deze notificatiemail.</p>`;
 }
 
 function escapeHtml(value: string) {
