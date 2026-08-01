@@ -31,6 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ]);
   const moduleOn = (key: ClubModuleKey) => !clubId || clubContext.isPlatformAdmin || !modules.configured || modules.enabled.has(key);
   const navigation = [];
+  if (clubId) navigation.push({ href: "/dashboard/inbox", label: "Mailbox", icon: "/branding/inbox.svg", primary: true });
   if (access && hasClubPermission(access, "teams.view") && moduleOn("teams")) navigation.push({ href: "/dashboard/teams", label: "Teams", icon: "/branding/teams.png", primary: true });
   if (access && hasClubPermission(access, "games.view") && moduleOn("matches")) navigation.push({ href: "/dashboard/clips", label: "Wedstrijden", icon: "/branding/games.png", primary: true });
   if (access && hasClubPermission(access, "training.view") && moduleOn("training")) navigation.push({ href: "/dashboard/training", label: "Training", icon: "/branding/training.png", primary: true });
