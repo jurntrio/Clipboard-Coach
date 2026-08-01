@@ -86,7 +86,7 @@ export function EditPlayerModal({
           </Field>
           <Field label={t("team.jerseyNumber")}><input type="number" min="0" max="999" value={jerseyNumber} onChange={(event) => setJerseyNumber(event.target.value)} className={inputClass} /></Field>
           <Field label={t("team.position")}><input value={position} onChange={(event) => setPosition(event.target.value)} className={inputClass} /></Field>
-          {canManageGoalkeeper && <label className="flex items-center gap-2 text-sm font-medium text-textSecondary"><input type="checkbox" checked={isGoalkeeper} onChange={(event) => setIsGoalkeeper(event.target.checked)} className="accent-accent" />Doelman</label>}
+          {canManageGoalkeeper && <Field label="Spelertype"><select value={isGoalkeeper ? "goalkeeper" : "field_player"} onChange={(event) => setIsGoalkeeper(event.target.value === "goalkeeper")} className={inputClass}><option value="field_player">Veldspeler</option><option value="goalkeeper">Doelman</option></select></Field>}
           <Field label={t("team.dateOfBirth")}><input type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} className={inputClass} /></Field>
           <Field label={t("auth.email")}><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} /></Field>
           <Field label={t("team.phoneNumbers")}><input value={phoneNumbers} onChange={(event) => setPhoneNumbers(event.target.value)} placeholder={t("team.phonePlaceholder")} className={inputClass} /></Field>
