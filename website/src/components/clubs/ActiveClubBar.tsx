@@ -9,13 +9,13 @@ import { useActiveClub } from "./ActiveClubProvider";
 
 export type DashboardNavItem = { href: string; label: string; icon: string; primary: boolean };
 
-export function ActiveClubBar({ navigation = [], unreadMailboxCount = 0 }: { navigation?: DashboardNavItem[]; unreadMailboxCount?: number }) {
+export function ActiveClubBar({ navigation = [], unreadMailboxCount = 0, pendingApprovalCount = 0 }: { navigation?: DashboardNavItem[]; unreadMailboxCount?: number; pendingApprovalCount?: number }) {
   const { clubs, activeClub, activeClubId, isPlatformAdmin, changing, selectClub } = useActiveClub();
   const router = useRouter();
   const pathname = usePathname();
   const primaryNavigation = navigation.filter((item) => item.primary);
   const moreNavigation = navigation.filter((item) => !item.primary);
-  const actionCount = unreadMailboxCount;
+  const actionCount = unreadMailboxCount + pendingApprovalCount;
   const showClubSelector = isPlatformAdmin || clubs.length > 1;
   async function signOut() {
     await createClient().auth.signOut();
@@ -85,6 +85,11 @@ export function ActiveClubBar({ navigation = [], unreadMailboxCount = 0 }: { nav
                 <span className="min-w-0 flex-1"><strong className="block text-sm text-textPrimary">Mailbox</strong><span className="text-xs text-textMuted">Ongelezen e-mails</span></span>
                 <span className="rounded-full bg-accentDim px-2 py-1 text-xs font-bold text-accent">{unreadMailboxCount}</span>
               </Link>
+              {pendingApprovalCount > 0 && <Link href="/dashboard/club/approvals" className="flex items-center gap-3 border-t border-borderSubtle px-4 py-3 hover:bg-cardHover">
+                <Image src="/branding/clubadmin.png" alt="" width={28} height={28} />
+                <span className="min-w-0 flex-1"><strong className="block text-sm text-textPrimary">Goedkeuringen</strong><span className="text-xs text-textMuted">Club-, team- en persoonsaanvragen</span></span>
+                <span className="rounded-full bg-amber-500/15 px-2 py-1 text-xs font-bold text-amber-300">{pendingApprovalCount}</span>
+              </Link>}
               {!actionCount && <p className="border-t border-borderSubtle px-4 py-3 text-xs text-textMuted">Geen openstaande acties.</p>}
             </div>
           </details>

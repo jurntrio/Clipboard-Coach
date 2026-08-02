@@ -48,10 +48,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
     navigation.push({ href: "/dashboard/admin", label: "Algemene Admin", icon: "/branding/admin.png", primary: false });
   }
 
+  const canApproveClubRequests = !!clubId && !!access && ["club_admin", "platform_admin"].includes(access.role);
+  const approvalCounts = canApproveClubRequests ? await Promise.all([
+    admin.from("club_memberships").select("profile_id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending"),
+    admin.from("club_teams").select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending"),
+    admin.from("person_claim_reviews").select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending")
+  ]) : [];
+  const pendingApprovalCount = approvalCounts.reduce((total, result) => total + (result.count ?? 0), 0);
+
   return (
     <ActiveClubProvider clubs={clubContext.clubs} initialClubId={clubContext.activeClubId} isPlatformAdmin={clubContext.isPlatformAdmin}>
       <div className="flex min-h-screen flex-col bg-page">
-        <ActiveClubBar navigation={navigation} unreadMailboxCount={unreadMailboxCount ?? 0} />
+        <ActiveClubBar navigation={navigation} unreadMailboxCount={unreadMailboxCount ?? 0} pendingApprovalCount={pendingApprovalCount} />
         <main className="flex-1">{children}</main>
         <footer className="mt-auto border-t border-border px-5 py-6"><LegalLinks /></footer>
       </div>
