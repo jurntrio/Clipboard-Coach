@@ -17,6 +17,7 @@ export default function InboxPage() {
   const [sendTargets, setSendTargets] = useState<MailboxSendTargets>({ teamGroups: [] });
   const [sendTargetsLoading, setSendTargetsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(false);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -39,9 +40,10 @@ export default function InboxPage() {
   async function load() {
     const response = await fetch("/api/mailbox");
     if (!response.ok) { setLoading(false); return; }
-    const data = await response.json() as { currentUserId: string; threads: MailboxThread[] };
+    const data = await response.json() as { currentUserId: string; threads: MailboxThread[]; emailNotificationsEnabled: boolean };
     setCurrentUserId(data.currentUserId);
     setThreads(data.threads);
+    setEmailNotificationsEnabled(data.emailNotificationsEnabled);
     setLoading(false);
     setSelectedThreadId((current) => {
       if (current && data.threads.some((thread) => thread.threadId === current)) return current;
@@ -93,6 +95,7 @@ export default function InboxPage() {
         <ComposeDialog
           sendTargets={sendTargets}
           currentUserId={currentUserId}
+          emailNotificationsEnabled={emailNotificationsEnabled}
           onClose={() => setComposeOpen(false)}
           onSent={() => { setComposeOpen(false); void load(); }}
         />

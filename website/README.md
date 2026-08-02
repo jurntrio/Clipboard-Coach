@@ -67,6 +67,11 @@ Not needed yet, only once you build those phases:
 - **Stripe** — subscription billing.
 - **Resend** — transactional email (archive warnings, etc). Supabase's built-in
   email already handles signup confirmation for free at low volume.
+
+Mailbox e-mail notifications require both `RESEND_API_KEY` and
+`MAILBOX_EMAIL_FROM` (for example `CBC Studio <noreply@clipboardcoachstudio.com>`).
+The sender domain must be verified in Resend. Without both values the mailbox
+continues to work in-app and the compose UI states that no e-mail is sent.
 - **Railway** (or similar) — hosts the `worker/` service that compresses
   raw uploads into a web-friendly HLS proxy. Optional: without it, videos
   just keep playing straight from the raw R2 upload. See

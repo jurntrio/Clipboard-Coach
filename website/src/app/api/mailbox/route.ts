@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
-import { sendMailboxNotificationEmails } from "@/lib/email/resend";
+import { mailboxEmailNotificationsEnabled, sendMailboxNotificationEmails } from "@/lib/email/resend";
 import {
   getMailboxSendTargets, resolveMailboxRecipientIds, validateTargets,
   type MailboxTarget, type MailboxSendTargets
@@ -31,7 +31,9 @@ export async function GET() {
     .filter((row) => (row.mailbox_messages as unknown as { club_id: string } | null)?.club_id === activeClubId)
     .map((row) => (row.mailbox_messages as unknown as { thread_id: string }).thread_id)));
 
-  if (!threadIds.length) return NextResponse.json({ currentUserId: user.id, threads: [] });
+  if (!threadIds.length) return NextResponse.json({
+    currentUserId: user.id, threads: [], emailNotificationsEnabled: mailboxEmailNotificationsEnabled()
+  });
 
   const readAtByMessageId = new Map((recipientRows ?? []).map((row) => [row.message_id, row.read_at as string | null]));
 
@@ -88,7 +90,9 @@ export async function GET() {
     }))
     .sort((a, b) => (a.lastMessageAt < b.lastMessageAt ? 1 : -1));
 
-  return NextResponse.json({ currentUserId: user.id, threads });
+  return NextResponse.json({
+    currentUserId: user.id, threads, emailNotificationsEnabled: mailboxEmailNotificationsEnabled()
+  });
 }
 
 function labelForTarget(target: MailboxTarget, sendTargets: MailboxSendTargets): string {

@@ -1,7 +1,10 @@
 import { Resend } from "resend";
 
 const PRODUCTION_ORIGIN = "https://clipboardcoachstudio.com";
-const FROM_ADDRESS = "CBC Studio <noreply@clipboardcoachstudio.com>";
+
+export function mailboxEmailNotificationsEnabled() {
+  return Boolean(process.env.RESEND_API_KEY && process.env.MAILBOX_EMAIL_FROM);
+}
 
 function getAppOrigin() {
   return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || PRODUCTION_ORIGIN;
@@ -19,15 +22,16 @@ type MailboxNotification = {
 export async function sendMailboxNotificationEmails(notifications: MailboxNotification[]): Promise<Set<string>> {
   const sentKeys = new Set<string>();
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.log(`[mailbox] RESEND_API_KEY ontbreekt, ${notifications.length} e-mailnotificatie(s) overgeslagen.`);
+  const fromAddress = process.env.MAILBOX_EMAIL_FROM;
+  if (!apiKey || !fromAddress) {
+    console.log(`[mailbox] E-mailconfiguratie ontbreekt, ${notifications.length} notificatie(s) overgeslagen.`);
     return sentKeys;
   }
   const resend = new Resend(apiKey);
   for (let offset = 0; offset < notifications.length; offset += 100) {
     const batch = notifications.slice(offset, offset + 100);
     const { error } = await resend.batch.send(batch.map((notification) => ({
-      from: FROM_ADDRESS,
+      from: fromAddress,
       to: notification.to,
       subject: notification.subject,
       html: notificationHtml(notification)

@@ -7,9 +7,10 @@ import { useI18n } from "@/i18n/client";
 
 const inputClass = "mt-1 w-full rounded-xl border border-border bg-input px-3 py-2.5 text-textPrimary";
 
-export function ComposeDialog({ sendTargets, currentUserId, onClose, onSent }: {
+export function ComposeDialog({ sendTargets, currentUserId, emailNotificationsEnabled, onClose, onSent }: {
   sendTargets: MailboxSendTargets;
   currentUserId: string;
+  emailNotificationsEnabled: boolean;
   onClose: () => void;
   onSent: () => void;
 }) {
@@ -75,7 +76,9 @@ export function ComposeDialog({ sendTargets, currentUserId, onClose, onSent }: {
             <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={5} className={inputClass} placeholder={t("mailbox.bodyPlaceholder")} />
           </label>
 
-          <p className="mt-2 text-xs text-textMuted">{t("mailbox.emailNotice")}</p>
+          <p className="mt-2 text-xs text-textMuted">
+            {t(emailNotificationsEnabled ? "mailbox.emailNotice" : "mailbox.inAppOnlyNotice")}
+          </p>
 
           <div className="mt-4">
             <h3 className="text-sm font-semibold text-textSecondary">{t("mailbox.recipients")}</h3>
