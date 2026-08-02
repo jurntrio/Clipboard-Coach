@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
-import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { canAccessTeam, canManagePlayer, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { addPlayerContacts } from "@/lib/teams/player-contacts";
 
 export async function GET(_request: Request, { params }: { params: { teamId: string } }) {
@@ -17,11 +17,14 @@ export async function GET(_request: Request, { params }: { params: { teamId: str
 
   const clubTeam = team.club_teams as unknown as { id: string; club_id: string; trainers_can_edit_roster: boolean } | null;
   let allowed = team.coach_id === user.id;
-  let goalkeeperPlayerIds: Set<string> | null = null;
+  let access: Awaited<ReturnType<typeof getClubAccess>> | null = null;
+  let canEditRoster = allowed;
   if (context.activeClubId && clubTeam?.club_id === context.activeClubId) {
-    const access = await getClubAccess(context.activeClubId, user);
+    access = await getClubAccess(context.activeClubId, user);
     allowed = hasClubPermission(access, "teams.view") && canAccessTeam(access, clubTeam.id);
-    goalkeeperPlayerIds = access.goalkeeperPlayerIds;
+    const privilegedRosterRole = ["youth_coordinator", "head_youth_development"].includes(access.functionRole ?? "");
+    canEditRoster = allowed && hasClubPermission(access, "teams.manage")
+      && (["platform_admin", "club_admin"].includes(access.role) || privilegedRosterRole || clubTeam.trainers_can_edit_roster === true);
   } else if (!allowed) {
     const { data: membership } = await admin.from("team_staff_members").select("id")
       .eq("team_id", team.id).eq("user_id", user.id).maybeSingle();
@@ -29,10 +32,35 @@ export async function GET(_request: Request, { params }: { params: { teamId: str
   }
   if (!allowed) return NextResponse.json({ error: "Geen toegang tot dit team." }, { status: 403 });
 
-  const visiblePlayers = goalkeeperPlayerIds === null
-    ? (team.players ?? [])
-    : (team.players ?? []).filter((player: { id: string }) => goalkeeperPlayerIds?.has(player.id));
-  const [enriched] = await addPlayerContacts(admin, [{ ...team, players: visiblePlayers }]);
+  const allPlayers = (team.players ?? []) as Array<Record<string, unknown> & { id: string }>;
+  const privatePlayers = access?.goalkeeperPlayerIds === null || !access
+    ? allPlayers
+    : allPlayers.filter((player) => canManagePlayer(access!, player.id));
+  const [enrichedPrivate] = await addPlayerContacts(admin, [{ ...team, players: privatePlayers }]);
+  const privateById = new Map(((enrichedPrivate.players ?? []) as Array<Record<string, unknown> & { id: string }>).map((player) => [player.id, player]));
+  const visiblePlayers = allPlayers.map((player) => {
+    const privatePlayer = privateById.get(player.id);
+    if (privatePlayer) return { ...privatePlayer, can_manage: canEditRoster };
+    return {
+      id: player.id,
+      team_id: player.team_id,
+      first_name: player.first_name,
+      last_name: player.last_name,
+      initials: player.initials,
+      position: player.position,
+      jersey_number: player.jersey_number,
+      role: player.role,
+      is_goalkeeper: player.is_goalkeeper,
+      email: null,
+      date_of_birth: null,
+      phone_numbers: [],
+      membership_id: null,
+      created_at: player.created_at,
+      contacts: [],
+      can_manage: false
+    };
+  });
+  const enriched = { ...enrichedPrivate, players: visiblePlayers };
 
   let linkedStaff: Array<{ id: string; user_id: string; full_name: string; removable: boolean }> = [];
   if (clubTeam) {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { canAccessTeam, canManagePlayer, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Scope = { clubPlayerId: string | null; playerId: string };
@@ -21,7 +21,8 @@ async function authorizeAndResolveScope(admin: Admin, userId: string, userEmail:
     const { data: clubTeam } = await admin.from("club_teams").select("club_id, trainers_can_edit_roster").eq("id", team.club_team_id).maybeSingle();
     if (clubTeam) {
       const access = await getClubAccess(clubTeam.club_id, { id: userId, email: userEmail });
-      allowed = canAccessTeam(access, team.club_team_id) && hasClubPermission(access, "teams.manage");
+      allowed = canAccessTeam(access, team.club_team_id) && hasClubPermission(access, "teams.manage")
+        && canManagePlayer(access, player.id);
     }
   }
   if (!allowed) return { error: NextResponse.json({ error: "Geen toegang tot deze speler." }, { status: 403 }) };

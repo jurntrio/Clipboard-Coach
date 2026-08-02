@@ -90,3 +90,7 @@ export function canAccessTeam(access: Awaited<ReturnType<typeof getClubAccess>>,
 export function hasClubPermission(access: Awaited<ReturnType<typeof getClubAccess>>, permission: ClubPermissionKey) {
   return access.exists && access.permissions.has(permission);
 }
+
+export function canManagePlayer(access: Awaited<ReturnType<typeof getClubAccess>>, playerId: string) {
+  return access.goalkeeperPlayerIds === null || access.goalkeeperPlayerIds.has(playerId);
+}
