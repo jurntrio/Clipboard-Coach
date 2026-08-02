@@ -35,29 +35,28 @@ const TEAM_TACTIC_GROUPS = [
   }
 ] as const;
 const colors = [
-  { file: "Groen", label: "Groen" }, { file: "Blauw", label: "Blauw" },
-  { file: "Zwart", label: "Zwart" }, { file: "Wit", label: "Wit" },
-  { file: "Rood", label: "Rood" }
+  { file: "Groen", slug: "groen", label: "Groen" }, { file: "Blauw", slug: "blauw", label: "Blauw" },
+  { file: "Zwart", slug: "zwart", label: "Zwart" }, { file: "Wit", slug: "wit", label: "Wit" },
+  { file: "Rood", slug: "rood", label: "Rood" }
 ] as const;
 const playerFamilies = [
-  { file: "Shirt", label: "Shirts" }, { file: "Circel", label: "Cirkels" },
-  { file: "Square", label: "Vierkanten" }
+  { file: "shirt", label: "Shirts" }, { file: "cirkel", label: "Cirkels" },
+  { file: "vierkant", label: "Vierkanten" }
 ] as const;
 const balls = [
-  ["VoetbalWit.png", "Voetbal"], ["Tennisbal.png", "Tennisbal"], ["BasketbalZwart.png", "Basketbal"],
-  ["VolleybalZwart.png", "Volleybal"], ["RugbyBalZwart.png", "Rugbybal"],
-  ["AmericanFootballbalZwart.png", "American football"], ["KrachtbalZwart.png", "Krachtbal"]
+  ["voetbal.png", "Voetbal"], ["tennisbal-geel.png", "Tennisbal geel"], ["tennisbal-zwart.png", "Tennisbal zwart"],
+  ["Basketbal.png", "Basketbal"], ["volleybal.png", "Volleybal"], ["rugbybal.png", "Rugbybal"],
+  ["AmericanFootballZwart.png", "American football"], ["medicijnbal.png", "Medicijnbal"]
 ] as const;
 const otherEquipment = [
-  ["MinigoalZwart.png", "Minidoel"], ["Grote_goalZwart.png", "Groot doel"], ["DuivelsgoalZwart.png", "Duivelsdoel"],
-  ["DrankflesZwart.png", "Drankfles"], ["SpringtouwZwart.png", "Springtouw"],
-  ["FluitjeZwart.png", "Fluitje"], ["ChronoZwart.png", "Chronometer"],
-  ["ClipboardZwart.png", "Clipboard"], ["7Zwart.png", "Markering"]
+  ["doeltje-klein.png", "Klein doel"], ["doeltje-middelgroot.png", "Middelgroot doel"], ["doeltje-groot.png", "Groot doel"],
+  ["waterfles.png", "Waterfles"], ["springtouw.png", "Springtouw"], ["dumbbell.png", "Dumbbell"],
+  ["FluitjeZwart.png", "Fluitje"], ["stopwatch.png", "Chronometer"], ["ClipboardZwart.png", "Clipboard"]
 ] as const;
 const phases = [
   "Warming-up", "Vorm 1", "Vorm 2", "Vorm 3", "Vorm 4", "Cooling-down"
 ] as const;
-type PaletteAsset = { src: string; label: string };
+type PaletteAsset = { src: string; label: string; playerNumber?: string; playerNumberColor?: "black" | "white" };
 type FieldItem = PaletteAsset & { id: string; x: number; y: number; scale: number; rotation: number; stretchX?: number; stretchY?: number };
 type FieldLine = {
   id: string; x1: number; y1: number; x2: number; y2: number;
@@ -152,15 +151,34 @@ function MultiValueInput({ values, onChange, placeholder, suggestions = [] }: {
   </div>;
 }
 
-function PlayerGroup({ family, onPick, activeSrc }: {
-  family: typeof playerFamilies[number]; onPick: (asset: PaletteAsset) => void; activeSrc?: string;
+function PlayerGroup({ family, onPick, activeAsset }: {
+  family: typeof playerFamilies[number]; onPick: (asset: PaletteAsset) => void; activeAsset?: PaletteAsset | null;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const numbers = expanded ? Array.from({ length: 20 }, (_, i) => i + 1) : [1, 2];
+  const [customNumber, setCustomNumber] = useState("");
+  const [addedNumber, setAddedNumber] = useState<number | null>(null);
+  const standardNumbers = expanded ? Array.from({ length: 20 }, (_, i) => i + 1) : [1, 2];
+  const numbers = addedNumber && !standardNumbers.includes(addedNumber) ? [...standardNumbers, addedNumber] : standardNumbers;
+
+  function addCustomNumber() {
+    const parsed = Number(customNumber);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 999) return;
+    setAddedNumber(parsed);
+    setCustomNumber("");
+  }
+
   return (
     <section className="rounded-lg border border-[#dbe2de] bg-white p-2">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center gap-1.5">
         <h3 className="text-[10px] font-black uppercase tracking-wider text-[#243029]">{family.label}</h3>
+        <input type="number" min="1" max="999" inputMode="numeric" value={customNumber}
+          onChange={event => setCustomNumber(event.target.value)}
+          onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addCustomNumber(); } }}
+          placeholder="Nr. bv. 78"
+          aria-label={`Ander nummer voor ${family.label}`}
+          className="ml-auto w-20 rounded border border-[#cbd5cf] px-2 py-1 text-[10px] font-semibold text-[#243029] outline-none focus:border-[#169447]" />
+        <button type="button" onClick={addCustomNumber} aria-label={`Nummer tonen bij ${family.label}`} title="Nummer tonen"
+          className="grid h-[26px] w-[26px] place-items-center rounded bg-[#169447] text-xs font-black text-white hover:bg-[#117b3a]">+</button>
         <button type="button" onClick={() => setExpanded(v => !v)} className="rounded border border-[#cbd5cf] px-2 py-1 text-[10px] font-bold text-[#36423b]">
           {expanded ? "1–2 ▴" : "3–20 ▾"}
         </button>
@@ -170,9 +188,14 @@ function PlayerGroup({ family, onPick, activeSrc }: {
           <div key={color.file} className="col-span-2 grid grid-cols-2 content-start gap-1">
             <span className="col-span-2 truncate text-center text-[7px] font-bold uppercase text-[#7a857f]">{color.label}</span>
             {numbers.map(number => {
-              const suffix = number === 1 ? "1_2" : String(number);
-              const asset = { src: path(`${family.file}${color.file}${suffix}.png`), label: `${family.label} ${color.label} ${number}` };
-              return <AssetButton key={number} asset={asset} onPick={onPick} active={activeSrc === asset.src} player />;
+              const asset: PaletteAsset = {
+                src: path(`${family.file}-${color.slug}.png`),
+                label: `${family.label} ${color.label} ${number}`,
+                playerNumber: String(number),
+                playerNumberColor: color.file === "Wit" ? "black" : "white"
+              };
+              return <AssetButton key={number} asset={asset} onPick={onPick}
+                active={activeAsset?.src === asset.src && activeAsset.playerNumber === asset.playerNumber} player />;
             })}
           </div>
         ))}
@@ -185,9 +208,20 @@ function AssetButton({ asset, onPick, active = false, player = false }: {
   asset: PaletteAsset; onPick: (asset: PaletteAsset) => void; active?: boolean; player?: boolean;
 }) {
   return (
-    <button type="button" title={asset.label} onClick={() => onPick(asset)}
+    <button type="button" title={`${asset.label} · klik of sleep naar het veld`} onClick={() => onPick(asset)} draggable
+      onDragStart={event => {
+        onPick(asset);
+        event.dataTransfer.effectAllowed = "copy";
+        event.dataTransfer.setData("application/x-cbcs-training-asset", JSON.stringify(asset));
+      }}
       className={`${player ? "aspect-square p-0.5" : "h-10 p-1"} group min-w-0 rounded border border-[#dbe2de] border-l-4 ${active ? "border-l-[#169447] bg-[#eef8f1] shadow-sm" : "border-l-transparent bg-white"} hover:border-[#169447] hover:bg-[#eef8f1]`}>
-      <Image src={asset.src} alt="" width={44} height={44} className="mx-auto h-full max-h-[34px] w-full object-contain transition-transform group-hover:scale-110" />
+      <span className="relative mx-auto block h-full max-h-[34px] w-full transition-transform group-hover:scale-110">
+        <Image src={asset.src} alt="" fill sizes="44px" className="object-contain" />
+        {asset.playerNumber !== undefined && <span aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center font-sans font-black leading-none ${asset.playerNumber.length >= 3 ? "text-[7px]" : asset.playerNumber.length === 2 ? "text-[9px]" : "text-[10px]"} ${asset.playerNumberColor === "black" ? "text-black" : "text-white"}`}>
+          {asset.playerNumber}
+        </span>}
+      </span>
     </button>
   );
 }
@@ -318,7 +352,7 @@ function PrintText({ label, value, compact = false }: { label: string; value: st
   return <section className={compact ? "" : "mt-4"}><h3 className={`${compact ? "text-[9px]" : "text-xs"} font-black uppercase tracking-wide text-[#169447]`}>{label}</h3><p className={`${compact ? "mt-0.5 text-[10px] leading-snug" : "mt-1 text-sm leading-relaxed"} whitespace-pre-wrap text-[#2e3832]`}>{value || "—"}</p></section>;
 }
 
-function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = false, onOpen, selectedId, selectedDrawing, drawingInteractive = true, onSelect, onDeleteItem, onSelectDrawing, onDrawingPointerDown, onDrawingPointerMove, onMove, onResize, onRotate, pendingLine, pendingLineStyle, pendingLineArrow = true, pendingArea, pendingAreaStyle = "outline", pendingAreaShape = "polygon", pendingDribble, hoverPoint, drawingColor = "#111111" }: {
+function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = false, onOpen, selectedId, selectedDrawing, drawingInteractive = true, onSelect, onDeleteItem, onSelectDrawing, onDrawingPointerDown, onDrawingPointerMove, onMove, onResize, onRotate, pendingAsset, pendingLine, pendingLineStyle, pendingLineArrow = true, pendingArea, pendingAreaStyle = "outline", pendingAreaShape = "polygon", pendingDribble, hoverPoint, drawingColor = "#111111" }: {
   fieldType?: FieldType; items: FieldItem[]; lines: FieldLine[]; areas: FieldArea[]; dribbles: FieldDribble[]; preview?: boolean; onOpen?: () => void; selectedId?: string | null;
   selectedDrawing?: SelectedDrawing;
   drawingInteractive?: boolean;
@@ -329,6 +363,7 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
   onDrawingPointerMove?: (event: React.PointerEvent<SVGElement>, drawing: Exclude<SelectedDrawing, null>, pointIndex?: number) => void;
   onResize?: (event: React.PointerEvent<HTMLButtonElement>, id: string) => void;
   onRotate?: (event: React.PointerEvent<HTMLButtonElement>, id: string) => void;
+  pendingAsset?: PaletteAsset | null;
   pendingLine?: { x: number; y: number } | null;
   pendingLineStyle?: "solid" | "dashed" | null;
   pendingLineArrow?: boolean;
@@ -340,7 +375,7 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
   drawingColor?: string;
 }) {
   return (
-    <div onClick={onOpen} className={`relative aspect-[414/612] w-full overflow-hidden bg-white ${preview ? "cursor-pointer" : "cursor-crosshair"}`}>
+    <div onClick={onOpen} className={`relative aspect-[414/612] w-full overflow-hidden bg-white ${preview ? "cursor-pointer" : pendingAsset ? "cursor-none" : "cursor-crosshair"}`}>
       {fieldType !== "blank" && <Image src={FIELD_SRC} alt={fieldType === "half" ? "Half voetbalveld" : "11 tegen 11 voetbalveld"} fill sizes={preview ? "360px" : "620px"}
         className={`pointer-events-none object-fill ${fieldType === "half" ? "origin-top scale-[1.6667]" : ""}`} priority />}
       <svg className="pointer-events-none absolute inset-0 z-[5] h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -357,7 +392,7 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
         </defs>
         {areas.map(area => (
           <polygon key={area.id} points={area.points.map(point => `${point.x},${point.y}`).join(" ")}
-            fill={area.style === "outline" ? "none" : area.style === "hatched" ? `url(#training-hatch-${area.id})` : area.color}
+            fill={area.style === "outline" ? "transparent" : area.style === "hatched" ? `url(#training-hatch-${area.id})` : area.color}
             color={area.color} fillOpacity={area.style === "fill" ? ".18" : "1"} stroke={area.color}
             strokeWidth={selectedDrawing?.kind === "area" && selectedDrawing.id === area.id ? "1.35" : ".65"}
             vectorEffect="non-scaling-stroke" className={preview || !drawingInteractive ? "pointer-events-none" : "pointer-events-auto cursor-move"}
@@ -451,6 +486,10 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
             onClick={event => { event.stopPropagation(); onSelect?.(item.id); }}
             className={`pointer-events-auto absolute inset-0 touch-none rounded-sm ${preview ? "pointer-events-none" : "cursor-grab active:cursor-grabbing"} ${selectedId === item.id ? "outline outline-2 outline-[#169447] outline-offset-2" : ""}`}>
             <Image src={item.src} alt="" fill sizes="40px" className="pointer-events-none object-contain drop-shadow-sm" />
+            {item.playerNumber !== undefined && <span aria-hidden="true"
+              className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center font-sans font-black leading-none ${item.playerNumber.length >= 3 ? "text-[7px]" : item.playerNumber.length === 2 ? "text-[9px]" : "text-[11px]"} ${item.playerNumberColor === "black" ? "text-black" : "text-white"}`}>
+              {item.playerNumber}
+            </span>}
           </button>
           {!preview && selectedId === item.id && <>
             <span className="pointer-events-none absolute inset-0 border border-dashed border-[#169447]" />
@@ -473,6 +512,16 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
           </>}
         </div>
       ))}
+      {!preview && pendingAsset && hoverPoint && (
+        <div aria-hidden="true" style={{ left: `${hoverPoint.x}%`, top: `${hoverPoint.y}%`, width: "5.5%", aspectRatio: "1", transform: "translate(-50%, -50%)" }}
+          className="pointer-events-none absolute z-20 opacity-75 drop-shadow-md">
+          <Image src={pendingAsset.src} alt="" fill sizes="40px" className="object-contain" />
+          {pendingAsset.playerNumber !== undefined && <span
+            className={`absolute inset-0 z-10 flex items-center justify-center font-sans font-black leading-none ${pendingAsset.playerNumber.length >= 3 ? "text-[7px]" : pendingAsset.playerNumber.length === 2 ? "text-[9px]" : "text-[11px]"} ${pendingAsset.playerNumberColor === "black" ? "text-black" : "text-white"}`}>
+            {pendingAsset.playerNumber}
+          </span>}
+        </div>
+      )}
     </div>
   );
 }
@@ -557,6 +606,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   const [showColorPanel, setShowColorPanel] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [pendingLocalDraft, setPendingLocalDraft] = useState<Record<string, any> | null>(null);
   const [name, setName] = useState("Nieuwe training");
   const [team, setTeam] = useState(teamOptions[0]?.name ?? "");
   const [customTeam, setCustomTeam] = useState(false);
@@ -590,74 +640,82 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   }), [ageCategory, blocks, clubId, date, keeperCount, material, name, playerCount, team, teamTactics, themes, trainers]);
   const byColor = (families: readonly (readonly [string, string])[]) =>
     colors.flatMap(color => families.map(([file, label]) => ({
-      src: path(`${file}${color.file}.png`), label: `${label} ${color.label}`
+      src: path(`${file}-${color.slug}.png`), label: `${label} ${color.label}`
     })));
   const equipmentGroups = [
-    { label: "Dummies & muren", assets: byColor([["Dummy", "Dummy"], ["Muur", "Muur"]]) },
+    { label: "Vrijetrapmuren", assets: byColor([["vrijetrapmuur-1-pop", "Vrijetrapmuur · 1 pop"], ["vrijetrapmuur-3-5-poppen", "Vrijetrapmuur · 3-5 poppen"]]) },
     { label: "Ballen", assets: balls.map(([file, label]) => ({ src: path(file), label })) },
     { label: "Markeringen", assets: [
-      ...byColor([["GroteKegel", "Grote kegel"], ["KleineKegel", "Kleine kegel"]]),
-      ...byColor([["Kegel", "Kegel"], ["KegelStok", "Kegelstok"]]),
-      ...byColor([["Potje", "Potje"], ["SchijfGroot", "Grote schijf"]]),
-      ...byColor([["Schijfje", "Schijfje"]])
+      ...byColor([["grote-kegel", "Grote kegel"], ["kleine-kegel", "Kleine kegel"]]),
+      { src: path("pylon.png"), label: "Pylon" },
+      ...byColor([["kegel-met-stok", "Kegel met stok"], ["koepelvormig-potje", "Koepelvormig potje"]]),
+      ...byColor([["platte-markeringsschijf", "Platte markeringsschijf"], ["kleine-platte-stip", "Kleine platte stip"]])
     ] },
     { label: "Coördinatie & hindernissen", assets: [
-      ...byColor([["KortLL", "Korte ladder"], ["LangLL", "Lange ladder"]]),
-      ...byColor([["DubbelLL", "Dubbele ladder"], ["HaagKlein", "Kleine horde"]]),
-      ...byColor([["HaagMiddel", "Middel horde"], ["HaagHoog", "Grote horde"]]),
-      ...byColor([["StepUpBank", "Step-up bank"], ["Hoepel", "Hoepel"]]),
-      ...byColor([["Hex", "Hexagon"]])
+      ...byColor([["korte-loopladder", "Korte loopladder"], ["lange-loopladder", "Lange loopladder"]]),
+      ...byColor([["dubbele-loopladder", "Dubbele loopladder"], ["laag-haagje", "Laag haagje"]]),
+      ...byColor([["middelhoog-haagje", "Middelhoog haagje"], ["hoog-haagje", "Hoog haagje"]]),
+      ...byColor([["hoepel", "Hoepel"], ["zeshoekige-ring", "Zeshoekige ring"]]),
+      { src: path("StepUpBankZwart.png"), label: "Step-upbank" }
     ] },
     { label: "Doelen & overig", assets: [
-      ...byColor([["Coach", "Coach"]]),
+      ...byColor([["trainershesje-t", "Trainershesje"]]),
       ...otherEquipment.map(([file, label]) => ({ src: path(file), label }))
     ] }
   ];
 
+  function restoreDraft(draft: Record<string, any>, localDraft: boolean) {
+    restoredUnfinishedDraftRef.current = localDraft;
+    setName(draft.name ?? name); setTeam(draft.team ?? ""); setDate(draft.date ?? "");
+    setPlayerCount(draft.playerCount ?? 15); setKeeperCount(draft.keeperCount ?? 2);
+    setTrainers(Array.isArray(draft.trainers) ? draft.trainers : draft.trainer ? [draft.trainer] : initialTrainer ? [initialTrainer] : []);
+    const restoredClubId = draft.clubId ?? clubOptions[0]?.id ?? "";
+    const restoredClub = clubOptions.find(club => club.id === restoredClubId);
+    setTeamTactics(supportsBelgianTeamTactics(restoredClub?.country) && Array.isArray(draft.teamTactics) ? draft.teamTactics : []);
+    setThemes(Array.isArray(draft.themes) ? draft.themes : draft.theme ? [draft.theme] : []);
+    setClubId(restoredClubId);
+    setAgeCategory(draft.ageCategory ?? "");
+    setPersonalTrainingId(draft.personalTrainingId);
+    setCustomTeam(Boolean(draft.team && !teamOptions.some(option => option.name === draft.team)));
+    setMaterial(draft.material ?? "");
+    if (Array.isArray(draft.blocks) && draft.blocks.length) {
+      setBlocks(draft.blocks.map((block: Block, index: number) => ({
+        ...block,
+        id: block.id ?? `restored-phase-${index}`,
+        code: block.id?.startsWith("default-phase-") ? "" : block.code,
+        label: block.id?.startsWith("default-phase-") && phases[index] ? phases[index] : block.title?.trim() || block.label,
+        title: "",
+        fieldType: block.fieldType ?? "full",
+        lines: (block.lines ?? []).map(line => ({ ...line, color: line.color ?? "#111111" })),
+        areas: (block.areas ?? []).map(area => ({ ...area, style: area.style ?? "fill" })),
+        dribbles: block.dribbles ?? []
+      })));
+    } else {
+      setBlocks(makeBlocks());
+    }
+    setStatus(localDraft ? "Lokaal concept hersteld" : "Gedeelde training geopend · wijzigingen worden een nieuwe versie");
+    setPendingLocalDraft(null);
+    setDraftReady(true);
+  }
+
   useEffect(() => {
     const raw = window.localStorage.getItem("cbcs.training-builder.v2");
-    restoredUnfinishedDraftRef.current = Boolean(raw && !initialTraining);
-    if (!raw && !initialTraining) {
+    if (initialTraining) {
+      restoreDraft(initialTraining, false);
+      return;
+    }
+    if (!raw) {
       setDraftReady(true);
       return;
     }
     try {
-      const draft = initialTraining ?? JSON.parse(raw!);
-      setName(draft.name ?? name); setTeam(draft.team ?? ""); setDate(draft.date ?? "");
-      setPlayerCount(draft.playerCount ?? 15); setKeeperCount(draft.keeperCount ?? 2);
-      setTrainers(Array.isArray(draft.trainers) ? draft.trainers : draft.trainer ? [draft.trainer] : initialTrainer ? [initialTrainer] : []);
-      const restoredClubId = draft.clubId ?? clubOptions[0]?.id ?? "";
-      const restoredClub = clubOptions.find(club => club.id === restoredClubId);
-      setTeamTactics(supportsBelgianTeamTactics(restoredClub?.country) && Array.isArray(draft.teamTactics) ? draft.teamTactics : []);
-      setThemes(Array.isArray(draft.themes) ? draft.themes : draft.theme ? [draft.theme] : []);
-      setClubId(restoredClubId);
-      setAgeCategory(draft.ageCategory ?? "");
-      setPersonalTrainingId(draft.personalTrainingId);
-      setCustomTeam(Boolean(draft.team && !teamOptions.some(option => option.name === draft.team)));
-      setMaterial(draft.material ?? ""); if (Array.isArray(draft.blocks) && draft.blocks.length) {
-        setBlocks(draft.blocks.map((block: Block, index: number) => ({
-          ...block,
-          id: block.id ?? `restored-phase-${index}`,
-          code: block.id?.startsWith("default-phase-") ? "" : block.code,
-          label: block.id?.startsWith("default-phase-") && phases[index]
-            ? phases[index]
-            : block.title?.trim() || block.label,
-          title: "",
-          fieldType: block.fieldType ?? "full",
-          lines: (block.lines ?? []).map(line => ({ ...line, color: line.color ?? "#111111" })),
-          areas: (block.areas ?? []).map(area => ({ ...area, style: area.style ?? "fill" })),
-          dribbles: block.dribbles ?? []
-        })));
-      } else {
-        setBlocks(makeBlocks());
-      }
-      setStatus(initialTraining ? "Gedeelde training geopend · wijzigingen worden een nieuwe versie" : "Lokaal concept hersteld");
+      setPendingLocalDraft(JSON.parse(raw));
     } catch {
       restoredUnfinishedDraftRef.current = false;
       window.localStorage.removeItem("cbcs.training-builder.v2");
+      setDraftReady(true);
     }
-    setDraftReady(true);
-    // Alleen eenmalig het lokale concept herstellen.
+    // Alleen eenmalig controleren of er een lokaal concept bestaat.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -859,6 +917,21 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
     if (hasUnresolvedChanges) setConfirmNewTraining(true);
     else startEmptyTraining();
   }
+  function placeAsset(asset: PaletteAsset, x: number, y: number) {
+    if (activeIndex === null) return;
+    const assetName = asset.src.toLocaleLowerCase();
+    const isWall = assetName.includes("/muur") || assetName.includes("/vrijetrapmuur-3-5-poppen");
+    const isLadder = /\/(?:kortll|langll|dubbelll)/.test(assetName) || assetName.includes("-loopladder-");
+    const isBigGoal = assetName.includes("/grote_goal") || assetName.includes("/doeltje-groot");
+    const isMediumGoal = assetName.includes("/doeltje-middelgroot") || assetName.includes("/duivelsgoal");
+    const isSmallGoal = assetName.includes("/doeltje-klein") || assetName.includes("/minigoal");
+    const item: FieldItem = {
+      ...asset, id: crypto.randomUUID(), x, y, scale: isWall ? 1.5 : 1, rotation: 0,
+      stretchX: isBigGoal ? 2.5 : isMediumGoal ? 2 : isSmallGoal ? 1.5 : 1, stretchY: isLadder ? 2 : 1
+    };
+    updateBlock(activeIndex, { items: [...blocks[activeIndex].items, item] });
+    setSelectedId(item.id);
+  }
   function placeItem(event: React.MouseEvent<HTMLDivElement>) {
     if (activeIndex === null) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -901,16 +974,21 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
       return;
     }
     if (!selectedAsset) return;
-    const isWall = selectedAsset.src.includes("/Muur");
-    const isLadder = /\/(?:KortLL|LangLL|DubbelLL)/.test(selectedAsset.src);
-    const isBigGoal = selectedAsset.src.includes("/Grote_goal");
-    const isDevilsGoal = selectedAsset.src.includes("/Duivelsgoal");
-    const item: FieldItem = {
-      ...selectedAsset, id: crypto.randomUUID(), x, y, scale: isWall ? 1.5 : 1, rotation: 0,
-      stretchX: isBigGoal ? 2.5 : isDevilsGoal ? 2 : 1, stretchY: isLadder ? 2 : 1
-    };
-    updateBlock(activeIndex, { items: [...blocks[activeIndex].items, item] });
-    setSelectedId(item.id);
+    placeAsset(selectedAsset, x, y);
+  }
+  function dropAsset(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const raw = event.dataTransfer.getData("application/x-cbcs-training-asset");
+    if (!raw) return;
+    try {
+      const asset = JSON.parse(raw) as PaletteAsset;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = Math.max(2, Math.min(98, ((event.clientX - rect.left) / rect.width) * 100));
+      const y = Math.max(2, Math.min(98, ((event.clientY - rect.top) / rect.height) * 100));
+      placeAsset(asset, x, y);
+    } catch {
+      // Ongeldige externe sleepgegevens worden genegeerd.
+    }
   }
   function moveItem(event: React.PointerEvent<HTMLButtonElement>, id: string) {
     if (!event.currentTarget.hasPointerCapture(event.pointerId) || activeIndex === null || !editorFieldRef.current) return;
@@ -1012,7 +1090,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
     drag.last = point;
   }
   function trackDrawingPointer(event: React.PointerEvent<HTMLDivElement>) {
-    if (!lineStart && areaPoints.length === 0 && dribblePoints.length === 0) return;
+    if (!selectedAsset && !lineStart && areaPoints.length === 0 && dribblePoints.length === 0) return;
     const rect = event.currentTarget.getBoundingClientRect();
     setHoverPoint({
       x: Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)),
@@ -1042,6 +1120,22 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   const inputClass = "mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm normal-case text-textBright outline-none focus:border-accent";
   return (
     <div className="mt-6 space-y-4">
+      {pendingLocalDraft && <div className="fixed inset-0 z-[130] grid place-items-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Lokaal trainingsconcept gevonden">
+        <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">
+          <h2 className="text-xl font-black text-textBright">Verdergaan met je vorige training?</h2>
+          <p className="mt-2 text-sm text-textSecondary">CBCS heeft een lokaal concept gevonden. Kies of je daarmee verdergaat of met een volledig lege training begint.</p>
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={() => {
+              window.localStorage.removeItem("cbcs.training-builder.v2");
+              restoredUnfinishedDraftRef.current = false;
+              setPendingLocalDraft(null);
+              setDraftReady(true);
+              setStatus("Nieuwe lege training gestart");
+            }} className="rounded-lg border border-red-500/60 px-4 py-2 text-sm font-bold text-red-400">Volledig nieuwe training</button>
+            <button type="button" onClick={() => restoreDraft(pendingLocalDraft, true)} className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page">Verdergaan met concept</button>
+          </div>
+        </div>
+      </div>}
       <section className="rounded-2xl border border-border bg-card p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Meta label="Naam training"><input value={name} onChange={e => setName(e.target.value)} className={inputClass} /></Meta>
@@ -1172,7 +1266,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
             </header>
             <div className="grid min-h-0 flex-1 gap-3 overflow-auto bg-white p-3 lg:grid-cols-[430px_1fr]">
               <aside className="space-y-2 overflow-auto lg:max-h-[78vh]">
-                {playerFamilies.map(family => <PlayerGroup key={family.file} family={family} onPick={chooseAsset} activeSrc={selectedAsset?.src} />)}
+                {playerFamilies.map(family => <PlayerGroup key={family.file} family={family} onPick={chooseAsset} activeAsset={selectedAsset} />)}
                 {equipmentGroups.map(group => (
                   <section key={group.label} className="rounded-lg border border-[#dbe2de] bg-white p-2">
                     <h3 className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#243029]">{group.label}</h3>
@@ -1190,7 +1284,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
                       <button key={value} type="button" onClick={() => updateBlock(activeIndex, { fieldType: value })}
                         className={`rounded px-2.5 py-1.5 text-xs font-bold ${activeBlock.fieldType === value ? "bg-[#169447] text-white" : "bg-[#f7f9f8] text-[#36423b]"}`}>{label}</button>)}
                   </div>
-                  <button type="button" onClick={() => { setLineStyle(null); setLineStart(null); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedDrawing(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${!lineStyle && !areaMode && !dribbleMode ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>↖ Selecteren</button>
+                  <button type="button" onClick={() => { setLineStyle(null); setLineStart(null); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${!selectedAsset && !lineStyle && !areaMode && !dribbleMode ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>↖ Selecteren</button>
                   <button type="button" onClick={() => { setLineStyle("solid"); setLineArrow(true); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setLineStart(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${lineStyle === "solid" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>→ Pass</button>
                   <button type="button" onClick={() => { setLineStyle("dashed"); setLineArrow(true); setAreaMode(false); setAreaPoints([]); setDribbleMode(false); setDribblePoints([]); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setLineStart(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${lineStyle === "dashed" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>⇢ Looplijn</button>
                   <button type="button" onClick={() => { setDribbleMode(true); setDribblePoints([]); setAreaMode(false); setAreaPoints([]); setLineStyle(null); setLineStart(null); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); }} className={`rounded border px-3 py-2 text-xs font-bold ${dribbleMode ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>〰 Dribbel</button>
@@ -1228,12 +1322,14 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
                     {dribbleMode ? (dribblePoints.length < 2 ? `Klik minstens 2 punten voor de dribbel (${dribblePoints.length}/2).` : `${dribblePoints.length} punten · blijf klikken of voltooi met de knop/Enter.`) : areaMode && areaShape === "rectangle" ? (areaPoints.length ? "Beweeg naar de overstaande hoek en klik om de rechthoek te plaatsen." : "Klik de eerste hoek van de rechthoek.") : areaMode ? (areaPoints.length < 3 ? `Klik minstens 3 hoekpunten voor de Area (${areaPoints.length}/3).` : `${areaPoints.length} punten · klik “Area voltooien” of druk Enter.`) : lineStyle ? (lineStart ? `Beweeg de cursor en klik het eindpunt van de ${lineArrow ? "pijl" : "lijn"}.` : `Klik het startpunt van de ${lineArrow ? "pijl" : "lijn"}.`) : selectedItem ? "Sleep het groene bolletje om te schalen en ↻ om te draaien." : selectedAsset ? `Actief: ${selectedAsset.label} · Escape annuleert.` : "Kies links een icoon, beweging of Area. Escape annuleert de actieve tool."}
                   </p>
                 </div>
-                <div ref={editorFieldRef} onClick={placeItem} onPointerMove={trackDrawingPointer} onPointerLeave={() => setHoverPoint(null)} className="mx-auto w-full max-w-[620px] self-start overflow-hidden rounded border border-[#dbe2de] bg-white shadow-sm">
+                <div ref={editorFieldRef} onClick={placeItem} onPointerMove={trackDrawingPointer} onPointerLeave={() => setHoverPoint(null)}
+                  onDragOver={event => { if (event.dataTransfer.types.includes("application/x-cbcs-training-asset")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
+                  onDrop={dropAsset} className="mx-auto w-full max-w-[620px] self-start overflow-hidden rounded border border-[#dbe2de] bg-white shadow-sm">
                   <Pitch fieldType={activeBlock.fieldType} items={activeBlock.items} lines={activeBlock.lines} areas={activeBlock.areas} dribbles={activeBlock.dribbles} selectedId={selectedId} selectedDrawing={selectedDrawing}
                     drawingInteractive={!selectedAsset && !lineStyle && !areaMode && !dribbleMode}
                     onSelect={id => { setSelectedId(id); setSelectedDrawing(null); }} onDeleteItem={deleteFieldItem}
                     onSelectDrawing={selectDrawing} onDrawingPointerDown={startDrawingDrag} onDrawingPointerMove={moveDrawingDrag}
-                    onMove={moveItem} onResize={resizeSelected} onRotate={rotateSelected} pendingLine={lineStart}
+                    onMove={moveItem} onResize={resizeSelected} onRotate={rotateSelected} pendingAsset={selectedAsset} pendingLine={lineStart}
                     pendingLineStyle={lineStyle} pendingLineArrow={lineArrow} pendingArea={areaPoints} pendingAreaStyle={areaStyle} pendingAreaShape={areaShape} pendingDribble={dribblePoints}
                     hoverPoint={hoverPoint} drawingColor={drawColor} />
                 </div>
