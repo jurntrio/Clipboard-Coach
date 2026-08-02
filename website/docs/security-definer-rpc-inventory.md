@@ -1,6 +1,6 @@
 # Authenticated SECURITY DEFINER RPC inventory
 
-Last reviewed: 2026-08-02. Scope: final database state after migration 0105.
+Last reviewed: 2026-08-02. Scope: final database state after migration 0107.
 
 ## Rules
 
@@ -33,7 +33,8 @@ Anonymous directory helpers return intentionally public club/team directory fiel
 
 Person-account link/revoke/merge, person invitation/claim review, club onboarding, people backfill/rollback and mailbox recipient resolution are explicitly unavailable to authenticated callers. Server routes must continue deriving actor and target IDs from verified request context.
 
+`delete_match_transaction(uuid)` is also service-role-only. The API authorizes the user and team first; the RPC then removes the match and exclusively linked database video rows in one transaction and returns external object keys for post-commit R2 cleanup.
+
 ## Regression coverage
 
 `authenticated_rpc_authorization.test.sql` locks search paths, service-only grants, active-membership requirements and identity binding. Existing guardian and roster suites cover cross-account guardian enumeration and cross-team primary-membership mutation.
-
