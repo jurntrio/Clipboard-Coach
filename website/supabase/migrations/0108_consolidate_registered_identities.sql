@@ -78,7 +78,19 @@ returns trigger language plpgsql security definer set search_path = public as $$
 declare club_person_id_value uuid;
 begin
   if new.status in ('active', 'pending') then
-    perform public.ensure_registered_club_identity(new.profile_id, new.club_id, new.profile_id);
+    -- Onboarding creates its canonical person later in the same auth.users insert.
+    -- Only synchronize here once an identity source already exists; the backfill
+    -- below covers older membership-only rows.
+    if exists (
+      select 1 from public.person_accounts pa
+      where pa.profile_id = new.profile_id and pa.status = 'active' and pa.revoked_at is null
+    ) or exists (
+      select 1 from public.club_trainers trainer
+      where trainer.profile_id = new.profile_id and trainer.club_id = new.club_id
+        and trainer.club_person_id is not null
+    ) then
+      perform public.ensure_registered_club_identity(new.profile_id, new.club_id, new.profile_id);
+    end if;
   else
     select cp.id into club_person_id_value
     from public.person_accounts pa join public.club_people cp on cp.person_id = pa.person_id

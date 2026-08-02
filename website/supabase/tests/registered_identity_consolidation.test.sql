@@ -15,9 +15,22 @@ values
   ('a1080000-0000-0000-0000-000000000001', 'a1080000-0000-0000-0000-000000000020', 'club_admin', 'active', 'club_admin', 'all'),
   ('a1080000-0000-0000-0000-000000000001', 'a1080000-0000-0000-0000-000000000021', 'trainer', 'active', 'trainer', 'assigned');
 
+do $$ begin
+  perform public.ensure_registered_club_identity(
+    'a1080000-0000-0000-0000-000000000020',
+    'a1080000-0000-0000-0000-000000000001',
+    'a1080000-0000-0000-0000-000000000020'
+  );
+  perform public.ensure_registered_club_identity(
+    'a1080000-0000-0000-0000-000000000021',
+    'a1080000-0000-0000-0000-000000000001',
+    'a1080000-0000-0000-0000-000000000020'
+  );
+end $$;
+
 select is((select count(*) from public.person_accounts where profile_id in (
   'a1080000-0000-0000-0000-000000000020', 'a1080000-0000-0000-0000-000000000021'
-) and status = 'active'), 2::bigint, 'membership creation links every registered profile to one person');
+) and status = 'active'), 2::bigint, 'consolidation links every registered profile to one person');
 select is((select count(*) from public.club_people where club_id = 'a1080000-0000-0000-0000-000000000001'),
   2::bigint, 'each registered member has one canonical club person');
 
@@ -53,10 +66,10 @@ select ok(not exists(select 1 from public.club_memberships where profile_id = 'a
   'membership projection is removed');
 select ok(not exists(select 1 from public.club_trainers where profile_id = 'a1080000-0000-0000-0000-000000000021'),
   'trainer projection is removed');
-select is((select status from public.club_people cp join public.person_accounts pa on pa.person_id = cp.person_id
+select is((select cp.status from public.club_people cp join public.person_accounts pa on pa.person_id = cp.person_id
   where pa.profile_id = 'a1080000-0000-0000-0000-000000000021' and cp.club_id = 'a1080000-0000-0000-0000-000000000001'),
   'inactive', 'canonical club person is retained as inactive history');
-select is((select status from public.club_role_assignments role join public.club_people cp on cp.id = role.club_person_id
+select is((select role.status from public.club_role_assignments role join public.club_people cp on cp.id = role.club_person_id
   join public.person_accounts pa on pa.person_id = cp.person_id where pa.profile_id = 'a1080000-0000-0000-0000-000000000021'),
   'ended', 'canonical role is ended rather than deleted');
 select is((select status from public.person_accounts where profile_id = 'a1080000-0000-0000-0000-000000000021'),
