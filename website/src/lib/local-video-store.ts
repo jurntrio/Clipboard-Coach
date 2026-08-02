@@ -83,6 +83,23 @@ export async function localVideoFingerprint(file: File) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 32);
 }
 
+export async function matchesLocalVideo(
+  file: File,
+  video: { video_key: string; file_size: number | null; duration: number | null },
+  inspectedDuration?: number | null
+) {
+  const fingerprint = await localVideoFingerprint(file);
+  if (video.video_key === `local/${fingerprint}`) return true;
+
+  // Copies of the same file can receive a different lastModified timestamp when
+  // transferred by USB, download or network share. The legacy fingerprint includes
+  // that timestamp, so use stable media properties as a safe compatibility fallback.
+  if (video.file_size === null || file.size !== video.file_size || inspectedDuration == null || video.duration == null) {
+    return false;
+  }
+  return Math.abs(inspectedDuration - video.duration) <= 1;
+}
+
 export function isLocalVideoUrl(url: string | null | undefined) {
   return !!url?.startsWith("local://");
 }

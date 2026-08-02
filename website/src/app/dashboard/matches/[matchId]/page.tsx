@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
+import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
 import { formatTime, getTagColor } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
 import type { LiveMatchTag, Match, Player, StandardTag, Tag, TagDrawing, Video } from "@/types/database";
@@ -456,8 +456,8 @@ export default function MatchViewerPage() {
 
   async function attachFile(video: Video, file: File, handle?: FileSystemFileHandle | null) {
     try {
-      const fingerprint = await localVideoFingerprint(file);
-      if (video.video_key !== `local/${fingerprint}`) throw new Error(t("match.wrongOriginal"));
+      const info = await inspectLocalVideo(file, localMediaMessages(t));
+      if (!await matchesLocalVideo(file, video, info.duration)) throw new Error(t("match.wrongOriginal"));
       await rememberLocalVideo(video.id, file, handle);
       setFiles((current) => ({ ...current, [video.id]: file }));
       setError("");
@@ -500,11 +500,19 @@ export default function MatchViewerPage() {
     }
     try {
       const handles = await picker({ multiple: true, types: [{ description: "Match videos", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
+      const unmatched = [...missing];
       for (const handle of handles) {
         const file = await handle.getFile();
-        const fingerprint = await localVideoFingerprint(file);
-        const video = missing.find((item) => item.video_key === `local/${fingerprint}`);
-        if (video) await attachFile(video, file, handle);
+        const info = await inspectLocalVideo(file, localMediaMessages(t));
+        let matchIndex = -1;
+        for (let index = 0; index < unmatched.length; index += 1) {
+          if (await matchesLocalVideo(file, unmatched[index], info.duration)) { matchIndex = index; break; }
+        }
+        if (matchIndex >= 0) {
+          const [video] = unmatched.splice(matchIndex, 1);
+          await rememberLocalVideo(video.id, file, handle);
+          setFiles((current) => ({ ...current, [video.id]: file }));
+        }
       }
     } catch (pickerError) {
       if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) setError(messageFrom(pickerError, "The local videos could not be reconnected."));
@@ -517,10 +525,18 @@ export default function MatchViewerPage() {
       if (selectedFiles[0] && video) await attachFile(video, selectedFiles[0]);
       return;
     }
+    const unmatched = videos.filter((video) => isLocalVideoUrl(video.video_url) && !files[video.id]);
     for (const file of selectedFiles) {
-      const fingerprint = await localVideoFingerprint(file);
-      const video = videos.find((item) => item.video_key === `local/${fingerprint}`);
-      if (video) await attachFile(video, file);
+      const info = await inspectLocalVideo(file, localMediaMessages(t));
+      let matchIndex = -1;
+      for (let index = 0; index < unmatched.length; index += 1) {
+        if (await matchesLocalVideo(file, unmatched[index], info.duration)) { matchIndex = index; break; }
+      }
+      if (matchIndex >= 0) {
+        const [video] = unmatched.splice(matchIndex, 1);
+        await rememberLocalVideo(video.id, file);
+        setFiles((current) => ({ ...current, [video.id]: file }));
+      }
     }
     reconnectAllRef.current = false;
   }

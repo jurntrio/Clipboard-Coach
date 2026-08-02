@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { inspectLocalVideo, type LocalVideoInfo } from "@/lib/media/local-clips";
-import { getRememberedLocalVideo, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
+import { getRememberedLocalVideo, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
 import { externalRecordingCameras, externalRecordingConfig, externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
 import type { Match, Team, Video } from "@/types/database";
 import { useI18n } from "@/i18n/client";
@@ -68,16 +68,21 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || !activeClubId) return;
-    const [matchResult, videoResult, teamResult, clubResult] = await Promise.all([
+    const [matchResult, teamResult, clubResult] = await Promise.all([
       // Platform admins can read every club, so the active club must always be
       // an explicit query boundary instead of relying on row-level access alone.
       supabase.from("matches").select("*, match_videos(video_id)").eq("club_id", activeClubId).order("last_opened_at", { ascending: false }),
-      supabase.from("videos").select("*").eq("coach_id", user.id).eq("status", "active").order("created_at", { ascending: false }),
       supabase.from("teams").select("*, club_teams!inner(club_id)").eq("club_teams.club_id", activeClubId).order("name"),
       supabase.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", activeClubId).maybeSingle()
     ]);
     if (matchResult.error && matchResult.error.code !== "42P01") setError(matchResult.error.message);
-    setMatches((matchResult.data as (Match & { match_videos: { video_id: string }[] })[] | null) ?? []);
+    const loadedMatches = (matchResult.data as (Match & { match_videos: { video_id: string }[] })[] | null) ?? [];
+    const videoIds = Array.from(new Set(loadedMatches.flatMap((match) => match.match_videos.map((link) => link.video_id))));
+    const videoResult = videoIds.length
+      ? await supabase.from("videos").select("*").in("id", videoIds).eq("status", "active").order("created_at", { ascending: false })
+      : { data: [] as Video[], error: null };
+    if (videoResult.error) setError(videoResult.error.message);
+    setMatches(loadedMatches);
     setVideos(videoResult.data ?? []);
     setTeams(teamResult.data ?? []);
     const nextRecordingConfig = externalRecordingConfig(clubResult.data);
@@ -141,10 +146,20 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
   }
 
   async function rememberSelectedFiles(expected: Video[], selections: { file: File; handle: FileSystemFileHandle | null }[]) {
+    const unmatched = [...expected];
     for (const selection of selections) {
-      const fingerprint = await localVideoFingerprint(selection.file);
-      const video = expected.find((candidate) => candidate.video_key === `local/${fingerprint}`);
-      if (video) await rememberLocalVideo(video.id, selection.file, selection.handle);
+      const info = await inspectLocalVideo(selection.file, localMediaMessages(t));
+      let matchIndex = -1;
+      for (let index = 0; index < unmatched.length; index += 1) {
+        if (await matchesLocalVideo(selection.file, unmatched[index], info.duration)) {
+          matchIndex = index;
+          break;
+        }
+      }
+      if (matchIndex >= 0) {
+        const [video] = unmatched.splice(matchIndex, 1);
+        await rememberLocalVideo(video.id, selection.file, selection.handle);
+      }
     }
   }
 
