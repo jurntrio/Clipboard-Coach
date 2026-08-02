@@ -159,6 +159,13 @@ function PlayerGroup({ family, onPick, activeAsset }: {
   const [addedNumber, setAddedNumber] = useState<number | null>(null);
   const standardNumbers = expanded ? Array.from({ length: 20 }, (_, i) => i + 1) : [1, 2];
   const numbers = addedNumber && !standardNumbers.includes(addedNumber) ? [...standardNumbers, addedNumber] : standardNumbers;
+  const previewNumber = /^\d{1,3}$/.test(customNumber) && Number(customNumber) >= 1 ? customNumber : addedNumber ? String(addedNumber) : "?";
+  const previewAsset: PaletteAsset = {
+    src: path(`${family.file}-groen.png`),
+    label: `${family.label} Groen ${previewNumber}`,
+    playerNumber: previewNumber,
+    playerNumberColor: "white"
+  };
 
   function addCustomNumber() {
     const parsed = Number(customNumber);
@@ -169,17 +176,30 @@ function PlayerGroup({ family, onPick, activeAsset }: {
 
   return (
     <section className="rounded-lg border border-[#dbe2de] bg-white p-2">
-      <div className="mb-2 flex items-center gap-1.5">
+      <div className="relative mb-2 flex min-h-[34px] items-center">
         <h3 className="text-[10px] font-black uppercase tracking-wider text-[#243029]">{family.label}</h3>
-        <input type="number" min="1" max="999" inputMode="numeric" value={customNumber}
-          onChange={event => setCustomNumber(event.target.value)}
-          onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addCustomNumber(); } }}
-          placeholder="Nr. bv. 78"
-          aria-label={`Ander nummer voor ${family.label}`}
-          className="ml-auto w-20 rounded border border-[#cbd5cf] px-2 py-1 text-[10px] font-semibold text-[#243029] outline-none focus:border-[#169447]" />
-        <button type="button" onClick={addCustomNumber} aria-label={`Nummer tonen bij ${family.label}`} title="Nummer tonen"
-          className="grid h-[26px] w-[26px] place-items-center rounded bg-[#169447] text-xs font-black text-white hover:bg-[#117b3a]">+</button>
-        <button type="button" onClick={() => setExpanded(v => !v)} className="rounded border border-[#cbd5cf] px-2 py-1 text-[10px] font-bold text-[#36423b]">
+        <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-1.5">
+          <label className="flex items-center gap-1 whitespace-nowrap text-[9px] font-bold text-[#66706b]">
+            Vrij nr.
+            <input type="number" min="1" max="999" inputMode="numeric" value={customNumber}
+              onChange={event => setCustomNumber(event.target.value)}
+              onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addCustomNumber(); } }}
+              placeholder="21–99"
+              aria-label={`Ander nummer voor ${family.label}`}
+              className="w-16 rounded border border-[#cbd5cf] px-2 py-1 text-[10px] font-semibold text-[#243029] outline-none focus:border-[#169447]" />
+          </label>
+          <button type="button" disabled={previewNumber === "?"}
+            onClick={() => { addCustomNumber(); if (previewNumber !== "?") onPick(previewAsset); }}
+            aria-label={`${family.label} met nummer ${previewNumber} selecteren`}
+            title="Live voorbeeld · klik om te selecteren"
+            className="h-8 w-8 shrink-0 rounded border border-[#cbd5cf] bg-white p-0.5 hover:border-[#169447] disabled:cursor-not-allowed disabled:opacity-40">
+            <span className="relative block h-full w-full">
+              <Image src={previewAsset.src} alt="" fill sizes="32px" className="object-contain" />
+              <span className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center font-sans font-black leading-none ${previewNumber.length >= 3 ? "text-[6px]" : previewNumber.length === 2 ? "text-[8px]" : "text-[9px]"} text-white`}>{previewNumber}</span>
+            </span>
+          </button>
+        </div>
+        <button type="button" onClick={() => setExpanded(v => !v)} className="ml-auto rounded border border-[#cbd5cf] px-2 py-1 text-[10px] font-bold text-[#36423b]">
           {expanded ? "1–2 ▴" : "3–20 ▾"}
         </button>
       </div>
@@ -422,7 +442,8 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
             onPointerMove={event => onDrawingPointerMove?.(event, { kind: "dribble", id: dribble.id })}
             onClick={event => { event.stopPropagation(); onSelectDrawing?.({ kind: "dribble", id: dribble.id }); }}>
             {!preview && <path d={smoothPath(dribble.points)} fill="none" stroke="transparent" strokeWidth="10" />}
-            <path d={smoothPath(dribble.points)} fill="none" stroke={dribble.color} strokeWidth={selectedDrawing?.kind === "dribble" && selectedDrawing.id === dribble.id ? "1.35" : ".65"} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <path d={smoothPath(dribble.points)} fill="none" stroke={dribble.color} strokeWidth={selectedDrawing?.kind === "dribble" && selectedDrawing.id === dribble.id ? "1.35" : ".65"} strokeLinecap="round"
+              markerEnd={`url(#${preview ? "training-arrow-preview" : "training-arrow-editor"})`} vectorEffect="non-scaling-stroke" />
           </g>
         ))}
         {!preview && pendingLine && hoverPoint && (
@@ -445,7 +466,7 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
         {!preview && pendingDribble && pendingDribble.length > 0 && (
           <path d={smoothPath([...pendingDribble, ...(hoverPoint ? [hoverPoint] : [])])}
             fill="none" stroke={drawingColor} strokeOpacity=".75" strokeWidth=".65" strokeLinecap="round"
-            strokeDasharray="1.2 1.2" vectorEffect="non-scaling-stroke" />
+            strokeDasharray="1.2 1.2" markerEnd="url(#training-arrow-editor)" vectorEffect="non-scaling-stroke" />
         )}
         {areas.filter(area => area.number).map(area => {
           const center = area.points.reduce((sum, point) => ({ x: sum.x + point.x / area.points.length, y: sum.y + point.y / area.points.length }), { x: 0, y: 0 });
@@ -479,8 +500,9 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
             onPointerMove={event => onDrawingPointerMove?.(event, selectedDrawing, index)} />))}
       </svg>
       {items.map(item => (
-        <div key={item.id} style={{ left: `${item.x}%`, top: `${item.y}%`, width: "5.5%", aspectRatio: "1", transform: `translate(-50%, -50%) rotate(${item.rotation}deg) scale(${item.scale}) scaleX(${item.stretchX ?? 1}) scaleY(${item.stretchY ?? 1})` }} className="pointer-events-none absolute z-10">
+        <div key={item.id} style={{ left: `${item.x}%`, top: `${item.y}%`, width: "5.5%", aspectRatio: "1", transform: "translate(-50%, -50%)" }} className="pointer-events-none absolute z-10">
           <button type="button" title={item.label}
+            style={{ transform: `rotate(${item.rotation}deg) scale(${item.scale}) scaleX(${item.stretchX ?? 1}) scaleY(${item.stretchY ?? 1})` }}
             onPointerDown={event => { event.stopPropagation(); onSelect?.(item.id); event.currentTarget.setPointerCapture(event.pointerId); }}
             onPointerMove={event => onMove?.(event, item.id)}
             onClick={event => { event.stopPropagation(); onSelect?.(item.id); }}
@@ -492,7 +514,8 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
             </span>}
           </button>
           {!preview && selectedId === item.id && <>
-            <span className="pointer-events-none absolute inset-0 border border-dashed border-[#169447]" />
+            <span style={{ transform: `rotate(${item.rotation}deg) scale(${item.scale}) scaleX(${item.stretchX ?? 1}) scaleY(${item.stretchY ?? 1})` }}
+              className="pointer-events-none absolute inset-0 border border-dashed border-[#169447]" />
             <button type="button" aria-label="Icoon vergroten of verkleinen"
               onPointerDown={event => { event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId); }}
               onPointerMove={event => onResize?.(event, item.id)}
