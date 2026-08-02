@@ -152,6 +152,30 @@ export async function setClubSponsorEntitlement(clubId: string, enabled: boolean
   revalidatePath("/dashboard/club");
 }
 
+export async function setClubRecordingConfig(clubId: string, enabled: boolean, urlTemplate: string, cameraCount: number) {
+  await requireAdmin();
+  const cleanTemplate = urlTemplate.trim();
+  if (enabled) {
+    let parsed: URL;
+    try { parsed = new URL(cleanTemplate.replace("{recordingId}", "recording").replace("{camera}", "1")); }
+    catch { throw new Error("Geef een geldige volledige HTTPS-link in."); }
+    if (parsed.protocol !== "https:" || !cleanTemplate.includes("{recordingId}") || !cleanTemplate.includes("{camera}")) {
+      throw new Error("De link moet HTTPS gebruiken en {recordingId} en {camera} bevatten.");
+    }
+    if (!Number.isInteger(cameraCount) || cameraCount < 1 || cameraCount > 20) {
+      throw new Error("Kies een aantal camera's tussen 1 en 20.");
+    }
+  }
+  const admin = createAdminClient();
+  const { error } = await admin.from("clubs").update({
+    external_recording_url_template: enabled ? cleanTemplate : null,
+    external_recording_camera_count: enabled ? cameraCount : null
+  }).eq("id", clubId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard/admin/clubs");
+  revalidatePath("/dashboard/videos");
+}
+
 export async function setClubFeaturePermission(clubId: string, permissionKey: ClubFeaturePermissionKey, enabled: boolean) {
   const platformAdmin = await requireAdmin();
   if (!CLUB_FEATURE_PERMISSIONS.some((permission) => permission.key === permissionKey)) throw new Error("Onbekend deelrecht.");

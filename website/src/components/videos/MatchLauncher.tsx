@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { inspectLocalVideo, type LocalVideoInfo } from "@/lib/media/local-clips";
 import { getRememberedLocalVideo, localVideoFingerprint, rememberLocalVideo } from "@/lib/local-video-store";
-import { EXTERNAL_RECORDING_CAMERAS, externalRecordingUrl } from "@/lib/external-recording";
+import { externalRecordingCameras, externalRecordingConfig, externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
 import type { Match, Team, Video } from "@/types/database";
 import { useI18n } from "@/i18n/client";
 import { localMediaMessages } from "@/i18n/local-media";
@@ -43,6 +43,7 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
   const [recordingId, setRecordingId] = useState("");
   const [veoUrl, setVeoUrl] = useState("");
   const [selectedCameras, setSelectedCameras] = useState<number[]>([]);
+  const [recordingConfig, setRecordingConfig] = useState<ExternalRecordingConfig | null>(null);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState("");
   const [teamAId, setTeamAId] = useState("");
@@ -67,17 +68,21 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || !activeClubId) return;
-    const [matchResult, videoResult, teamResult] = await Promise.all([
+    const [matchResult, videoResult, teamResult, clubResult] = await Promise.all([
       // Platform admins can read every club, so the active club must always be
       // an explicit query boundary instead of relying on row-level access alone.
       supabase.from("matches").select("*, match_videos(video_id)").eq("club_id", activeClubId).order("last_opened_at", { ascending: false }),
       supabase.from("videos").select("*").eq("coach_id", user.id).eq("status", "active").order("created_at", { ascending: false }),
-      supabase.from("teams").select("*, club_teams!inner(club_id)").eq("club_teams.club_id", activeClubId).order("name")
+      supabase.from("teams").select("*, club_teams!inner(club_id)").eq("club_teams.club_id", activeClubId).order("name"),
+      supabase.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", activeClubId).maybeSingle()
     ]);
     if (matchResult.error && matchResult.error.code !== "42P01") setError(matchResult.error.message);
     setMatches((matchResult.data as (Match & { match_videos: { video_id: string }[] })[] | null) ?? []);
     setVideos(videoResult.data ?? []);
     setTeams(teamResult.data ?? []);
+    const nextRecordingConfig = externalRecordingConfig(clubResult.data);
+    setRecordingConfig(nextRecordingConfig);
+    if (!nextRecordingConfig) setVideoSource("file");
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -246,7 +251,7 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
     event.preventDefault();
     const selected = slots.filter((slot): slot is SelectedVideo => !!slot);
     if (videoSource === "file" && !selected.length) return;
-    if (videoSource === "external" && (!recordingId.trim() || !selectedCameras.length)) return;
+    if (videoSource === "external" && (!recordingConfig || !recordingId.trim() || !selectedCameras.length)) return;
     if (videoSource === "veo" && !veoUrl.trim()) return;
     setBusy(true);
     setError("");
@@ -300,7 +305,7 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
           const { data: video, error: videoError } = await supabase.from("videos").insert({
             coach_id: user.id,
             team_id: teamAId || null,
-            video_url: externalRecordingUrl(trimmedRecordingId, cameraNumber),
+            video_url: externalRecordingUrl(recordingConfig!, trimmedRecordingId, cameraNumber),
             video_key: `external/${trimmedRecordingId}/ch${cameraNumber}`,
             camera_number: cameraNumber,
             processing_status: "ready",
@@ -435,7 +440,7 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
               <div className="flex items-center justify-between"><h2 className="font-semibold text-textBright">{t("match.videos")}</h2>
                 <div className="flex overflow-hidden rounded-lg border border-borderButton text-xs font-semibold">
                   <button type="button" onClick={() => setVideoSource("file")} className={`px-3 py-1.5 ${videoSource === "file" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceFile")}</button>
-                  <button type="button" onClick={() => setVideoSource("external")} className={`px-3 py-1.5 ${videoSource === "external" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceExternal")}</button>
+                  {recordingConfig && <button type="button" onClick={() => setVideoSource("external")} className={`px-3 py-1.5 ${videoSource === "external" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceExternal")}</button>}
                   <button type="button" onClick={() => setVideoSource("veo")} className={`px-3 py-1.5 ${videoSource === "veo" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceVeo")}</button>
                 </div>
               </div>
@@ -456,7 +461,7 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
                   <div className="mt-3">
                     <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-textMuted">{t("match.camerasUsed")}</span>
                     <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-                      {EXTERNAL_RECORDING_CAMERAS.map((cameraNumber) => {
+                      {recordingConfig && externalRecordingCameras(recordingConfig).map((cameraNumber) => {
                         const checked = selectedCameras.includes(cameraNumber);
                         return <button key={cameraNumber} type="button" onClick={() => toggleCamera(cameraNumber)} className={`rounded-lg border py-2 text-center text-sm font-semibold ${checked ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-cardAlt text-textSecondary"}`}>{cameraNumber}</button>;
                       })}

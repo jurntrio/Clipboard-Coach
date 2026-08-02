@@ -24,7 +24,7 @@ import { useI18n } from "@/i18n/client";
 import { localMediaMessages } from "@/i18n/local-media";
 import { getTagEventKind } from "@/lib/tag-events";
 import { GoalTagDialog, type GoalTagDetails } from "@/components/tags/GoalTagDialog";
-import { EXTERNAL_RECORDING_CAMERAS, externalRecordingUrl } from "@/lib/external-recording";
+import { externalRecordingCameras, externalRecordingConfig, externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
 import { resolveVeoLink } from "@/lib/veo-browser";
 
 type MatchBlock = { id: string; sequence_order: number; label: string; is_primary: boolean; videos: Video | null };
@@ -181,10 +181,11 @@ export default function MatchViewerPage() {
   const [drawingFrame, setDrawingFrame] = useState<{ image: string; time: number; videoId?: string; tagId: string | null; drawingId: string | null; key?: string; initialShapes?: WebDrawingShape[]; durationSeconds?: number } | null>(null);
   const [playingDrawing, setPlayingDrawing] = useState<TagDrawing | null>(null);
   const [pendingGoal, setPendingGoal] = useState<{ video: Video; label: string; localTime: number } | null>(null);
-  const [attachSource, setAttachSource] = useState<"file" | "external" | "veo">("external");
+  const [attachSource, setAttachSource] = useState<"file" | "external" | "veo">("file");
   const [attachRecordingId, setAttachRecordingId] = useState("");
   const [attachVeoUrl, setAttachVeoUrl] = useState("");
   const [attachCameras, setAttachCameras] = useState<number[]>([]);
+  const [recordingConfig, setRecordingConfig] = useState<ExternalRecordingConfig | null>(null);
   const [attaching, setAttaching] = useState(false);
   const [calibratingLiveTagId, setCalibratingLiveTagId] = useState<string | null>(null);
   const lastPlaybackTimeRef = useRef(0);
@@ -422,6 +423,10 @@ export default function MatchViewerPage() {
     const { data: profile } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
     setCanEditMatch(loaded.coach_id === user.id || profile?.account_role === "club_admin");
     setMatch(loaded);
+    const { data: club } = loaded.club_id
+      ? await supabase.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", loaded.club_id).maybeSingle()
+      : { data: null };
+    setRecordingConfig(externalRecordingConfig(club));
     const { data: liveTagData } = await supabase.from("live_match_tags").select("*").eq("match_id", matchId).order("occurred_at");
     setLiveTags(liveTagData ?? []);
     const loadedVideos = loaded.match_videos.map((block) => block.videos).filter((video): video is Video => !!video);
@@ -564,7 +569,7 @@ export default function MatchViewerPage() {
 
   async function attachExternalRecording() {
     const trimmedRecordingId = attachRecordingId.trim();
-    if (!trimmedRecordingId || !attachCameras.length || !currentUserId) return;
+    if (!recordingConfig || !trimmedRecordingId || !attachCameras.length || !currentUserId) return;
     setAttaching(true);
     setError("");
     try {
@@ -574,7 +579,7 @@ export default function MatchViewerPage() {
         const { data: video, error: videoError } = await supabase.from("videos").insert({
           coach_id: currentUserId,
           team_id: match?.team_a_id ?? null,
-          video_url: externalRecordingUrl(trimmedRecordingId, cameraNumber),
+          video_url: externalRecordingUrl(recordingConfig, trimmedRecordingId, cameraNumber),
           video_key: `external/${trimmedRecordingId}/ch${cameraNumber}`,
           camera_number: cameraNumber,
           processing_status: "ready",
@@ -995,7 +1000,7 @@ export default function MatchViewerPage() {
                   <h2 className="text-textBright text-lg font-semibold text-center">{t("match.attachVideos")}</h2>
                   <p className="text-textMuted text-sm mt-2 text-center">{t("match.attachVideosHelp")}</p>
                   <div className="mt-4 flex justify-center overflow-hidden rounded-lg border border-borderButton text-xs font-semibold">
-                    <button type="button" onClick={() => setAttachSource("external")} className={`px-3 py-1.5 ${attachSource === "external" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceExternal")}</button>
+                    {recordingConfig && <button type="button" onClick={() => setAttachSource("external")} className={`px-3 py-1.5 ${attachSource === "external" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceExternal")}</button>}
                     <button type="button" onClick={() => setAttachSource("file")} className={`px-3 py-1.5 ${attachSource === "file" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceFile")}</button>
                     <button type="button" onClick={() => setAttachSource("veo")} className={`px-3 py-1.5 ${attachSource === "veo" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceVeo")}</button>
                   </div>
@@ -1007,7 +1012,7 @@ export default function MatchViewerPage() {
                       <div className="mt-3">
                         <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-textMuted">{t("match.camerasUsed")}</span>
                         <div className="grid grid-cols-7 gap-2">
-                          {EXTERNAL_RECORDING_CAMERAS.map((cameraNumber) => {
+                          {recordingConfig && externalRecordingCameras(recordingConfig).map((cameraNumber) => {
                             const checked = attachCameras.includes(cameraNumber);
                             return <button key={cameraNumber} type="button" onClick={() => toggleAttachCamera(cameraNumber)} className={`rounded-lg border py-2 text-center text-sm font-semibold ${checked ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-cardAlt text-textSecondary"}`}>{cameraNumber}</button>;
                           })}

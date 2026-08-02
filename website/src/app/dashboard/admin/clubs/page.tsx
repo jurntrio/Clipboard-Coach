@@ -39,7 +39,7 @@ export default async function AdminClubsPage() {
   const admin = createAdminClient();
   const { data: profiles } = await admin.from("profiles").select("id, email, full_name").order("full_name");
   const clubRelations = "club_teams:club_teams!club_teams_club_id_fkey(id, name), club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))";
-  const withLogos = await admin.from("clubs").select(`id, name, rbfa_registration_number, logo_url, clip_advertising_enabled, ${clubRelations}`).order("name");
+  const withLogos = await admin.from("clubs").select(`id, name, rbfa_registration_number, logo_url, clip_advertising_enabled, external_recording_url_template, external_recording_camera_count, ${clubRelations}`).order("name");
   const fallback = withLogos.error
     ? await admin.from("clubs").select(`id, name, rbfa_registration_number, ${clubRelations}`).order("name")
     : null;
@@ -108,6 +108,8 @@ export default async function AdminClubsPage() {
     ...club,
     logo_url: "logo_url" in club ? (club.logo_url as string | null) : null,
     clip_advertising_enabled: "clip_advertising_enabled" in club ? club.clip_advertising_enabled !== false : true,
+    external_recording_url_template: "external_recording_url_template" in club ? club.external_recording_url_template as string | null : null,
+    external_recording_camera_count: "external_recording_camera_count" in club ? club.external_recording_camera_count as number | null : null,
     teams: (club.club_teams ?? []) as { id: string; name: string }[],
     memberships: (club.club_memberships ?? []) as { profile_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst" }[],
     modules: (club.club_module_entitlements ?? []) as { module_key: string; enabled: boolean }[],

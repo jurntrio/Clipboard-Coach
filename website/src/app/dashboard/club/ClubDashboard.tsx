@@ -250,7 +250,7 @@ export function ClubDashboard() {
           {club && <div className="mt-4">
             <ClubSponsorManager
               clubId={club.id}
-              generalUrl={club.general_sponsor_url ?? "/branding/clip-sponsors.png"}
+              generalUrl={club.general_sponsor_url ?? null}
               teams={teams}
               readOnly={readOnly}
               onChanged={load}

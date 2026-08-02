@@ -42,6 +42,8 @@ export type Club = {
   clip_advertising_enabled: boolean;
   general_sponsor_url: string | null;
   use_general_sponsor: boolean;
+  external_recording_url_template: string | null;
+  external_recording_camera_count: number | null;
   clip_view_count_roles: string[];
   created_at: string;
   updated_at: string;

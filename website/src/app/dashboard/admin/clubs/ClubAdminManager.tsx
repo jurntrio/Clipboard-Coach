@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createClub, removeClubMembership, setClubMembership, setClubModuleEntitlement, setClubSponsorEntitlement } from "../actions";
+import { createClub, removeClubMembership, setClubMembership, setClubModuleEntitlement, setClubRecordingConfig, setClubSponsorEntitlement } from "../actions";
 import { CLUB_MODULES, type ClubModuleKey } from "@/lib/club-modules";
 import { ClubLogoUploader } from "@/components/clubs/ClubLogoUploader";
 
@@ -12,7 +12,7 @@ type Membership = { profile_id: string; role: "trainer" | "club_admin" | "club_a
 type ClubTrainer = { id: string; profile_id: string | null; display_name: string; phone_number: string | null; invitation_status: string; profiles: { email: string } | { email: string }[] | null; club_trainer_teams: { club_teams: { name: string } | { name: string }[] | null }[] };
 type ClubTeam = { id: string; name: string };
 type ClubUsage = { teams: number; players: number; members: number; trainings: number; matches: number; videos: number; clips: number; videoBytes: number; clipBytes: number; trainingBytes: number; clipsWithUnknownSize: number };
-type ClubRow = { id: string; name: string; rbfa_registration_number: string | null; logo_url: string | null; clip_advertising_enabled: boolean; teams: ClubTeam[]; memberships: Membership[]; trainers: ClubTrainer[]; modules: { module_key: string; enabled: boolean }[]; usage: ClubUsage };
+type ClubRow = { id: string; name: string; rbfa_registration_number: string | null; logo_url: string | null; clip_advertising_enabled: boolean; external_recording_url_template: string | null; external_recording_camera_count: number | null; teams: ClubTeam[]; memberships: Membership[]; trainers: ClubTrainer[]; modules: { module_key: string; enabled: boolean }[]; usage: ClubUsage };
 
 const memberRoleLabel: Record<Membership["role"], string> = { club_admin: "Club Admin", club_admin_viewer: "Club Admin (viewer)", analyst: "Analyst", trainer: "Trainer" };
 const memberRoleClass: Record<Membership["role"], string> = { club_admin: "bg-blue-500/15 text-blue-300", club_admin_viewer: "bg-blue-500/10 text-blue-200", analyst: "bg-cyan-500/15 text-cyan-300", trainer: "bg-accent/15 text-accent" };
@@ -110,6 +110,8 @@ function ClubDetails({ club, profiles, pending, run, readOnly }: { club: ClubRow
         <p className="mt-2 text-xs text-textMuted">Opslag is de som van geregistreerde video- en clipbestanden plus trainingsinhoud. Oude bestanden zonder bestandsgrootte worden apart gemeld.</p>
       </section>
 
+      <RecordingSources club={club} pending={pending} readOnly={readOnly} run={run} />
+
       <section className="mb-5 rounded-lg border border-borderSubtle bg-cardDeep p-4">
         <h3 className="font-semibold text-textBright">Modules en rechten</h3>
         <p className="mt-1 text-xs text-textMuted">Schakel per onderdeel de module in en bepaal daaronder welke handelingen toegelaten zijn.</p>
@@ -177,6 +179,47 @@ function ClubDetails({ club, profiles, pending, run, readOnly }: { club: ClubRow
       </div>}
     </div>
   </details>;
+}
+
+function RecordingSources({ club, pending, readOnly, run }: {
+  club: ClubRow;
+  pending: boolean;
+  readOnly?: boolean;
+  run: (action: () => Promise<void>) => void;
+}) {
+  const [externalEnabled, setExternalEnabled] = useState(!!club.external_recording_url_template);
+  const [urlTemplate, setUrlTemplate] = useState(club.external_recording_url_template ?? "https://voorbeeld.be/opnames/{recordingId}/camera-{camera}.mp4");
+  const [cameraCount, setCameraCount] = useState(club.external_recording_camera_count ?? 1);
+
+  return <section className="mb-5 rounded-lg border border-borderSubtle bg-cardDeep p-4">
+    <h3 className="font-semibold text-textBright">Videobronnen</h3>
+    <p className="mt-1 text-xs text-textMuted">Eigen opnames en Veo zijn standaard beschikbaar. Stel alleen een externe multicameraprovider in wanneer de club die gebruikt.</p>
+    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <SourceAvailability label="Eigen videobestanden" detail="Ook gsm-opnames" />
+      <SourceAvailability label="Veo-link" detail="Standaard beschikbaar" />
+      <label className="flex items-start gap-3 rounded-lg border border-border bg-card p-3 text-sm text-textPrimary">
+        <input type="checkbox" checked={externalEnabled} disabled={pending || readOnly} onChange={(event) => setExternalEnabled(event.target.checked)} className="mt-0.5 h-4 w-4 accent-accent" />
+        <span><strong className="block">Externe camera’s</strong><span className="text-xs text-textMuted">Bijvoorbeeld 360SI</span></span>
+      </label>
+    </div>
+    {externalEnabled && <div className="mt-3 grid gap-3 md:grid-cols-[1fr_150px]">
+      <label className="text-sm text-textSecondary">Volledig URL-sjabloon
+        <input value={urlTemplate} disabled={pending || readOnly} onChange={(event) => setUrlTemplate(event.target.value)} className={inputClass} />
+        <span className="mt-1 block text-xs text-textMuted">Gebruik <code>{"{recordingId}"}</code> voor het opnamenummer en <code>{"{camera}"}</code> voor het cameranummer.</span>
+      </label>
+      <label className="text-sm text-textSecondary">Aantal camera’s
+        <input type="number" min={1} max={20} value={cameraCount} disabled={pending || readOnly} onChange={(event) => setCameraCount(Number(event.target.value))} className={inputClass} />
+      </label>
+    </div>}
+    {!readOnly && <button type="button" disabled={pending} onClick={() => run(() => setClubRecordingConfig(club.id, externalEnabled, urlTemplate, cameraCount))} className="mt-3 rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">Videobronnen bewaren</button>}
+  </section>;
+}
+
+function SourceAvailability({ label, detail }: { label: string; detail: string }) {
+  return <div className="flex items-start gap-3 rounded-lg border border-border bg-card p-3 text-sm text-textPrimary">
+    <input type="checkbox" checked readOnly disabled className="mt-0.5 h-4 w-4 accent-accent disabled:opacity-100" />
+    <span><strong className="block">{label}</strong><span className="text-xs text-textMuted">{detail}</span></span>
+  </div>;
 }
 
 function UsageCard({ label, value, detail }: { label: string; value: string; detail: string }) {
