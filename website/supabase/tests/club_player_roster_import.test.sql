@@ -2,7 +2,7 @@
 -- Covers 0032_club_player_roster_import.sql (Fase 2a: toevoegen/bijwerken-modus).
 begin;
 create extension if not exists pgtap;
-select plan(40);
+select plan(41);
 
 -- ---------------------------------------------------------------------------
 -- Schema-aanwezigheid
@@ -183,7 +183,7 @@ select throws_ok(
 );
 
 select set_config('request.jwt.claims', json_build_object('sub', '30000000-0000-0000-0000-000000000002')::text, true);
-select lives_ok(
+select throws_ok(
   $$select public.resolve_primary_membership(
     current_setting('test.multi_team_club_player_id')::uuid,
     current_setting('test.u13a_team_id')::uuid
@@ -218,7 +218,8 @@ select lives_ok(
     current_setting('test.multi_team_club_player_id')::uuid,
     current_setting('test.u17_team_id')::uuid
   )$$,
-  'opnieuw kiezen (U17 als primary) werkt zonder unique-index-violatie'
+  'P0001', 'RESOLVE_PRIMARY_CROSS_TEAM_FORBIDDEN',
+  'een trainer mag geen primary membership op een ander, niet-beheerd team demoteren'
 );
 reset role;
 select is(
@@ -226,8 +227,19 @@ select is(
     join public.club_players cp on cp.id = ptm.club_player_id
     join public.teams t on t.id = ptm.team_id join public.club_teams ct on ct.id = t.club_team_id
     where cp.first_name = 'Multi' and ct.name = 'U13A Import'),
-  'secondary', 'U13A is correct gedemote na de omschakeling naar U17'
+  'primary', 'U13A blijft primary na de geweigerde cross-team omschakeling'
 );
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '30000000-0000-0000-0000-000000000001')::text, true);
+select lives_ok(
+  $$select public.resolve_primary_membership(
+    current_setting('test.multi_team_club_player_id')::uuid,
+    current_setting('test.u17_team_id')::uuid
+  )$$,
+  'een clubadmin mag de primary-keuze wel over teams heen wijzigen'
+);
+reset role;
 
 select throws_ok(
   $$select public.resolve_primary_membership(

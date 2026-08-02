@@ -4,7 +4,7 @@
 -- covered player_guardians/player_invites at all, so this is new ground, not a regression suite.
 begin;
 create extension if not exists pgtap;
-select plan(25);
+select plan(27);
 
 -- ---------------------------------------------------------------------------
 -- Schema-aanwezigheid
@@ -123,8 +123,10 @@ select is(
 );
 
 set local role authenticated;
-select set_config('request.jwt.claims', json_build_object('sub', '50000000-0000-0000-0000-000000000004')::text, true);
+select set_config('request.jwt.claims', json_build_object('sub', '50000000-0000-0000-0000-000000000004', 'role', 'authenticated')::text, true);
 select is((select count(*)::int from public.guardian_dashboard_players()), 1, 'guardian_dashboard_players geeft 1 rij terug voor guardian B');
+select is((select count(*)::int from public.guardian_operational_player_ids('50000000-0000-0000-0000-000000000003'::uuid)), 0, 'guardian B kan de speler-UUIDs van guardian A niet opvragen');
+select is((select count(*)::int from public.guardian_club_player_ids('50000000-0000-0000-0000-000000000003'::uuid)), 0, 'guardian B kan clubspeler-UUIDs van guardian A niet opvragen');
 select is((select team_name from public.guardian_dashboard_players() limit 1), 'Guardian A', 'de rij bevat de juiste teamnaam');
 select is((select count(*)::int from public.players where first_name = 'Current' and last_name = 'Kid'), 1, 'RLS laat guardian B de gekoppelde speler zien');
 select is((select count(*)::int from public.players where first_name = 'Solo'), 0, 'RLS verbergt een niet-gekoppelde speler voor guardian B');
