@@ -22,11 +22,11 @@ select is(
    where table_schema = 'public' and table_name = 'player_invites' and column_name = 'token_hash'),
   'bytea', 'player invite token_hash gebruikt bytea'
 );
-select like(pg_get_functiondef('public.handle_new_user()'::regprocedure),
-  '%club_registration_invites%token_hash = extensions.digest%',
+select ok(position('club_registration_invites' in pg_get_functiondef('public.handle_new_user()'::regprocedure)) > 0
+    and position('token_hash = extensions.digest' in pg_get_functiondef('public.handle_new_user()'::regprocedure)) > 0,
   'clubregistratie vergelijkt uitsluitend de SHA-256 hash');
-select like(pg_get_functiondef('public.handle_new_user()'::regprocedure),
-  '%player_invites%token_hash = extensions.digest%',
+select ok(position('player_invites' in pg_get_functiondef('public.handle_new_user()'::regprocedure)) > 0
+    and position('token_hash = extensions.digest' in pg_get_functiondef('public.handle_new_user()'::regprocedure)) > 0,
   'ouderregistratie vergelijkt uitsluitend de SHA-256 hash');
 
 select * from finish();

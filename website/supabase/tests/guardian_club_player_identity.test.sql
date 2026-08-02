@@ -138,6 +138,7 @@ reset role;
 -- access_scope-venster: current_season / from_acceptance (default) / all_history, getest tegen
 -- "Past Kid" (enkel lid in het verlopen seizoen).
 -- ---------------------------------------------------------------------------
+select set_config('request.jwt.claims', '{}', true);
 insert into auth.users (id, email, raw_user_meta_data) values
   ('50000000-0000-0000-0000-000000000005', 'guardianc@tgc.test', '{"full_name":"Guardian C"}'),
   ('50000000-0000-0000-0000-000000000006', 'guardiand@tgc.test', '{"full_name":"Guardian D"}'),

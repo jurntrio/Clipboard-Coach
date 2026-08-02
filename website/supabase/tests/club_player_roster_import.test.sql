@@ -183,7 +183,7 @@ select throws_ok(
 );
 
 select set_config('request.jwt.claims', json_build_object('sub', '30000000-0000-0000-0000-000000000002')::text, true);
-select throws_ok(
+select lives_ok(
   $$select public.resolve_primary_membership(
     current_setting('test.multi_team_club_player_id')::uuid,
     current_setting('test.u13a_team_id')::uuid
@@ -213,7 +213,7 @@ select is(
 
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '30000000-0000-0000-0000-000000000003')::text, true);
-select lives_ok(
+select throws_ok(
   $$select public.resolve_primary_membership(
     current_setting('test.multi_team_club_player_id')::uuid,
     current_setting('test.u17_team_id')::uuid
