@@ -1,7 +1,7 @@
 -- Run after migrations with: supabase test db
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(18);
 
 select is(public.normalize_club_team_name('  K.M. Tórhout  '), 'k m torhout', 'club names are normalized');
 
@@ -12,7 +12,17 @@ values (
 );
 select ok(exists(select 1 from public.clubs where rbfa_registration_number = 'TEST-991'), 'new club is registered');
 select ok(exists(select 1 from public.club_teams where name = 'U13 IP' and status = 'active'), 'first team is active');
-select ok(exists(select 1 from public.club_memberships where profile_id = '10000000-0000-0000-0000-000000000001' and role = 'trainer'), 'new club creator starts as trainer pending platform approval');
+select ok(exists(
+  select 1 from public.club_memberships
+  where profile_id = '10000000-0000-0000-0000-000000000001'
+    and role = 'club_admin' and status = 'active'
+    and function_role = 'club_admin' and team_scope = 'all'
+), 'new club creator becomes the active club admin');
+select is(
+  (select account_role from public.profiles where id = '10000000-0000-0000-0000-000000000001'),
+  'club_admin',
+  'new club creator receives the matching account role'
+);
 
 insert into auth.users(id, email, raw_user_meta_data)
 select '10000000-0000-0000-0000-000000000002', 'coach@example.test',
@@ -22,6 +32,11 @@ select '10000000-0000-0000-0000-000000000002', 'coach@example.test',
 from public.clubs c join public.club_teams t on t.club_id = c.id
 where c.rbfa_registration_number = 'TEST-991' and t.name = 'U13 IP';
 select ok(exists(select 1 from public.club_trainers where profile_id = '10000000-0000-0000-0000-000000000002'), 'existing team user is linked');
+select ok(exists(
+  select 1 from public.club_memberships
+  where profile_id = '10000000-0000-0000-0000-000000000002'
+    and role = 'trainer' and status = 'pending'
+), 'joining an existing club remains a pending trainer request');
 
 insert into auth.users(id, email, raw_user_meta_data)
 select '10000000-0000-0000-0000-000000000003', 'assistant@example.test',
