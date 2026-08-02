@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   web:
-    name: TypeScript and production build
+    name: Lint, TypeScript and production build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,6 +37,7 @@ jobs:
           cache: npm
           cache-dependency-path: website/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
 
