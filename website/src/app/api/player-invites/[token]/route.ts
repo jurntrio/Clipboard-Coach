@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hashInviteToken } from "@/lib/invite-tokens";
 
 export async function GET(request: Request, { params }: { params: { token: string } }) {
   const admin = createAdminClient();
-  const { data: invite } = await admin.from("player_invites").select("id, player_id, club_player_id, expires_at, used_at").eq("token", params.token).maybeSingle();
+  const { data: invite } = await admin.from("player_invites").select("id, player_id, club_player_id, expires_at, used_at").eq("token_hash", hashInviteToken(params.token)).maybeSingle();
   if (!invite) return NextResponse.json({ error: "Deze link is niet geldig." }, { status: 404 });
   if (invite.used_at) return NextResponse.json({ error: "Deze link is al gebruikt." }, { status: 410 });
   if (new Date(invite.expires_at).getTime() < Date.now()) return NextResponse.json({ error: "Deze link is verlopen." }, { status: 410 });

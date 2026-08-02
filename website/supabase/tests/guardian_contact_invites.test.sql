@@ -37,8 +37,9 @@ select public.import_roster_rows_merge(
 );
 select set_config('test.empty_kid_id', (select id::text from public.club_players where first_name = 'Empty' and last_name = 'Kid'), true);
 
-insert into public.player_invites (club_player_id, created_by, contact_label, contact_phone)
-select current_setting('test.filled_kid_id')::uuid, '60000000-0000-0000-0000-000000000001', 'Mama', '0470111111';
+insert into public.player_invites (club_player_id, created_by, contact_label, contact_phone, token_hash)
+select current_setting('test.filled_kid_id')::uuid, '60000000-0000-0000-0000-000000000001', 'Mama', '0470111111',
+  extensions.digest('60000000-0000-0000-0000-000000000050', 'sha256');
 select is(
   (select contact_label from public.player_invites where club_player_id = current_setting('test.filled_kid_id')::uuid),
   'Mama', 'contact_label wordt opgeslagen op de uitnodiging'
@@ -48,12 +49,13 @@ select is(
   '0470111111', 'contact_phone wordt opgeslagen op de uitnodiging'
 );
 select set_config('test.filled_kid_invite_token',
-  (select token::text from public.player_invites where club_player_id = current_setting('test.filled_kid_id')::uuid), true);
+  '60000000-0000-0000-0000-000000000050', true);
 
-insert into public.player_invites (club_player_id, created_by)
-select current_setting('test.empty_kid_id')::uuid, '60000000-0000-0000-0000-000000000001';
+insert into public.player_invites (club_player_id, created_by, token_hash)
+select current_setting('test.empty_kid_id')::uuid, '60000000-0000-0000-0000-000000000001',
+  extensions.digest('60000000-0000-0000-0000-000000000051', 'sha256');
 select set_config('test.empty_kid_invite_token',
-  (select token::text from public.player_invites where club_player_id = current_setting('test.empty_kid_id')::uuid), true);
+  '60000000-0000-0000-0000-000000000051', true);
 
 -- Mama van "Filled Kid" registreert en probeert een ANDER adres mee te geven -- moet genegeerd worden.
 insert into auth.users (id, email, raw_user_meta_data)

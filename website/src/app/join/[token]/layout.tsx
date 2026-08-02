@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hashInviteToken } from "@/lib/invite-tokens";
 
 const siteUrl = "https://clipboardcoachstudio.com";
 
@@ -7,7 +8,7 @@ export async function generateMetadata({ params }: { params: { token: string } }
   const admin = createAdminClient();
   const { data: invite } = await admin.from("player_invites")
     .select("player_id, club_player_id, expires_at, used_at")
-    .eq("token", params.token).maybeSingle();
+    .eq("token_hash", hashInviteToken(params.token)).maybeSingle();
 
   if (!invite || invite.used_at || new Date(invite.expires_at).getTime() <= Date.now()) {
     return preview("Uitnodiging als verantwoordelijke", "Open de link om de status van deze uitnodiging te bekijken.");

@@ -3,6 +3,7 @@ import { CLUB_FUNCTION_ROLES } from "@/lib/club-access-options";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { createInviteToken, hashInviteToken } from "@/lib/invite-tokens";
 
 export async function POST(request: Request) {
   const supabase = createClient();
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
       : body.functionRole === "club_admin_viewer" ? "club_admin_viewer"
       : "trainer";
   }
+  const token = createInviteToken();
   const { data, error } = await admin.from("club_registration_invites").insert({
     club_id: platformRole ? null : body.clubId,
     club_team_id: platformRole ? null : body.teamId,
@@ -53,10 +55,11 @@ export async function POST(request: Request) {
     expected_name: expectedName,
     contact_email: contactEmail || null,
     contact_phone: contactPhone || null,
-    created_by: user.id
-  }).select("token, expires_at").single();
+    created_by: user.id,
+    token_hash: hashInviteToken(token)
+  }).select("expires_at").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json({ token, expires_at: data.expires_at }, { status: 201 });
 }
 
 function clean(value: unknown, max: number) {

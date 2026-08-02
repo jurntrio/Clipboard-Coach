@@ -70,15 +70,17 @@ select current_setting('test.guardian_a_team_id')::uuid, 'Past', 'Kid', '2012-01
 -- ---------------------------------------------------------------------------
 -- End-to-end via handle_new_user: persoonlijk-teampad (player_id) en clubbreed pad (club_player_id).
 -- ---------------------------------------------------------------------------
-insert into public.player_invites (player_id, created_by)
-select p.id, '50000000-0000-0000-0000-000000000002' from public.players p where p.first_name = 'Solo' and p.last_name = 'Kid';
+insert into public.player_invites (player_id, created_by, token_hash)
+select p.id, '50000000-0000-0000-0000-000000000002', extensions.digest('50000000-0000-0000-0000-000000000050', 'sha256')
+from public.players p where p.first_name = 'Solo' and p.last_name = 'Kid';
 select set_config('test.solo_invite_token',
-  (select token::text from public.player_invites pi join public.players p on p.id = pi.player_id where p.first_name = 'Solo'), true);
+  '50000000-0000-0000-0000-000000000050', true);
 
-insert into public.player_invites (club_player_id, created_by)
-select cp.id, '50000000-0000-0000-0000-000000000002' from public.club_players cp where cp.first_name = 'Current' and cp.last_name = 'Kid';
+insert into public.player_invites (club_player_id, created_by, token_hash)
+select cp.id, '50000000-0000-0000-0000-000000000002', extensions.digest('50000000-0000-0000-0000-000000000051', 'sha256')
+from public.club_players cp where cp.first_name = 'Current' and cp.last_name = 'Kid';
 select set_config('test.current_kid_invite_token',
-  (select token::text from public.player_invites where club_player_id = current_setting('test.current_kid_club_player_id')::uuid), true);
+  '50000000-0000-0000-0000-000000000051', true);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values ('50000000-0000-0000-0000-000000000003', 'guardiana@tgc.test',
@@ -101,7 +103,7 @@ select is(
   'from_acceptance', 'standaard access_scope is from_acceptance'
 );
 select ok(
-  (select used_at from public.player_invites where token = current_setting('test.solo_invite_token')::uuid) is not null,
+  (select used_at from public.player_invites where token_hash = extensions.digest(current_setting('test.solo_invite_token'), 'sha256')) is not null,
   'de persoonlijke uitnodiging is gemarkeerd als gebruikt'
 );
 select ok(
@@ -197,10 +199,10 @@ select throws_ok(
   )$$, '23514', null, 'access_scope is beperkt tot de 3 gekende waarden'
 );
 select throws_ok(
-  $$insert into public.player_invites (player_id, club_player_id, created_by) values (
+  $$insert into public.player_invites (player_id, club_player_id, created_by, token_hash) values (
     (select id from public.players where first_name = 'Solo'),
     current_setting('test.past_kid_club_player_id')::uuid,
-    '50000000-0000-0000-0000-000000000002'
+    '50000000-0000-0000-0000-000000000002', extensions.digest('invalid-double-target', 'sha256')
   )$$, '23514', null, 'player_invites weigert een rij met zowel player_id als club_player_id'
 );
 

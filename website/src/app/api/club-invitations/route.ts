@@ -3,6 +3,7 @@ import { CLUB_FUNCTION_ROLES } from "@/lib/club-access-options";
 import { getClubAccess } from "@/lib/auth/club-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { createInviteToken, hashInviteToken } from "@/lib/invite-tokens";
 
 export async function POST(request: Request) {
   const supabase = createClient();
@@ -25,10 +26,11 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const { data: team } = await admin.from("club_teams").select("id").eq("id", body.teamId).eq("club_id", body.clubId).maybeSingle();
   if (!team) return NextResponse.json({ error: "De gekozen ploeg hoort niet bij deze club." }, { status: 400 });
+  const token = createInviteToken();
   const { data, error } = await admin.from("club_registration_invites").insert({
     club_id: body.clubId, club_team_id: team.id, technical_role: technicalRole, function_role: body.functionRole,
-    expected_name: expectedName || null, created_by: user.id
-  }).select("token, expires_at").single();
+    expected_name: expectedName || null, created_by: user.id, token_hash: hashInviteToken(token)
+  }).select("expires_at").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json({ token, expires_at: data.expires_at }, { status: 201 });
 }

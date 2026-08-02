@@ -3,6 +3,7 @@ import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, canManagePlayer, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { createInviteToken, hashInviteToken } from "@/lib/invite-tokens";
 
 export async function POST(request: Request, { params }: { params: { playerId: string } }) {
   const supabase = createClient();
@@ -42,13 +43,15 @@ export async function POST(request: Request, { params }: { params: { playerId: s
   const contactLabel = body?.contactLabel?.trim() || null;
   const contactPhone = body?.contactPhone?.trim() || null;
 
-  const { data: invite, error } = await admin.from("player_invites")
+  const token = createInviteToken();
+  const { error } = await admin.from("player_invites")
     .insert({
       ...(clubPlayerId ? { club_player_id: clubPlayerId } : { player_id: player.id }),
       created_by: user.id, contact_label: contactLabel, contact_phone: contactPhone,
+      token_hash: hashInviteToken(token),
     })
-    .select("token").single();
+    .select("id").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ token: invite.token });
+  return NextResponse.json({ token });
 }

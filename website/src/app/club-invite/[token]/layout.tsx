@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { CLUB_FUNCTION_ROLES } from "@/lib/club-access-options";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hashInviteToken } from "@/lib/invite-tokens";
 
 const siteUrl = "https://clipboardcoachstudio.com";
 
 export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
   const { data: invite } = await createAdminClient().from("club_registration_invites")
     .select("expected_name, function_role, target_account_role, expires_at, used_at, clubs(name), club_teams(name)")
-    .eq("token", params.token).maybeSingle();
+    .eq("token_hash", hashInviteToken(params.token)).maybeSingle();
 
   if (!invite || invite.used_at || new Date(invite.expires_at).getTime() <= Date.now()) {
     return preview("Uitnodiging voor Clipboard Coach", "Open de link om de status van deze uitnodiging te bekijken.");
