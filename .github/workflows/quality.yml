@@ -50,7 +50,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v2
         with:
-          version: 2.84.2
+          version: latest
           github-token: ${{ github.token }}
       - name: Start temporary database and apply migrations
         run: supabase db start
@@ -58,4 +58,5 @@ jobs:
         run: supabase test db
       - name: Stop temporary database
         if: always()
+        continue-on-error: true
         run: supabase stop --no-backup
