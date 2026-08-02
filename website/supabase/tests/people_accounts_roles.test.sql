@@ -122,7 +122,7 @@ select set_config('request.jwt.claim.sub', '86000000-0000-0000-0000-000000000021
 set local role authenticated;
 select is(
   (select count(*) from public.club_people),
-  2::bigint, 'club A admin only reads club A people'
+  3::bigint, 'club A admin only reads club A people, including their canonical account identity'
 );
 select is(
   (select count(*) from public.club_people where club_id = '86000000-0000-0000-0000-000000000002'),

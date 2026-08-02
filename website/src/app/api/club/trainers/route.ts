@@ -27,32 +27,17 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Je kunt jezelf niet via deze lijst uit de club verwijderen." }, { status: 400 });
   }
 
-  if (trainer.profile_id) {
-    const { data: clubTeams } = await admin.from("club_teams").select("id").eq("club_id", body.clubId);
-    const clubTeamIds = (clubTeams ?? []).map(team => team.id);
-    if (clubTeamIds.length) {
-      const { data: operationalTeams } = await admin.from("teams").select("id").in("club_team_id", clubTeamIds);
-      const operationalTeamIds = (operationalTeams ?? []).map(team => team.id);
-      if (operationalTeamIds.length) {
-        await admin.from("team_staff_members").delete()
-          .eq("user_id", trainer.profile_id).in("team_id", operationalTeamIds);
-      }
-    }
-    await Promise.all([
-      admin.from("club_member_permissions").delete().eq("club_id", body.clubId).eq("profile_id", trainer.profile_id),
-      admin.from("club_member_team_access").delete().eq("club_id", body.clubId).eq("profile_id", trainer.profile_id),
-      admin.from("club_memberships").delete().eq("club_id", body.clubId).eq("profile_id", trainer.profile_id)
-    ]);
-
-    const { data: account } = await admin.from("person_accounts").select("person_id")
-      .eq("profile_id", trainer.profile_id).eq("status", "active").maybeSingle();
-    if (account?.person_id) {
-      await admin.from("club_people").delete()
-        .eq("club_id", body.clubId).eq("person_id", account.person_id);
-    }
+  if (!trainer.profile_id) {
+    const { error } = await admin.from("club_trainers").delete().eq("id", trainer.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, removedName: trainer.display_name });
   }
 
-  const { error } = await admin.from("club_trainers").delete().eq("id", trainer.id);
+  const { data: removedName, error } = await admin.rpc("remove_registered_club_identity", {
+    target_club_id: body.clubId,
+    target_profile_id: trainer.profile_id,
+    actor_profile_id: user.id
+  });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, removedName: trainer.display_name });
+  return NextResponse.json({ ok: true, removedName: removedName || trainer.display_name });
 }
