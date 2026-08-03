@@ -15,8 +15,16 @@ select has_column('public', 'team_training_sessions', 'player_group_id', 'traini
 select col_is_null('public', 'team_training_sessions', 'club_team_id', 'team target is nullable for group sessions');
 select has_index('public', 'player_group_players', 'player_group_players_pkey', 'a player is linked once per group');
 select has_index('public', 'player_group_staff', 'player_group_staff_pkey', 'a trainer is linked once per group');
-select has_check('public', 'team_training_sessions', 'team_training_sessions_single_target_check', 'a training has exactly one target');
-select has_check('public', 'player_group_evaluations', 'player_group_evaluations_score_check', 'evaluation scores are constrained');
+select ok(exists (
+  select 1 from pg_constraint c join pg_class t on t.oid = c.conrelid join pg_namespace n on n.oid = t.relnamespace
+  where n.nspname = 'public' and t.relname = 'team_training_sessions'
+    and c.conname = 'team_training_sessions_single_target_check' and c.contype = 'c'
+), 'a training has exactly one target');
+select ok(exists (
+  select 1 from pg_constraint c join pg_class t on t.oid = c.conrelid join pg_namespace n on n.oid = t.relnamespace
+  where n.nspname = 'public' and t.relname = 'player_group_evaluations'
+    and c.conname = 'player_group_evaluations_score_check' and c.contype = 'c'
+), 'evaluation scores are constrained');
 
 select * from finish();
 rollback;
