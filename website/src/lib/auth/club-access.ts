@@ -4,11 +4,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { CLUB_PERMISSION_OPTIONS, defaultPermissionsForRole, type ClubPermissionKey, type TeamScope } from "@/lib/club-access-options";
 
 const readDefaults = new Set<ClubPermissionKey>(["teams.view", "games.view", "training.view", "intradesk.view"]);
-const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.create", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.manage"]);
+const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.create", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.manage", "injuries.view"]);
 const analystDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.view_counts", "games.tag", "clips.share"]);
 const communicationsDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.communication.manage", "clips.share"]);
 const scoutDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.scouting.view", "games.scouting.manage"]);
-const coordinatorDefaults = new Set<ClubPermissionKey>(["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "training.manage", "intradesk.view"]);
+const coordinatorDefaults = new Set<ClubPermissionKey>(["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "training.manage", "intradesk.view", "injuries.view", "injuries.manage"]);
 
 async function loadClubAccess(clubId: string, userId: string, userEmail: string | null) {
   const admin = createAdminClient();
@@ -30,8 +30,10 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
   const readOnly = membership.role === "club_admin_viewer";
   let permissions = membership.role === "club_admin" || readOnly
     ? new Set(CLUB_PERMISSION_OPTIONS.map(([key]) => key))
-    : ["youth_coordinator", "head_youth_development"].includes(membership.function_role ?? "")
+    : ["youth_coordinator", "head_youth_development", "technical_director"].includes(membership.function_role ?? "")
       ? new Set(coordinatorDefaults)
+    : ["doctor", "physiotherapist"].includes(membership.function_role ?? "")
+      ? new Set(defaultPermissionsForRole(membership.function_role ?? ""))
     : ["goalkeeper_coach", "team_manager"].includes(membership.function_role ?? "")
       ? new Set<ClubPermissionKey>(["teams.view", ...defaultPermissionsForRole(membership.function_role ?? "")])
     : membership.function_role === "communications"

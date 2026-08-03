@@ -35,7 +35,8 @@ const roleOptions = [
   ["hospitality_worker", "Hospitality"],
   ["volunteer", "Vrijwilliger"],
   ["board_member", "Bestuurslid"],
-  ["club_employee", "Clubmedewerker"]
+  ["club_employee", "Clubmedewerker"],
+  ["physiotherapist", "Kinesist"], ["doctor", "Dokter"]
 ] as const;
 const roleLabels = Object.fromEntries(roleOptions);
 

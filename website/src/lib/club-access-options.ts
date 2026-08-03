@@ -26,7 +26,8 @@ export const CLUB_PERMISSION_OPTIONS = [
   ["games.view_counts", "Kijkcijfers bekijken"], ["games.tag_link.create", "Taglink aanmaken en delen"], ["games.tag", "Wedstrijden taggen"],
   ["training.view", "Trainingen bekijken in Intradesk"], ["training.manage", "Trainingen toevoegen en versies maken"],
   ["intradesk.view", "Intradesk bekijken"], ["intradesk.manage", "Intradesk-onderdelen beheren"],
-  ["clips.share", "Clips delen"]
+  ["clips.share", "Clips delen"],
+  ["injuries.view", "Blessurestatus en historiek bekijken"], ["injuries.manage", "Blessures registreren en aanpassen"]
 ] as const;
 
 export const CLUB_PERMISSION_DESCRIPTIONS: Record<ClubPermissionKey, string> = {
@@ -53,7 +54,9 @@ export const CLUB_PERMISSION_DESCRIPTIONS: Record<ClubPermissionKey, string> = {
   "training.manage": "Persoonlijke trainingen toevoegen en bewerken. Bij wijziging van een gepubliceerde training wordt een nieuwe Intradesk-versie gemaakt, eventueel eerst ter goedkeuring volgens de clubinstellingen.",
   "intradesk.view": "De gedeelde trainingsbibliotheek van de club bekijken.",
   "intradesk.manage": "Onderdelen, trainingen en versies in Intradesk toevoegen of beheren.",
-  "clips.share": "Clips van de eigen of expliciet toegankelijke ploegen delen."
+  "clips.share": "Clips van de eigen of expliciet toegankelijke ploegen delen.",
+  "injuries.view": "Sportief relevante blessurestatus en historiek van toegankelijke spelers bekijken.",
+  "injuries.manage": "Spelers als geblesseerd registreren, updates toevoegen en opnieuw beschikbaar verklaren."
 };
 
 export type ClubPermissionKey = typeof CLUB_PERMISSION_OPTIONS[number][0];
@@ -72,5 +75,8 @@ export function defaultPermissionsForRole(role: string): ClubPermissionKey[] {
   if (role === "video_analyst") return ["video.view", "games.view", "games.view_counts", "games.tag", "intradesk.view", "clips.share"];
   if (role === "scout") return ["games.view", "games.scouting.view", "games.scouting.manage"];
   if (role === "communications") return ["games.view", "games.communication.manage", "clips.share"];
+  if (role === "doctor" || role === "physiotherapist") return ["teams.view", "injuries.view", "injuries.manage"];
+  if (["youth_coordinator", "head_youth_development", "technical_director"].includes(role)) return ["teams.view", "teams.view_all", "injuries.view", "injuries.manage"];
+  if (["trainer", "assistant_trainer", "team_manager"].includes(role)) return ["teams.view", "injuries.view"];
   return ["intradesk.view"];
 }

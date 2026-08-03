@@ -15,6 +15,7 @@ import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
 import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/messages";
 import { MenuIcon } from "@/components/ui/MenuIcon";
+import { PlayerInjuries } from "@/components/teams/PlayerInjuries";
 
 type PlayerWithTeam = Player & { teams: { name: string; club_team_id: string | null } | null };
 type Guardian = { id: string; profile_id: string; access_scope: string; valid_from: string; valid_until: string | null; revoked_at: string | null; created_at: string; profiles: { email: string; full_name: string | null } | null };
@@ -93,6 +94,7 @@ export default function PlayerClipsPage() {
   const [childInfoSaving, setChildInfoSaving] = useState(false);
   const [childInfoSaved, setChildInfoSaved] = useState(false);
   const [activeTab, setActiveTab] = useState("contact");
+  const [currentlyInjured, setCurrentlyInjured] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -222,6 +224,11 @@ export default function PlayerClipsPage() {
     setStats({ goals: statsResult.data?.goals ?? 0, assists: statsResult.data?.assists ?? 0 });
     const allClips = (clipResult.data as unknown as PlayerClip[] | null) ?? [];
     if (loadedPlayer) {
+      void fetch(`/api/players/${playerId}/injuries`, { cache: "no-store" }).then(async response => {
+        if (!response.ok) return;
+        const body = await response.json() as { injuries?: Array<{ status: string }> };
+        setCurrentlyInjured(body.injuries?.some(item => item.status === "injured") ?? false);
+      });
       void loadChildInfo(loadedPlayer);
       const clubTeamId = loadedPlayer.teams?.club_team_id;
       if (clubTeamId) {
@@ -380,7 +387,7 @@ export default function PlayerClipsPage() {
             {canEditChildInfo && <><input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => event.target.files?.[0] && void uploadPlayerPhoto(event.target.files[0])} /><button type="button" disabled={photoBusy} onClick={() => photoInputRef.current?.click()} title="Spelersfoto uploaden" className="absolute inset-0 grid place-items-center bg-black/55 text-2xl font-bold text-white opacity-0 transition group-hover/photo:opacity-100">+</button></>}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2"><h1 className="truncate text-xl font-bold text-textBright">{player ? getPlayerDisplayName(player) : t("team.player")}</h1>{player?.is_goalkeeper && <span className="rounded-full bg-blue-500/15 px-2.5 py-1 text-xs font-semibold text-blue-300">Doelman</span>}</div>
+            <div className="flex items-center gap-2"><h1 className="truncate text-xl font-bold text-textBright">{player ? getPlayerDisplayName(player) : t("team.player")}</h1>{currentlyInjured && <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-xs font-bold text-red-300">Geblesseerd</span>}{player?.is_goalkeeper && <span className="rounded-full bg-blue-500/15 px-2.5 py-1 text-xs font-semibold text-blue-300">Doelman</span>}</div>
             <p className="text-sm text-textMuted">{player?.teams?.name || t("team.team")}{player?.position ? ` · ${player.position}` : ""}</p>
             {!!extraGroups.length && <div className="mt-2 flex flex-wrap items-center gap-2"><span className="text-xs font-semibold uppercase text-textMuted">Extra groepen</span>{extraGroups.map(group => <span key={group.id} className="rounded-full border border-dashed border-accent/50 bg-accentDim px-2.5 py-1 text-xs font-semibold text-accent">{group.icon ?? "＋"} {group.name}</span>)}</div>}
             <dl className="mt-3 grid gap-x-5 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -625,6 +632,8 @@ export default function PlayerClipsPage() {
 
       {activeTab === "evaluaties" && <section className="rounded-xl border border-border bg-cardDeep p-4"><div className="mb-4 flex items-center gap-2"><h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">Evaluatiehistoriek</h2><span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{groupEvaluations.length}</span></div>{groupEvaluations.length ? <div className="space-y-3">{groupEvaluations.map(evaluation => <div key={evaluation.id} className="grid gap-3 rounded-xl border border-borderSubtle bg-card p-4 sm:grid-cols-[minmax(160px,1fr)_minmax(160px,1fr)_70px]"><div><strong className="text-textBright">{evaluation.player_groups?.icon ?? "＋"} {evaluation.player_groups?.name}</strong><p className="text-xs text-textMuted">{evaluation.profiles?.full_name ? `Keepertrainer ${evaluation.profiles.full_name} · ` : ""}{new Date(evaluation.evaluated_at).toLocaleDateString("nl-BE")}</p></div><div><p className="text-sm font-semibold text-textPrimary">{evaluation.player_group_evaluation_criteria?.name}</p>{evaluation.note && <p className="mt-1 text-xs text-textMuted">{evaluation.note}</p>}</div><span className="grid h-10 w-10 place-items-center rounded-full bg-accentDim text-sm font-black text-accent">{evaluation.score}/5</span></div>)}</div> : <p className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Nog geen evaluaties vanuit Extra groepen.</p>}</section>}
 
+      {activeTab === "medisch" && <PlayerInjuries playerId={playerId} onStatus={setCurrentlyInjured} />}
+
       {activeTab === "clips" && <>
       <div className="mb-3 flex items-center gap-2">
         <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">{t("playerPage.sharedClipsMatches")}</h2>
@@ -671,7 +680,7 @@ export default function PlayerClipsPage() {
       )}
       </>}
 
-      {!['contact', 'planning', 'trainingen', 'wedstrijden', 'evaluaties', 'clips'].includes(activeTab) && <section className="rounded-xl border border-dashed border-border bg-cardDeep p-8 text-center"><h2 className="text-lg font-semibold capitalize text-textBright">{activeTab}</h2><p className="mt-2 text-sm text-textMuted">Voor dit onderdeel zijn nog geen gegevens toegevoegd.</p></section>}
+      {!['contact', 'planning', 'trainingen', 'wedstrijden', 'evaluaties', 'medisch', 'clips'].includes(activeTab) && <section className="rounded-xl border border-dashed border-border bg-cardDeep p-8 text-center"><h2 className="text-lg font-semibold capitalize text-textBright">{activeTab}</h2><p className="mt-2 text-sm text-textMuted">Voor dit onderdeel zijn nog geen gegevens toegevoegd.</p></section>}
 
       {selectedClip && selectedClip.videos && (
         <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos.video_url} segments={segmentsFor(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} />

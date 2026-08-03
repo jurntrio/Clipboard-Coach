@@ -152,7 +152,9 @@ export type ClubRoleType =
   | "hospitality_worker"
   | "volunteer"
   | "board_member"
-  | "club_employee";
+  | "club_employee"
+  | "doctor"
+  | "physiotherapist";
 
 export type ClubRoleAssignment = {
   id: string;
