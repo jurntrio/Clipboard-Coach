@@ -20,8 +20,8 @@ export async function GET() {
 
   const [{ data: clubs }, { data: teams }, { data: trainers }, { data: matches }, { data: clubMemberships }, { data: moduleEntitlements }, { data: trainingSettings }, { data: memberPermissions }, { data: memberTeamAccess }, { data: rolePermissionDefaults }, { data: matchOptions }] = await Promise.all([
     admin.from("clubs").select("*").in("id", clubIds).order("name"),
-    admin.from("club_teams").select("*, club_trainer_teams(trainer_id, role, status), teams(id, players(*))").in("club_id", clubIds).neq("status", "merged").order("name"),
-    admin.from("club_trainers").select("*, profiles(email), club_trainer_teams(club_team_id), club_trainer_players(player_id)").in("club_id", clubIds).order("display_name"),
+    admin.from("club_teams").select("*, club_trainer_teams(trainer_id, role, status), teams(id, players(*))").in("club_id", clubIds).neq("status", "merged").order("display_order").order("name"),
+    admin.from("club_trainers").select("*, profiles(email), club_trainer_teams(club_team_id)").in("club_id", clubIds).order("display_name"),
     admin.from("matches").select("id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, external_source").in("club_id", clubIds).order("match_date", { ascending: false }),
     admin.from("club_memberships").select("club_id, profile_id, role, function_role, custom_role_name, team_scope").in("club_id", clubIds),
     admin.from("club_module_entitlements").select("club_id, module_key, enabled").in("club_id", clubIds),

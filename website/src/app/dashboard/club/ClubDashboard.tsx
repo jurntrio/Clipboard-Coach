@@ -11,6 +11,7 @@ import { ClubInvitationCreator } from "./ClubInvitationCreator";
 import { ClubPeopleManager } from "./ClubPeopleManager";
 import { ClubMatchOptionsManager, type ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
 import { ClubMatchCsvImporter } from "./ClubMatchCsvImporter";
+import { PlayerGroupsManager } from "./PlayerGroupsManager";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean };
 type Team = {
@@ -18,6 +19,7 @@ type Team = {
   club_id: string;
   name: string;
   status: string;
+  display_order: number;
   sponsor_url?: string | null;
   sponsor_enabled?: boolean;
   sponsor_source?: "team" | "club" | "none";
@@ -26,7 +28,7 @@ type Team = {
   club_trainer_teams?: { trainer_id: string; role: string; status: string }[];
   teams?: { id: string; players: { id: string; first_name: string; last_name: string; date_of_birth: string | null; email: string | null; phone_numbers: string[]; role: "player" | "staff"; is_goalkeeper: boolean }[] }[];
 };
-type Trainer = { id: string; club_id: string; profile_id: string | null; display_name: string; phone_number: string | null; invitation_status: string; profiles: { email: string } | null; club_trainer_teams: { club_team_id: string }[]; club_trainer_players?: { player_id: string }[] };
+type Trainer = { id: string; club_id: string; profile_id: string | null; display_name: string; phone_number: string | null; invitation_status: string; profiles: { email: string } | null; club_trainer_teams: { club_team_id: string }[] };
 type Membership = { club_id: string; profile_id: string; role: "trainer" | "club_admin" | "club_admin_viewer" | "analyst"; function_role?: string; custom_role_name?: string | null; team_scope?: "none" | "assigned" | "all" };
 type Match = { id: string; club_id: string; club_team_id: string | null; team_a_name: string; team_b_name: string; match_date: string | null; start_time: string | null; status: string; score_a: number | null; score_b: number | null; external_source: string | null };
 type Assignment = { id: string; match_id: string; trainer_id: string; visible: boolean; assignment_source: string };
@@ -219,7 +221,7 @@ export function ClubDashboard() {
 
       {moduleEnabled("teams") && canManageTeams && <ModuleAccordion title="Teams & spelers" icon="/branding/teams.png">
         <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} coordinatorTrainerIds={youthCoordinatorTrainerIds} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} migrationIssues={migrationIssues} onChanged={load}
-          readOnly={readOnly || !canManageTeams || !moduleEnabled("teams_manage")} allowImport={moduleEnabled("teams_import") && data.currentAccess?.permissions.includes("teams.import") === true} />
+          readOnly={readOnly || !canManageTeams || !moduleEnabled("teams_manage")} allowImport={moduleEnabled("teams_import") && data.currentAccess?.permissions.includes("teams.import") === true} allowReorder={!readOnly && ["club_admin", "platform_admin"].includes(data.currentAccess?.role ?? "")} />
       </ModuleAccordion>}
 
       {fullAdmin && moduleEnabled("matches") && <ModuleAccordion title="Imports & koppelingen" icon="/branding/games.png">
@@ -308,7 +310,6 @@ export function ClubDashboard() {
           }))}
         />
         <ClubMemberAccessManager clubId={selectedClubId}
-          playersByTeam={Object.fromEntries(teams.map((team) => [team.id, (team.teams ?? []).flatMap((operationalTeam) => operationalTeam.players).filter((player) => player.role === "player" && player.is_goalkeeper).map((player) => ({ id: player.id, name: `${player.first_name} ${player.last_name}`.trim() }))]))}
           members={data.memberships.filter((item) => item.club_id === selectedClubId)}
           trainers={trainers} teams={teams}
           permissions={data.memberPermissions.filter((item) => item.club_id === selectedClubId)}
@@ -316,6 +317,10 @@ export function ClubDashboard() {
           roleDefaults={data.rolePermissionDefaults.filter((item) => item.club_id === selectedClubId)}
           readOnly={readOnly} onChanged={load} />
         </div>
+      </ModuleAccordion>}
+
+      {moduleEnabled("teams") && fullAdmin && !readOnly && <ModuleAccordion title="Extra groepen" icon="/branding/training.png">
+        <PlayerGroupsManager teams={teams} trainers={trainers} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} />
       </ModuleAccordion>}
     </div>
   );

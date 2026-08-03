@@ -8,7 +8,7 @@ const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view
 const analystDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.view_counts", "games.tag", "clips.share"]);
 const communicationsDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.communication.manage", "clips.share"]);
 const scoutDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.scouting.view", "games.scouting.manage"]);
-const coordinatorDefaults = new Set<ClubPermissionKey>(["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "intradesk.view"]);
+const coordinatorDefaults = new Set<ClubPermissionKey>(["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "training.manage", "intradesk.view"]);
 
 async function loadClubAccess(clubId: string, userId: string, userEmail: string | null) {
   const admin = createAdminClient();
@@ -65,9 +65,12 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
   let goalkeeperPlayerIds: Set<string> | null = null;
   if (membership.function_role === "goalkeeper_coach") {
     const { data: playerAssignments } = trainer
-      ? await admin.from("club_trainer_players").select("player_id").eq("trainer_id", trainer.id)
+      ? await admin.from("player_group_staff").select("player_groups!inner(active, player_group_players(player_id))").eq("trainer_id", trainer.id).eq("player_groups.active", true)
       : { data: [] };
-    goalkeeperPlayerIds = new Set((playerAssignments ?? []).map((row) => row.player_id));
+    goalkeeperPlayerIds = new Set((playerAssignments ?? []).flatMap((row) => {
+      const group = row.player_groups as unknown as { player_group_players: { player_id: string }[] } | null;
+      return (group?.player_group_players ?? []).map(member => member.player_id);
+    }));
   }
   return {
     exists: true, role: membership.role, functionRole: membership.function_role,

@@ -33,6 +33,7 @@ type Team = {
   club_id: string;
   name: string;
   status: string;
+  display_order: number;
   trainers_can_edit_roster: boolean;
   trainers_can_manage_matches: boolean;
   club_trainer_teams?: { trainer_id: string; role: string; status: string }[];
@@ -76,7 +77,7 @@ function storedRows(team: Team): PlayerRow[] {
   })) : [emptyPlayer()];
 }
 
-export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerIds, options, migrationIssues, onChanged, readOnly, allowImport = true }: { clubId: string; teams: Team[]; trainers: Trainer[]; coordinatorTrainerIds: string[]; options: ClubMatchOption[]; migrationIssues: MigrationIssue[]; onChanged: () => Promise<void>; readOnly?: boolean; allowImport?: boolean }) {
+export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerIds, options, migrationIssues, onChanged, readOnly, allowImport = true, allowReorder = false }: { clubId: string; teams: Team[]; trainers: Trainer[]; coordinatorTrainerIds: string[]; options: ClubMatchOption[]; migrationIssues: MigrationIssue[]; onChanged: () => Promise<void>; readOnly?: boolean; allowImport?: boolean; allowReorder?: boolean }) {
   const { t } = useI18n();
   const [name, setName] = useState("");
   const [editing, setEditing] = useState("");
@@ -110,6 +111,14 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
     await onChanged();
   }
 
+  async function moveTeam(index: number, direction: -1 | 1) {
+    const destination = index + direction;
+    if (destination < 0 || destination >= teams.length) return;
+    const reordered = teams.map((team) => team.id);
+    [reordered[index], reordered[destination]] = [reordered[destination], reordered[index]];
+    await request("PATCH", { clubId, teamIds: reordered });
+  }
+
   return <section className="rounded-xl border border-border bg-card p-5">
     <h2 className="text-xl font-semibold text-textBright">{t("clubTeams.heading")}</h2>
     <p className="mt-1 text-sm text-textMuted">{t("clubTeams.subtitle")}</p>
@@ -134,7 +143,8 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
         </div>
       ))}</div>
     </div>}
-    <div className="mt-4 space-y-3">{teams.map((team) => {
+    {allowReorder && teams.length > 1 && <p className="mt-4 text-sm text-textMuted">Gebruik de pijlen om de vaste ploegvolgorde voor alle clubleden te bepalen.</p>}
+    <div className="mt-4 space-y-3">{teams.map((team, index) => {
       const coachNames = (team.club_trainer_teams ?? []).filter((link) => link.status === "active").map((link) => trainers.find((trainer) => trainer.id === link.trainer_id)?.display_name).filter(Boolean);
       return <article key={team.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -143,6 +153,10 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
             <p className="mt-1 text-sm text-textMuted">{t("clubTeams.coachesLabel", { names: coachNames.join(", ") || t("clubTeams.noCoachAssigned") })}</p>
           </div>
           <span className="text-xs text-textMuted">{t("matchHub.lineupCount", { count: team.teams?.[0]?.players?.filter((player) => player.role === "player").length ?? 0 })}</span>
+          {allowReorder && <div className="flex gap-1" aria-label={`Volgorde van ${team.name}`}>
+            <button type="button" title="Naar boven" aria-label={`${team.name} naar boven`} disabled={index === 0 || !!busy} onClick={() => void moveTeam(index, -1)} className="grid h-9 w-9 place-items-center rounded-lg border border-borderButton text-textPrimary disabled:opacity-30">↑</button>
+            <button type="button" title="Naar beneden" aria-label={`${team.name} naar beneden`} disabled={index === teams.length - 1 || !!busy} onClick={() => void moveTeam(index, 1)} className="grid h-9 w-9 place-items-center rounded-lg border border-borderButton text-textPrimary disabled:opacity-30">↓</button>
+          </div>}
           <button type="button" onClick={() => setEditing((current) => current === team.id ? "" : team.id)} className="flex items-center gap-2 rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-accent">
             {t("common.edit")}<span className={`transition ${editing === team.id ? "rotate-90" : ""}`}>▶</span>
           </button>

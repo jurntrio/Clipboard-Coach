@@ -14,11 +14,16 @@ import { EditPlayerModal } from "@/components/teams/EditPlayerModal";
 import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
 import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/messages";
+import { MenuIcon } from "@/components/ui/MenuIcon";
 
 type PlayerWithTeam = Player & { teams: { name: string; club_team_id: string | null } | null };
 type Guardian = { id: string; profile_id: string; access_scope: string; valid_from: string; valid_until: string | null; revoked_at: string | null; created_at: string; profiles: { email: string; full_name: string | null } | null };
-type PendingInvite = { id: string; token: string; contact_label: string | null; contact_phone: string | null; created_at: string; expires_at: string };
+type PendingInvite = { id: string; token: string; contact_label: string | null; contact_phone: string | null; contact_email: string | null; created_at: string; expires_at: string };
 type ClubPlayerContact = { id: string; club_id: string; first_name: string; last_name: string; date_of_birth: string | null; address: string | null; postal_code: string | null; city: string | null; email: string | null; phone: string | null; national_registry_number: string | null; birth_place: string | null; photo_url: string | null };
+type TeamTraining = { id: string; club_team_id: string | null; player_group_id: string | null; training_date: string; start_time: string; field_option_id: string | null; locker_room_option_id: string | null; attendance_status: "unknown" | "present" | "absent"; can_edit_attendance: boolean; club_teams: { name: string } | null; player_groups: { name: string; icon: string | null } | null };
+type ExtraGroup = { id: string; name: string; icon: string | null; active: boolean };
+type GroupEvaluation = { id: string; score: number; note: string | null; evaluated_at: string; player_groups: { name: string; icon: string | null } | null; player_group_evaluation_criteria: { name: string } | null; profiles: { full_name: string | null } | null };
+type TeamMatch = { id: string; club_team_id: string | null; team_a_id: string | null; team_b_id: string | null; team_a_name: string; team_b_name: string; match_date: string | null; start_time: string | null; status: string; score_a: number | null; score_b: number | null; is_home_match: boolean };
 const accessScopeKeys: Record<string, MessageKey> = { current_season: "guardianInvite.scopeCurrentSeason", from_acceptance: "guardianInvite.scopeFromAcceptance", all_history: "guardianInvite.scopeAllHistory" };
 type PlayerClip = {
   id: string;
@@ -74,7 +79,14 @@ export default function PlayerClipsPage() {
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [guardiansError, setGuardiansError] = useState("");
   const [guardiansBusy, setGuardiansBusy] = useState("");
-  const [contactDrafts, setContactDrafts] = useState<{ label: string; phone: string }[]>([{ label: "", phone: "" }]);
+  const [contactDrafts, setContactDrafts] = useState<{ lastName: string; firstName: string; email: string; phone: string }[]>([{ lastName: "", firstName: "", email: "", phone: "" }]);
+  const [teamTrainings, setTeamTrainings] = useState<TeamTraining[]>([]);
+  const [extraGroups, setExtraGroups] = useState<ExtraGroup[]>([]);
+  const [groupEvaluations, setGroupEvaluations] = useState<GroupEvaluation[]>([]);
+  const [teamMatches, setTeamMatches] = useState<TeamMatch[]>([]);
+  const [optionNames, setOptionNames] = useState<Record<string, string>>({});
+  const [attendanceBusy, setAttendanceBusy] = useState("");
+  const [attendanceError, setAttendanceError] = useState("");
   const [clubPlayerContact, setClubPlayerContact] = useState<ClubPlayerContact | null>(null);
   const [canEditChildInfo, setCanEditChildInfo] = useState(false);
   const [childInfoDraft, setChildInfoDraft] = useState({ address: "", postalCode: "", city: "", email: "", phone: "", nationalRegistryNumber: "", birthPlace: "" });
@@ -86,7 +98,7 @@ export default function PlayerClipsPage() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
 
-  function updateContactDraft(index: number, field: "label" | "phone", value: string) {
+  function updateContactDraft(index: number, field: "lastName" | "firstName" | "email" | "phone", value: string) {
     setContactDrafts((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
   }
 
@@ -96,13 +108,13 @@ export default function PlayerClipsPage() {
     setInviteError("");
     const response = await fetch(`/api/players/${playerId}/invite`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contactLabel: draft.label.trim(), contactPhone: draft.phone.trim() })
+      body: JSON.stringify({ contactLabel: `${draft.firstName.trim()} ${draft.lastName.trim()}`.trim(), contactEmail: draft.email.trim(), contactPhone: draft.phone.trim() })
     });
     const body = await response.json().catch(() => null) as { token?: string; error?: string } | null;
     setInvitePending(false);
     if (!response.ok || !body?.token) { setInviteError(body?.error || "De uitnodigingslink kon niet aangemaakt worden."); return; }
     setInviteLink(`${window.location.origin}/join/${body.token}`);
-    setContactDrafts((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : [{ label: "", phone: "" }]);
+    setContactDrafts((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : [{ lastName: "", firstName: "", email: "", phone: "" }]);
     await loadGuardians();
   }
 
@@ -209,7 +221,31 @@ export default function PlayerClipsPage() {
     setPlayer(loadedPlayer);
     setStats({ goals: statsResult.data?.goals ?? 0, assists: statsResult.data?.assists ?? 0 });
     const allClips = (clipResult.data as unknown as PlayerClip[] | null) ?? [];
-    if (loadedPlayer) void loadChildInfo(loadedPlayer);
+    if (loadedPlayer) {
+      void loadChildInfo(loadedPlayer);
+      const clubTeamId = loadedPlayer.teams?.club_team_id;
+      if (clubTeamId) {
+        const scheduleResponse = await fetch(`/api/players/${playerId}/schedule`);
+        const schedule = await scheduleResponse.json().catch(() => null) as { trainings?: TeamTraining[]; matches?: TeamMatch[]; optionNames?: Record<string, string>; extraGroups?: ExtraGroup[]; evaluations?: GroupEvaluation[] } | null;
+        setTeamTrainings(scheduleResponse.ok ? schedule?.trainings ?? [] : []);
+        setTeamMatches(scheduleResponse.ok ? schedule?.matches ?? [] : []);
+        setOptionNames(scheduleResponse.ok ? schedule?.optionNames ?? {} : {});
+        setExtraGroups(scheduleResponse.ok ? schedule?.extraGroups ?? [] : []);
+        setGroupEvaluations(scheduleResponse.ok ? schedule?.evaluations ?? [] : []);
+      } else {
+        setTeamTrainings([]);
+        setTeamMatches([]);
+        setOptionNames({});
+        setExtraGroups([]);
+        setGroupEvaluations([]);
+      }
+    } else {
+      setTeamTrainings([]);
+      setTeamMatches([]);
+      setOptionNames({});
+      setExtraGroups([]);
+      setGroupEvaluations([]);
+    }
     setClips(allClips.filter((clip) => {
       if (!loadedPlayer) return false;
       if (clip.audience_player_ids.includes(playerId) || clip.clip_segments.some((segment) => segment.tags?.player_ids.includes(playerId))) return true;
@@ -217,6 +253,64 @@ export default function PlayerClipsPage() {
     }));
     setLoading(false);
   }
+
+  async function updateTrainingAttendance(trainingId: string, status: TeamTraining["attendance_status"]) {
+    setAttendanceBusy(trainingId);
+    setAttendanceError("");
+    const response = await fetch(`/api/trainings/sessions/${trainingId}/attendance`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerId, status })
+    });
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    setAttendanceBusy("");
+    if (!response.ok) {
+      setAttendanceError(body?.error || "De aanwezigheid kon niet worden aangepast.");
+      return;
+    }
+    setTeamTrainings(current => current.map(training => training.id === trainingId ? { ...training, attendance_status: status } : training));
+  }
+
+  function currentTeamMatchNames(match: TeamMatch) {
+    const currentName = player?.teams?.name;
+    let teamA = match.team_a_name;
+    let teamB = match.team_b_name;
+    if (currentName) {
+      if (match.team_a_id === player?.team_id || (match.club_team_id === player?.teams?.club_team_id && match.is_home_match)) teamA = currentName;
+      if (match.team_b_id === player?.team_id || (match.club_team_id === player?.teams?.club_team_id && !match.is_home_match)) teamB = currentName;
+    }
+    return `${teamA} – ${teamB}`;
+  }
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const scheduleTimestamp = (date: string | null, time: string | null) => date ? new Date(`${date}T${time?.slice(0, 5) || "00:00"}:00`).getTime() : Number.POSITIVE_INFINITY;
+  const upcomingFirst = (left: number, right: number) => {
+    const now = todayStart.getTime();
+    const leftPast = left < now;
+    const rightPast = right < now;
+    if (leftPast !== rightPast) return leftPast ? 1 : -1;
+    return leftPast ? right - left : left - right;
+  };
+  const orderedTrainings = [...teamTrainings].sort((a, b) => upcomingFirst(scheduleTimestamp(a.training_date, a.start_time), scheduleTimestamp(b.training_date, b.start_time)));
+  const orderedMatches = [...teamMatches].sort((a, b) => upcomingFirst(scheduleTimestamp(a.match_date, a.start_time), scheduleTimestamp(b.match_date, b.start_time)));
+  const trainingWeekGroups = orderedTrainings.reduce((groups, training) => {
+    const date = new Date(`${training.training_date}T12:00:00`);
+    const dayFromMonday = (date.getDay() + 6) % 7;
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - dayFromMonday);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const key = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+    const existing = groups.find(group => group.key === key);
+    if (existing) existing.trainings.push(training);
+    else groups.push({ key, monday, sunday, trainings: [training] });
+    return groups;
+  }, [] as { key: string; monday: Date; sunday: Date; trainings: TeamTraining[] }[]);
+  const planningItems = [
+    ...teamTrainings.map(item => ({ kind: "training" as const, item, timestamp: scheduleTimestamp(item.training_date, item.start_time) })),
+    ...teamMatches.map(item => ({ kind: "match" as const, item, timestamp: scheduleTimestamp(item.match_date, item.start_time) }))
+  ].sort((a, b) => upcomingFirst(a.timestamp, b.timestamp));
 
   const clipGroups = clips.reduce((groups, clip) => {
     const match = clip.videos?.match_videos?.[0]?.matches ?? null;
@@ -279,15 +373,16 @@ export default function PlayerClipsPage() {
   return (
     <div className="mx-auto max-w-7xl p-6">
       <header className="mb-4 flex items-start gap-3 rounded-xl border border-border bg-card p-4">
-        <Link href="/dashboard/teams" title={t("team.back")} className="grid h-14 w-14 place-items-center rounded-lg border border-borderButton bg-button hover:border-accent"><Image src="/branding/back.png" alt={t("team.back")} width={38} height={38} /></Link>
+        <Link href="/dashboard/teams" title={t("team.back")} aria-label={t("team.back")} className="grid h-14 w-14 place-items-center rounded-xl border border-borderButton bg-button transition hover:border-accent hover:bg-cardHover"><MenuIcon src="/branding/Menu/back.svg" /></Link>
         <div className="ml-2 flex min-w-0 flex-1 items-start gap-4">
-          <div className="group/photo relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-2xl border-2 border-accent bg-avatar">
-            {clubPlayerContact?.photo_url ? <Image src={clubPlayerContact.photo_url} alt={player ? getPlayerDisplayName(player) : "Speler"} fill sizes="96px" className="object-cover" unoptimized /> : <div className="grid h-full w-full place-items-center text-xl font-bold text-accent">{player?.initials || "–"}</div>}
+          <div className="group/photo relative h-28 w-28 flex-shrink-0 overflow-hidden rounded-2xl border-2 border-accent bg-avatar sm:h-36 sm:w-36">
+            {clubPlayerContact?.photo_url ? <Image src={clubPlayerContact.photo_url} alt={player ? getPlayerDisplayName(player) : "Speler"} fill sizes="(min-width: 640px) 144px, 112px" className="object-cover" unoptimized /> : <div className="grid h-full w-full place-items-center text-2xl font-bold text-accent">{player?.initials || "–"}</div>}
             {canEditChildInfo && <><input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => event.target.files?.[0] && void uploadPlayerPhoto(event.target.files[0])} /><button type="button" disabled={photoBusy} onClick={() => photoInputRef.current?.click()} title="Spelersfoto uploaden" className="absolute inset-0 grid place-items-center bg-black/55 text-2xl font-bold text-white opacity-0 transition group-hover/photo:opacity-100">+</button></>}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2"><h1 className="truncate text-xl font-bold text-textBright">{player ? getPlayerDisplayName(player) : t("team.player")}</h1>{player?.is_goalkeeper && <span className="rounded-full bg-blue-500/15 px-2.5 py-1 text-xs font-semibold text-blue-300">Doelman</span>}</div>
             <p className="text-sm text-textMuted">{player?.teams?.name || t("team.team")}{player?.position ? ` · ${player.position}` : ""}</p>
+            {!!extraGroups.length && <div className="mt-2 flex flex-wrap items-center gap-2"><span className="text-xs font-semibold uppercase text-textMuted">Extra groepen</span>{extraGroups.map(group => <span key={group.id} className="rounded-full border border-dashed border-accent/50 bg-accentDim px-2.5 py-1 text-xs font-semibold text-accent">{group.icon ?? "＋"} {group.name}</span>)}</div>}
             <dl className="mt-3 grid gap-x-5 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
               <ProfileFact label="Naam" value={clubPlayerContact?.last_name || player?.last_name} />
               <ProfileFact label="Voornaam" value={clubPlayerContact?.first_name || player?.first_name} />
@@ -299,7 +394,7 @@ export default function PlayerClipsPage() {
             {photoError && <p className="mt-2 text-xs text-red-300">{photoError}</p>}
           </div>
         </div>
-        <button type="button" onClick={() => setEditing(true)} disabled={!player} title={t("team.editPlayer")} aria-label={t("team.editPlayer")} className="ml-auto grid h-14 w-14 flex-shrink-0 place-items-center rounded-lg border border-borderButton bg-button transition hover:border-accent disabled:opacity-40"><Image src="/branding/edit.png" alt={t("common.edit")} width={34} height={34} /></button>
+        <button type="button" onClick={() => setEditing(true)} disabled={!player} title={t("team.editPlayer")} aria-label={t("team.editPlayer")} className="ml-auto grid h-14 w-14 flex-shrink-0 place-items-center rounded-xl border border-borderButton bg-button transition hover:border-accent hover:bg-cardHover disabled:opacity-40"><MenuIcon src="/branding/Menu/edit.svg" /></button>
       </header>
       <nav aria-label="Spelersprofiel" className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5">
         {["Contact", "Planning", "Trainingen", "Wedstrijden", "Evaluaties", "Medisch", "Clips", "Vragenlijsten"].map((tab) => <button key={tab} type="button" onClick={() => setActiveTab(tab.toLowerCase())} className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${activeTab === tab.toLowerCase() ? "bg-accent text-page" : "text-textSecondary hover:bg-cardHover hover:text-textPrimary"}`}>{tab}</button>)}
@@ -327,14 +422,16 @@ export default function PlayerClipsPage() {
           <div className="mt-3 space-y-2">
             {contactDrafts.map((row, index) => (
               <div key={index} className="flex flex-wrap items-center gap-2">
-                <input type="text" value={row.label} onChange={(event) => updateContactDraft(index, "label", event.target.value)} placeholder={t("guardianInvite.contactNamePlaceholder")} className="w-32 flex-shrink-0 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+                <input type="text" value={row.lastName} onChange={(event) => updateContactDraft(index, "lastName", event.target.value)} placeholder="Naam" className="w-36 flex-shrink-0 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+                <input type="text" value={row.firstName} onChange={(event) => updateContactDraft(index, "firstName", event.target.value)} placeholder="Voornaam" className="w-36 flex-shrink-0 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+                <input type="email" value={row.email} onChange={(event) => updateContactDraft(index, "email", event.target.value)} placeholder="E-mailadres" className="min-w-52 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
                 <input type="tel" value={row.phone} onChange={(event) => updateContactDraft(index, "phone", event.target.value)} placeholder={t("guardianInvite.contactPhonePlaceholder")} className="w-40 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
-                <button type="button" disabled={invitePending || !row.phone.trim()} onClick={() => void createGuardianInvite(index)} className="flex-shrink-0 rounded-lg border border-borderButton px-3 py-2 text-xs font-semibold text-accent transition hover:border-accent disabled:opacity-40">
+                <button type="button" disabled={invitePending || (!row.email.trim() && !row.phone.trim())} onClick={() => void createGuardianInvite(index)} className="flex-shrink-0 rounded-lg border border-borderButton px-3 py-2 text-xs font-semibold text-accent transition hover:border-accent disabled:opacity-40">
                   {invitePending ? t("guardianInvite.generating") : t("guardianInvite.generateLink")}
                 </button>
               </div>
             ))}
-            <button type="button" onClick={() => setContactDrafts((current) => [...current, { label: "", phone: "" }])} aria-label={t("guardianInvite.addContact")} title={t("guardianInvite.addContact")} className="grid h-8 w-8 place-items-center rounded-full border border-borderButton text-accent transition hover:border-accent">+</button>
+            <button type="button" onClick={() => setContactDrafts((current) => [...current, { lastName: "", firstName: "", email: "", phone: "" }])} aria-label={t("guardianInvite.addContact")} title={t("guardianInvite.addContact")} className="grid h-8 w-8 place-items-center rounded-full border border-borderButton text-accent transition hover:border-accent">+</button>
           </div>
 
           {guardiansError && <p className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-sm text-red-300">{guardiansError}</p>}
@@ -371,7 +468,7 @@ export default function PlayerClipsPage() {
               {pendingInvites.map((invite) => (
                 <div key={invite.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-borderSubtle px-3 py-2 text-sm">
                   <span className="text-textSecondary">
-                    {invite.contact_label && <span className="mr-2 font-semibold text-textPrimary">{invite.contact_label}{invite.contact_phone ? ` (${invite.contact_phone})` : ""}</span>}
+                    {invite.contact_label && <span className="mr-2 font-semibold text-textPrimary">{invite.contact_label}{invite.contact_email ? ` · ${invite.contact_email}` : ""}{invite.contact_phone ? ` · ${invite.contact_phone}` : ""}</span>}
                     {t("guardianInvite.createdOn", { date: new Date(invite.created_at).toLocaleDateString("nl-BE"), expiry: new Date(invite.expires_at).toLocaleDateString("nl-BE") })}
                   </span>
                   <div className="flex gap-2">
@@ -427,6 +524,107 @@ export default function PlayerClipsPage() {
       )}
       </>}
 
+      {activeTab === "planning" && (
+        <section className="rounded-xl border border-border bg-cardDeep p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">Planning van {player?.teams?.name || "de ploeg"}</h2>
+            <span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{planningItems.length}</span>
+          </div>
+          {loading ? <p className="text-sm text-textMuted">Planning laden…</p> : planningItems.length ? (
+            <div className="space-y-3">
+              {planningItems.map(entry => entry.kind === "training" ? (
+                <Link key={`training:${entry.item.id}`} href={`/dashboard/training/${entry.item.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-borderSubtle bg-card p-4 transition hover:border-accent hover:bg-cardHover">
+                  <div><p className="font-semibold text-textBright">Training · {entry.item.player_groups?.name ?? entry.item.club_teams?.name ?? player?.teams?.name}</p><p className="mt-1 text-sm text-textMuted">{new Date(`${entry.item.training_date}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB")} · {entry.item.start_time.slice(0, 5)}</p></div>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${entry.item.player_group_id ? "border border-dashed border-accent bg-accentDim text-accent" : "bg-accentDim text-accent"}`}>{entry.item.player_group_id ? "Extra groep" : "Teamtraining"}</span>
+                </Link>
+              ) : (
+                <Link key={`match:${entry.item.id}`} href={`/dashboard/games/${entry.item.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-borderSubtle bg-card p-4 transition hover:border-accent hover:bg-cardHover">
+                  <div><p className="font-semibold text-textBright">{currentTeamMatchNames(entry.item)}</p><p className="mt-1 text-sm text-textMuted">{entry.item.match_date ? new Date(`${entry.item.match_date}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB") : "Datum nog niet bepaald"}{entry.item.start_time ? ` · ${entry.item.start_time.slice(0, 5)}` : ""}</p></div>
+                  <span className="rounded-full bg-accentDim px-2.5 py-1 text-xs font-semibold text-accent">Wedstrijd</span>
+                </Link>
+              ))}
+            </div>
+          ) : <p className="text-sm text-textMuted">Voor deze ploeg is nog geen planning gevonden.</p>}
+        </section>
+      )}
+
+      {activeTab === "trainingen" && (
+        <section className="rounded-xl border border-border bg-cardDeep p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">Trainingen van {player?.teams?.name || "de ploeg"}</h2>
+            <span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{teamTrainings.length}</span>
+          </div>
+          {attendanceError && <p className="mb-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{attendanceError}</p>}
+          {loading ? <p className="text-sm text-textMuted">Trainingen laden…</p> : orderedTrainings.length ? (
+            <div className="space-y-4">
+              {trainingWeekGroups.map((group) => {
+                const weekIsPast = group.sunday.getTime() < todayStart.getTime();
+                return (
+                  <section key={group.key} className="overflow-hidden rounded-xl border border-borderSubtle bg-card">
+                    <div className="flex items-center justify-between border-b border-borderSubtle bg-cardDeep px-4 py-2">
+                      <h3 className="text-xs font-bold uppercase tracking-wide text-textSecondary">
+                        {group.monday.toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB", { day: "2-digit", month: "long" })} – {group.sunday.toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+                      </h3>
+                      {weekIsPast && <span className="text-xs text-textMuted">Afgelopen</span>}
+                    </div>
+                    <div className="divide-y divide-borderSubtle">
+                      {group.trainings.map((training) => (
+                        <div key={training.id} className="grid items-center gap-3 px-4 py-3 lg:grid-cols-[minmax(280px,1.25fr)_minmax(210px,1fr)_minmax(210px,1fr)_auto]">
+                          <Link href={`/dashboard/training/${training.id}`} className="font-semibold text-textBright transition hover:text-accent">
+                            {new Date(`${training.training_date}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB", { weekday: "long", day: "2-digit", month: "long" })} · {training.start_time.slice(0, 5)}{training.player_groups && <span className="ml-2 text-xs font-normal text-accent">{training.player_groups.icon ?? "＋"} {training.player_groups.name}</span>}
+                          </Link>
+                          <p className="min-w-0 truncate text-sm text-textPrimary"><span className="mr-2 text-xs font-semibold uppercase text-textMuted">Veld</span>{optionNames[training.field_option_id ?? ""] || "Nog niet bepaald"}</p>
+                          <p className="min-w-0 truncate text-sm text-textPrimary"><span className="mr-2 text-xs font-semibold uppercase text-textMuted">KK</span>{optionNames[training.locker_room_option_id ?? ""] || "Nog niet bepaald"}</p>
+                          <select
+                            aria-label={`Aanwezigheid op ${training.training_date}`}
+                            value={training.attendance_status}
+                            disabled={!training.can_edit_attendance || attendanceBusy === training.id}
+                            onChange={(event) => updateTrainingAttendance(training.id, event.target.value as TeamTraining["attendance_status"])}
+                            title={!training.can_edit_attendance ? "Aanwezigheid kan niet meer aangepast worden of je hebt geen bewerkrechten." : "Aanwezigheid van deze speler aanpassen"}
+                            className="justify-self-end rounded-lg border border-border bg-cardDeep px-2.5 py-1.5 text-sm text-textPrimary disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <option value="unknown">Onbekend</option>
+                            <option value="present">Aanwezig</option>
+                            <option value="absent">Afwezig</option>
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          ) : <p className="text-sm text-textMuted">Voor deze ploeg zijn nog geen trainingen ingepland.</p>}
+        </section>
+      )}
+
+      {activeTab === "wedstrijden" && (
+        <section className="rounded-xl border border-border bg-cardDeep p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">Wedstrijden van {player?.teams?.name || "de ploeg"}</h2>
+            <span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{teamMatches.length}</span>
+          </div>
+          {loading ? <p className="text-sm text-textMuted">Wedstrijden laden…</p> : teamMatches.length ? (
+            <div className="space-y-3">
+              {orderedMatches.map((match) => (
+                <Link key={match.id} href={`/dashboard/games/${match.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-borderSubtle bg-card p-4 transition hover:border-accent hover:bg-cardHover">
+                  <div>
+                    <p className="font-semibold text-textBright">{currentTeamMatchNames(match)}</p>
+                    <p className="mt-1 text-sm text-textMuted">{match.match_date ? new Date(`${match.match_date}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB") : "Datum nog niet bepaald"}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {match.score_a !== null && match.score_b !== null && <strong className="text-lg text-textBright">{match.score_a}–{match.score_b}</strong>}
+                    <span className="rounded-full bg-accentDim px-2.5 py-1 text-xs font-semibold capitalize text-accent">{match.status}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : <p className="text-sm text-textMuted">Voor deze ploeg zijn nog geen wedstrijden gevonden.</p>}
+        </section>
+      )}
+
+      {activeTab === "evaluaties" && <section className="rounded-xl border border-border bg-cardDeep p-4"><div className="mb-4 flex items-center gap-2"><h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">Evaluatiehistoriek</h2><span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{groupEvaluations.length}</span></div>{groupEvaluations.length ? <div className="space-y-3">{groupEvaluations.map(evaluation => <div key={evaluation.id} className="grid gap-3 rounded-xl border border-borderSubtle bg-card p-4 sm:grid-cols-[minmax(160px,1fr)_minmax(160px,1fr)_70px]"><div><strong className="text-textBright">{evaluation.player_groups?.icon ?? "＋"} {evaluation.player_groups?.name}</strong><p className="text-xs text-textMuted">{evaluation.profiles?.full_name ? `Keepertrainer ${evaluation.profiles.full_name} · ` : ""}{new Date(evaluation.evaluated_at).toLocaleDateString("nl-BE")}</p></div><div><p className="text-sm font-semibold text-textPrimary">{evaluation.player_group_evaluation_criteria?.name}</p>{evaluation.note && <p className="mt-1 text-xs text-textMuted">{evaluation.note}</p>}</div><span className="grid h-10 w-10 place-items-center rounded-full bg-accentDim text-sm font-black text-accent">{evaluation.score}/5</span></div>)}</div> : <p className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Nog geen evaluaties vanuit Extra groepen.</p>}</section>}
+
       {activeTab === "clips" && <>
       <div className="mb-3 flex items-center gap-2">
         <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">{t("playerPage.sharedClipsMatches")}</h2>
@@ -473,7 +671,7 @@ export default function PlayerClipsPage() {
       )}
       </>}
 
-      {!['contact', 'clips'].includes(activeTab) && <section className="rounded-xl border border-dashed border-border bg-cardDeep p-8 text-center"><h2 className="text-lg font-semibold capitalize text-textBright">{activeTab}</h2><p className="mt-2 text-sm text-textMuted">Voor dit onderdeel zijn nog geen gegevens toegevoegd.</p></section>}
+      {!['contact', 'planning', 'trainingen', 'wedstrijden', 'evaluaties', 'clips'].includes(activeTab) && <section className="rounded-xl border border-dashed border-border bg-cardDeep p-8 text-center"><h2 className="text-lg font-semibold capitalize text-textBright">{activeTab}</h2><p className="mt-2 text-sm text-textMuted">Voor dit onderdeel zijn nog geen gegevens toegevoegd.</p></section>}
 
       {selectedClip && selectedClip.videos && (
         <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos.video_url} segments={segmentsFor(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} />

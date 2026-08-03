@@ -33,7 +33,6 @@ export default function VideoViewerPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [extraPlayers, setExtraPlayers] = useState<Player[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -134,7 +133,6 @@ export default function VideoViewerPage() {
     loadVideo();
     loadTags();
     loadStandardTags();
-    loadExtraPlayers();
   }, [videoId]);
 
   useEffect(() => {
@@ -192,12 +190,6 @@ export default function VideoViewerPage() {
   async function loadPlayers(teamId: string) {
     const { data } = await supabase.from("players").select("*").eq("team_id", teamId).neq("role", "staff").order("last_name");
     setPlayers(data ?? []);
-  }
-
-  async function loadExtraPlayers() {
-    const { data } = await supabase.from("teams").select("players(*)").ilike("name", "EXTRA");
-    const groups = (data as unknown as { players: Player[] }[] | null) ?? [];
-    setExtraPlayers(groups.flatMap((group) => group.players).filter((player) => player.role !== "staff"));
   }
 
   async function addTag(label: string, profile?: StandardTag) {
@@ -384,7 +376,6 @@ export default function VideoViewerPage() {
           selectedTagIds={selectedTagIds}
           tags={tags}
           players={players}
-          extraPlayers={extraPlayers}
           localVideo={isLocalVideoUrl(video?.video_url)}
           localFile={localFile}
           matchLabel={video?.home_team && video?.away_team ? `${video.home_team} - ${video.away_team}` : video?.title || t("video.match")}

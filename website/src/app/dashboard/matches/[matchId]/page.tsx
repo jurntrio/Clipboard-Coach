@@ -172,7 +172,6 @@ export default function MatchViewerPage() {
   const [hiddenLiveTaggers, setHiddenLiveTaggers] = useState<string[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [extraPlayers, setExtraPlayers] = useState<Player[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [combinedTime, setCombinedTime] = useState(0);
   const [error, setError] = useState("");
@@ -391,7 +390,6 @@ export default function MatchViewerPage() {
   useEffect(() => {
     void loadMatch();
     void loadStandardTags();
-    void loadExtraPlayers();
     void fetch("/api/admin/status").then((response) => response.json()).then((body) => setIsPlatformAdmin(body.isAdmin === true)).catch(() => undefined);
     setSupportsPersistentFileAccess(typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === "function");
     void supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? ""));
@@ -446,12 +444,6 @@ export default function MatchViewerPage() {
     if (!user) return;
     const { data } = await supabase.from("standard_tags").select("*").eq("coach_id", user.id).order("created_at");
     setStandardTags(data ?? []);
-  }
-
-  async function loadExtraPlayers() {
-    const { data } = await supabase.from("teams").select("players(*)").ilike("name", "EXTRA");
-    const groups = (data as unknown as { players: Player[] }[] | null) ?? [];
-    setExtraPlayers(groups.flatMap((group) => group.players).filter((player) => player.role !== "staff"));
   }
 
   async function attachFile(video: Video, file: File, handle?: FileSystemFileHandle | null) {
@@ -1137,7 +1129,7 @@ export default function MatchViewerPage() {
               })}
             </div>}
           </section>
-          {videos[0] && <ClipBuilder videoId={videos[0].id} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} extraPlayers={extraPlayers} localVideo={isLocalVideoUrl(videos[0].video_url)} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={`${match?.team_a_name || t("match.teamA")} - ${match?.team_b_name || t("match.teamB")}`} onClipCreated={() => setSelectedTagIds([])} />}
+          {videos[0] && <ClipBuilder videoId={videos[0].id} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo={isLocalVideoUrl(videos[0].video_url)} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={`${match?.team_a_name || t("match.teamA")} - ${match?.team_b_name || t("match.teamB")}`} onClipCreated={() => setSelectedTagIds([])} />}
         </aside>
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}

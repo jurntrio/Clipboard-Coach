@@ -16,7 +16,7 @@ export async function GET() {
   if (!hasClubPermission(access, "games.view")) return NextResponse.json({ error: "Geen toegang tot Games." }, { status: 403 });
 
   const [{ data: clubTeams }, { data: clubSettings }, { data: matchOptions }] = await Promise.all([
-    admin.from("club_teams").select("id").eq("club_id", clubId).neq("status", "merged"),
+    admin.from("club_teams").select("id, display_order").eq("club_id", clubId).neq("status", "merged").order("display_order").order("name"),
     admin.from("clubs").select("clip_view_count_roles").eq("id", clubId).maybeSingle(),
     admin.from("club_match_options").select("id, label").eq("club_id", clubId).eq("active", true)
   ]);
@@ -34,7 +34,7 @@ export async function GET() {
       .order("match_date", { ascending: true, nullsFirst: false })
       .order("start_time", { ascending: true }),
     clubTeamIds.length
-      ? admin.from("teams").select("*").in("club_team_id", clubTeamIds).not("name", "ilike", "EXTRA").order("name")
+      ? admin.from("teams").select("*").in("club_team_id", clubTeamIds).not("name", "ilike", "EXTRA")
       : Promise.resolve({ data: [] })
   ]);
 
@@ -54,9 +54,11 @@ export async function GET() {
       : Promise.resolve({ data: [] })
   ]);
 
+  const teamOrder = new Map((clubTeams ?? []).map((team, index) => [team.id, index]));
+  const orderedTeams = (teams ?? []).sort((a, b) => (teamOrder.get(a.club_team_id) ?? 9999) - (teamOrder.get(b.club_team_id) ?? 9999));
   return NextResponse.json({
     matches: visibleMatches,
-    teams: teams ?? [],
+    teams: orderedTeams,
     players: authorizationPlayers(players ?? [], access.goalkeeperPlayerIds),
     clips: clips ?? [],
     role: membership.role,

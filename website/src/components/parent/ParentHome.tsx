@@ -9,6 +9,7 @@ import { ClipCard } from "@/components/clips/ClipCard";
 import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { ExitCard } from "@/components/ui/ExitCard";
 import { useI18n } from "@/i18n/client";
+import { ContactTrainingAvailability } from "@/components/parent/ContactTrainingAvailability";
 
 // Fase 3: 1 rij per operationele players-rij (een club-breed kind kan er meerdere hebben, 1 per
 // team/seizoen-lidmaatschap). child_key groepeert ze -- club_player_id voor een clubbrede speler,
@@ -156,6 +157,8 @@ function ChildSection({ child }: { child: Child }) {
         <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">{t("playerPage.goals")}</p><p className="mt-1 text-2xl font-bold text-textBright">{stats.goals}</p></div>
         <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">{t("playerPage.assists")}</p><p className="mt-1 text-2xl font-bold text-textBright">{stats.assists}</p></div>
       </section>
+
+      <ContactTrainingAvailability playerIds={child.playerIds} />
 
       <h3 className="text-sm font-bold uppercase tracking-wider text-textSecondary">{t("playerPage.sharedClipsMatches")}</h3>
       {loading ? <p className="text-sm text-textMuted">{t("team.loadingClips")}</p> : matchGroups.length ? (

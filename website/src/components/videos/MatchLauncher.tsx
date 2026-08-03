@@ -72,7 +72,7 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
       // Platform admins can read every club, so the active club must always be
       // an explicit query boundary instead of relying on row-level access alone.
       supabase.from("matches").select("*, match_videos(video_id)").eq("club_id", activeClubId).order("last_opened_at", { ascending: false }),
-      supabase.from("teams").select("*, club_teams!inner(club_id)").eq("club_teams.club_id", activeClubId).order("name"),
+      supabase.from("teams").select("*, club_teams!inner(club_id, display_order)").eq("club_teams.club_id", activeClubId),
       supabase.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", activeClubId).maybeSingle()
     ]);
     if (matchResult.error && matchResult.error.code !== "42P01") setError(matchResult.error.message);
@@ -84,7 +84,11 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
     if (videoResult.error) setError(videoResult.error.message);
     setMatches(loadedMatches);
     setVideos(videoResult.data ?? []);
-    setTeams(teamResult.data ?? []);
+    setTeams([...(teamResult.data ?? [])].sort((a, b) => {
+      const aOrder = (a.club_teams as unknown as { display_order: number }).display_order;
+      const bOrder = (b.club_teams as unknown as { display_order: number }).display_order;
+      return aOrder - bOrder || a.name.localeCompare(b.name);
+    }));
     const nextRecordingConfig = externalRecordingConfig(clubResult.data);
     setRecordingConfig(nextRecordingConfig);
     if (!nextRecordingConfig) setVideoSource("file");

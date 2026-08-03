@@ -66,7 +66,7 @@ export function defaultPermissionsForRole(role: string): ClubPermissionKey[] {
     return ["video.view", "games.view", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.view", "intradesk.view", "clips.share"];
   }
   if (role === "goalkeeper_coach") {
-    return ["teams.manage", "video.view", "games.view", "games.planning.manage", "games.selection.view", "games.report.view", "games.tag_link.create", "games.tag", "training.view", "intradesk.view", "clips.share"];
+    return ["training.view", "intradesk.view"];
   }
   if (role === "team_manager") return ["games.view", "games.selection.view", "training.view", "intradesk.view"];
   if (role === "video_analyst") return ["video.view", "games.view", "games.view_counts", "games.tag", "intradesk.view", "clips.share"];

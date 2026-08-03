@@ -31,21 +31,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ]);
   const moduleOn = (key: ClubModuleKey) => !clubId || clubContext.isPlatformAdmin || !modules.configured || modules.enabled.has(key);
   const navigation = [];
-  if (clubId) navigation.push({ href: "/dashboard/inbox", label: "Mailbox", icon: "/branding/inbox.svg", primary: true });
-  if (access && hasClubPermission(access, "teams.view") && moduleOn("teams")) navigation.push({ href: "/dashboard/teams", label: "Teams", icon: "/branding/teams.png", primary: true });
-  if (access && hasClubPermission(access, "games.view") && moduleOn("matches")) navigation.push({ href: "/dashboard/clips", label: "Wedstrijden", icon: "/branding/games.png", primary: true });
-  if (access && hasClubPermission(access, "training.view") && moduleOn("training")) navigation.push({ href: "/dashboard/training", label: "Training", icon: "/branding/training.png", primary: true });
-  if (access && hasClubPermission(access, "video.view") && moduleOn("video_viewer")) navigation.push({ href: "/dashboard/videos", label: "Video Viewer", icon: "/branding/video-viewer.png", primary: true });
-  if (access && hasClubPermission(access, "intradesk.view") && moduleOn("intradesk")) navigation.push({ href: "/dashboard/intradesk", label: "Intradesk", icon: "/branding/intradesk.png", primary: false });
-  if ((clubContext.isPlatformAdmin || (access && ["club_admin", "club_admin_viewer"].includes(access.role))) && moduleOn("media")) navigation.push({ href: "/dashboard/media", label: "Media", icon: "/branding/media.svg", primary: false });
-  if (Array.isArray(guardianRows) && guardianRows.length) navigation.push({ href: "/dashboard/parent", label: "Spelers & clips", icon: "/branding/clips.png", primary: false });
+  if (clubId) navigation.push({ href: "/dashboard/inbox", label: "Mailbox", icon: "/branding/Menu/mail.png", primary: true });
+  if (access && hasClubPermission(access, "teams.view") && moduleOn("teams")) navigation.push({ href: "/dashboard/teams", label: "Teams", icon: "/branding/Menu/teams.png", primary: true });
+  if (access && hasClubPermission(access, "games.view") && moduleOn("matches")) navigation.push({ href: "/dashboard/clips", label: "Wedstrijden", icon: "/branding/Menu/wedstrijden.png", primary: true });
+  if (access && hasClubPermission(access, "training.view") && moduleOn("training")) navigation.push({ href: "/dashboard/training", label: "Training", icon: "/branding/Menu/training.png", primary: true });
+  if (access && hasClubPermission(access, "video.view") && moduleOn("video_viewer")) navigation.push({ href: "/dashboard/videos", label: "Video Viewer", icon: "/branding/Menu/video.png", primary: true });
+  if (access && hasClubPermission(access, "intradesk.view") && moduleOn("intradesk")) navigation.push({ href: "/dashboard/intradesk", label: "Intradesk", icon: "/branding/Menu/intradesk.png", primary: false });
+  if ((clubContext.isPlatformAdmin || (access && ["club_admin", "club_admin_viewer"].includes(access.role))) && moduleOn("media")) navigation.push({ href: "/dashboard/media", label: "Media", icon: "/branding/Menu/media.png", primary: false });
+  if (Array.isArray(guardianRows) && guardianRows.length) navigation.push({ href: "/dashboard/parent", label: "Spelers & clips", icon: "/branding/Menu/teams.png", primary: false });
   const canOpenClubManagement = access && (["club_admin", "club_admin_viewer", "platform_admin"].includes(access.role)
     || hasClubPermission(access, "teams.manage") || hasClubPermission(access, "teams.import"));
   if (canOpenClubManagement && moduleOn("club_management")) {
-    navigation.push({ href: "/dashboard/club", label: "Clubbeheer", icon: "/branding/clubadmin.png", primary: false });
+    navigation.push({ href: "/dashboard/club", label: "Clubbeheer", icon: "/branding/Menu/clubbeheer.png", primary: false });
   }
   if (clubContext.isPlatformAdmin || profile?.account_role === "admin_viewer") {
-    navigation.push({ href: "/dashboard/admin", label: "Algemene Admin", icon: "/branding/admin.png", primary: false });
+    navigation.push({ href: "/dashboard/admin", label: "Algemene Admin", icon: "/branding/Menu/algemene-admin.png", primary: false });
   }
 
   const canApproveClubRequests = !!clubId && !!access && ["club_admin", "platform_admin"].includes(access.role);

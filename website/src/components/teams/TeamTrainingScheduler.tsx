@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
+import { recurringDates, type TrainingRecurrence } from "@/lib/training-recurrence";
 
 type Trainer = { id: string; profile_id: string | null; display_name: string };
 type Training = {
@@ -17,14 +18,16 @@ const weekdays = [
 ];
 const emptyDay = (staffIds: string[]): DayDraft => ({ enabled: false, time: "18:00", fieldOptionId: "", lockerRoomOptionId: "", staffIds });
 
-export function TeamTrainingScheduler({ teamId, trainers, assignedTrainerIds, options, readOnly }: {
-  teamId: string; trainers: Trainer[]; assignedTrainerIds: string[]; options: ClubMatchOption[]; readOnly?: boolean;
+export function TeamTrainingScheduler({ teamId, groupId, trainers, assignedTrainerIds, options, readOnly }: {
+  teamId?: string; groupId?: string; trainers: Trainer[]; assignedTrainerIds: string[]; options: ClubMatchOption[]; readOnly?: boolean;
 }) {
+  const endpoint = groupId ? `/api/club/player-groups/${groupId}/trainings` : `/api/club/teams/${teamId}/trainings`;
   const defaultStaffIds = useMemo(() => trainers.filter(item => assignedTrainerIds.includes(item.id)).map(item => item.id), [trainers, assignedTrainerIds]);
   const [mode, setMode] = useState<"single" | "multiple">("single");
   const [single, setSingle] = useState({ date: "", time: "18:00", fieldOptionId: "", lockerRoomOptionId: "", staffIds: defaultStaffIds });
   const [days, setDays] = useState<Record<number, DayDraft>>(() => Object.fromEntries(weekdays.map(day => [day.value, emptyDay(defaultStaffIds)])));
   const [range, setRange] = useState({ start: "", end: "" });
+  const [recurrence, setRecurrence] = useState<TrainingRecurrence>("weekly");
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -32,23 +35,11 @@ export function TeamTrainingScheduler({ teamId, trainers, assignedTrainerIds, op
   const lockerRooms = options.filter(option => option.option_type === "locker_room");
 
   async function load() {
-    const response = await fetch(`/api/club/teams/${teamId}/trainings`);
+    const response = await fetch(endpoint);
     const body = await response.json();
     if (response.ok) setTrainings(body.trainings ?? []);
   }
-  useEffect(() => { void load(); }, [teamId]);
-
-  function datesForWeekday(start: string, end: string, weekday: number) {
-    const result: string[] = [];
-    if (!start || !end) return result;
-    const cursor = new Date(`${start}T12:00:00`);
-    const last = new Date(`${end}T12:00:00`);
-    while (cursor <= last) {
-      if (cursor.getDay() === weekday) result.push(cursor.toISOString().slice(0, 10));
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    return result;
-  }
+  useEffect(() => { void load(); }, [endpoint]);
 
   async function save() {
     setNotice("");
@@ -56,14 +47,14 @@ export function TeamTrainingScheduler({ teamId, trainers, assignedTrainerIds, op
       ? [{ date: single.date, time: single.time, fieldOptionId: single.fieldOptionId || null, lockerRoomOptionId: single.lockerRoomOptionId || null, staffIds: single.staffIds }]
       : weekdays.flatMap(day => {
           const draft = days[day.value];
-          return draft.enabled ? datesForWeekday(range.start, range.end, day.value).map(date => ({
+          return draft.enabled ? recurringDates(range.start, range.end, day.value, recurrence).map(date => ({
             date, time: draft.time, fieldOptionId: draft.fieldOptionId || null,
             lockerRoomOptionId: draft.lockerRoomOptionId || null, staffIds: draft.staffIds
           })) : [];
         });
     if (!sessions.length || sessions.some(item => !item.date || !item.time)) return setNotice("Kies een datum, uur en minstens één trainingsdag.");
     setBusy(true);
-    const response = await fetch(`/api/club/teams/${teamId}/trainings`, {
+    const response = await fetch(endpoint, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessions, series: mode === "multiple" })
     });
@@ -76,7 +67,7 @@ export function TeamTrainingScheduler({ teamId, trainers, assignedTrainerIds, op
 
   async function remove(id: string) {
     setBusy(true); setNotice("");
-    const response = await fetch(`/api/club/teams/${teamId}/trainings`, {
+    const response = await fetch(endpoint, {
       method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trainingId: id })
     });
     setBusy(false);
@@ -98,10 +89,16 @@ export function TeamTrainingScheduler({ teamId, trainers, assignedTrainerIds, op
         <OptionSelect label="Kleedkamer" value={single.lockerRoomOptionId} options={lockerRooms} onChange={value => setSingle(current => ({ ...current, lockerRoomOptionId: value }))} />
         <div className="md:col-span-2"><StaffSelect trainers={trainers} value={single.staffIds} onChange={staffIds => setSingle(current => ({ ...current, staffIds }))} /></div>
       </div> : <div className="mt-4">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-3">
           <Labeled label="Begindatum"><input type="date" value={range.start} onChange={event => setRange(current => ({ ...current, start: event.target.value }))} className={inputClass} /></Labeled>
           <Labeled label="Einddatum"><input type="date" value={range.end} min={range.start} onChange={event => setRange(current => ({ ...current, end: event.target.value }))} className={inputClass} /></Labeled>
+          <Labeled label="Herhaling"><select value={recurrence} onChange={event => setRecurrence(event.target.value as TrainingRecurrence)} className={inputClass}>
+            <option value="weekly">Wekelijks</option>
+            <option value="biweekly">Om de twee weken</option>
+            <option value="monthly">Maandelijks</option>
+          </select></Labeled>
         </div>
+        {recurrence === "monthly" && <p className="mt-2 text-xs text-textMuted">Maandelijks gebruikt dezelfde positie van de gekozen weekdag, bijvoorbeeld de eerste zaterdag van elke maand.</p>}
         <div className="mt-4 space-y-3">{weekdays.map(day => {
           const draft = days[day.value];
           return <div key={day.value} className="rounded-xl border border-borderSubtle p-3">

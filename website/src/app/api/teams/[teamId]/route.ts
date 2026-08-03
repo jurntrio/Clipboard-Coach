@@ -4,7 +4,7 @@ import { getClubContext } from "@/lib/auth/active-club";
 import { canAccessTeam, canManagePlayer, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { addPlayerContacts } from "@/lib/teams/player-contacts";
 
-export async function GET(_request: Request, { params }: { params: { teamId: string } }) {
+export async function GET(request: Request, { params }: { params: { teamId: string } }) {
   const context = await getClubContext();
   const user = context.user;
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,6 +31,26 @@ export async function GET(_request: Request, { params }: { params: { teamId: str
     allowed = !!membership;
   }
   if (!allowed) return NextResponse.json({ error: "Geen toegang tot dit team." }, { status: 403 });
+
+  const section = new URL(request.url).searchParams.get("section");
+  if (section === "matches") {
+    const { data: matches } = clubTeam
+      ? await admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match")
+          .eq("club_id", clubTeam.club_id).or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id},club_team_id.eq.${clubTeam.id}`).order("match_date", { ascending: false })
+      : await admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match")
+          .or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id}`).order("match_date", { ascending: false });
+    return NextResponse.json({ matches: matches ?? [] });
+  }
+
+  if (section === "training") {
+    if (!clubTeam) return NextResponse.json({ trainings: [], training_options: [] });
+    const [{ data: sessions }, { data: options }] = await Promise.all([
+      admin.from("team_training_sessions").select("id, club_team_id, training_date, start_time, field_option_id, locker_room_option_id, personal_training_id, club_training_id, attendance_confirmed_at")
+        .eq("club_team_id", clubTeam.id).order("training_date").order("start_time"),
+      admin.from("club_match_options").select("id, label").eq("club_id", clubTeam.club_id).eq("active", true)
+    ]);
+    return NextResponse.json({ trainings: sessions ?? [], training_options: options ?? [] });
+  }
 
   const allPlayers = (team.players ?? []) as Array<Record<string, unknown> & { id: string }>;
   const privatePlayers = access?.goalkeeperPlayerIds === null || !access
@@ -62,10 +82,10 @@ export async function GET(_request: Request, { params }: { params: { teamId: str
   });
   const enriched = { ...enrichedPrivate, players: visiblePlayers };
 
-  let linkedStaff: Array<{ id: string; user_id: string; full_name: string; removable: boolean }> = [];
+  let linkedStaff: Array<{ id: string; user_id: string; full_name: string; role: string; removable: boolean }> = [];
   if (clubTeam) {
     const { data: assignments } = await admin.from("club_trainer_teams")
-      .select("club_team_id, trainer_id, club_trainers(profile_id, display_name)")
+      .select("club_team_id, trainer_id, role, club_trainers(profile_id, display_name)")
       .eq("club_team_id", clubTeam.id).eq("status", "active");
     linkedStaff = (assignments ?? []).flatMap((assignment) => {
       const trainer = assignment.club_trainers as unknown as { profile_id: string | null; display_name: string | null } | null;
@@ -73,9 +93,26 @@ export async function GET(_request: Request, { params }: { params: { teamId: str
         id: `${clubTeam.id}:${assignment.trainer_id}`,
         user_id: trainer.profile_id ?? assignment.trainer_id,
         full_name: trainer.display_name?.trim() || "Trainer",
+        role: assignment.role,
         removable: false
       }] : [];
     });
+    const { data: leaders } = await admin.from("club_memberships")
+      .select("profile_id, function_role, custom_role_name, profiles(full_name)")
+      .eq("club_id", clubTeam.club_id).eq("status", "active").eq("team_scope", "all")
+      .in("function_role", ["youth_coordinator", "head_youth_development", "technical_director"]);
+    const existingUserIds = new Set(linkedStaff.map((member) => member.user_id));
+    for (const leader of leaders ?? []) {
+      if (existingUserIds.has(leader.profile_id)) continue;
+      const profile = leader.profiles as unknown as { full_name: string | null } | null;
+      linkedStaff.push({
+        id: `club-role:${leader.profile_id}:${leader.function_role}`,
+        user_id: leader.profile_id,
+        full_name: profile?.full_name?.trim() || "Club staff",
+        role: leader.function_role === "custom" ? leader.custom_role_name || "staff" : leader.function_role,
+        removable: false
+      });
+    }
   } else {
     const { data: memberships } = await admin.from("team_staff_members")
       .select("id, user_id").eq("team_id", team.id);
@@ -88,13 +125,12 @@ export async function GET(_request: Request, { params }: { params: { teamId: str
       id: membership.id,
       user_id: membership.user_id,
       full_name: names.get(membership.user_id)?.trim() || "Registered staff",
+      role: "staff",
       removable: team.coach_id === user.id && membership.user_id !== team.coach_id
     }));
   }
 
-  const { data: clips } = await admin.from("clips")
-    .select("id, team_id, audience_type, audience_player_ids, clip_segments(tags(player_ids))")
-    .eq("team_id", team.id);
-
-  return NextResponse.json({ team: { ...enriched, linked_staff: linkedStaff, details_loaded: true }, clips: clips ?? [] });
+  return NextResponse.json({
+    team: { ...enriched, linked_staff: linkedStaff, details_loaded: true }
+  });
 }

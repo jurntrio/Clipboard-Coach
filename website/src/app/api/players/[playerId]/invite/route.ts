@@ -37,17 +37,21 @@ export async function POST(request: Request, { params }: { params: { playerId: s
     clubPlayerId = membership?.club_player_id ?? null;
   }
 
-  // contactLabel/contactPhone zijn puur metadata over wie deze specifieke link krijgt (bv.
+  // Contactgegevens zijn metadata over wie deze specifieke link krijgt (bv.
   // "Mama"/"Papa"), zodat een kind met meerdere ouders elk hun eigen, aparte link krijgt.
-  const body = await request.json().catch(() => null) as { contactLabel?: string; contactPhone?: string } | null;
+  const body = await request.json().catch(() => null) as { contactLabel?: string; contactPhone?: string; contactEmail?: string } | null;
   const contactLabel = body?.contactLabel?.trim() || null;
   const contactPhone = body?.contactPhone?.trim() || null;
+  const contactEmail = body?.contactEmail?.trim().toLowerCase() || null;
+  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    return NextResponse.json({ error: "Vul een geldig e-mailadres in." }, { status: 400 });
+  }
 
   const token = createInviteToken();
   const { error } = await admin.from("player_invites")
     .insert({
       ...(clubPlayerId ? { club_player_id: clubPlayerId } : { player_id: player.id }),
-      created_by: user.id, contact_label: contactLabel, contact_phone: contactPhone,
+      created_by: user.id, contact_label: contactLabel, contact_phone: contactPhone, contact_email: contactEmail,
       token_hash: hashInviteToken(token),
     })
     .select("id").single();

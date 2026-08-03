@@ -88,16 +88,29 @@ export default async function NewTrainingPage({ searchParams }: { searchParams?:
     }
     if (searchParams?.sessionId && clubIds.length) {
       const { data: session } = await admin.from("team_training_sessions")
-        .select("id, club_id, club_team_id, training_date, club_teams(name, age_category)")
+        .select("id, club_id, club_team_id, training_date, club_teams(name, age_category, teams(id))")
         .eq("id", searchParams.sessionId).in("club_id", clubIds).maybeSingle();
       if (session) {
-        const scheduledTeam = session.club_teams as unknown as { name: string; age_category: string | null } | null;
+        const scheduledTeam = session.club_teams as unknown as { name: string; age_category: string | null; teams: { id: string }[] } | null;
+        const operationalTeamIds = (scheduledTeam?.teams ?? []).map(team => team.id);
+        const { data: roster } = operationalTeamIds.length
+          ? await admin.from("players").select("id, is_goalkeeper").in("team_id", operationalTeamIds).eq("role", "player")
+          : { data: [] };
+        const rosterIds = (roster ?? []).map(player => player.id);
+        const { data: absences } = rosterIds.length
+          ? await admin.from("team_training_attendance").select("player_id").eq("training_session_id", session.id).eq("attendance_status", "absent").in("player_id", rosterIds)
+          : { data: [] };
+        const absentIds = new Set((absences ?? []).map(row => row.player_id));
+        const available = (roster ?? []).filter(player => !absentIds.has(player.id));
+        const keeperCount = available.filter(player => player.is_goalkeeper).length;
         initialTraining = {
           ...(initialTraining ?? {}),
           clubId: session.club_id,
           team: scheduledTeam?.name ?? "",
           date: session.training_date,
-          ageCategory: scheduledTeam?.age_category ?? ""
+          ageCategory: scheduledTeam?.age_category ?? "",
+          playerCount: available.length - keeperCount,
+          keeperCount
         };
       }
     }

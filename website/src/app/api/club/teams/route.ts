@@ -41,8 +41,10 @@ export async function POST(request: Request) {
   const name = text(body?.name);
   if (!clubId || !name) return NextResponse.json({ error: "Club en teamnaam zijn verplicht." }, { status: 400 });
   if (!await canManage(ctx.admin, ctx.user.id, clubId, ctx.platformAdmin)) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
+  const { data: lastTeam } = await ctx.admin.from("club_teams").select("display_order").eq("club_id", clubId).order("display_order", { ascending: false }).limit(1).maybeSingle();
   const { data, error } = await ctx.admin.from("club_teams").insert({
     club_id: clubId, name, normalized_name: name,
+    display_order: (lastTeam?.display_order ?? -1) + 1,
     age_category: text(body?.ageCategory, 60) || null,
     level_or_competition: text(body?.levelOrCompetition, 100) || null,
     status: "active", created_by: ctx.user.id, approved_by: ctx.user.id, approved_at: new Date().toISOString()
@@ -66,6 +68,17 @@ export async function PATCH(request: Request) {
   const ctx = await context(request);
   if ("response" in ctx) return ctx.response;
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  if (Array.isArray(body?.teamIds)) {
+    const clubId = text(body?.clubId, 36);
+    const teamIds = body.teamIds.filter((id): id is string => typeof id === "string" && id.length > 0);
+    if (!clubId || teamIds.length !== body.teamIds.length) return NextResponse.json({ error: "Ongeldige ploegvolgorde." }, { status: 400 });
+    const { data: profile } = await ctx.admin.from("profiles").select("email").eq("id", ctx.user.id).maybeSingle();
+    const access = await getClubAccess(clubId, { id: ctx.user.id, email: profile?.email });
+    if (!ctx.platformAdmin && access.role !== "club_admin") return NextResponse.json({ error: "Alleen een clubadmin kan de ploegvolgorde aanpassen." }, { status: 403 });
+    const { error } = await ctx.admin.rpc("reorder_club_teams", { target_club_id: clubId, ordered_team_ids: teamIds });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  }
   const teamId = text(body?.teamId, 36);
   const { data: team } = await ctx.admin.from("club_teams").select("id, club_id, status").eq("id", teamId).maybeSingle();
   if (!team) return NextResponse.json({ error: "Team niet gevonden." }, { status: 404 });

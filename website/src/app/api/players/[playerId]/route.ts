@@ -11,17 +11,17 @@ async function playerContext(playerId: string) {
   const team = player?.teams as unknown as { id: string; coach_id: string | null; club_team_id: string | null } | null;
   if (!player || !team) return { response: NextResponse.json({ error: "Speler niet gevonden." }, { status: 404 }) };
   if (!team.club_team_id) {
-    const canEdit = team.coach_id === context.user.id;
-    return { admin, player, canEdit, canManageGoalkeeper: false, goalkeeperRestricted: false };
+    const canEdit = context.isPlatformAdmin || team.coach_id === context.user.id;
+    return { admin, player, canEdit, canManageGoalkeeper: context.isPlatformAdmin, goalkeeperRestricted: false };
   }
   const { data: clubTeam } = await admin.from("club_teams").select("club_id, trainers_can_edit_roster").eq("id", team.club_team_id).maybeSingle();
   if (!clubTeam) return { response: NextResponse.json({ error: "Ploeg niet gevonden." }, { status: 404 }) };
   const access = await getClubAccess(clubTeam.club_id, context.user);
   const privilegedRosterRole = ["youth_coordinator", "head_youth_development"].includes(access.functionRole ?? "");
-  const canEdit = canAccessTeam(access, team.club_team_id) && hasClubPermission(access, "teams.manage")
+  const canEdit = context.isPlatformAdmin || (canAccessTeam(access, team.club_team_id) && hasClubPermission(access, "teams.manage")
     && (["platform_admin", "club_admin"].includes(access.role) || privilegedRosterRole || clubTeam.trainers_can_edit_roster === true)
-    && canManagePlayer(access, player.id);
-  const canManageGoalkeeper = canEdit && (["platform_admin", "club_admin"].includes(access.role)
+    && canManagePlayer(access, player.id));
+  const canManageGoalkeeper = canEdit && (context.isPlatformAdmin || ["platform_admin", "club_admin"].includes(access.role)
     || privilegedRosterRole);
   return { admin, player, canEdit, canManageGoalkeeper, goalkeeperRestricted: access.goalkeeperPlayerIds !== null };
 }
@@ -63,9 +63,5 @@ export async function PATCH(request: Request, { params }: { params: { playerId: 
   };
   const { error } = await ctx.admin.from("players").update(update).eq("id", params.playerId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  if ((ctx.canManageGoalkeeper && body.isGoalkeeper === false) || update.team_id !== ctx.player.team_id) {
-    const { error: assignmentError } = await ctx.admin.from("club_trainer_players").delete().eq("player_id", params.playerId);
-    if (assignmentError) return NextResponse.json({ error: assignmentError.message }, { status: 400 });
-  }
   return NextResponse.json({ ok: true });
 }

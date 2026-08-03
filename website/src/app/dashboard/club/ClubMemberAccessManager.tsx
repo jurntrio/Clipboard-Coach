@@ -11,7 +11,6 @@ import {
 } from "@/lib/club-access-options";
 
 type Team = { id: string; name: string };
-type GoalkeeperOption = { id: string; name: string };
 type Member = {
   club_id: string; profile_id: string; role: string; function_role?: string;
   custom_role_name?: string | null; team_scope?: TeamScope;
@@ -19,15 +18,13 @@ type Member = {
 type Trainer = {
   profile_id: string | null; display_name: string; profiles: { email: string } | null;
   club_trainer_teams?: { club_team_id: string; status?: string }[];
-  club_trainer_players?: { player_id: string }[];
 };
 type Permission = { profile_id: string; permission_key: string; enabled: boolean };
 type TeamAccess = { profile_id: string; club_team_id: string };
 type RoleDefault = { function_role: string; permission_key: string; enabled: boolean };
 
-export function ClubMemberAccessManager({ clubId, members, trainers, teams, playersByTeam, permissions, teamAccess, roleDefaults, readOnly, onChanged }: {
+export function ClubMemberAccessManager({ clubId, members, trainers, teams, permissions, teamAccess, roleDefaults, readOnly, onChanged }: {
   clubId: string; members: Member[]; trainers: Trainer[]; teams: Team[]; permissions: Permission[];
-  playersByTeam: Record<string, GoalkeeperOption[]>;
   teamAccess: TeamAccess[]; roleDefaults: RoleDefault[]; readOnly: boolean; onChanged: () => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
@@ -72,8 +69,6 @@ export function ClubMemberAccessManager({ clubId, members, trainers, teams, play
       return <MemberEditor key={member.profile_id} clubId={clubId} member={member}
         name={name}
         assignedTeamIds={(trainer?.club_trainer_teams ?? []).filter((item) => item.status !== "inactive").map((item) => item.club_team_id)}
-        assignedPlayerIds={(trainer?.club_trainer_players ?? []).map((item) => item.player_id)}
-        playersByTeam={playersByTeam}
         teams={teams} permissions={permissions.filter((item) => item.profile_id === member.profile_id)}
         teamAccess={teamAccess.filter((item) => item.profile_id === member.profile_id)}
         roleDefaults={roleDefaults}
@@ -208,16 +203,15 @@ function RolePermissionDefaultsManager({ clubId, defaults, readOnly, onChanged }
   </div>;
 }
 
-function MemberEditor({ clubId, member, name, teams, playersByTeam, permissions, teamAccess, assignedTeamIds, assignedPlayerIds, roleDefaults, readOnly, onChanged }: {
+function MemberEditor({ clubId, member, name, teams, permissions, teamAccess, assignedTeamIds, roleDefaults, readOnly, onChanged }: {
   clubId: string; member: Member; name: string; teams: Team[]; permissions: Permission[];
-  playersByTeam: Record<string, GoalkeeperOption[]>; teamAccess: TeamAccess[]; assignedTeamIds: string[]; assignedPlayerIds: string[]; roleDefaults: RoleDefault[]; readOnly: boolean; onChanged: () => Promise<void>;
+  teamAccess: TeamAccess[]; assignedTeamIds: string[]; roleDefaults: RoleDefault[]; readOnly: boolean; onChanged: () => Promise<void>;
 }) {
   const [functionRole, setFunctionRole] = useState(member.function_role || member.role || "trainer");
   const [customRoleName, setCustomRoleName] = useState(member.custom_role_name || "");
   const [teamScope, setTeamScope] = useState<TeamScope>(member.team_scope || (["club_admin", "club_admin_viewer"].includes(member.role) ? "all" : "assigned"));
   const [teamIds, setTeamIds] = useState(() => new Set(teamAccess.map((item) => item.club_team_id)));
   const [assignedIds, setAssignedIds] = useState(() => new Set(assignedTeamIds));
-  const [assignedPlayerIdsState, setAssignedPlayerIdsState] = useState(() => new Set(assignedPlayerIds));
   const [permissionKeys, setPermissionKeys] = useState(() => new Set([
     ...permissions.filter((item) => item.enabled).map((item) => item.permission_key),
     ...(!permissions.some((item) => item.permission_key === "intradesk.view") ? ["intradesk.view"] : []),
@@ -231,14 +225,13 @@ function MemberEditor({ clubId, member, name, teams, playersByTeam, permissions,
     setTeamScope(member.team_scope || (["club_admin", "club_admin_viewer"].includes(member.role) ? "all" : "assigned"));
     setTeamIds(new Set(teamAccess.map((item) => item.club_team_id)));
     setAssignedIds(new Set(assignedTeamIds));
-    setAssignedPlayerIdsState(new Set(assignedPlayerIds));
     setPermissionKeys(new Set([
       ...permissions.filter((item) => item.enabled).map((item) => item.permission_key),
       ...(!permissions.some((item) => item.permission_key === "intradesk.view") ? ["intradesk.view"] : []),
       ...(permissions.length ? [] : defaultPermissionsForRole(member.function_role || member.role || "trainer"))
     ]));
     setExtraTeamsOpen(false);
-  }, [member, permissions, teamAccess, assignedTeamIds, assignedPlayerIds]);
+  }, [member, permissions, teamAccess, assignedTeamIds]);
 
   function toggle(setter: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) {
     setter((current) => {
@@ -258,7 +251,7 @@ function MemberEditor({ clubId, member, name, teams, playersByTeam, permissions,
     setStatus("Bewaren…");
     const response = await fetch("/api/club/members/access", {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clubId, profileId: member.profile_id, functionRole, customRoleName, teamScope, teamIds: [...teamIds], assignedTeamIds: [...assignedIds], assignedPlayerIds: functionRole === "goalkeeper_coach" ? [...assignedPlayerIdsState] : [], permissions: [...permissionKeys] })
+      body: JSON.stringify({ clubId, profileId: member.profile_id, functionRole, customRoleName, teamScope, teamIds: [...teamIds], assignedTeamIds: [...assignedIds], permissions: [...permissionKeys] })
     });
     const body = await response.json();
     if (!response.ok) return setStatus(body.error || "Rechten konden niet worden bewaard.");
@@ -290,22 +283,10 @@ function MemberEditor({ clubId, member, name, teams, playersByTeam, permissions,
           <span className="text-accent transition-transform group-open/assigned:rotate-90">▶</span>
         </summary>
         <div className="grid gap-2 border-t border-borderSubtle p-3 sm:grid-cols-2">{teams.map((team) => <label key={team.id} className="flex items-center gap-2 text-sm text-textSecondary"><input type="checkbox" checked={assignedIds.has(team.id)} disabled={readOnly} onChange={() => {
-          const wasAssigned = assignedIds.has(team.id);
           toggle(setAssignedIds, team.id);
-          if (wasAssigned) setAssignedPlayerIdsState((current) => new Set([...current].filter((playerId) => !(playersByTeam[team.id] ?? []).some((player) => player.id === playerId))));
         }} className="accent-accent" />{team.name}</label>)}</div>
       </details>
-      {functionRole === "goalkeeper_coach" && <details className="group/keepers rounded-lg border border-border">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3">
-          <span><strong className="block text-sm text-textPrimary">Toegewezen doelmannen</strong><span className="text-sm text-textSecondary">{assignedPlayerIdsState.size ? `${assignedPlayerIdsState.size} geselecteerd` : "Nog geen doelman toegewezen"}</span></span>
-          <span className="text-accent transition-transform group-open/keepers:rotate-90">▶</span>
-        </summary>
-        <div className="space-y-3 border-t border-borderSubtle p-3">{teams.filter((team) => assignedIds.has(team.id)).map((team) => <div key={team.id}>
-          <h5 className="text-sm font-semibold text-textPrimary">{team.name}</h5>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">{(playersByTeam[team.id] ?? []).map((player) => <label key={player.id} className="flex items-center gap-2 text-sm text-textSecondary"><input type="checkbox" checked={assignedPlayerIdsState.has(player.id)} disabled={readOnly} onChange={() => toggle(setAssignedPlayerIdsState, player.id)} className="accent-accent" />{player.name}</label>)}</div>
-          {!(playersByTeam[team.id] ?? []).length && <p className="mt-2 text-xs text-textMuted">In deze ploeg zijn nog geen doelmannen gemarkeerd.</p>}
-        </div>)}</div>
-      </details>}
+      {functionRole === "goalkeeper_coach" && <p className="rounded-lg border border-dashed border-accent/40 bg-accentDim p-3 text-sm text-textSecondary">Koppel keepers en keepertrainers voortaan via <strong className="text-textPrimary">Extra groepen</strong>. De functienaam Keepertrainer geeft op zichzelf geen team- of spelersrechten.</p>}
       <div><h4 className="text-sm font-semibold text-textPrimary">Rechten</h4><div className="mt-2 grid items-start gap-2 md:grid-cols-2">{CLUB_PERMISSION_OPTIONS.map(([key, label]) => {
         const checked = permissionKeys.has(key);
         return <div key={key} className="rounded-lg border border-border">

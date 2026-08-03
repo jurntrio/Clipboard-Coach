@@ -7,7 +7,6 @@ import { formatTime, getPlayerDisplayName } from "@/lib/utils";
 import { remuxLocalSegment } from "@/lib/media/local-clips";
 import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
 import { isPeriodMarker } from "@/lib/tags";
-import Link from "next/link";
 import { useI18n } from "@/i18n/client";
 import { localMediaMessages } from "@/i18n/local-media";
 
@@ -17,7 +16,6 @@ export function ClipBuilder({
   selectedTagIds,
   tags,
   players,
-  extraPlayers = [],
   localVideo,
   localFile,
   localFilesByVideoId,
@@ -31,7 +29,6 @@ export function ClipBuilder({
   selectedTagIds: string[];
   tags: Tag[];
   players: Player[];
-  extraPlayers?: Player[];
   localVideo: boolean;
   localFile: File | null;
   localFilesByVideoId?: Record<string, File>;
@@ -60,9 +57,7 @@ export function ClipBuilder({
   const [teamPlayers, setTeamPlayers] = useState<Player[]>(players);
   const [availableTeams, setAvailableTeams] = useState<Team[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState(teamId ?? "");
-  const [extraPeople, setExtraPeople] = useState<Player[]>(extraPlayers);
   const [newTeamPlayerName, setNewTeamPlayerName] = useState("");
-  const [newExtraName, setNewExtraName] = useState("");
   const [addingPerson, setAddingPerson] = useState(false);
   const [clipAllowance, setClipAllowance] = useState<{ plan: "free" | "pro"; used: number; exempt: boolean } | null>(null);
   const [cameraSelectionByTag, setCameraSelectionByTag] = useState<Record<string, string[]>>({});
@@ -85,7 +80,6 @@ export function ClipBuilder({
 
   useEffect(() => setTeamPlayers(players), [players]);
   useEffect(() => setSelectedTeamId(teamId ?? ""), [teamId]);
-  useEffect(() => setExtraPeople(extraPlayers), [extraPlayers]);
   useEffect(() => {
     setOrderedClipTagIds((current) => [
       ...current.filter((id) => clipTagIds.includes(id)),
@@ -350,31 +344,6 @@ export function ClipBuilder({
     setAddingPerson(false);
   }
 
-  async function addExtraPerson() {
-    if (!newExtraName.trim() || addingPerson) return;
-    setAddingPerson(true);
-    setErrorMessage("");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setErrorMessage(t("errors.sessionExpired")); setAddingPerson(false); return; }
-    const { data: existingTeam } = await supabase.from("teams").select("id").ilike("name", "EXTRA").limit(1).maybeSingle();
-    let extraTeamId = existingTeam?.id;
-    if (!extraTeamId) {
-      const { data: createdTeam, error: teamError } = await supabase.from("teams").insert({ coach_id: user.id, name: "EXTRA" }).select("id").single();
-      if (teamError) { setErrorMessage(teamError.message); setAddingPerson(false); return; }
-      extraTeamId = createdTeam.id;
-    }
-    const { firstName, lastName } = splitName(newExtraName);
-    const { data, error } = await supabase.from("players").insert({ team_id: extraTeamId, first_name: firstName, last_name: lastName, role: "player" }).select().single();
-    if (error) setErrorMessage(error.message);
-    else if (data) {
-      setExtraPeople((current) => [...current, data]);
-      setAudiencePlayerIds((current) => Array.from(new Set([...(audienceType === "full_team" ? teamPlayers.map((player) => player.id) : current), data.id])));
-      setAudienceType("specific_players");
-      setNewExtraName("");
-    }
-    setAddingPerson(false);
-  }
-
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="font-semibold text-textBright">{t("clip.make")}</h3>
@@ -447,13 +416,6 @@ export function ClipBuilder({
                 <div className="mt-3 flex gap-2"><input value={newTeamPlayerName} onChange={(event) => setNewTeamPlayerName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void addTeamPlayer(); } }} placeholder={t("clip.addPlayerName")} className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" /><button type="button" disabled={addingPerson || !newTeamPlayerName.trim()} onClick={() => void addTeamPlayer()} className="rounded-lg bg-button px-3 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">{t("clip.add")}</button></div>
               </details>
 
-              <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
-                <summary className="cursor-pointer text-sm font-semibold text-textPrimary">EXTRA ({extraPeople.length})</summary>
-                <p className="mt-2 text-xs text-textMuted">{t("clip.extraHelp")}</p>
-                <div className="mt-3 space-y-2">{extraPeople.map((player) => recipientButton(player, false))}</div>
-                <div className="mt-3 flex gap-2"><input value={newExtraName} onChange={(event) => setNewExtraName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void addExtraPerson(); } }} placeholder={t("clip.addExtra")} className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" /><button type="button" disabled={addingPerson || !newExtraName.trim()} onClick={() => void addExtraPerson()} className="rounded-lg bg-button px-3 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">{t("clip.add")}</button></div>
-                <Link href="/dashboard/teams" className="mt-2 inline-block text-xs text-accent hover:underline">{t("clip.manageExtra")}</Link>
-              </details>
             </div>
 
             {saving && localFile && (

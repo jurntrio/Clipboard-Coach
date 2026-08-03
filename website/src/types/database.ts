@@ -318,13 +318,30 @@ export type Match = {
 export type TeamTrainingSession = {
   id: string;
   club_id: string;
-  club_team_id: string;
+  club_team_id: string | null;
+  player_group_id: string | null;
   training_date: string;
   start_time: string;
   field_option_id: string | null;
   locker_room_option_id: string | null;
   staff_ids: string[];
   series_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PlayerGroupType = "goalkeeper_training" | "technique_training" | "talent_development" | "position_training" | "physical_training" | "rehabilitation" | "selection_group" | "other";
+
+export type PlayerGroup = {
+  id: string;
+  club_id: string;
+  name: string;
+  group_type: PlayerGroupType;
+  description: string | null;
+  age_category: string | null;
+  icon: string | null;
+  active: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
