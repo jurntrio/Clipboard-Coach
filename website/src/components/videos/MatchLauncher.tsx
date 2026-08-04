@@ -95,13 +95,18 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || !activeClubId) return;
-    const [recentResponse, teamResult, clubResult] = await Promise.all([
+    const [recentResponse, activeSeasonResult, clubResult] = await Promise.all([
       // Platform admins can read every club, so the active club must always be
       // an explicit query boundary instead of relying on row-level access alone.
       fetch("/api/videos/recent"),
-      supabase.from("teams").select("*, club_teams!inner(club_id, display_order, club_seasons!inner(status))").eq("club_teams.club_id", activeClubId).eq("club_teams.club_seasons.status", "ACTIVE"),
+      supabase.from("club_seasons").select("id").eq("club_id", activeClubId).eq("status", "ACTIVE").maybeSingle(),
       supabase.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", activeClubId).maybeSingle()
     ]);
+    const teamResult = activeSeasonResult.data
+      ? await supabase.from("teams").select("*, club_teams!inner(club_id, season_id, display_order)")
+          .eq("club_teams.club_id", activeClubId)
+          .eq("club_teams.season_id", activeSeasonResult.data.id)
+      : { data: [] };
     if (!recentResponse.ok) {
       const body = await recentResponse.json().catch(() => null) as { error?: string } | null;
       setError(body?.error || t("match.loadFailed"));

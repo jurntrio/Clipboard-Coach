@@ -9,8 +9,14 @@ export function ActiveTeamSwitcher({ teams, activeTeamId, allTeamsLabel = "Alle 
 }) {
   const [open, setOpen] = useState(false);
   const [changing, setChanging] = useState(false);
-  if (teams.length <= 1) return null;
-  const activeTeam = teams.find((team) => team.id === activeTeamId) ?? null;
+  const teamsByName = new Map<string, { id: string; name: string }>();
+  for (const team of teams) {
+    const key = team.name.trim().toLocaleLowerCase();
+    if (!teamsByName.has(key) || team.id === activeTeamId) teamsByName.set(key, team);
+  }
+  const uniqueTeams = Array.from(teamsByName.values());
+  if (uniqueTeams.length <= 1) return null;
+  const activeTeam = uniqueTeams.find((team) => team.id === activeTeamId) ?? null;
   const label = activeTeam ? activeTeam.name : allTeamsLabel;
 
   async function selectTeam(clubTeamId: string | null) {
@@ -45,7 +51,7 @@ export function ActiveTeamSwitcher({ teams, activeTeamId, allTeamsLabel = "Alle 
             {!activeTeamId ? "✓" : <span className="w-3.5" />} {allTeamsLabel}
           </button>
           <div className="my-1 border-t border-borderSubtle" />
-          {teams.map((team) => (
+          {uniqueTeams.map((team) => (
             <button
               key={team.id}
               type="button"

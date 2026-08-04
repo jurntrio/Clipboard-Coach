@@ -24,8 +24,12 @@ export async function GET(request: Request) {
   const q = url.searchParams.get("q")?.trim() ?? "";
   const before = url.searchParams.get("before");
 
-  const { data: clubTeams } = await admin.from("club_teams").select("id, name, display_order, club_seasons!inner(status)")
-    .eq("club_id", clubId).eq("club_seasons.status", "ACTIVE").neq("status", "merged").order("display_order").order("name");
+  const { data: activeSeason } = await admin.from("club_seasons").select("id")
+    .eq("club_id", clubId).eq("status", "ACTIVE").maybeSingle();
+  const { data: clubTeams } = activeSeason
+    ? await admin.from("club_teams").select("id, name, display_order")
+        .eq("club_id", clubId).eq("season_id", activeSeason.id).neq("status", "merged").order("display_order").order("name")
+    : { data: [] };
   const clubTeamIds = (clubTeams ?? []).map((team) => team.id).filter((id) => canAccessTeam(access, id));
   const selection = readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(clubTeamIds));
   let activeTeamId = selection.teamId;
