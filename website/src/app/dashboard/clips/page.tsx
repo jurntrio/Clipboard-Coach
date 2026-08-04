@@ -14,8 +14,9 @@ import type { Match, Player, StandardTag, Team } from "@/types/database";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { MatchPreparationDialog } from "@/components/matches/MatchPreparationDialog";
 import { ActiveTeamSwitcher } from "@/components/teams/ActiveTeamSwitcher";
+import { ClubLogoImage, type ClubLogoData } from "@/components/clubs/ClubLogoImage";
 
-type HubMatch = Match & { match_videos: { video_id: string }[] };
+type HubMatch = Match & { match_videos: { video_id: string }[]; team_a_logo: ClubLogoData; team_b_logo: ClubLogoData };
 type HubClip = {
   id: string; coach_id: string; video_id: string; name: string; display_number: number | null; render_status: string; created_at: string; audience_type: "full_team" | "selected_players" | "specific_players";
   audience_player_ids: string[];
@@ -237,7 +238,7 @@ function MatchSection({ title, matches, empty, allowTagging, canPrepare, optionN
     return <article key={match.id} className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex items-center gap-2 p-3">
         <button type="button" onClick={() => setExpandedId(expanded ? null : match.id)} className="flex min-w-0 flex-1 items-center gap-4 rounded-xl p-1 text-left hover:bg-cardHover">
-          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="truncate font-bold text-textBright">{match.team_a_name} – {match.team_b_name}</h3><span className="text-sm text-textMuted">{match.match_date || "—"}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</span>{match.status === "live" && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-bold text-red-300">LIVE</span>}</div></div>
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="flex min-w-0 items-center gap-1.5 truncate font-bold text-textBright"><ClubLogoImage logo={match.team_a_logo} naam={match.team_a_name} purpose="ui" className="shrink-0" /><span className="truncate">{match.team_a_name} – {match.team_b_name}</span><ClubLogoImage logo={match.team_b_logo} naam={match.team_b_name} purpose="ui" className="shrink-0" /></h3><span className="text-sm text-textMuted">{match.match_date || "—"}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</span>{match.status === "live" && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-bold text-red-300">LIVE</span>}</div></div>
           {match.score_a !== null && match.score_b !== null && <strong className="rounded-xl bg-cardDeep px-4 py-2 text-xl text-textBright">{match.score_a} – {match.score_b}</strong>}
         </button>
         <button type="button" onClick={() => onPrepare(match)} title={t("matchPrep.open")} aria-label={t("matchPrep.open")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-borderButton bg-button text-sm font-black text-accent hover:border-accent">i</button>

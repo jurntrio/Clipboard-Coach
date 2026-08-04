@@ -1,42 +1,27 @@
-import Image from "next/image";
-import { resolveClubLogo } from "@/lib/belgian-clubs/resolve-club-logo";
+import { resolveClubLogo, resolveClubLogoById } from "@/lib/belgian-clubs/resolve-club-logo";
+import { ClubLogoImage } from "./ClubLogoImage";
 
-// "ui" (match lists, calendar, mobile, admin, ...) always renders small.
-// "display" (ClubTV, matchposter, line-up) renders large logos big, but caps
-// a small-quality fallback well below that so it's never blown up and blurry.
-const MAX_SIZE_PX: Record<"ui" | "display", Record<"large" | "small", number>> = {
-  ui: { large: 40, small: 40 },
-  display: { large: 280, small: 110 }
-};
-
+// Server component: resolves the logo itself (DB-backed), then hands off to
+// the shared presentational piece. Accepts either identifier a caller might
+// already have - a Belgian club's own stamnummer (e.g. the admin screen), or
+// a matches.team_a/b_belgian_club_id uuid (belgian_clubs.id) - so call sites
+// never need an extra join just to get a stamnummer.
 export async function ClubLogo({
   stamnummer,
+  belgianClubId,
   naam,
   purpose,
   className
 }: {
-  stamnummer: number | null | undefined;
+  stamnummer?: number | null;
+  belgianClubId?: string | null;
   naam?: string;
   purpose: "ui" | "display";
   className?: string;
 }) {
-  const logo = await resolveClubLogo(stamnummer, purpose);
+  const logo = belgianClubId
+    ? await resolveClubLogoById(belgianClubId, purpose)
+    : await resolveClubLogo(stamnummer, purpose);
 
-  if (logo.quality === "missing") {
-    return <span aria-hidden className={className} />;
-  }
-
-  const maxSize = MAX_SIZE_PX[purpose][logo.quality];
-
-  return (
-    <Image
-      src={logo.src}
-      alt={naam ? `Logo ${naam}` : "Clublogo"}
-      width={maxSize}
-      height={maxSize}
-      unoptimized
-      className={`object-contain ${className ?? ""}`}
-      style={{ maxWidth: maxSize, maxHeight: maxSize, width: "auto", height: "auto" }}
-    />
-  );
+  return <ClubLogoImage logo={logo} naam={naam} purpose={purpose} className={className} />;
 }

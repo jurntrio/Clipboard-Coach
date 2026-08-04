@@ -26,7 +26,7 @@ export async function setBelgianClubLargeLogo(stamnummer: number, key: string) {
     await deleteObject(existing.large_logo_path).catch(() => {});
   }
 
-  invalidateClubLogoCache(stamnummer);
+  invalidateClubLogoCache();
   revalidatePath("/dashboard/admin/belgian-clubs");
 }
 
@@ -48,6 +48,6 @@ export async function removeBelgianClubLargeLogo(stamnummer: number) {
 
   if (existing?.large_logo_path) await deleteObject(existing.large_logo_path).catch(() => {});
 
-  invalidateClubLogoCache(stamnummer);
+  invalidateClubLogoCache();
   revalidatePath("/dashboard/admin/belgian-clubs");
 }

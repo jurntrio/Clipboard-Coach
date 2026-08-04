@@ -282,6 +282,8 @@ export type Match = {
   team_b_id: string | null;
   team_a_name: string;
   team_b_name: string;
+  team_a_belgian_club_id: string | null;
+  team_b_belgian_club_id: string | null;
   match_date: string | null;
   start_time: string | null;
   recording_start_time: string | null;

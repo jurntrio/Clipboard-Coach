@@ -5,6 +5,7 @@ import { ACTIVE_TEAM_COOKIE, readActiveTeamSelection } from "@/lib/auth/active-t
 import { resolveDefaultTeamId } from "@/lib/auth/default-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { resolveClubLogoById } from "@/lib/belgian-clubs/resolve-club-logo";
 
 export async function GET() {
   const context = await getClubContext();
@@ -72,13 +73,19 @@ export async function GET() {
       : Promise.resolve({ data: [] })
   ]);
 
+  const matchesWithLogos = await Promise.all(visibleMatches.map(async (match) => ({
+    ...match,
+    team_a_logo: await resolveClubLogoById(match.team_a_belgian_club_id, "ui"),
+    team_b_logo: await resolveClubLogoById(match.team_b_belgian_club_id, "ui")
+  })));
+
   const teamOrder = new Map((clubTeams ?? []).map((team, index) => [team.id, index]));
   const orderedTeams = (teams ?? []).sort((a, b) => (teamOrder.get(a.club_team_id) ?? 9999) - (teamOrder.get(b.club_team_id) ?? 9999));
   const teamOptions = (clubTeams ?? [])
     .filter((team) => clubTeamIds.includes(team.id))
     .map((team) => ({ id: team.id, name: team.name }));
   const response = NextResponse.json({
-    matches: visibleMatches,
+    matches: matchesWithLogos,
     teams: orderedTeams,
     activeTeamId,
     teamOptions,
