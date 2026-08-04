@@ -1,21 +1,20 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TrainingOverview } from "@/components/training/TrainingOverview";
 import { getClubContext } from "@/lib/auth/active-club";
+import { ACTIVE_TEAM_COOKIE, resolveActiveTeamId } from "@/lib/auth/active-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { TeamTrainingScheduler } from "@/components/teams/TeamTrainingScheduler";
+import { ActiveTeamSwitcher } from "@/components/teams/ActiveTeamSwitcher";
 
 export default async function TrainingPage() {
   const context = await getClubContext();
   const admin = createAdminClient();
   const clubId = context.activeClubId;
   const access = clubId && context.user ? await getClubAccess(clubId, context.user) : null;
-  const [{ data: sessions }, { data: options }, { data: intradeskEntitlement }, { data: ownTrainer }, { data: clubTeams }] = await Promise.all([
-    clubId
-      ? admin.from("team_training_sessions").select("id, club_team_id, player_group_id, training_date, start_time, field_option_id, locker_room_option_id, staff_ids, personal_training_id, club_training_id, attendance_confirmed_at, club_teams(name), player_groups(name, icon)")
-          .eq("club_id", clubId).order("training_date").order("start_time")
-      : Promise.resolve({ data: [] }),
+  const [{ data: options }, { data: intradeskEntitlement }, { data: ownTrainer }, { data: clubTeams }] = await Promise.all([
     clubId
       ? admin.from("club_match_options").select("id, club_id, option_type, label").eq("club_id", clubId).eq("active", true)
       : Promise.resolve({ data: [] }),
@@ -31,7 +30,25 @@ export default async function TrainingPage() {
   ]);
   const { data: groupLinks } = ownTrainer ? await admin.from("player_group_staff").select("group_id").eq("trainer_id", ownTrainer.id) : { data: [] };
   const accessibleGroupIds = new Set((groupLinks ?? []).map(link => link.group_id));
-  const visible = (sessions ?? []).filter(session => access?.teamIds === null || (!!session.club_team_id && access?.teamIds.has(session.club_team_id)) || (!!session.player_group_id && accessibleGroupIds.has(session.player_group_id)) || session.staff_ids.includes(ownTrainer?.id ?? ""));
+
+  const validTeamIds = access?.teamIds ?? new Set((clubTeams ?? []).map(team => team.id));
+  const activeTeamId = clubId ? resolveActiveTeamId(cookies().get(ACTIVE_TEAM_COOKIE)?.value, validTeamIds) : null;
+  const restrictedTeamIds = activeTeamId ? [activeTeamId] : access?.teamIds ? Array.from(access.teamIds) : null;
+
+  const orParts: string[] = [];
+  if (restrictedTeamIds !== null) {
+    if (restrictedTeamIds.length) orParts.push(`club_team_id.in.(${restrictedTeamIds.join(",")})`);
+    if (accessibleGroupIds.size) orParts.push(`player_group_id.in.(${Array.from(accessibleGroupIds).join(",")})`);
+    if (ownTrainer?.id) orParts.push(`staff_ids.cs.{${ownTrainer.id}}`);
+  }
+  const hasNoScope = restrictedTeamIds !== null && !orParts.length;
+  let sessionsQuery = admin.from("team_training_sessions").select("id, club_team_id, player_group_id, training_date, start_time, field_option_id, locker_room_option_id, staff_ids, personal_training_id, club_training_id, attendance_confirmed_at, club_teams(name), player_groups(name, icon)")
+    .eq("club_id", clubId ?? "").order("training_date").order("start_time");
+  if (orParts.length) sessionsQuery = sessionsQuery.or(orParts.join(","));
+  const { data: sessions } = clubId && !hasNoScope ? await sessionsQuery : { data: [] };
+
+  const visible = sessions ?? [];
+  const teamOptions = (clubTeams ?? []).filter(team => validTeamIds.has(team.id));
   const visibleTeamIds = new Set(visible.map(session => session.club_team_id));
   const filterTeams = (clubTeams ?? []).filter(team => access?.teamIds === null || access?.teamIds.has(team.id) || visibleTeamIds.has(team.id));
   const groupIds = [...new Set([...accessibleGroupIds, ...visible.map(session => session.player_group_id).filter((id): id is string => !!id)])];
@@ -48,12 +65,15 @@ export default async function TrainingPage() {
 
   return <div className="mx-auto max-w-6xl p-4 sm:p-8">
     <SectionHeader title="Trainingen" artworkSrc="/branding/training.png" showHome={false} />
-    <nav className="mb-5 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label="Trainingstool">
-      <Link href="/dashboard/training" className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Overzicht</Link>
-      <Link href="/dashboard/training/new" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Losse training maken</Link>
-      <Link href="/dashboard/training/statistics" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Statistieken</Link>
-      {intradeskEntitlement && <Link href="/dashboard/intradesk" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Open Intradesk</Link>}
-    </nav>
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+      <nav className="flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label="Trainingstool">
+        <Link href="/dashboard/training" className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Overzicht</Link>
+        <Link href="/dashboard/training/new" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Losse training maken</Link>
+        <Link href="/dashboard/training/statistics" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Statistieken</Link>
+        {intradeskEntitlement && <Link href="/dashboard/intradesk" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Open Intradesk</Link>}
+      </nav>
+      <ActiveTeamSwitcher teams={teamOptions} activeTeamId={activeTeamId} />
+    </div>
     {!!filterGroups?.length && <section className="mb-5"><h2 className="mb-3 text-lg font-bold text-textBright">Mijn Extra groepen</h2><div className="grid gap-3 md:grid-cols-2">{filterGroups.map(group => {
       const members = (group.player_group_players ?? []).flatMap(link => {
         const value = link.players as unknown as { id: string; first_name: string; last_name: string } | { id: string; first_name: string; last_name: string }[] | null;

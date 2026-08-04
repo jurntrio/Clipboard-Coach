@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getClubContext } from "@/lib/auth/active-club";
+import { ACTIVE_TEAM_COOKIE, resolveActiveTeamId } from "@/lib/auth/active-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 export async function GET() {
   const context = await getClubContext();
   if (!context.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!context.activeClubId) return NextResponse.json({ matches: [], teams: [], players: [], clips: [] });
+  if (!context.activeClubId) return NextResponse.json({ matches: [], teams: [], activeTeamId: null, teamOptions: [], players: [], clips: [] });
 
   const admin = createAdminClient();
   const clubId = context.activeClubId;
@@ -16,7 +18,7 @@ export async function GET() {
   if (!hasClubPermission(access, "games.view")) return NextResponse.json({ error: "Geen toegang tot Games." }, { status: 403 });
 
   const [{ data: clubTeams }, { data: clubSettings }, { data: matchOptions }] = await Promise.all([
-    admin.from("club_teams").select("id, display_order").eq("club_id", clubId).neq("status", "merged").order("display_order").order("name"),
+    admin.from("club_teams").select("id, name, display_order").eq("club_id", clubId).neq("status", "merged").order("display_order").order("name"),
     admin.from("clubs").select("clip_view_count_roles").eq("id", clubId).maybeSingle(),
     admin.from("club_match_options").select("id, label").eq("club_id", clubId).eq("active", true)
   ]);
@@ -28,13 +30,19 @@ export async function GET() {
   const canPrepareMatches = hasClubPermission(access, "games.planning.manage") || hasClubPermission(access, "games.selection.manage")
     || hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.tag_link.create");
   const clubTeamIds = (clubTeams ?? []).map((team) => team.id).filter((id) => canAccessTeam(access, id));
+  const activeTeamId = resolveActiveTeamId(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(clubTeamIds));
+  // null = no team restriction (full club access, no active-team filter chosen); mirrors canAccessTeam's own semantics.
+  const teamScope = activeTeamId ? [activeTeamId] : access.teamIds !== null ? clubTeamIds : null;
+  let matchesQuery = admin.from("matches").select("*, match_videos(video_id)")
+    .eq("club_id", clubId)
+    .order("match_date", { ascending: true, nullsFirst: false })
+    .order("start_time", { ascending: true });
+  if (teamScope) matchesQuery = matchesQuery.in("club_team_id", teamScope);
+  const scopedTeamIds = activeTeamId ? [activeTeamId] : clubTeamIds;
   const [{ data: matches }, { data: teams }] = await Promise.all([
-    admin.from("matches").select("*, match_videos(video_id)")
-      .eq("club_id", clubId)
-      .order("match_date", { ascending: true, nullsFirst: false })
-      .order("start_time", { ascending: true }),
-    clubTeamIds.length
-      ? admin.from("teams").select("*").in("club_team_id", clubTeamIds).not("name", "ilike", "EXTRA")
+    teamScope === null || teamScope.length ? matchesQuery : Promise.resolve({ data: [] }),
+    scopedTeamIds.length
+      ? admin.from("teams").select("*").in("club_team_id", scopedTeamIds).not("name", "ilike", "EXTRA")
       : Promise.resolve({ data: [] })
   ]);
 
@@ -56,9 +64,14 @@ export async function GET() {
 
   const teamOrder = new Map((clubTeams ?? []).map((team, index) => [team.id, index]));
   const orderedTeams = (teams ?? []).sort((a, b) => (teamOrder.get(a.club_team_id) ?? 9999) - (teamOrder.get(b.club_team_id) ?? 9999));
+  const teamOptions = (clubTeams ?? [])
+    .filter((team) => clubTeamIds.includes(team.id))
+    .map((team) => ({ id: team.id, name: team.name }));
   return NextResponse.json({
     matches: visibleMatches,
     teams: orderedTeams,
+    activeTeamId,
+    teamOptions,
     players: authorizationPlayers(players ?? [], access.goalkeeperPlayerIds),
     clips: clips ?? [],
     role: membership.role,

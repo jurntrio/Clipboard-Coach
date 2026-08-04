@@ -13,6 +13,7 @@ import { useI18n } from "@/i18n/client";
 import type { Match, Player, StandardTag, Team } from "@/types/database";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { MatchPreparationDialog } from "@/components/matches/MatchPreparationDialog";
+import { ActiveTeamSwitcher } from "@/components/teams/ActiveTeamSwitcher";
 
 type HubMatch = Match & { match_videos: { video_id: string }[] };
 type HubClip = {
@@ -48,8 +49,8 @@ export default function MatchesHubPage() {
   const [currentUserId, setCurrentUserId] = useState("");
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [isAdminViewer, setIsAdminViewer] = useState(false);
-  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
-  const [teamFilterOpen, setTeamFilterOpen] = useState(false);
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
+  const [teamOptions, setTeamOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [deleteClipTarget, setDeleteClipTarget] = useState<HubClip | null>(null);
   const [deletingClip, setDeletingClip] = useState(false);
   const [deleteMatchTarget, setDeleteMatchTarget] = useState<HubMatch | null>(null);
@@ -76,6 +77,8 @@ export default function MatchesHubPage() {
     setMatches((matchData as HubMatch[] | null) ?? []);
     setTeams(teamData ?? []); setPlayers(playerData ?? []); setStandardTags(tagData ?? []);
     setClips(clipData ?? []);
+    setActiveTeamId(hub.activeTeamId ?? null);
+    setTeamOptions(hub.teamOptions ?? []);
     setIsPlatformAdmin(hub.isPlatformAdmin === true);
     setCanManageMatches(hub.canManageMatches === true);
     setCanPrepareMatches(hub.canPrepareMatches === true);
@@ -191,31 +194,17 @@ export default function MatchesHubPage() {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const canFilterByTeam = teams.length > 1;
-  const teamFiltered = canFilterByTeam && selectedTeamIds.length ? matches.filter((match) => match.team_a_id && selectedTeamIds.includes(match.team_a_id)) : matches;
-  const upcoming = teamFiltered.filter((match) => match.status !== "finished" && (!match.match_date || match.match_date >= today))
+  const upcoming = matches.filter((match) => match.status !== "finished" && (!match.match_date || match.match_date >= today))
     .sort((a, b) => `${a.match_date ?? "9999-99-99"}${a.start_time ?? ""}`.localeCompare(`${b.match_date ?? "9999-99-99"}${b.start_time ?? ""}`));
-  const finished = teamFiltered.filter((match) => !upcoming.includes(match))
+  const finished = matches.filter((match) => !upcoming.includes(match))
     .sort((a, b) => `${b.match_date ?? ""}${b.start_time ?? ""}`.localeCompare(`${a.match_date ?? ""}${a.start_time ?? ""}`));
-  const teamFilterLabel = selectedTeamIds.length ? teams.filter((team) => selectedTeamIds.includes(team.id)).map((team) => team.name).join(", ") : t("matchHub.allTeams");
 
   return (
     <main className="mx-auto max-w-6xl p-5 sm:p-7">
       <SectionHeader title={t("common.matches")} showHome={false} />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
         <div className="flex flex-wrap items-center gap-3">
-          {canFilterByTeam && (
-            <div className="relative">
-              <button type="button" onClick={() => setTeamFilterOpen((current) => !current)} className="flex items-center gap-2 rounded-xl border border-borderButton bg-button px-4 py-3 text-sm font-semibold text-textPrimary hover:border-accent">
-                {teamFilterLabel}<span className={`text-accent transition ${teamFilterOpen ? "rotate-90" : ""}`}>▶</span>
-              </button>
-              {teamFilterOpen && <div className="absolute right-0 z-20 mt-2 max-h-72 w-64 overflow-y-auto rounded-xl border border-border bg-cardAlt p-2 shadow-lg">
-                <button type="button" onClick={() => setSelectedTeamIds([])} className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm font-semibold hover:bg-cardHover ${selectedTeamIds.length === 0 ? "text-accent" : "text-textPrimary"}`}>{selectedTeamIds.length === 0 ? "✓" : <span className="w-3.5" />} {t("matchHub.allTeams")}</button>
-                <div className="my-1 border-t border-borderSubtle" />
-                {teams.map((team) => { const selected = selectedTeamIds.includes(team.id); return <label key={team.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-textPrimary hover:bg-cardHover"><input type="checkbox" checked={selected} onChange={() => setSelectedTeamIds((current) => selected ? current.filter((id) => id !== team.id) : [...current, team.id])} className="h-4 w-4 accent-accent" />{team.name}</label>; })}
-              </div>}
-            </div>
-          )}
+          <ActiveTeamSwitcher teams={teamOptions} activeTeamId={activeTeamId} allTeamsLabel={t("matchHub.allTeams")} />
           {canManageMatches && <button type="button" onClick={() => setCreateOpen(true)} className="rounded-xl bg-accent px-5 py-3 font-bold text-page">+ {t("matchHub.new")}</button>}
         </div>
       </div>

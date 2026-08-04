@@ -17,17 +17,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const admin = createAdminClient();
 
   const clubId = clubContext.activeClubId;
-  const [access, modules, { data: profile }, { data: guardianRows }, { count: unreadMailboxCount }] = await Promise.all([
+  const [access, modules, { data: profile }, { data: guardianRows }] = await Promise.all([
     clubId ? getClubAccess(clubId, user) : Promise.resolve(null),
     clubId
       ? getClubModuleConfiguration(clubId)
       : Promise.resolve({ configured: false, enabled: new Set() }),
     admin.from("profiles").select("account_role").eq("id", user.id).maybeSingle(),
-    supabase.rpc("guardian_dashboard_players"),
-    clubId
-      ? admin.from("mailbox_recipients").select("id, mailbox_messages!inner(club_id)", { count: "exact", head: true })
-          .eq("profile_id", user.id).is("read_at", null).eq("mailbox_messages.club_id", clubId)
-      : Promise.resolve({ count: 0 })
+    supabase.rpc("guardian_dashboard_players")
   ]);
   const moduleOn = (key: ClubModuleKey) => !clubId || clubContext.isPlatformAdmin || !modules.configured || modules.enabled.has(key);
   const navigation = [];
@@ -48,22 +44,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
     navigation.push({ href: "/dashboard/admin", label: "Algemene Admin", icon: "/branding/Menu/algemene-admin.png", primary: false });
   }
 
-  const canApproveClubRequests = !!clubId && !!access
-    && (["club_admin", "platform_admin"].includes(access.role) || hasClubPermission(access, "teams.manage_all"));
-  const approvalCounts = canApproveClubRequests ? await Promise.all([
-    admin.from("club_memberships").select("profile_id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending"),
-    admin.from("club_teams").select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending"),
-    admin.from("person_claim_reviews").select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending")
-  ]) : [];
-  const pendingApprovalCount = approvalCounts.reduce((total, result) => total + (result.count ?? 0), 0);
-
   const hasOtherAccess = clubContext.isPlatformAdmin || (Array.isArray(guardianRows) && guardianRows.length > 0);
   const showPendingNotice = !clubId && !hasOtherAccess && clubContext.pendingClubs.length > 0;
 
   return (
     <ActiveClubProvider clubs={clubContext.clubs} initialClubId={clubContext.activeClubId} isPlatformAdmin={clubContext.isPlatformAdmin}>
       <div className="flex min-h-screen flex-col bg-page">
-        <ActiveClubBar navigation={navigation} unreadMailboxCount={unreadMailboxCount ?? 0} pendingApprovalCount={pendingApprovalCount} canApproveRequests={canApproveClubRequests} />
+        <ActiveClubBar navigation={navigation} />
         <main className="flex-1">{showPendingNotice ? <PendingClubAccessNotice pendingClubs={clubContext.pendingClubs} /> : children}</main>
         <footer className="mt-auto border-t border-border px-5 py-6"><LegalLinks /></footer>
       </div>

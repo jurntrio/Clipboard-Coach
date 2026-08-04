@@ -4,21 +4,38 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useActiveClub } from "./ActiveClubProvider";
 import { MenuIcon } from "@/components/ui/MenuIcon";
 
 export type DashboardNavItem = { href: string; label: string; icon: string; primary: boolean };
 
-export function ActiveClubBar({ navigation = [], unreadMailboxCount = 0, pendingApprovalCount = 0, canApproveRequests = false }: { navigation?: DashboardNavItem[]; unreadMailboxCount?: number; pendingApprovalCount?: number; canApproveRequests?: boolean }) {
+export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavItem[] }) {
   const { clubs, activeClub, activeClubId, isPlatformAdmin, changing, selectClub } = useActiveClub();
   const router = useRouter();
   const pathname = usePathname();
+  const [unreadMailboxCount, setUnreadMailboxCount] = useState(0);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [canApproveRequests, setCanApproveRequests] = useState(false);
   const primaryNavigation = navigation.filter((item) => item.primary);
   const moreNavigation = navigation.filter((item) => !item.primary);
   const actionCount = unreadMailboxCount + pendingApprovalCount;
   const showClubSelector = isPlatformAdmin || clubs.length > 1;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/dashboard/badge-counts")
+      .then((response) => response.ok ? response.json() : null)
+      .then((body: { unreadMailboxCount?: number; pendingApprovalCount?: number; canApproveRequests?: boolean } | null) => {
+        if (cancelled || !body) return;
+        setUnreadMailboxCount(body.unreadMailboxCount ?? 0);
+        setPendingApprovalCount(body.pendingApprovalCount ?? 0);
+        setCanApproveRequests(body.canApproveRequests === true);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeClubId]);
   const actionsMenuRef = useRef<HTMLDetailsElement>(null);
   const moreMenuRef = useRef<HTMLDetailsElement>(null);
 
