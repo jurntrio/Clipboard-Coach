@@ -117,7 +117,7 @@ function MatchHeader({
   const clock = showClock ? getClockDisplay(now, match) : null;
   return (
     <section className="mt-5 rounded-2xl border border-emerald-300/20 bg-black/25 px-6 py-4">
-      <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
+      <div className="relative flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
         <strong className="text-3xl">
           {match.team_a_name} <span className="text-emerald-300">–</span>{" "}
           {match.team_b_name}
@@ -131,7 +131,7 @@ function MatchHeader({
           {match.match_date} · {match.start_time?.slice(0, 5)}
         </span>
         {clock && (
-          <span className="ml-auto flex flex-col items-center leading-tight">
+          <span className="absolute right-0 top-1/2 flex -translate-y-1/2 flex-col items-center leading-tight">
             {clock.countdown && (
               <span className="text-xs uppercase tracking-[.2em] text-emerald-300">
                 Aftrap over
