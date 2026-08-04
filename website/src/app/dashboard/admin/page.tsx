@@ -9,16 +9,18 @@ import { AdminClubModuleToggles } from "./AdminClubModuleToggles";
 import { CLUB_FUNCTION_ROLES } from "@/lib/club-access-options";
 import { PlatformInvitationCreator } from "./PlatformInvitationCreator";
 import { requireAdminOrViewer } from "@/lib/auth/admin";
+import { getUnresolvedClubNameCount } from "@/lib/belgian-clubs/unresolved-club-names";
 
 export default async function AdminOverviewPage() {
   const { isFullAdmin } = await requireAdminOrViewer();
   const admin = createAdminClient();
-  const [coaches, { data: clubs }] = await Promise.all([
+  const [coaches, { data: clubs }, unresolvedClubNameCount] = await Promise.all([
     getCoachOverviews(),
     admin
       .from("clubs")
       .select("id, name, rbfa_registration_number, club_teams:club_teams!club_teams_club_id_fkey(id, name, teams(id, players(id, first_name, last_name, role))), club_memberships(profile_id, role), club_module_entitlements(module_key, enabled), club_trainers(id, profile_id, display_name, phone_number, invitation_status, profiles(email), club_trainer_teams(club_teams(name)))")
-      .order("name")
+      .order("name"),
+    getUnresolvedClubNameCount(admin)
   ]);
   const { locale, t } = getServerI18n();
   const coachesWithoutTeams = coaches.filter((coach) =>
@@ -64,9 +66,10 @@ export default async function AdminOverviewPage() {
           <div className="flex gap-2">
             <Link
               href="/dashboard/admin/club-matching"
-              className="rounded-lg border border-borderButton px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent"
+              className="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 hover:border-amber-300 hover:bg-amber-500/15"
             >
               Clubnaam-matching
+              <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs font-black text-page">{unresolvedClubNameCount}</span>
             </Link>
             <Link
               href="/dashboard/admin/belgian-clubs"

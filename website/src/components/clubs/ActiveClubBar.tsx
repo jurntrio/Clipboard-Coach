@@ -17,21 +17,25 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
   const pathname = usePathname();
   const [unreadMailboxCount, setUnreadMailboxCount] = useState(0);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [unresolvedClubNameCount, setUnresolvedClubNameCount] = useState(0);
   const [canApproveRequests, setCanApproveRequests] = useState(false);
+  const [canReviewClubNames, setCanReviewClubNames] = useState(false);
   const primaryNavigation = navigation.filter((item) => item.primary);
   const moreNavigation = navigation.filter((item) => !item.primary);
-  const actionCount = unreadMailboxCount + pendingApprovalCount;
+  const actionCount = unreadMailboxCount + pendingApprovalCount + unresolvedClubNameCount;
   const showClubSelector = isPlatformAdmin || clubs.length > 1;
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/dashboard/badge-counts")
       .then((response) => response.ok ? response.json() : null)
-      .then((body: { unreadMailboxCount?: number; pendingApprovalCount?: number; canApproveRequests?: boolean } | null) => {
+      .then((body: { unreadMailboxCount?: number; pendingApprovalCount?: number; unresolvedClubNameCount?: number; canApproveRequests?: boolean; canReviewClubNames?: boolean } | null) => {
         if (cancelled || !body) return;
         setUnreadMailboxCount(body.unreadMailboxCount ?? 0);
         setPendingApprovalCount(body.pendingApprovalCount ?? 0);
+        setUnresolvedClubNameCount(body.unresolvedClubNameCount ?? 0);
         setCanApproveRequests(body.canApproveRequests === true);
+        setCanReviewClubNames(body.canReviewClubNames === true);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -127,7 +131,12 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
                 <span className="min-w-0 flex-1"><strong className="block text-sm text-textPrimary">Goedkeuringen</strong><span className="text-xs text-textMuted">Club-, team- en persoonsaanvragen</span></span>
                 <span className="rounded-full bg-amber-500/15 px-2 py-1 text-xs font-bold text-amber-300">{pendingApprovalCount}</span>
               </Link>}
-              {!unreadMailboxCount && !canApproveRequests && <p className="border-t border-borderSubtle px-4 py-3 text-xs text-textMuted">Geen openstaande acties.</p>}
+              {canReviewClubNames && <Link href="/dashboard/admin/club-matching" className="flex items-center gap-3 border-t border-borderSubtle px-4 py-3 hover:bg-cardHover">
+                <MenuIcon src="/branding/Menu/algemene-admin.png" compact />
+                <span className="min-w-0 flex-1"><strong className="block text-sm text-textPrimary">Clubnaam-matching</strong><span className="text-xs text-textMuted">Clubnamen nog aan een logo koppelen</span></span>
+                <span className="rounded-full bg-amber-500/15 px-2 py-1 text-xs font-bold text-amber-300">{unresolvedClubNameCount}</span>
+              </Link>}
+              {!unreadMailboxCount && !canApproveRequests && !canReviewClubNames && <p className="border-t border-borderSubtle px-4 py-3 text-xs text-textMuted">Geen openstaande acties.</p>}
             </div>
           </details>
           <details ref={moreMenuRef} className="group/more relative">
