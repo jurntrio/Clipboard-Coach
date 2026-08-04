@@ -63,71 +63,30 @@ export default function ClubTvShow({
     : null;
   return (
     <main className="relative flex min-h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#174936,#06110d_68%)] p-[3vw] text-white">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          {data.screen.clubs?.logo_url && (
-            <Image
-              src={data.screen.clubs.logo_url}
-              alt="Clublogo"
-              width={64}
-              height={64}
-              unoptimized
-              className="h-14 w-14 object-contain"
-            />
-          )}
-          <div>
-            <strong className="text-2xl">{data.screen.clubs?.name}</strong>
-            <p className="text-white/60">
-              {data.screen.location || data.screen.name}
-            </p>
-          </div>
-        </div>
-        {data.screen.show_clock && (
+      {data.screen.show_clock && (
+        <header className="flex items-center justify-end">
           <time className="text-3xl font-black tabular-nums">
             {now.toLocaleTimeString("nl-BE", {
               hour: "2-digit",
               minute: "2-digit",
             })}
           </time>
-        )}
-      </header>
+        </header>
+      )}
       {headerMatch && (
-        <MatchHeader
-          match={headerMatch}
-          config={data.header.configuration}
-          partners={partnersFor(data, headerMatch.id)}
-        />
+        <MatchHeader match={headerMatch} config={data.header.configuration} />
       )}
       <section
         key={slide?.key}
-        className={`m-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col items-center justify-center py-6 text-center club-tv-${data.screen.transition_effect}`}
+        className={`m-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col items-center justify-center py-6 text-center club-tv-${data.screen.transition_effect}`}
       >
-        {slide?.node ?? (
-          <p className="text-4xl font-black">
-            Welkom bij {data.screen.clubs?.name}
-          </p>
-        )}
+        {slide?.node ?? <p className="text-4xl font-black">Welkom</p>}
       </section>
-      <footer className="text-center text-sm text-white/35">
-        {slides.length
-          ? `${(index % slides.length) + 1} / ${slides.length}`
-          : ""}
-      </footer>
     </main>
   );
 }
 
-function MatchHeader({
-  match,
-  config,
-  partners,
-}: {
-  match: any;
-  config: any;
-  partners: any[];
-}) {
-  const sponsors = partners.filter((p) => p.partner_role === "match_sponsor"),
-    donors = partners.filter((p) => p.partner_role === "match_ball_donor");
+function MatchHeader({ match, config }: { match: any; config: any }) {
   return (
     <section className="mt-5 rounded-2xl border border-emerald-300/20 bg-black/25 px-6 py-4">
       <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
@@ -149,23 +108,6 @@ function MatchHeader({
           {match.match_dossiers[0].lineup_notes}
         </p>
       )}
-      {((config.showMatchSponsors && sponsors.length) ||
-        (config.showBallDonors && donors.length)) && (
-        <p className="mt-3 text-center text-sm text-white/70">
-          {config.showMatchSponsors && sponsors.length
-            ? `Wedstrijdsponsor: ${sponsors.map((x) => x.sponsors?.company_name).join(", ")}`
-            : ""}
-          {config.showMatchSponsors &&
-          sponsors.length &&
-          config.showBallDonors &&
-          donors.length
-            ? " · "
-            : ""}
-          {config.showBallDonors && donors.length
-            ? `Ballenschenker: ${donors.map((x) => x.sponsors?.company_name).join(", ")}`
-            : ""}
-        </p>
-      )}
     </section>
   );
 }
@@ -184,20 +126,7 @@ function buildSlides(data: any) {
       });
       const displayed =
         wanted && !eligible.length ? (data.sponsors ?? []) : eligible;
-      for (const s of displayed) {
-        const level = s.sponsor_assignments?.find(
-          (a: any) => a.status === "active",
-        )?.sponsor_level;
-        out.push(
-          sponsorSlide(
-            b,
-            s,
-            b.block_type === "main_sponsors" && level === "main_sponsor"
-              ? "Hoofdsponsor"
-              : "Sponsor",
-          ),
-        );
-      }
+      for (const s of displayed) out.push(sponsorSlide(b, s));
     }
     if (["match_sponsors", "ball_donors"].includes(b.block_type)) {
       const matchId =
@@ -209,16 +138,7 @@ function buildSlides(data: any) {
       for (const p of partnersFor(data, matchId).filter(
         (x: any) => x.partner_role === role,
       ))
-        if (p.sponsors)
-          out.push(
-            sponsorSlide(
-              b,
-              p.sponsors,
-              b.block_type === "match_sponsors"
-                ? "Wedstrijdsponsor"
-                : "Ballenschenker",
-            ),
-          );
+        if (p.sponsors) out.push(sponsorSlide(b, p.sponsors));
     }
     if (b.block_type === "players") {
       for (const team of data.teams ?? []) {
@@ -290,37 +210,29 @@ function buildSlides(data: any) {
   }
   return out;
 }
-function sponsorSlide(b: any, s: any, label: string) {
+function sponsorSlide(b: any, s: any) {
   const url = s.alternate_logo_url || s.logo_url;
   return {
     key: `${b.id}-${s.id}`,
     durationSeconds: b.configuration.durationSeconds,
-    node: (
-      <>
-        <p className="mb-5 text-xl uppercase tracking-[.2em] text-emerald-300">
-          {label}
-        </p>
-        {url ? (
-          <Image
-            src={url}
-            alt={s.company_name}
-            width={900}
-            height={400}
-            unoptimized
-            className="max-h-[38vh] max-w-[75vw] object-contain"
-          />
-        ) : (
-          <div className="rounded-3xl border border-white/15 bg-white/5 px-14 py-12">
-            <h2 className="text-6xl font-black">{s.company_name}</h2>
-            {s.website_url && (
-              <p className="mt-5 text-2xl text-emerald-300">
-                {displayWebsite(s.website_url)}
-              </p>
-            )}
-          </div>
+    node: url ? (
+      <Image
+        src={url}
+        alt={s.company_name}
+        width={1400}
+        height={650}
+        unoptimized
+        className="max-h-[70vh] max-w-[92vw] object-contain"
+      />
+    ) : (
+      <div className="rounded-3xl border border-white/15 bg-white/5 px-14 py-12">
+        <h2 className="text-6xl font-black">{s.company_name}</h2>
+        {s.website_url && (
+          <p className="mt-5 text-2xl text-emerald-300">
+            {displayWebsite(s.website_url)}
+          </p>
         )}
-        {url && <h3 className="mt-5 text-3xl font-bold">{s.company_name}</h3>}
-      </>
+      </div>
     ),
   };
 }
