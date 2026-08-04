@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getClubContext } from "@/lib/auth/active-club";
-import { getClubAccess } from "@/lib/auth/club-access";
+import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 async function authorized() {
@@ -8,8 +8,8 @@ async function authorized() {
   if (!context.user) return { response: NextResponse.json({ error: "Niet aangemeld." }, { status: 401 }) };
   if (!context.activeClubId) return { response: NextResponse.json({ error: "Geen actieve club." }, { status: 400 }) };
   const access = await getClubAccess(context.activeClubId, context.user);
-  if (!["club_admin", "platform_admin"].includes(access.role)) {
-    return { response: NextResponse.json({ error: "Alleen een Club Admin kan aanvragen beoordelen." }, { status: 403 }) };
+  if (!["club_admin", "platform_admin"].includes(access.role) && !hasClubPermission(access, "teams.manage_all")) {
+    return { response: NextResponse.json({ error: "Je hebt geen toegang om aanvragen te beoordelen." }, { status: 403 }) };
   }
   return { clubId: context.activeClubId, userId: context.user.id, admin: createAdminClient() };
 }

@@ -48,7 +48,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     navigation.push({ href: "/dashboard/admin", label: "Algemene Admin", icon: "/branding/Menu/algemene-admin.png", primary: false });
   }
 
-  const canApproveClubRequests = !!clubId && !!access && ["club_admin", "platform_admin"].includes(access.role);
+  const canApproveClubRequests = !!clubId && !!access
+    && (["club_admin", "platform_admin"].includes(access.role) || hasClubPermission(access, "teams.manage_all"));
   const approvalCounts = canApproveClubRequests ? await Promise.all([
     admin.from("club_memberships").select("profile_id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending"),
     admin.from("club_teams").select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending"),
@@ -56,13 +57,31 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ]) : [];
   const pendingApprovalCount = approvalCounts.reduce((total, result) => total + (result.count ?? 0), 0);
 
+  const hasOtherAccess = clubContext.isPlatformAdmin || (Array.isArray(guardianRows) && guardianRows.length > 0);
+  const showPendingNotice = !clubId && !hasOtherAccess && clubContext.pendingClubs.length > 0;
+
   return (
     <ActiveClubProvider clubs={clubContext.clubs} initialClubId={clubContext.activeClubId} isPlatformAdmin={clubContext.isPlatformAdmin}>
       <div className="flex min-h-screen flex-col bg-page">
-        <ActiveClubBar navigation={navigation} unreadMailboxCount={unreadMailboxCount ?? 0} pendingApprovalCount={pendingApprovalCount} />
-        <main className="flex-1">{children}</main>
+        <ActiveClubBar navigation={navigation} unreadMailboxCount={unreadMailboxCount ?? 0} pendingApprovalCount={pendingApprovalCount} canApproveRequests={canApproveClubRequests} />
+        <main className="flex-1">{showPendingNotice ? <PendingClubAccessNotice pendingClubs={clubContext.pendingClubs} /> : children}</main>
         <footer className="mt-auto border-t border-border px-5 py-6"><LegalLinks /></footer>
       </div>
     </ActiveClubProvider>
+  );
+}
+
+function PendingClubAccessNotice({ pendingClubs }: { pendingClubs: { id: string; name: string }[] }) {
+  return (
+    <div className="mx-auto max-w-xl px-5 py-16 text-center">
+      <img src="/branding/clubadmin.png" alt="" className="mx-auto h-16 w-16 rounded-xl object-cover" />
+      <h1 className="mt-6 text-xl font-semibold text-textBright">Je aanvraag staat nog open</h1>
+      <p className="mt-3 text-sm text-textMuted">
+        {pendingClubs.length === 1
+          ? `Je aanvraag om lid te worden van ${pendingClubs[0].name} is nog niet goedgekeurd.`
+          : `Je aanvragen om lid te worden van ${pendingClubs.map((club) => club.name).join(", ")} zijn nog niet goedgekeurd.`}
+        {" "}Zodra een beheerder van de club ze goedkeurt, krijg je hier toegang.
+      </p>
+    </div>
   );
 }

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { requireClubFeature } from "@/lib/auth/club-module";
 import { getClubContext } from "@/lib/auth/active-club";
-import { getClubAccess } from "@/lib/auth/club-access";
+import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { ClubApprovals } from "./ClubApprovals";
 
 export default async function ClubApprovalsPage() {
@@ -11,7 +11,7 @@ export default async function ClubApprovalsPage() {
   if (!context.user) redirect("/login");
   if (!context.activeClubId) redirect("/dashboard");
   const access = await getClubAccess(context.activeClubId, context.user);
-  if (!["club_admin", "platform_admin"].includes(access.role)) redirect("/dashboard/club");
+  if (!["club_admin", "platform_admin"].includes(access.role) && !hasClubPermission(access, "teams.manage_all")) redirect("/dashboard/club");
   return <div className="mx-auto max-w-5xl p-8">
     <SectionHeader title="Aanvragen & goedkeuringen" subtitle="Beoordeel openstaande aanvragen voor de actieve club." artworkSrc="/branding/clubadmin.png" backHref="/dashboard/club" />
     <ClubApprovals />
