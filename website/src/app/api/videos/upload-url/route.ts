@@ -28,9 +28,24 @@ export async function POST(request: Request) {
       clubLogoAllowed = isAdminEmail(user.email) || (membership?.role === "club_admin" && membership.status === "active");
     }
 
+    // Large logos in the Belgian club reference list are managed exclusively
+    // by the platform admin (not individual club admins), so this is a
+    // stricter check than the club-branding one above.
+    const belgianClubLogoMatch = typeof key === "string" ? key.match(/^belgian-clubs\/large\/\d+\.[a-zA-Z0-9]+$/) : null;
+    let belgianClubLogoAllowed = false;
+    if (belgianClubLogoMatch && ["image/png", "image/jpeg", "image/webp", "image/svg+xml"].includes(contentType)) {
+      if (isAdminEmail(user.email)) {
+        belgianClubLogoAllowed = true;
+      } else {
+        const admin = createAdminClient();
+        const { data: profile } = await admin.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
+        belgianClubLogoAllowed = profile?.account_role === "platform_admin";
+      }
+    }
+
     if (
       typeof key !== "string" ||
-      !(key.startsWith(`videos/${user.id}/`) || key.startsWith(`clips/${user.id}/`) || key.startsWith(`drawings/${user.id}/`) || clubLogoAllowed) ||
+      !(key.startsWith(`videos/${user.id}/`) || key.startsWith(`clips/${user.id}/`) || key.startsWith(`drawings/${user.id}/`) || clubLogoAllowed || belgianClubLogoAllowed) ||
       typeof contentType !== "string" ||
       !contentType
     ) {

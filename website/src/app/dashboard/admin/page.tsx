@@ -61,12 +61,20 @@ export default async function AdminOverviewPage() {
               {t("admin.clubManagementSubtitle")}
             </p>
           </div>
-          <Link
-            href="/dashboard/admin/clubs"
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page hover:brightness-110"
-          >
-            {t("admin.viewClubs")}
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/dashboard/admin/belgian-clubs"
+              className="rounded-lg border border-borderButton px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent"
+            >
+              Belgische clublogo&apos;s
+            </Link>
+            <Link
+              href="/dashboard/admin/clubs"
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page hover:brightness-110"
+            >
+              {t("admin.viewClubs")}
+            </Link>
+          </div>
         </div>
 
         <div className="mt-4 space-y-3">
