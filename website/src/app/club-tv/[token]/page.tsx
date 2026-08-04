@@ -74,27 +74,23 @@ export default function ClubTvShow({
         />
       )}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-        {data.screen.show_clock && (
+        {data.screen.show_clock && !headerMatch && (
           <header className="flex items-center justify-end">
-            {(() => {
-              const clock = getClockDisplay(now, headerMatch);
-              return (
-                <span className="flex flex-col items-end leading-tight">
-                  {clock.countdown && (
-                    <span className="text-xs uppercase tracking-[.2em] text-emerald-300">
-                      Aftrap over
-                    </span>
-                  )}
-                  <time className="text-3xl font-black tabular-nums">
-                    {clock.text}
-                  </time>
-                </span>
-              );
-            })()}
+            <time className="text-3xl font-black tabular-nums">
+              {now.toLocaleTimeString("nl-BE", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </time>
           </header>
         )}
         {headerMatch && (
-          <MatchHeader match={headerMatch} config={data.header.configuration} />
+          <MatchHeader
+            match={headerMatch}
+            config={data.header.configuration}
+            now={now}
+            showClock={data.screen.show_clock}
+          />
         )}
         <section
           key={slide?.key}
@@ -107,7 +103,18 @@ export default function ClubTvShow({
   );
 }
 
-function MatchHeader({ match, config }: { match: any; config: any }) {
+function MatchHeader({
+  match,
+  config,
+  now,
+  showClock,
+}: {
+  match: any;
+  config: any;
+  now: Date;
+  showClock: boolean;
+}) {
+  const clock = showClock ? getClockDisplay(now, match) : null;
   return (
     <section className="mt-5 rounded-2xl border border-emerald-300/20 bg-black/25 px-6 py-4">
       <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
@@ -123,6 +130,18 @@ function MatchHeader({ match, config }: { match: any; config: any }) {
         <span className="text-xl text-white/70">
           {match.match_date} · {match.start_time?.slice(0, 5)}
         </span>
+        {clock && (
+          <span className="ml-auto flex flex-col items-center leading-tight">
+            {clock.countdown && (
+              <span className="text-xs uppercase tracking-[.2em] text-emerald-300">
+                Aftrap over
+              </span>
+            )}
+            <time className="text-3xl font-black tabular-nums">
+              {clock.text}
+            </time>
+          </span>
+        )}
       </div>
       {config.showLineup && match.match_dossiers?.[0]?.lineup_notes && (
         <p className="mt-3 line-clamp-2 text-center text-sm text-white/60">
