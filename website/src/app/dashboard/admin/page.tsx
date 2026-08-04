@@ -63,6 +63,12 @@ export default async function AdminOverviewPage() {
           </div>
           <div className="flex gap-2">
             <Link
+              href="/dashboard/admin/club-matching"
+              className="rounded-lg border border-borderButton px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent"
+            >
+              Clubnaam-matching
+            </Link>
+            <Link
               href="/dashboard/admin/belgian-clubs"
               className="rounded-lg border border-borderButton px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent"
             >

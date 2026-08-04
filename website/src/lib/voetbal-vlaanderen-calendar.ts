@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { removeFoot24Advertisements } from "@/lib/foot24-calendar";
+import { resolveBelgianClubByName } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
 type OfficialGame = {
   id: string;
@@ -79,6 +80,9 @@ export async function syncVoetbalVlaanderenFeed(teamId: string) {
   const { data: standardTags } = await admin.from("standard_tags").select("name").eq("coach_id", owner.profile_id).order("created_at");
   const defaultTags = (standardTags ?? []).map((tag) => tag.name).filter((name) => !["start", "end"].includes(name.trim().toLowerCase()));
 
+  // team.name doesn't change across games in this sync, so resolve it once.
+  const ownClubId = await resolveBelgianClubByName(team.name);
+
   let imported = 0;
   let updated = 0;
   for (const game of games) {
@@ -86,6 +90,7 @@ export async function syncVoetbalVlaanderenFeed(teamId: string) {
     if (Number.isNaN(startsAt.getTime())) continue;
     const ownIsHome = String(game.homeTeam.id) === official.teamId;
     const opponent = ownIsHome ? game.awayTeam.name : game.homeTeam.name;
+    const opponentClubId = await resolveBelgianClubByName(opponent);
     const matchDate = startsAt.toLocaleDateString("sv-SE", { timeZone: "Europe/Brussels" });
     const externalMatchId = `${team.id}:${game.id}`;
     let { data: existing } = await admin.from("matches").select("id, team_b_name")
@@ -102,7 +107,9 @@ export async function syncVoetbalVlaanderenFeed(teamId: string) {
       club_team_id: team.id,
       team_a_id: operationalTeam.id,
       team_a_name: team.name,
+      team_a_belgian_club_id: ownClubId,
       team_b_name: opponent,
+      team_b_belgian_club_id: opponentClubId,
       is_home_match: ownIsHome,
       match_date: matchDate,
       start_time: startsAt.toLocaleTimeString("nl-BE", { timeZone: "Europe/Brussels", hour12: false, hour: "2-digit", minute: "2-digit" }),

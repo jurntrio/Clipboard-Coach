@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveBelgianClubByName } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
 type CalendarEvent = {
   uid: string;
@@ -196,13 +197,22 @@ export async function syncFoot24Feed(teamId: string) {
   for (const event of events) {
     const fixture = mappedFixture(event.summary, team.name, clubName);
     const externalMatchId = `${team.id}:${event.uid}`;
+    // team_a/team_b are the literal home/away side here (not "own team" vs
+    // "opponent" - that flips depending on fixture.isHome), so both are
+    // resolved independently against the Belgian club reference list.
+    const [teamABelgianClubId, teamBBelgianClubId] = await Promise.all([
+      resolveBelgianClubByName(fixture.home),
+      resolveBelgianClubByName(fixture.away)
+    ]);
     const payload = {
       coach_id: owner.profile_id,
       club_id: team.club_id,
       club_team_id: team.id,
       team_a_id: operationalTeam.id,
       team_a_name: fixture.home,
+      team_a_belgian_club_id: teamABelgianClubId,
       team_b_name: fixture.away,
+      team_b_belgian_club_id: teamBBelgianClubId,
       is_home_match: fixture.isHome,
       match_date: event.startsAt.toISOString().slice(0, 10),
       start_time: event.startsAt.toLocaleTimeString("nl-BE", { timeZone: "Europe/Brussels", hour12: false, hour: "2-digit", minute: "2-digit" }),

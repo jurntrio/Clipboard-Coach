@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { parseClubMatchCsv } from "@/lib/club-match-csv";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { resolveBelgianClubByName } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
 export async function POST(request: Request) {
   const supabase = createClient();
@@ -31,9 +32,17 @@ export async function POST(request: Request) {
   for (const row of rows) {
     const signature = `${team.id}|${row.date}|${row.time}|${row.homeTeam}|${row.awayTeam}`;
     const externalMatchId = `${team.id}:${createHash("sha256").update(signature).digest("hex").slice(0, 24)}`;
+    // home_team/away_team are literal, not "own team" vs "opponent" (that
+    // depends on row.isHome), so both are resolved independently.
+    const [teamABelgianClubId, teamBBelgianClubId] = await Promise.all([
+      resolveBelgianClubByName(row.homeTeam),
+      resolveBelgianClubByName(row.awayTeam)
+    ]);
     const payload = {
       coach_id: user.id, club_id: team.club_id, club_team_id: team.id, team_a_id: operationalTeam.id,
-      team_a_name: row.homeTeam, team_b_name: row.awayTeam, is_home_match: row.isHome,
+      team_a_name: row.homeTeam, team_a_belgian_club_id: teamABelgianClubId,
+      team_b_name: row.awayTeam, team_b_belgian_club_id: teamBBelgianClubId,
+      is_home_match: row.isHome,
       match_date: row.date, start_time: row.time, status: row.status, score_a: row.scoreHome, score_b: row.scoreAway,
       external_source: "voetbal_vlaanderen_csv", external_match_id: externalMatchId,
       sponsor_source: team.sponsor_source ?? "none"
