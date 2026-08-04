@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import { ClubLogoImage } from "@/components/clubs/ClubLogoImage";
 
 export default function ClubTvShow({
   params,
@@ -118,9 +119,13 @@ function MatchHeader({
   return (
     <section className="mt-5 rounded-2xl border border-emerald-300/20 bg-black/25 px-6 py-4">
       <div className="relative flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
-        <strong className="text-3xl">
-          {match.team_a_name} <span className="text-emerald-300">–</span>{" "}
-          {match.team_b_name}
+        <strong className="flex items-center gap-4 text-3xl">
+          <ClubLogoImage logo={match.team_a_logo ?? { src: null, quality: "missing" }} naam={match.team_a_name} purpose="display" className="shrink-0" />
+          <span>
+            {match.team_a_name} <span className="text-emerald-300">–</span>{" "}
+            {match.team_b_name}
+          </span>
+          <ClubLogoImage logo={match.team_b_logo ?? { src: null, quality: "missing" }} naam={match.team_b_name} purpose="display" className="shrink-0" />
         </strong>
         {config.showScore && match.score_a !== null && (
           <span className="rounded-lg bg-white/10 px-4 py-2 text-3xl font-black">

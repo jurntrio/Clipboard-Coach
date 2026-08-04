@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveClubLogoById } from "@/lib/belgian-clubs/resolve-club-logo";
 export const dynamic = "force-dynamic";
 
 export async function GET(
@@ -73,7 +74,7 @@ export async function GET(
       ? admin
           .from("matches")
           .select(
-            "id,team_a_name,team_b_name,match_date,start_time,status,score_a,score_b,player_ids,match_dossiers(lineup_notes)",
+            "id,team_a_name,team_b_name,team_a_belgian_club_id,team_b_belgian_club_id,match_date,start_time,status,score_a,score_b,player_ids,match_dossiers(lineup_notes)",
           )
           .in("id", requestedMatchIds)
           .eq("club_id", screen.club_id)
@@ -130,7 +131,14 @@ export async function GET(
       ),
     ]),
   }));
-  const matchMap = new Map((matches ?? []).map((m: any) => [m.id, m]));
+  const matchesWithLogos = await Promise.all(
+    (matches ?? []).map(async (m: any) => ({
+      ...m,
+      team_a_logo: await resolveClubLogoById(m.team_a_belgian_club_id, "display"),
+      team_b_logo: await resolveClubLogoById(m.team_b_belgian_club_id, "display"),
+    })),
+  );
+  const matchMap = new Map(matchesWithLogos.map((m: any) => [m.id, m]));
   const visible = preview
     ? all
     : all.filter((b: any) =>
