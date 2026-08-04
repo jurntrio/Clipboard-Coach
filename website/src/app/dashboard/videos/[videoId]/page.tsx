@@ -9,8 +9,9 @@ import { PlaybackControls } from "@/components/video-player/PlaybackControls";
 import { Timeline } from "@/components/video-player/Timeline";
 import { TagList } from "@/components/tags/TagList";
 import { QuickTagCreator } from "@/components/tags/QuickTagCreator";
+import { PhaseTagDialog } from "@/components/tags/PhaseTagDialog";
 import { ClipBuilder } from "@/components/clips/ClipBuilder";
-import { getTagColor } from "@/lib/utils";
+import { getTagColor, formatTime } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
 import { useI18n } from "@/i18n/client";
 import { ActiveTagOverlay } from "@/components/video-player/ActiveTagOverlay";
@@ -34,6 +35,8 @@ export default function VideoViewerPage() {
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [activePhaseTag, setActivePhaseTag] = useState<{ startTime: number } | null>(null);
+  const [pendingPhaseTags, setPendingPhaseTags] = useState<{ id: string; startTime: number; endTime: number }[]>([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [localFile, setLocalFile] = useState<File | null>(null);
@@ -216,6 +219,42 @@ export default function VideoViewerPage() {
     }
   }
 
+  function togglePhaseTag() {
+    if (activePhaseTag) {
+      setPendingPhaseTags((current) => [...current, { id: crypto.randomUUID(), startTime: activePhaseTag.startTime, endTime: currentTime }]);
+      setActivePhaseTag(null);
+      videoRef.current?.pause();
+    } else {
+      setActivePhaseTag({ startTime: currentTime });
+    }
+  }
+
+  function cancelPhaseTag(id: string) {
+    setPendingPhaseTags((current) => current.filter((item) => item.id !== id));
+  }
+
+  async function savePhaseTag(id: string, name: string) {
+    const phase = pendingPhaseTags.find((item) => item.id === id);
+    if (!phase || !video) { cancelPhaseTag(id); return; }
+    const startTime = Math.min(phase.startTime, phase.endTime);
+    const endTime = Math.max(phase.startTime, phase.endTime);
+    const { data, error } = await supabase
+      .from("tags")
+      .insert({
+        video_id: video.id,
+        name,
+        occurred_at_seconds: startTime,
+        start_time: startTime,
+        end_time: endTime,
+        color: getTagColor(name),
+        player_ids: video.active_player_ids
+      })
+      .select()
+      .single();
+    if (!error && data) setTags((current) => [...current, data].sort((a, b) => a.start_time - b.start_time));
+    cancelPhaseTag(id);
+  }
+
   async function updateTag(tagId: string, startTime: number, endTime: number) {
     const tag = tags.find((item) => item.id === tagId);
     if (!tag) return;
@@ -309,6 +348,17 @@ export default function VideoViewerPage() {
       <div className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
         <p className="min-w-0 truncate text-sm font-semibold text-textBright">{video?.title || t("video.untitled")}</p>
         <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, currentTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-textBright">{t("video.phaseTags")}</h3>
+          <button
+            type="button"
+            onClick={togglePhaseTag}
+            className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${activePhaseTag ? "border-red-500 bg-red-500/10 text-red-400 hover:bg-red-500/20" : "border-dashed border-accent bg-accentDim text-accent hover:bg-cardHover"}`}
+          >
+            <span className={`h-2.5 w-2.5 rounded-full ${activePhaseTag ? "animate-pulse bg-red-500" : "bg-accent"}`} />
+            {activePhaseTag ? `${t("phaseTag.stop")} · ${formatTime(Math.max(0, currentTime - activePhaseTag.startTime))}` : t("phaseTag.start")}
+          </button>
+        </div>
         <div className="space-y-2"><h3 className="text-sm font-semibold text-textBright">{t("video.periodMarkers")}</h3>{(["Start", "End"] as const).map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div>
         {tags.some((tag) => isPeriodMarker(tag.name)) && (
           <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
@@ -383,6 +433,7 @@ export default function VideoViewerPage() {
         />
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}
+      {pendingPhaseTags[0] && <PhaseTagDialog onCancel={() => cancelPhaseTag(pendingPhaseTags[0].id)} onConfirm={(name) => savePhaseTag(pendingPhaseTags[0].id, name)} />}
       </div>
     </div>
   );
