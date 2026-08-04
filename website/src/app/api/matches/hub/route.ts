@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getClubContext } from "@/lib/auth/active-club";
-import { ACTIVE_TEAM_COOKIE, resolveActiveTeamId } from "@/lib/auth/active-team";
+import { ACTIVE_TEAM_COOKIE, readActiveTeamSelection } from "@/lib/auth/active-team";
+import { resolveDefaultTeamId } from "@/lib/auth/default-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
@@ -30,8 +31,14 @@ export async function GET() {
   const canPrepareMatches = hasClubPermission(access, "games.planning.manage") || hasClubPermission(access, "games.selection.manage")
     || hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.tag_link.create");
   const clubTeamIds = (clubTeams ?? []).map((team) => team.id).filter((id) => canAccessTeam(access, id));
-  const activeTeamId = resolveActiveTeamId(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(clubTeamIds));
-  // null = no team restriction (full club access, no active-team filter chosen); mirrors canAccessTeam's own semantics.
+  const selection = readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(clubTeamIds));
+  let activeTeamId = selection.teamId;
+  let resolvedFreshDefault = false;
+  if (!activeTeamId && !selection.explicitAll) {
+    activeTeamId = await resolveDefaultTeamId(admin, clubId, context.user.id, clubTeamIds);
+    resolvedFreshDefault = !!activeTeamId;
+  }
+  // null = no team restriction (full club access, or explicit "alle ploegen"); mirrors canAccessTeam's own semantics.
   const teamScope = activeTeamId ? [activeTeamId] : access.teamIds !== null ? clubTeamIds : null;
   let matchesQuery = admin.from("matches").select("*, match_videos(video_id)")
     .eq("club_id", clubId)
@@ -67,7 +74,7 @@ export async function GET() {
   const teamOptions = (clubTeams ?? [])
     .filter((team) => clubTeamIds.includes(team.id))
     .map((team) => ({ id: team.id, name: team.name }));
-  return NextResponse.json({
+  const response = NextResponse.json({
     matches: visibleMatches,
     teams: orderedTeams,
     activeTeamId,
@@ -83,6 +90,12 @@ export async function GET() {
     canCreateTagLink: hasClubPermission(access, "games.tag_link.create"),
     matchOptions: matchOptions ?? []
   });
+  if (resolvedFreshDefault && activeTeamId) {
+    response.cookies.set(ACTIVE_TEAM_COOKIE, activeTeamId, {
+      httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 365
+    });
+  }
+  return response;
 }
 
 function authorizationPlayers<T extends { id: string }>(players: T[], allowedIds: Set<string> | null) {

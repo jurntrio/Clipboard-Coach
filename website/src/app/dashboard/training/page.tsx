@@ -3,7 +3,8 @@ import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TrainingOverview } from "@/components/training/TrainingOverview";
 import { getClubContext } from "@/lib/auth/active-club";
-import { ACTIVE_TEAM_COOKIE, resolveActiveTeamId } from "@/lib/auth/active-team";
+import { ACTIVE_TEAM_COOKIE, readActiveTeamSelection } from "@/lib/auth/active-team";
+import { resolveDefaultTeamId } from "@/lib/auth/default-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { TeamTrainingScheduler } from "@/components/teams/TeamTrainingScheduler";
@@ -32,7 +33,12 @@ export default async function TrainingPage() {
   const accessibleGroupIds = new Set((groupLinks ?? []).map(link => link.group_id));
 
   const validTeamIds = access?.teamIds ?? new Set((clubTeams ?? []).map(team => team.id));
-  const activeTeamId = clubId ? resolveActiveTeamId(cookies().get(ACTIVE_TEAM_COOKIE)?.value, validTeamIds) : null;
+  const accessibleTeamIdsOrdered = (clubTeams ?? []).map(team => team.id).filter(id => validTeamIds.has(id));
+  const selection = clubId ? readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, validTeamIds) : { teamId: null, explicitAll: false };
+  let activeTeamId = selection.teamId;
+  if (clubId && context.user && !activeTeamId && !selection.explicitAll) {
+    activeTeamId = await resolveDefaultTeamId(admin, clubId, context.user.id, accessibleTeamIdsOrdered);
+  }
   const restrictedTeamIds = activeTeamId ? [activeTeamId] : access?.teamIds ? Array.from(access.teamIds) : null;
 
   const orParts: string[] = [];

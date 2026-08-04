@@ -12,6 +12,13 @@ import { localMediaMessages } from "@/i18n/local-media";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { resolveVeoLink } from "@/lib/veo-browser";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
+import { ActiveTeamSwitcher } from "@/components/teams/ActiveTeamSwitcher";
+
+function mergeVideos(current: Video[], incoming: Video[]): Video[] {
+  const map = new Map(current.map((video) => [video.id, video]));
+  for (const video of incoming) map.set(video.id, video);
+  return Array.from(map.values());
+}
 
 type Mode = "recent" | "all" | "create";
 type SelectedVideo = { file: File; handle: FileSystemFileHandle | null; info: LocalVideoInfo };
@@ -56,34 +63,60 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
   const [supportsPersistentFileAccess, setSupportsPersistentFileAccess] = useState<boolean | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Extract<RecentItem, { kind: "match" }> | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
+  const [teamOptions, setTeamOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<(Match & { match_videos: { video_id: string }[] })[]>([]);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchLoaded, setSearchLoaded] = useState(false);
 
   useEffect(() => {
     setMatches([]);
     setTeams([]);
+    setSearchResults([]);
+    setSearchLoaded(false);
     void loadData();
     const supported = typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === "function";
     setSupportsPersistentFileAccess(supported);
   }, [activeClubId]);
 
+  useEffect(() => {
+    if (mode === "all" && !searchLoaded) void loadSearch(true);
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== "all" || !searchLoaded) return;
+    const timer = window.setTimeout(() => void loadSearch(true), 300);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || !activeClubId) return;
-    const [matchResult, teamResult, clubResult] = await Promise.all([
+    const [recentResponse, teamResult, clubResult] = await Promise.all([
       // Platform admins can read every club, so the active club must always be
       // an explicit query boundary instead of relying on row-level access alone.
-      supabase.from("matches").select("*, match_videos(video_id)").eq("club_id", activeClubId).order("last_opened_at", { ascending: false }),
+      fetch("/api/videos/recent"),
       supabase.from("teams").select("*, club_teams!inner(club_id, display_order)").eq("club_teams.club_id", activeClubId),
       supabase.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", activeClubId).maybeSingle()
     ]);
-    if (matchResult.error && matchResult.error.code !== "42P01") setError(matchResult.error.message);
-    const loadedMatches = (matchResult.data as (Match & { match_videos: { video_id: string }[] })[] | null) ?? [];
-    const videoIds = Array.from(new Set(loadedMatches.flatMap((match) => match.match_videos.map((link) => link.video_id))));
-    const videoResult = videoIds.length
-      ? await supabase.from("videos").select("*").in("id", videoIds).eq("status", "active").order("created_at", { ascending: false })
-      : { data: [] as Video[], error: null };
-    if (videoResult.error) setError(videoResult.error.message);
-    setMatches(loadedMatches);
-    setVideos(videoResult.data ?? []);
+    if (!recentResponse.ok) {
+      const body = await recentResponse.json().catch(() => null) as { error?: string } | null;
+      setError(body?.error || t("match.loadFailed"));
+    } else {
+      const body = await recentResponse.json() as {
+        matches: (Match & { match_videos: { video_id: string }[] })[];
+        videos: Video[];
+        activeTeamId: string | null;
+        teamOptions: Array<{ id: string; name: string }>;
+      };
+      setMatches(body.matches ?? []);
+      setVideos((current) => mergeVideos(current, body.videos ?? []));
+      setActiveTeamId(body.activeTeamId ?? null);
+      setTeamOptions(body.teamOptions ?? []);
+    }
     setTeams([...(teamResult.data ?? [])].sort((a, b) => {
       const aOrder = (a.club_teams as unknown as { display_order: number }).display_order;
       const bOrder = (b.club_teams as unknown as { display_order: number }).display_order;
@@ -92,6 +125,31 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
     const nextRecordingConfig = externalRecordingConfig(clubResult.data);
     setRecordingConfig(nextRecordingConfig);
     if (!nextRecordingConfig) setVideoSource("file");
+  }
+
+  async function loadSearch(reset: boolean) {
+    setSearchLoading(true);
+    const params = new URLSearchParams();
+    if (searchQuery.trim()) params.set("q", searchQuery.trim());
+    const cursor = reset ? null : searchResults.at(-1)?.match_date ?? null;
+    if (cursor) params.set("before", cursor);
+    else if (!searchQuery.trim()) params.set("before", today);
+    const response = await fetch(`/api/videos/recent?${params.toString()}`);
+    setSearchLoading(false);
+    setSearchLoaded(true);
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { error?: string } | null;
+      setError(body?.error || t("match.loadFailed"));
+      return;
+    }
+    const body = await response.json() as {
+      matches: (Match & { match_videos: { video_id: string }[] })[];
+      videos: Video[];
+      hasMore: boolean;
+    };
+    setSearchResults((current) => reset ? (body.matches ?? []) : [...current, ...(body.matches ?? [])]);
+    setVideos((current) => mergeVideos(current, body.videos ?? []));
+    setSearchHasMore(body.hasMore === true);
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -106,6 +164,16 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
       videoIds: match.match_videos.map((video) => video.video_id)
     })),
   ].sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime());
+
+  const searchItems: RecentItem[] = searchResults.map((match): RecentItem => ({
+    kind: "match",
+    id: match.id,
+    title: `${match.team_a_name || t("match.teamA")} – ${match.team_b_name || t("match.teamB")}`,
+    date: match.match_date || t("match.noDate"),
+    openedAt: `${match.match_date}T${match.start_time || "00:00:00"}`,
+    count: match.match_videos.length,
+    videoIds: match.match_videos.map((video) => video.video_id)
+  }));
 
   async function openItem(item: RecentItem) {
     setBusy(true);
@@ -284,6 +352,8 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
       const selectedTeamB = teams.find((team) => team.id === teamBId);
       const { data: match, error: matchError } = await supabase.from("matches").insert({
         coach_id: user.id,
+        club_id: activeClubId,
+        club_team_id: selectedTeamA?.club_team_id ?? null,
         team_a_id: teamAId || null,
         team_b_id: teamBId || null,
         team_a_name: selectedTeamA?.name || teamAName.trim() || t("match.teamA"),
@@ -406,13 +476,16 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
           <>
             {canCreateMatch && <button type="button" onClick={() => { resetDraft(); setMode("create"); }} className="w-full rounded-xl bg-accent px-5 py-3 font-bold text-page">{t("match.createNew")}</button>}
             <div className="mt-5 space-y-2">
-              <h2 className="text-sm font-semibold text-textSecondary">{t("match.last")}</h2>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-textSecondary">{t("match.last")}</h2>
+                <ActiveTeamSwitcher teams={teamOptions} activeTeamId={activeTeamId} />
+              </div>
               {supportsPersistentFileAccess === false && (
                 <div className="text-[11px] leading-tight text-amber-300">
                   {t("match.autoReconnectUnavailable")}
                 </div>
               )}
-              {[0, 1, 2, 3].map((index) => {
+              {[0, 1, 2].map((index) => {
                 const item = recentItems[index];
                 return item ? (
                   <div key={`${item.kind}-${item.id}`} className="flex items-stretch overflow-hidden rounded-xl border border-border bg-cardDeep hover:border-accent"><button type="button" disabled={busy} onClick={() => void openItem(item)} className="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3 text-left hover:bg-cardHover disabled:opacity-50">
@@ -430,8 +503,20 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
 
         {mode === "all" && (
           <div className="space-y-2">
-            {recentItems.map((item) => <div key={`${item.kind}-${item.id}`} className="flex items-stretch overflow-hidden rounded-lg border border-border bg-cardDeep hover:border-accent"><button type="button" disabled={busy} onClick={() => void openItem(item)} className="flex min-w-0 flex-1 justify-between gap-3 px-4 py-3 text-left text-textPrimary hover:bg-cardHover disabled:opacity-50"><span className="truncate">{item.title}</span><span className="flex-shrink-0 text-sm text-textMuted">{item.date}</span></button>{item.kind === "match" && <button type="button" disabled={busy} onClick={() => setDeleteTarget(item)} aria-label={t("match.deleteNamed", { name: item.title })} title={t("match.delete")} className="grid w-12 flex-shrink-0 place-items-center border-l border-border text-lg text-red-400 hover:bg-red-500/15 disabled:opacity-50">🗑</button>}</div>)}
-            {!recentItems.length && <p className="text-textMuted">{t("match.noneSaved")}</p>}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={t("match.searchPlaceholder")}
+                className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-textPrimary"
+              />
+              <ActiveTeamSwitcher teams={teamOptions} activeTeamId={activeTeamId} />
+            </div>
+            {searchItems.map((item) => <div key={`${item.kind}-${item.id}`} className="flex items-stretch overflow-hidden rounded-lg border border-border bg-cardDeep hover:border-accent"><button type="button" disabled={busy} onClick={() => void openItem(item)} className="flex min-w-0 flex-1 justify-between gap-3 px-4 py-3 text-left text-textPrimary hover:bg-cardHover disabled:opacity-50"><span className="truncate">{item.title}</span><span className="flex-shrink-0 text-sm text-textMuted">{item.date}</span></button>{item.kind === "match" && <button type="button" disabled={busy} onClick={() => setDeleteTarget(item)} aria-label={t("match.deleteNamed", { name: item.title })} title={t("match.delete")} className="grid w-12 flex-shrink-0 place-items-center border-l border-border text-lg text-red-400 hover:bg-red-500/15 disabled:opacity-50">🗑</button>}</div>)}
+            {!searchItems.length && !searchLoading && <p className="text-textMuted">{t("match.noSearchResults")}</p>}
+            {searchLoading && <p className="text-sm text-textMuted">{t("common.loading")}</p>}
+            {searchHasMore && !searchLoading && <button type="button" onClick={() => void loadSearch(false)} className="w-full rounded-lg bg-button px-4 py-2 text-textPrimary">{t("match.loadMore")}</button>}
             {status && <div className="rounded-lg border border-border bg-cardDeep p-3 text-sm text-textSecondary">{status}</div>}
             {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
             <button type="button" onClick={() => setMode("recent")} className="mt-3 w-full rounded-lg bg-button px-4 py-2 text-textPrimary">{t("common.back")}</button>

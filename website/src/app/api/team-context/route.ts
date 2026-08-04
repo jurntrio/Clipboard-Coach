@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getClubContext } from "@/lib/auth/active-club";
-import { ACTIVE_TEAM_COOKIE } from "@/lib/auth/active-team";
+import { ACTIVE_TEAM_COOKIE, ALL_TEAMS_VALUE } from "@/lib/auth/active-team";
 import { canAccessTeam, getClubAccess } from "@/lib/auth/club-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -12,9 +12,16 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null) as { clubTeamId?: string | null } | null;
   const response = NextResponse.json({ activeTeamId: body?.clubTeamId ?? null });
+  const cookieOptions = {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365
+  };
 
   if (!body?.clubTeamId) {
-    response.cookies.delete(ACTIVE_TEAM_COOKIE);
+    response.cookies.set(ACTIVE_TEAM_COOKIE, ALL_TEAMS_VALUE, cookieOptions);
     return response;
   }
 
@@ -27,12 +34,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Geen toegang tot deze ploeg." }, { status: 403 });
   }
 
-  response.cookies.set(ACTIVE_TEAM_COOKIE, body.clubTeamId, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365
-  });
+  response.cookies.set(ACTIVE_TEAM_COOKIE, body.clubTeamId, cookieOptions);
   return response;
 }
