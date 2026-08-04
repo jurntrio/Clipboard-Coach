@@ -63,7 +63,7 @@ export default function ClubTvShow({
     : null;
   return (
     <main className="relative flex min-h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#174936,#06110d_68%)] p-[3vw] text-white">
-      {data.screen.show_clock && (
+      {data.screen.show_clock && !headerMatch && (
         <header className="flex items-center justify-end">
           <time className="text-3xl font-black tabular-nums">
             {now.toLocaleTimeString("nl-BE", {
@@ -74,7 +74,12 @@ export default function ClubTvShow({
         </header>
       )}
       {headerMatch && (
-        <MatchHeader match={headerMatch} config={data.header.configuration} />
+        <MatchHeader
+          match={headerMatch}
+          config={data.header.configuration}
+          now={now}
+          showClock={data.screen.show_clock}
+        />
       )}
       <section
         key={slide?.key}
@@ -86,7 +91,18 @@ export default function ClubTvShow({
   );
 }
 
-function MatchHeader({ match, config }: { match: any; config: any }) {
+function MatchHeader({
+  match,
+  config,
+  now,
+  showClock,
+}: {
+  match: any;
+  config: any;
+  now: Date;
+  showClock: boolean;
+}) {
+  const clock = showClock ? getClockDisplay(now, match) : null;
   return (
     <section className="mt-5 rounded-2xl border border-emerald-300/20 bg-black/25 px-6 py-4">
       <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
@@ -102,6 +118,18 @@ function MatchHeader({ match, config }: { match: any; config: any }) {
         <span className="text-xl text-white/70">
           {match.match_date} · {match.start_time?.slice(0, 5)}
         </span>
+        {clock && (
+          <span className="flex flex-col items-center leading-tight">
+            {clock.countdown && (
+              <span className="text-xs uppercase tracking-[.2em] text-emerald-300">
+                Aftrap over
+              </span>
+            )}
+            <time className="text-3xl font-black tabular-nums">
+              {clock.text}
+            </time>
+          </span>
+        )}
       </div>
       {config.showLineup && match.match_dossiers?.[0]?.lineup_notes && (
         <p className="mt-3 line-clamp-2 text-center text-sm text-white/60">
@@ -110,6 +138,30 @@ function MatchHeader({ match, config }: { match: any; config: any }) {
       )}
     </section>
   );
+}
+function getClockDisplay(now: Date, match: any) {
+  const kickoff =
+    match?.match_date && match?.start_time
+      ? new Date(`${match.match_date}T${match.start_time}`)
+      : null;
+  if (kickoff && !isNaN(kickoff.getTime())) {
+    const diffMs = kickoff.getTime() - now.getTime();
+    if (diffMs > 0 && diffMs <= 3 * 60 * 60 * 1000) {
+      const totalSeconds = Math.floor(diffMs / 1000),
+        pad = (n: number) => String(n).padStart(2, "0");
+      return {
+        countdown: true,
+        text: `${pad(Math.floor(totalSeconds / 3600))}:${pad(Math.floor((totalSeconds % 3600) / 60))}:${pad(totalSeconds % 60)}`,
+      };
+    }
+  }
+  return {
+    countdown: false,
+    text: now.toLocaleTimeString("nl-BE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  };
 }
 
 function buildSlides(data: any) {
