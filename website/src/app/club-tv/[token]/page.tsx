@@ -70,7 +70,7 @@ export default function ClubTvShow({
           width={1200}
           height={1200}
           unoptimized
-          className="pointer-events-none absolute left-1/2 top-1/2 h-[130vmin] w-[130vmin] -translate-x-1/2 -translate-y-1/2 select-none object-contain opacity-[0.06] grayscale"
+          className="pointer-events-none absolute -right-[15vmin] -top-[15vmin] h-[110vmin] w-[110vmin] select-none object-contain opacity-[0.08] grayscale"
         />
       )}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
@@ -131,7 +131,7 @@ function MatchHeader({
           {match.match_date} · {match.start_time?.slice(0, 5)}
         </span>
         {clock && (
-          <span className="flex flex-col items-center leading-tight">
+          <span className="ml-auto flex flex-col items-center leading-tight">
             {clock.countdown && (
               <span className="text-xs uppercase tracking-[.2em] text-emerald-300">
                 Aftrap over
