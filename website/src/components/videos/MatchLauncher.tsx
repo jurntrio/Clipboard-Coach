@@ -99,7 +99,7 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
       // Platform admins can read every club, so the active club must always be
       // an explicit query boundary instead of relying on row-level access alone.
       fetch("/api/videos/recent"),
-      supabase.from("teams").select("*, club_teams!inner(club_id, display_order)").eq("club_teams.club_id", activeClubId),
+      supabase.from("teams").select("*, club_teams!inner(club_id, display_order, club_seasons!inner(status))").eq("club_teams.club_id", activeClubId).eq("club_teams.club_seasons.status", "ACTIVE"),
       supabase.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", activeClubId).maybeSingle()
     ]);
     if (!recentResponse.ok) {

@@ -19,7 +19,7 @@ export async function GET() {
   if (!hasClubPermission(access, "games.view")) return NextResponse.json({ error: "Geen toegang tot Games." }, { status: 403 });
 
   const [{ data: clubTeams }, { data: clubSettings }, { data: matchOptions }] = await Promise.all([
-    admin.from("club_teams").select("id, name, display_order").eq("club_id", clubId).neq("status", "merged").order("display_order").order("name"),
+    admin.from("club_teams").select("id, name, display_order, club_seasons!inner(status)").eq("club_id", clubId).eq("club_seasons.status", "ACTIVE").neq("status", "merged").order("display_order").order("name"),
     admin.from("clubs").select("clip_view_count_roles").eq("id", clubId).maybeSingle(),
     admin.from("club_match_options").select("id, label").eq("club_id", clubId).eq("active", true)
   ]);
