@@ -6,6 +6,8 @@ import { getServerI18n } from "@/i18n/server";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 import type { Metadata } from "next";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
   const supabase = createAdminClient();
   const { data } = await supabase.from("share_links").select(

@@ -380,6 +380,7 @@ function BlockRail({
   act: (x: any) => Promise<any>;
 }) {
   const [adding, setAdding] = useState(false),
+    [editingId, setEditingId] = useState<string | null>(null),
     [type, setType] = useState("main_sponsors"),
     [matchId, setMatchId] = useState(""),
     [teamIds, setTeamIds] = useState<string[]>([]),
@@ -389,32 +390,73 @@ function BlockRail({
     [duration, setDuration] = useState(8),
     [image, setImage] = useState<File | null>(null),
     [imageTitle, setImageTitle] = useState(""),
+    [existingImageUrl, setExistingImageUrl] = useState<string | undefined>(undefined),
     [uploading, setUploading] = useState(false);
-  async function add() {
+  function startAdd() {
+    setEditingId(null);
+    setType("main_sponsors");
+    setMatchId("");
+    setTeamIds([]);
+    setTimed(false);
+    setBefore(3);
+    setAfter(3);
+    setDuration(8);
+    setImage(null);
+    setImageTitle("");
+    setExistingImageUrl(undefined);
+    setAdding(true);
+  }
+  function startEdit(b: Block) {
+    const c = b.configuration ?? {};
+    setEditingId(b.id);
+    setType(b.block_type);
+    setMatchId(c.matchId ?? "");
+    setTeamIds(c.teamIds ?? []);
+    setTimed(!!c.timed);
+    setBefore(c.hoursBefore ?? 3);
+    setAfter(c.hoursAfter ?? 3);
+    setDuration(c.durationSeconds ?? 8);
+    setImage(null);
+    setImageTitle(b.title ?? "");
+    setExistingImageUrl(c.imageUrl);
+    setAdding(true);
+  }
+  async function save() {
     setUploading(true);
     try {
-      let imageUrl: string | undefined;
+      let imageUrl = existingImageUrl;
       if (type === "image") {
-        if (!image) throw new Error("Kies eerst een afbeelding.");
-        imageUrl = await uploadClubTvImage(image, clubId, screen.id);
+        if (image) imageUrl = await uploadClubTvImage(image, clubId, screen.id);
+        if (!imageUrl) throw new Error("Kies eerst een afbeelding.");
       }
-      await act({
-        action: "addBlock",
-        screenId: screen.id,
-        blockType: type,
-        title: imageTitle,
-        displayOrder: blocks.length,
-        configuration: {
-          matchId,
-          teamIds,
-          timed,
-          hoursBefore: before,
-          hoursAfter: after,
-          durationSeconds: Math.max(2, Math.min(120, duration)),
-          imageUrl,
-        },
-      });
+      const configuration = {
+        matchId,
+        teamIds,
+        timed,
+        hoursBefore: before,
+        hoursAfter: after,
+        durationSeconds: Math.max(2, Math.min(120, duration)),
+        imageUrl,
+      };
+      if (editingId)
+        await act({
+          action: "updateBlock",
+          screenId: screen.id,
+          blockId: editingId,
+          title: imageTitle,
+          configuration,
+        });
+      else
+        await act({
+          action: "addBlock",
+          screenId: screen.id,
+          blockType: type,
+          title: imageTitle,
+          displayOrder: blocks.length,
+          configuration,
+        });
       setAdding(false);
+      setEditingId(null);
       setImage(null);
       setImageTitle("");
     } finally {
@@ -448,24 +490,32 @@ function BlockRail({
                   : "altijd actief"}
               </p>
               {canManage && (
-                <button
-                  onClick={() =>
-                    void act({
-                      action: "removeBlock",
-                      screenId: screen.id,
-                      blockId: b.id,
-                    })
-                  }
-                  className="mt-4 text-xs font-bold text-red-300"
-                >
-                  Verwijderen
-                </button>
+                <div className="mt-4 flex gap-3">
+                  <button
+                    onClick={() => startEdit(b)}
+                    className="text-xs font-bold text-accent"
+                  >
+                    Bewerken
+                  </button>
+                  <button
+                    onClick={() =>
+                      void act({
+                        action: "removeBlock",
+                        screenId: screen.id,
+                        blockId: b.id,
+                      })
+                    }
+                    className="text-xs font-bold text-red-300"
+                  >
+                    Verwijderen
+                  </button>
+                </div>
               )}
             </div>
           ))}
         {canManage && (
           <button
-            onClick={() => setAdding(true)}
+            onClick={startAdd}
             className="grid min-h-32 w-44 shrink-0 place-items-center rounded-xl border-2 border-dashed border-accent/40 text-center text-accent"
           >
             <span>
@@ -477,20 +527,29 @@ function BlockRail({
       </div>
       {adding && (
         <div className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            {blockOptions.map(([id, label, help]) => (
-              <button
-                key={id}
-                onClick={() => setType(id)}
-                className={`rounded-lg border p-3 text-left ${type === id ? "border-accent bg-accent/10" : "border-borderButton"}`}
-              >
-                <strong className="text-textBright">{label}</strong>
-                <span className="mt-1 block text-xs text-textMuted">
-                  {help}
-                </span>
-              </button>
-            ))}
-          </div>
+          <h4 className="font-bold text-textBright">
+            {editingId ? "Blok bewerken" : "Blok toevoegen"}
+          </h4>
+          {editingId ? (
+            <p className="mt-3 text-sm text-textPrimary">
+              Type: <strong>{labelFor(type)}</strong>
+            </p>
+          ) : (
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {blockOptions.map(([id, label, help]) => (
+                <button
+                  key={id}
+                  onClick={() => setType(id)}
+                  className={`rounded-lg border p-3 text-left ${type === id ? "border-accent bg-accent/10" : "border-borderButton"}`}
+                >
+                  <strong className="text-textBright">{label}</strong>
+                  <span className="mt-1 block text-xs text-textMuted">
+                    {help}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
           {["match_sponsors", "ball_donors"].includes(type) && (
             <select
               value={matchId}
@@ -538,7 +597,7 @@ function BlockRail({
                 />
               </label>
               <label className="text-xs text-textMuted">
-                Afbeelding
+                {existingImageUrl ? "Afbeelding vervangen (optioneel)" : "Afbeelding"}
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
@@ -550,6 +609,11 @@ function BlockRail({
                 <div className="sm:col-span-2 rounded-lg border border-borderSubtle p-3 text-sm text-textSecondary">
                   <strong className="text-textBright">Geselecteerd:</strong>{" "}
                   {image.name} · {(image.size / 1024 / 1024).toFixed(1)} MB
+                </div>
+              )}
+              {!image && existingImageUrl && (
+                <div className="sm:col-span-2 rounded-lg border border-borderSubtle p-3 text-sm text-textSecondary">
+                  <strong className="text-textBright">Huidige afbeelding blijft behouden</strong> tenzij je een nieuwe kiest.
                 </div>
               )}
             </div>
@@ -575,15 +639,18 @@ function BlockRail({
           />
           <div className="mt-4 flex gap-2">
             <button
-              disabled={uploading || (type === "image" && !image)}
-              onClick={() => void add()}
+              disabled={uploading || (type === "image" && !image && !existingImageUrl)}
+              onClick={() => void save()}
               className={`${primary} disabled:opacity-50`}
             >
-              {uploading ? "Uploaden…" : "Toevoegen"}
+              {uploading ? "Bezig…" : editingId ? "Wijzigen" : "Toevoegen"}
             </button>
             <button
               disabled={uploading}
-              onClick={() => setAdding(false)}
+              onClick={() => {
+                setAdding(false);
+                setEditingId(null);
+              }}
               className={secondary}
             >
               Annuleren

@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run *)",
+      "Bash(git fetch *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "Bash(git worktree *)",
+      "Bash(git remote *)",
+      "Bash(git ls-remote *)",
+      "Bash(git ls-tree *)",
+      "Bash(git rev-list *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(npx supabase migration list *)",
+      "Bash(npx supabase test db *)",
+      "Bash(npm view *)",
+      "Bash(tasklist)",
+      "mcp__Claude_Browser__read_page",
+      "mcp__Claude_Browser__get_page_text",
+      "mcp__Claude_Browser__read_console_messages",
+      "mcp__Claude_Browser__read_network_requests",
+      "mcp__Claude_Browser__find",
+      "mcp__Claude_Browser__preview_list"
+    ]
+  }
+}
