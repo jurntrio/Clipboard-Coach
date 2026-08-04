@@ -1,0 +1,2 @@
+import{NextRequest,NextResponse}from"next/server";import{createAdminClient}from"@/lib/supabase/admin";
+export async function POST(request:NextRequest){const secret=process.env.SEASON_TRANSITION_CRON_SECRET;if(!secret||request.headers.get("authorization")!==`Bearer ${secret}`)return NextResponse.json({error:"Unauthorized"},{status:401});const admin=createAdminClient();const{data,error}=await admin.rpc("execute_due_season_transitions",{batch_limit:10});if(error)return NextResponse.json({error:error.message},{status:500});return NextResponse.json(data);}

@@ -1,0 +1,41 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { MatchSponsoringManager } from "./MatchSponsoringManager";
+import { SponsorAssignmentManager } from "./SponsorAssignmentManager";
+import { SponsorDirectory } from "./SponsorDirectory";
+import { SponsorScopeManager } from "./SponsorScopeManager";
+import { SponsorTeamManager } from "./SponsorTeamManager";
+import { ClubTvManager } from "./ClubTvManager";
+
+type Tab = "overview" | "sponsors" | "scopes" | "teams" | "matches" | "club-tv";
+type Summary = { sponsors: number; activeSponsors: number; scopes: number; specialMatches: number; canManage: boolean };
+const tabs: Array<{ id: Tab; label: string; short: string }> = [
+  { id: "overview", label: "Overzicht", short: "Start" }, { id: "sponsors", label: "Sponsors & toewijzingen", short: "Sponsors" },
+  { id: "scopes", label: "Sponsorbereiken", short: "Bereiken" }, { id: "teams", label: "Teamzichtbaarheid", short: "Teams" },
+  { id: "matches", label: "Wedstrijdsponsoring", short: "Wedstrijden" },
+  { id: "club-tv", label: "Club TV & schermen", short: "Club TV" }
+];
+
+export function MediaWorkspace() {
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [summary, setSummary] = useState<Summary>({ sponsors: 0, activeSponsors: 0, scopes: 0, specialMatches: 0, canManage: false });
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { const hash = window.location.hash.replace("#", "") as Tab; if (tabs.some(tab => tab.id === hash)) setActiveTab(hash); void loadSummary().finally(() => setLoading(false)); }, []);
+  async function loadSummary() { const [a,b,c] = await Promise.all([fetch("/api/club/sponsors",{cache:"no-store"}),fetch("/api/club/sponsor-scopes",{cache:"no-store"}),fetch("/api/club/match-sponsoring",{cache:"no-store"})]); if(!a.ok||!b.ok||!c.ok)return; const [x,y,z]=await Promise.all([a.json(),b.json(),c.json()]); setSummary({sponsors:x.sponsors?.length??0,activeSponsors:x.sponsors?.filter((s:{active:boolean})=>s.active).length??0,scopes:y.scopes?.filter((s:{active:boolean})=>s.active).length??0,specialMatches:z.special?.length??0,canManage:x.permissions?.includes("sponsors.manage")===true}); }
+  function openTab(tab: Tab) { setActiveTab(tab); window.history.replaceState(null,"",`${window.location.pathname}#${tab}`); window.scrollTo({top:0,behavior:"smooth"}); }
+  return <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+    <aside className="h-fit rounded-2xl border border-border bg-card p-3 lg:sticky lg:top-4"><div className="px-3 pb-3 pt-2"><p className="text-xs font-bold uppercase tracking-[.16em] text-accent">Werkruimte</p><p className="mt-1 text-sm text-textMuted">{summary.canManage?"Sponsorbeheer":"Alleen bekijken"}</p></div>
+      <nav className="grid grid-cols-2 gap-2 sm:grid-cols-5 lg:grid-cols-1" aria-label="Media onderdelen">{tabs.map((tab,index)=><button key={tab.id} type="button" onClick={()=>openTab(tab.id)} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activeTab===tab.id?"bg-accent text-page shadow-lg shadow-accent/10":"text-textSecondary hover:bg-cardDeep hover:text-textPrimary"}`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-xs font-black ${activeTab===tab.id?"bg-page/15":"bg-button text-accent"}`}>{index+1}</span><span className="hidden lg:block">{tab.label}</span><span className="lg:hidden">{tab.short}</span></button>)}</nav>
+      <p className="mt-3 hidden border-t border-borderSubtle px-3 pt-3 text-xs leading-5 text-textMuted lg:block">Wedstrijdgegevens blijven in Games. Hier beheer je alleen sponsorcontext en zichtbaarheid.</p></aside>
+    <div className="min-w-0">{activeTab==="overview"&&<Overview summary={summary} loading={loading} openTab={openTab}/>} {activeTab==="sponsors"&&<><Heading title="Sponsors & toewijzingen" text="Maak een bedrijf één keer centraal aan en leg daarna vast waar en wanneer het zichtbaar is."/><SponsorDirectory/><SponsorAssignmentManager/></>} {activeTab==="scopes"&&<><Heading title="Sponsorbereiken" text="Beheer herbruikbare bereiken en koppel de juiste teams per seizoen."/><SponsorScopeManager/></>} {activeTab==="teams"&&<><Heading title="Teamzichtbaarheid" text="Maak onderscheid tussen een specifieke Teamsponsor en extra zichtbaarheid via Teamaccent."/><SponsorTeamManager/></>} {activeTab==="matches"&&<><Heading title="Wedstrijdsponsoring" text="Beheer alleen thuiswedstrijden met extra publiciteit; normale wedstrijden gebruiken automatisch hun context."/><MatchSponsoringManager/></>}</div>
+    {activeTab==="club-tv"&&<div className="min-w-0 lg:col-start-2 lg:row-start-1"><ClubTvManager/></div>}
+  </div>;
+}
+
+function Overview({summary,loading,openTab}:{summary:Summary;loading:boolean;openTab:(tab:Tab)=>void}) { const cards=[{label:"Actieve sponsors",value:summary.activeSponsors,detail:`${summary.sponsors} totaal`,tab:"sponsors" as Tab},{label:"Sponsorbereiken",value:summary.scopes,detail:"clubbreed en per doelgroep",tab:"scopes" as Tab},{label:"Commerciële thuiswedstrijden",value:summary.specialMatches,detail:"handmatig of automatisch",tab:"matches" as Tab}]; return <div className="space-y-5">
+  <section className="overflow-hidden rounded-2xl border border-accent/30 bg-gradient-to-br from-card to-cardDeep p-5 sm:p-7"><div className="flex flex-wrap items-start justify-between gap-5"><div className="max-w-3xl"><p className="text-xs font-bold uppercase tracking-[.18em] text-accent">Sponsorcentrum</p><h2 className="mt-2 text-2xl font-black text-textBright sm:text-3xl">Alles rond sponsorzichtbaarheid op één plek</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-textSecondary">Maak sponsors centraal aan, groepeer teams in logische bereiken en voeg alleen bij uitzonderlijke thuiswedstrijden extra sponsoring toe.</p></div><span className="rounded-full border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent">{summary.canManage?"Beheerrechten actief":"Leesmodus"}</span></div><div className="mt-6 grid gap-3 sm:grid-cols-3">{cards.map(card=><button key={card.label} type="button" onClick={()=>openTab(card.tab)} className="rounded-xl border border-borderSubtle bg-card/70 p-4 text-left transition hover:border-accent/40 hover:bg-cardDeep"><span className="block text-3xl font-black text-textBright">{loading?"–":card.value}</span><strong className="mt-2 block text-sm text-textPrimary">{card.label}</strong><span className="mt-1 block text-xs text-textMuted">{card.detail}</span></button>)}</div></section>
+  <section className="rounded-2xl border border-border bg-card p-5 sm:p-6"><h3 className="text-lg font-black text-textBright">Aanbevolen werkwijze</h3><div className="mt-4 grid gap-3 md:grid-cols-2">{[["1","Sponsor aanmaken","Maak één centrale sponsorfiche met naam, logo en website.","sponsors"],["2","Bereiken instellen","Configureer één keer welke teams bijvoorbeeld onder Jeugd vallen.","scopes"],["3","Toewijzing vastleggen","Koppel de sponsor voor het juiste seizoen aan één of meerdere bereiken.","sponsors"],["4","Uitzonderingen beheren","Gebruik Teamaccent of wedstrijdsponsoring alleen voor extra zichtbaarheid.","teams"]].map(([n,title,text,tab])=><button key={n} type="button" onClick={()=>openTab(tab as Tab)} className="flex gap-4 rounded-xl border border-borderSubtle bg-cardDeep p-4 text-left hover:border-accent/40"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent/10 font-black text-accent">{n}</span><span><strong className="block text-textPrimary">{title}</strong><span className="mt-1 block text-sm leading-5 text-textMuted">{text}</span></span></button>)}</div></section>
+  <section className="rounded-2xl border border-dashed border-borderSubtle bg-card/60 p-5"><h3 className="font-bold text-textPrimary">Bewust nog niet in CBCS</h3><p className="mt-2 text-sm leading-6 text-textMuted">Sponsorbedragen, inkomsten, facturen, betalingen, campagnes, ClubTV-playlists en advertentiestatistieken blijven buiten deze werkruimte.</p></section></div> }
+
+function Heading({title,text}:{title:string;text:string}) { return <header className="mb-5 rounded-2xl border border-border bg-card px-5 py-4"><h2 className="text-xl font-black text-textBright">{title}</h2><p className="mt-1 text-sm text-textMuted">{text}</p></header>; }

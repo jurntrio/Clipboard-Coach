@@ -7,6 +7,8 @@ const readDefaults = new Set<ClubPermissionKey>(["teams.view", "games.view", "tr
 const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.create", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.manage", "injuries.view"]);
 const analystDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.view_counts", "games.tag", "clips.share"]);
 const communicationsDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.communication.manage", "clips.share"]);
+const commercialDefaults = new Set<ClubPermissionKey>(defaultPermissionsForRole("commercial_manager"));
+const sponsorViewerDefaults = new Set<ClubPermissionKey>(defaultPermissionsForRole("sponsor_viewer"));
 const scoutDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.scouting.view", "games.scouting.manage"]);
 const coordinatorDefaults = new Set<ClubPermissionKey>(["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "training.manage", "intradesk.view", "injuries.view", "injuries.manage"]);
 
@@ -38,6 +40,10 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
       ? new Set<ClubPermissionKey>(["teams.view", ...defaultPermissionsForRole(membership.function_role ?? "")])
     : membership.function_role === "communications"
       ? new Set(communicationsDefaults)
+    : membership.function_role === "commercial_manager"
+      ? new Set(commercialDefaults)
+    : membership.function_role === "sponsor_viewer"
+      ? new Set(sponsorViewerDefaults)
       : membership.function_role === "scout"
         ? new Set(scoutDefaults)
       : membership.role === "analyst" || membership.function_role === "video_analyst"
@@ -59,19 +65,29 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
   }
   if (permissions.has("games.scouting.manage")) permissions.add("games.scouting.view");
   if (permissions.has("games.report.manage")) permissions.add("games.report.view");
+  if (permissions.has("sponsors.manage")) permissions.add("sponsors.view");
+  if (permissions.has("sponsors.internal.manage")) permissions.add("sponsors.internal.view");
+  if (permissions.has("sponsors.scopes.manage")) permissions.add("sponsors.scopes.view");
+  if (permissions.has("sponsors.matches.manage")) permissions.add("sponsors.matches.view");
   const teamIds = new Set((selected ?? []).map((row) => row.club_team_id));
   if (membership.team_scope === "assigned" && trainer) {
-    const { data: assignments } = await admin.from("club_trainer_teams").select("club_team_id").eq("trainer_id", trainer.id).eq("status", "active");
-    for (const assignment of assignments ?? []) teamIds.add(assignment.club_team_id);
+    const { data: assignments } = await admin.from("club_trainer_teams")
+      .select("club_team_id, club_teams!inner(club_seasons!inner(status, trainers_visible_from))")
+      .eq("trainer_id", trainer.id).eq("status", "active");
+    for (const assignment of assignments ?? []) {
+      const team = assignment.club_teams as unknown as { club_seasons: { status: string; trainers_visible_from: string | null } | null } | null;
+      const season = team?.club_seasons;
+      if (season?.status === "ACTIVE" || (season?.status === "PREPARATION" && season.trainers_visible_from && new Date(season.trainers_visible_from) <= new Date())) teamIds.add(assignment.club_team_id);
+    }
   }
   let goalkeeperPlayerIds: Set<string> | null = null;
   if (membership.function_role === "goalkeeper_coach") {
     const { data: playerAssignments } = trainer
-      ? await admin.from("player_group_staff").select("player_groups!inner(active, player_group_players(player_id))").eq("trainer_id", trainer.id).eq("player_groups.active", true)
+      ? await admin.from("player_group_staff").select("player_groups!inner(active, player_group_players(player_id, valid_until))").eq("trainer_id", trainer.id).eq("player_groups.active", true)
       : { data: [] };
     goalkeeperPlayerIds = new Set((playerAssignments ?? []).flatMap((row) => {
-      const group = row.player_groups as unknown as { player_group_players: { player_id: string }[] } | null;
-      return (group?.player_group_players ?? []).map(member => member.player_id);
+      const group = row.player_groups as unknown as { player_group_players: { player_id: string; valid_until: string | null }[] } | null;
+      return (group?.player_group_players ?? []).filter(member => !member.valid_until).map(member => member.player_id);
     }));
   }
   return {

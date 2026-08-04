@@ -8,6 +8,7 @@ export const CLUB_FUNCTION_ROLES = [
   ["performance_coach", "Performance coach"], ["physical_coach", "Physical coach"], ["operator", "Medewerker horeca"],
   ["equipment_manager", "Materiaalmeester"], ["scout", "Scout"],
   ["communications", "Communicatie- / persverantwoordelijke"], ["match_secretary", "Wedstrijdsecretaris"],
+  ["commercial_manager", "Commercieel verantwoordelijke"], ["sponsor_viewer", "Sponsorviewer"],
   ["safety_officer", "Veiligheidsverantwoordelijke"], ["head_referees", "Hoofd Scheidsrechters"],
   ["volunteer", "Vrijwilliger"], ["custom", "Aangepaste rol"]
 ] as const;
@@ -26,8 +27,15 @@ export const CLUB_PERMISSION_OPTIONS = [
   ["games.view_counts", "Kijkcijfers bekijken"], ["games.tag_link.create", "Taglink aanmaken en delen"], ["games.tag", "Wedstrijden taggen"],
   ["training.view", "Trainingen bekijken in Intradesk"], ["training.manage", "Trainingen toevoegen en versies maken"],
   ["intradesk.view", "Intradesk bekijken"], ["intradesk.manage", "Intradesk-onderdelen beheren"],
-  ["clips.share", "Clips delen"],
-  ["injuries.view", "Blessurestatus en historiek bekijken"], ["injuries.manage", "Blessures registreren en aanpassen"]
+  ["sponsors.view", "Sponsors bekijken"], ["sponsors.manage", "Sponsors beheren"],
+  ["sponsors.assets.manage", "Sponsorassets beheren"],
+  ["sponsors.internal.view", "Interne sponsorgegevens bekijken"], ["sponsors.internal.manage", "Interne sponsorgegevens beheren"],
+  ["sponsors.scopes.view", "Sponsorbereiken bekijken"], ["sponsors.scopes.manage", "Sponsorbereiken en teamkoppelingen beheren"],
+  ["sponsors.assignments.manage", "Sponsortoewijzingen beheren"],
+  ["sponsors.teams.manage", "Teamsponsors en Teamaccenten beheren"],
+  ["sponsors.matches.view", "Wedstrijdsponsoring bekijken"], ["sponsors.matches.manage", "Wedstrijdsponsoring beheren"],
+  ["clips.share", "Clips delen"]
+  ,["injuries.view", "Blessurestatus en historiek bekijken"], ["injuries.manage", "Blessures registreren en aanpassen"]
 ] as const;
 
 export const CLUB_PERMISSION_DESCRIPTIONS: Record<ClubPermissionKey, string> = {
@@ -54,8 +62,19 @@ export const CLUB_PERMISSION_DESCRIPTIONS: Record<ClubPermissionKey, string> = {
   "training.manage": "Persoonlijke trainingen toevoegen en bewerken. Bij wijziging van een gepubliceerde training wordt een nieuwe Intradesk-versie gemaakt, eventueel eerst ter goedkeuring volgens de clubinstellingen.",
   "intradesk.view": "De gedeelde trainingsbibliotheek van de club bekijken.",
   "intradesk.manage": "Onderdelen, trainingen en versies in Intradesk toevoegen of beheren.",
-  "clips.share": "Clips van de eigen of expliciet toegankelijke ploegen delen.",
-  "injuries.view": "Sportief relevante blessurestatus en historiek van toegankelijke spelers bekijken.",
+  "sponsors.view": "Centrale sponsorfiches en hun publieke, operationele gegevens bekijken.",
+  "sponsors.manage": "Centrale sponsorfiches aanmaken, aanpassen, activeren en deactiveren.",
+  "sponsors.assets.manage": "Logo's en andere media-assets van sponsors uploaden en beheren.",
+  "sponsors.internal.view": "Afgeschermde contactgegevens en interne operationele sponsornotities bekijken.",
+  "sponsors.internal.manage": "Afgeschermde contactgegevens en interne operationele sponsornotities aanpassen.",
+  "sponsors.scopes.view": "Sponsorbereiken en de gekoppelde teams bekijken.",
+  "sponsors.scopes.manage": "Sponsorbereiken aanmaken en teams per seizoen eraan koppelen.",
+  "sponsors.assignments.manage": "Seizoens- of periodegebonden sponsortoewijzingen en sponsorniveaus beheren.",
+  "sponsors.teams.manage": "Specifieke Teamsponsors en Teamaccenten beheren.",
+  "sponsors.matches.view": "De commerciële werklijst en sponsoring van thuiswedstrijden bekijken.",
+  "sponsors.matches.manage": "Speciale thuiswedstrijden selecteren en wedstrijdsponsors of matchbalschenkers beheren.",
+  "clips.share": "Clips van de eigen of expliciet toegankelijke ploegen delen."
+  ,"injuries.view": "Sportief relevante blessurestatus en historiek van toegankelijke spelers bekijken.",
   "injuries.manage": "Spelers als geblesseerd registreren, updates toevoegen en opnieuw beschikbaar verklaren."
 };
 
@@ -75,6 +94,13 @@ export function defaultPermissionsForRole(role: string): ClubPermissionKey[] {
   if (role === "video_analyst") return ["video.view", "games.view", "games.view_counts", "games.tag", "intradesk.view", "clips.share"];
   if (role === "scout") return ["games.view", "games.scouting.view", "games.scouting.manage"];
   if (role === "communications") return ["games.view", "games.communication.manage", "clips.share"];
+  if (role === "commercial_manager") return [
+    "sponsors.view", "sponsors.manage", "sponsors.assets.manage",
+    "sponsors.internal.view", "sponsors.internal.manage",
+    "sponsors.scopes.view", "sponsors.scopes.manage", "sponsors.assignments.manage",
+    "sponsors.teams.manage", "sponsors.matches.view", "sponsors.matches.manage"
+  ];
+  if (role === "sponsor_viewer") return ["sponsors.view", "sponsors.scopes.view", "sponsors.matches.view"];
   if (role === "doctor" || role === "physiotherapist") return ["teams.view", "injuries.view", "injuries.manage"];
   if (["youth_coordinator", "head_youth_development", "technical_director"].includes(role)) return ["teams.view", "teams.view_all", "injuries.view", "injuries.manage"];
   if (["trainer", "assistant_trainer", "team_manager"].includes(role)) return ["teams.view", "injuries.view"];
