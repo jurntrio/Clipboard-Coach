@@ -1,11 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getClubContext } from "@/lib/auth/active-club";
-import { getClubAccess } from "@/lib/auth/club-access";
 import { ProfileOverview, type ProfileActivity, type ProfileContext } from "@/components/profile/ProfileOverview";
-import { cookies } from "next/headers";
-import { ACTIVE_TEAM_COOKIE, readActiveTeamSelection } from "@/lib/auth/active-team";
-import { resolveDefaultTeamId } from "@/lib/auth/default-team";
 
 type GuardianRow = {
   child_key: string;
@@ -22,10 +18,7 @@ export default async function DashboardHomePage() {
   const clubId = clubContext.activeClubId;
   const admin = createAdminClient();
   const supabase = createClient();
-  const [{ data: profile }, access] = await Promise.all([
-    admin.from("profiles").select("full_name, account_role").eq("id", user.id).maybeSingle(),
-    clubId ? getClubAccess(clubId, user) : Promise.resolve(null)
-  ]);
+  const { data: profile } = await admin.from("profiles").select("full_name, account_role").eq("id", user.id).maybeSingle();
 
   const [{ data: trainer }, { data: guardianRowsRaw }] = await Promise.all([
     clubId
@@ -84,12 +77,6 @@ export default async function DashboardHomePage() {
   }
   contexts.push(...groupedChildren.values());
 
-  const { data: activeSeason } = clubId ? await admin.from("club_seasons").select("id").eq("club_id", clubId).eq("status", "ACTIVE").maybeSingle() : { data: null };
-  const { data: activeClubTeams } = clubId && activeSeason ? await admin.from("club_teams").select("id").eq("club_id", clubId).eq("season_id", activeSeason.id).neq("status", "merged") : { data: [] };
-  const accessibleActiveTeamIds = (activeClubTeams ?? []).map(team => team.id).filter(id => access?.teamIds === null || access?.teamIds.has(id));
-  const dashboardSelection = readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(accessibleActiveTeamIds));
-  const selectedClubTeamId = dashboardSelection.teamId ?? (dashboardSelection.explicitAll || !clubId ? null : await resolveDefaultTeamId(admin, clubId, user.id, accessibleActiveTeamIds));
-
   // The profile overview only needs recent results and upcoming planning.
   // Keeping this window bounded prevents the dashboard from loading a club's
   // complete match and training history on every visit.
@@ -119,15 +106,13 @@ export default async function DashboardHomePage() {
       : Promise.resolve({ data: [] })
   ]);
 
-  const canSeeAllMatches = clubContext.isPlatformAdmin || access?.teamIds === null;
   const activities: ProfileActivity[] = (matches ?? []).flatMap(match => {
-    if (selectedClubTeamId && match.club_team_id !== selectedClubTeamId) return [];
     const contextIds = contexts.filter(item =>
       (!!match.club_team_id && item.clubTeamIds.includes(match.club_team_id))
       || (!!match.team_a_id && item.teamIds.includes(match.team_a_id))
       || (!!match.team_b_id && item.teamIds.includes(match.team_b_id))
     ).map(item => item.id);
-    if (!canSeeAllMatches && !contextIds.length) return [];
+    if (!contextIds.length) return [];
     return [{
       id: `match:${match.id}`,
       kind: "match" as const,
@@ -142,9 +127,8 @@ export default async function DashboardHomePage() {
     }];
   });
   activities.push(...(trainingSessions ?? []).flatMap(session => {
-    if (selectedClubTeamId && session.club_team_id !== selectedClubTeamId) return [];
     const contextIds = contexts.filter(item => item.clubTeamIds.includes(session.club_team_id)).map(item => item.id);
-    if (!canSeeAllMatches && !contextIds.length) return [];
+    if (!contextIds.length) return [];
     const team = session.club_teams as unknown as { name: string } | null;
     return [{
       id: `training-session:${session.id}`,
@@ -168,7 +152,7 @@ export default async function DashboardHomePage() {
     sortAt: plan.created_at,
     status: "completed",
     score: null,
-    contextIds: contexts.filter(item => item.role === "Trainer").map(item => item.id),
+    contextIds: [],
     href: `/dashboard/training/new?personal=${plan.id}`
   })));
 

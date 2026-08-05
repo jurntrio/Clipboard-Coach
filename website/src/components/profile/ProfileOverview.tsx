@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { TeamContextHeader } from "@/components/teams/TeamContextHeader";
 
 export type ProfileContext = {
   id: string;
@@ -55,6 +54,13 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
     .sort((a, b) => (b.sortAt ?? `${b.date}${b.time ?? ""}`).localeCompare(a.sortAt ?? `${a.date}${a.time ?? ""}`)).slice(0, 6);
   const contextNames = new Map(contexts.map(item => [item.id, item.subject]));
 
+  function showContextInPlanning(contextId: string) {
+    setActiveContext(contextId);
+    window.requestAnimationFrame(() => {
+      document.getElementById("mijn-planning")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   return <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-7">
     <header className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-card p-5">
       <Image src="/branding/profile.png" alt="" width={82} height={82} className="h-20 w-20 shrink-0 object-contain" />
@@ -65,8 +71,6 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
       </div>
       <Link href="/dashboard/settings" className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent">Profiel bewerken</Link>
     </header>
-
-    <TeamContextHeader />
 
     <section>
       <div className="mb-3">
@@ -86,20 +90,20 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
             <div className="border-t border-borderSubtle p-4">
               {next.length ? <div className="space-y-2">{next.map(item => <ActivityRow key={item.id} item={item} labels={contextNames} compact />)}</div>
                 : <p className="text-sm text-textMuted">Geen komende wedstrijden of trainingen gepland.</p>}
-              <button type="button" onClick={() => setActiveContext(context.id)} className="mt-3 text-sm font-semibold text-accent hover:underline">Toon in mijn planning</button>
+              <button type="button" onClick={() => showContextInPlanning(context.id)} className="mt-3 text-sm font-semibold text-accent hover:underline">Toon in mijn planning</button>
             </div>
           </details>;
         })}
       </div> : <div className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Er is nog geen ploeg- of spelerscontext aan je account gekoppeld.</div>}
     </section>
 
-    <section className="rounded-2xl border border-border bg-card p-5">
+    <section id="mijn-planning" className="scroll-mt-4 rounded-2xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div><h2 className="text-xl font-bold text-textBright">Mijn planning</h2><p className="text-sm text-textMuted">Wedstrijden en geplande trainingen, chronologisch samengebracht.</p></div>
-        <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
+        {contexts.length > 1 && <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
           <button onClick={() => setActiveContext("all")} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${activeContext === "all" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Alles</button>
           {contexts.map(context => <button key={context.id} onClick={() => setActiveContext(context.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${activeContext === context.id ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{context.label}</button>)}
-        </div>
+        </div>}
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div><h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-textSecondary">Komend</h3>
