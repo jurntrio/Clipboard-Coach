@@ -110,7 +110,7 @@ export function Pitch({ fieldType = "full", items, lines, areas, dribbles, previ
           </g>;
         })}
         {dribbles.filter(dribble => dribble.number).map(dribble => {
-          const point = dribble.points[Math.floor(dribble.points.length / 2)];
+          const point = dribble.points[dribble.points.length - 1];
           return <g key={`${dribble.id}-number`} className="pointer-events-none">
             <circle cx={point.x} cy={point.y} r="1.35" fill="white" stroke={dribble.color} strokeWidth=".3" />
             <text x={point.x} y={point.y + .45} textAnchor="middle" fontSize="1.3" fontWeight="700" fill={dribble.color}>{dribble.number}</text>

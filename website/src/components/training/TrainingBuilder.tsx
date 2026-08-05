@@ -207,7 +207,8 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
       } else if (event.key === "Enter" && dribbleMode && dribblePoints.length >= 2) {
         event.preventDefault();
         const dribble: FieldDribble = {
-          id: crypto.randomUUID(), points: dribblePoints, color: drawColor
+          id: crypto.randomUUID(), points: dribblePoints, color: drawColor,
+          number: numberLines ? blocks[editorIndex].dribbles.filter(item => item.number).length + 1 : undefined
         };
         setBlocks(current => current.map((block, index) => index === editorIndex ? { ...block, dribbles: [...block.dribbles, dribble] } : block));
         setDribblePoints([]);
@@ -556,7 +557,8 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   function finishDribble() {
     if (activeIndex === null || dribblePoints.length < 2) return;
     const dribble: FieldDribble = {
-      id: crypto.randomUUID(), points: dribblePoints, color: drawColor
+      id: crypto.randomUUID(), points: dribblePoints, color: drawColor,
+      number: numberLines ? blocks[activeIndex].dribbles.filter(item => item.number).length + 1 : undefined
     };
     updateBlock(activeIndex, { dribbles: [...blocks[activeIndex].dribbles, dribble] });
     setDribblePoints([]);
@@ -737,7 +739,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
                   <button type="button" onClick={() => { setAreaMode(true); setAreaShape("polygon"); setDribbleMode(false); setDribblePoints([]); setLineStyle(null); setLineStart(null); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setAreaPoints([]); }} className={`rounded border px-3 py-2 text-xs font-bold ${areaMode && areaShape === "polygon" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>▱ Area</button>
                   <button type="button" onClick={() => { setAreaMode(true); setAreaShape("rectangle"); setDribbleMode(false); setDribblePoints([]); setLineStyle(null); setLineStart(null); setSelectedAsset(null); setSelectedId(null); setSelectedDrawing(null); setAreaPoints([]); }} className={`rounded border px-3 py-2 text-xs font-bold ${areaMode && areaShape === "rectangle" ? "border-[#169447] bg-[#eef8f1]" : "border-[#cbd5cf] bg-white"}`}>▭ Rechthoek</button>
                   {lineStyle && <label className="flex items-center gap-2 rounded border border-[#cbd5cf] bg-white px-3 py-2 text-xs font-bold"><input type="checkbox" checked={lineArrow} onChange={event => setLineArrow(event.target.checked)} /> Pijl tonen</label>}
-                  <label className="flex items-center gap-2 rounded border border-[#cbd5cf] bg-white px-3 py-2 text-xs font-bold"><input type="checkbox" checked={numberLines} onChange={e => setNumberLines(e.target.checked)} /> Pijlen & Areas nummeren</label>
+                  <label className="flex items-center gap-2 rounded border border-[#cbd5cf] bg-white px-3 py-2 text-xs font-bold"><input type="checkbox" checked={numberLines} onChange={e => setNumberLines(e.target.checked)} /> Pijlen, Areas & Dribbels nummeren</label>
                   <button type="button" onClick={() => setShowColorPanel(value => !value)} className="flex items-center gap-2 rounded border border-[#cbd5cf] bg-white px-3 py-2 text-xs font-bold">
                     <span className="h-4 w-4 rounded-full border" style={{ backgroundColor: drawColor }} /> Kleur ▾
                   </button>
