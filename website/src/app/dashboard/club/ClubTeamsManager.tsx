@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { TeamTrainingScheduler } from "@/components/teams/TeamTrainingScheduler";
 import { TeamMatchScheduler } from "@/components/teams/TeamMatchScheduler";
 import type { ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
+import { AGE_CATEGORIES, defaultsForAgeCategory, type MatchFormat } from "@/lib/match-defaults";
 
 type PlayerRow = {
   firstName: string;
@@ -36,6 +37,11 @@ type Team = {
   display_order: number;
   trainers_can_edit_roster: boolean;
   trainers_can_manage_matches: boolean;
+  age_category: string | null;
+  match_format: MatchFormat | null;
+  match_period_count: number | null;
+  match_period_minutes: number | null;
+  match_minimum_players: number | null;
   club_trainer_teams?: { trainer_id: string; role: string; status: string }[];
   teams?: { id: string; players: StoredPlayer[] }[];
 };
@@ -80,6 +86,7 @@ function storedRows(team: Team): PlayerRow[] {
 export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerIds, options, migrationIssues, onChanged, readOnly, allowImport = true, allowReorder = false }: { clubId: string; teams: Team[]; trainers: Trainer[]; coordinatorTrainerIds: string[]; options: ClubMatchOption[]; migrationIssues: MigrationIssue[]; onChanged: () => Promise<void>; readOnly?: boolean; allowImport?: boolean; allowReorder?: boolean }) {
   const { t } = useI18n();
   const [name, setName] = useState("");
+  const [newAgeCategory, setNewAgeCategory] = useState("");
   const [editing, setEditing] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -98,7 +105,12 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
-    if (await request("POST", { clubId, name })) setName("");
+    const defaults = defaultsForAgeCategory(newAgeCategory);
+    if (await request("POST", {
+      clubId, name, ageCategory: newAgeCategory,
+      matchFormat: defaults?.format, periodCount: defaults?.periodCount,
+      periodMinutes: defaults?.periodMinutes, minimumPlayers: defaults?.minimumPlayers
+    })) { setName(""); setNewAgeCategory(""); }
   }
 
   async function resolvePrimary(issue: MigrationIssue, teamId: string) {
@@ -122,8 +134,10 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
   return <section className="rounded-xl border border-border bg-card p-5">
     <h2 className="text-xl font-semibold text-textBright">{t("clubTeams.heading")}</h2>
     <p className="mt-1 text-sm text-textMuted">{t("clubTeams.subtitle")}</p>
-    {!readOnly && <form onSubmit={create} className="mt-4 flex gap-3 rounded-xl border border-borderSubtle bg-cardDeep p-4">
-      <input required value={name} onChange={(event) => setName(event.target.value)} placeholder={t("clubTeams.namePlaceholder")} className={inputClass} />
+    {!readOnly && <form onSubmit={create} className="mt-4 flex flex-wrap gap-3 rounded-xl border border-borderSubtle bg-cardDeep p-4">
+      <input required value={name} onChange={(event) => setName(event.target.value)} placeholder={t("clubTeams.namePlaceholder")} className={`${inputClass} min-w-60 flex-1`} />
+      <input required list="new-team-age-categories" value={newAgeCategory} onChange={(event) => setNewAgeCategory(event.target.value)} placeholder="Leeftijdscategorie" className={`${inputClass} w-52`} />
+      <datalist id="new-team-age-categories">{AGE_CATEGORIES.map(category => <option key={category} value={category} />)}</datalist>
       <button disabled={busy === "create"} className="shrink-0 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{t("clubTeams.create")}</button>
     </form>}
     {error && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
@@ -174,6 +188,12 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
   const [name, setName] = useState(team.name);
   const [canEdit, setCanEdit] = useState(team.trainers_can_edit_roster);
   const [canManageMatches, setCanManageMatches] = useState(team.trainers_can_manage_matches ?? false);
+  const ageDefaults = defaultsForAgeCategory(team.age_category);
+  const [ageCategory, setAgeCategory] = useState(team.age_category ?? "");
+  const [matchFormat, setMatchFormat] = useState<MatchFormat | "">(team.match_format ?? ageDefaults?.format ?? "");
+  const [periodCount, setPeriodCount] = useState((team.match_period_count ?? ageDefaults?.periodCount ?? "").toString());
+  const [periodMinutes, setPeriodMinutes] = useState((team.match_period_minutes ?? ageDefaults?.periodMinutes ?? "").toString());
+  const [minimumPlayers, setMinimumPlayers] = useState((team.match_minimum_players ?? ageDefaults?.minimumPlayers ?? "").toString());
   const [coachMenuOpen, setCoachMenuOpen] = useState(false);
   const [calendarUrl, setCalendarUrl] = useState("");
   const [calendarEnabled, setCalendarEnabled] = useState(false);
@@ -272,7 +292,10 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
       return;
     }
     setRosterStatus(t("common.saving"));
-    const savedTeam = await request("PATCH", { teamId: team.id, name, trainersCanEditRoster: canEdit, trainersCanManageMatches: canManageMatches });
+    const savedTeam = await request("PATCH", {
+      teamId: team.id, name, ageCategory, trainersCanEditRoster: canEdit, trainersCanManageMatches: canManageMatches,
+      matchFormat, periodCount: Number(periodCount), periodMinutes: Number(periodMinutes), minimumPlayers: Number(minimumPlayers)
+    });
     if (!savedTeam) { setRosterStatus(""); return; }
     const removePlayerIds = importMode === "merge" ? [] : missingPlayers.filter((player) => removeIds.has(player.id)).map((player) => player.id);
     const response = await fetch(`/api/club/teams/${team.id}/roster`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ players: players.map(({ isStored: _isStored, ...player }) => player), removePlayerIds }) });
@@ -346,6 +369,28 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
         <span title={t("clubTeams.trainerCanManageMatchesHelp")} className="cursor-help rounded-full border border-borderButton px-2 py-0.5 text-xs font-bold text-accent">i</span>
       </label>
     </div>
+    <section className="rounded-xl border border-borderSubtle bg-card p-4">
+      <h4 className="text-sm font-semibold text-textBright">Standaard wedstrijdindeling</h4>
+      <p className="mt-1 text-xs text-textMuted">Nieuwe wedstrijden nemen deze waarden over. In de wedstrijdvoorbereiding blijven ze aanpasbaar.</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <label className="text-xs text-textSecondary">Leeftijdscategorie
+          <input list={`age-categories-${team.id}`} value={ageCategory} disabled={readOnly} onChange={event => {
+            const category = event.target.value;
+            setAgeCategory(category);
+            const defaults = defaultsForAgeCategory(category);
+            if (defaults) {
+              setMatchFormat(defaults.format); setPeriodCount(String(defaults.periodCount));
+              setPeriodMinutes(String(defaults.periodMinutes)); setMinimumPlayers(String(defaults.minimumPlayers));
+            }
+          }} className={`mt-1 ${inputClass}`} />
+          <datalist id={`age-categories-${team.id}`}>{AGE_CATEGORIES.map(category => <option key={category} value={category} />)}</datalist>
+        </label>
+        <label className="text-xs text-textSecondary">Spelvorm<select value={matchFormat} disabled={readOnly} onChange={event => setMatchFormat(event.target.value as MatchFormat)} className={`mt-1 ${inputClass}`}><option value="">—</option><option value="5v5">5v5</option><option value="8v8">8v8</option><option value="11v11">11v11</option></select></label>
+        <label className="text-xs text-textSecondary">Aantal periodes<input required type="number" min="1" max="12" value={periodCount} disabled={readOnly} onChange={event => setPeriodCount(event.target.value)} className={`mt-1 ${inputClass}`} /></label>
+        <label className="text-xs text-textSecondary">Minuten per periode<input required type="number" min="1" max="120" value={periodMinutes} disabled={readOnly} onChange={event => setPeriodMinutes(event.target.value)} className={`mt-1 ${inputClass}`} /></label>
+        <label className="text-xs text-textSecondary">Minimum spelers<input required type="number" min="1" max="30" value={minimumPlayers} disabled={readOnly} onChange={event => setMinimumPlayers(event.target.value)} className={`mt-1 ${inputClass}`} /></label>
+      </div>
+    </section>
     <div>
       <h4 className="text-sm font-semibold text-textPrimary">{t("clubTeams.assignCoaches")}</h4>
       <div className="relative mt-2">

@@ -57,6 +57,7 @@ export default function InboxPage() {
     const thread = threads.find((item) => item.threadId === threadId);
     if (thread && thread.unreadCount > 0) {
       await fetch(`/api/mailbox/${threadId}/read`, { method: "PATCH" });
+      window.dispatchEvent(new Event("dashboard-badges:refresh"));
       void load();
     }
   }

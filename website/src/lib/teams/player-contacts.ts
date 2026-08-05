@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 type TeamRow = Record<string, unknown> & { players?: Array<Record<string, unknown> & { id: string; membership_id?: string | null }> };
 
-export async function addPlayerContacts(admin: ReturnType<typeof createAdminClient>, rows: TeamRow[]): Promise<TeamRow[]> {
+export async function addPlayerContacts(admin: ReturnType<typeof createAdminClient>, rows: TeamRow[], maxContactsPerPlayer = 2): Promise<TeamRow[]> {
   const players = rows.flatMap((team) => team.players ?? []);
   const playerIds = players.map((player) => player.id);
   const membershipIds = players.flatMap((player) => player.membership_id ? [player.membership_id] : []);
@@ -25,7 +25,7 @@ export async function addPlayerContacts(admin: ReturnType<typeof createAdminClie
     const guardians = clubPlayerId
       ? (clubContacts ?? []).filter((contact) => contact.club_player_id === clubPlayerId)
       : (directContacts ?? []).filter((contact) => contact.player_id === player.id);
-    contactsByPlayer.set(player.id, guardians.slice(0, 2).map((contact) => {
+    contactsByPlayer.set(player.id, guardians.slice(0, maxContactsPerPlayer).map((contact) => {
       const profile = contact.profiles as unknown as { full_name: string | null; email: string | null; phone_number: string | null } | null;
       return { id: contact.id, full_name: profile?.full_name?.trim() || "Naam niet ingevuld", email: profile?.email ?? null, phone_number: profile?.phone_number ?? null };
     }));

@@ -20,6 +20,7 @@ export function ClubNameMatchReview({ rows, clubs, readOnly }: { rows: Unresolve
     setBusyName(name);
     try {
       await confirmClubNameMatch(name, belgianClubId);
+      window.dispatchEvent(new Event("dashboard-badges:refresh"));
       router.refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Koppeling kon niet worden bewaard.");

@@ -13,7 +13,7 @@ import { useI18n } from "@/i18n/client";
 import type { Match, Player, StandardTag, Team } from "@/types/database";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { MatchPreparationDialog } from "@/components/matches/MatchPreparationDialog";
-import { ActiveTeamSwitcher } from "@/components/teams/ActiveTeamSwitcher";
+import { TeamContextHeader } from "@/components/teams/TeamContextHeader";
 import { ClubLogoImage, type ClubLogoData } from "@/components/clubs/ClubLogoImage";
 
 type HubMatch = Match & { match_videos: { video_id: string }[]; team_a_logo: ClubLogoData; team_b_logo: ClubLogoData };
@@ -205,7 +205,7 @@ export default function MatchesHubPage() {
       <SectionHeader title={t("common.matches")} showHome={false} />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <ActiveTeamSwitcher teams={teamOptions} activeTeamId={activeTeamId} allTeamsLabel={t("matchHub.allTeams")} />
+          <TeamContextHeader teams={teamOptions} activeTeamId={activeTeamId} />
           {canManageMatches && <button type="button" onClick={() => setCreateOpen(true)} className="rounded-xl bg-accent px-5 py-3 font-bold text-page">+ {t("matchHub.new")}</button>}
         </div>
       </div>

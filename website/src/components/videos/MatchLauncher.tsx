@@ -12,7 +12,7 @@ import { localMediaMessages } from "@/i18n/local-media";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { resolveVeoLink } from "@/lib/veo-browser";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
-import { ActiveTeamSwitcher } from "@/components/teams/ActiveTeamSwitcher";
+import { TeamContextHeader } from "@/components/teams/TeamContextHeader";
 
 function mergeVideos(current: Video[], incoming: Video[]): Video[] {
   const map = new Map(current.map((video) => [video.id, video]));
@@ -483,7 +483,7 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
             <div className="mt-5 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-textSecondary">{t("match.last")}</h2>
-                <ActiveTeamSwitcher teams={teamOptions} activeTeamId={activeTeamId} />
+                <TeamContextHeader teams={teamOptions} activeTeamId={activeTeamId} />
               </div>
               {supportsPersistentFileAccess === false && (
                 <div className="text-[11px] leading-tight text-amber-300">
@@ -516,7 +516,7 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
                 placeholder={t("match.searchPlaceholder")}
                 className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-textPrimary"
               />
-              <ActiveTeamSwitcher teams={teamOptions} activeTeamId={activeTeamId} />
+              <TeamContextHeader teams={teamOptions} activeTeamId={activeTeamId} />
             </div>
             {searchItems.map((item) => <div key={`${item.kind}-${item.id}`} className="flex items-stretch overflow-hidden rounded-lg border border-border bg-cardDeep hover:border-accent"><button type="button" disabled={busy} onClick={() => void openItem(item)} className="flex min-w-0 flex-1 justify-between gap-3 px-4 py-3 text-left text-textPrimary hover:bg-cardHover disabled:opacity-50"><span className="truncate">{item.title}</span><span className="flex-shrink-0 text-sm text-textMuted">{item.date}</span></button>{item.kind === "match" && <button type="button" disabled={busy} onClick={() => setDeleteTarget(item)} aria-label={t("match.deleteNamed", { name: item.title })} title={t("match.delete")} className="grid w-12 flex-shrink-0 place-items-center border-l border-border text-lg text-red-400 hover:bg-red-500/15 disabled:opacity-50">🗑</button>}</div>)}
             {!searchItems.length && !searchLoading && <p className="text-textMuted">{t("match.noSearchResults")}</p>}

@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n/client";
 import type { Match, Player } from "@/types/database";
 
 type Option = { id: string; option_type: "field" | "locker_room" | "visitor_locker_room" | "referee" | "meeting_place" | "non_selection_reason"; label: string };
-type Selection = { player_id: string; selected: boolean; jersey_number: number | null; non_selection_reason_id: string | null; note: string | null };
-type PlayerDraft = { playerId: string; selected: boolean; jerseyNumber: string; reasonId: string; note: string };
+type Selection = { player_id: string; selected: boolean; jersey_number: number | null; non_selection_reason_id: string | null; note: string | null; individual_attention_point: string | null };
+type PlayerDraft = { playerId: string; selected: boolean; jerseyNumber: string; reasonId: string; attentionPoint: string };
 type ExtraPlayer = Player & { team_name?: string };
 type GuestDraft = { firstName: string; lastName: string; jerseyNumber: string; note: string };
+type SelectionSend = { id: string; status: "sending" | "sent" | "partial" | "failed"; sent_recipient_count: number; failed_recipient_count: number; intended_recipient_count: number; notify_not_selected: boolean; created_at: string; completed_at: string | null; profiles?: { full_name: string | null } | null };
+type SelectionCommunication = { canSend: boolean; selectedRecipients: number; notSelectedRecipients: number; selectedPlayersWithoutEmail: number; changedSinceSend: boolean; latest: SelectionSend | null; history: SelectionSend[] };
 
 const inputClass = "w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary";
 
@@ -41,7 +43,25 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
   const [notice, setNotice] = useState("");
   const [canPlan, setCanPlan] = useState(false);
   const [canSelect, setCanSelect] = useState(false);
+  const [canViewSelection, setCanViewSelection] = useState(false);
   const [canUseTags, setCanUseTags] = useState(false);
+  const [matchFormat, setMatchFormat] = useState("");
+  const [periodCount, setPeriodCount] = useState("");
+  const [periodMinutes, setPeriodMinutes] = useState("");
+  const [minimumPlayers, setMinimumPlayers] = useState("");
+  const [communication, setCommunication] = useState<SelectionCommunication | null>(null);
+  const [sendOpen, setSendOpen] = useState(false);
+  const [notifyNotSelected, setNotifyNotSelected] = useState(false);
+  const [includeSelectedAttention, setIncludeSelectedAttention] = useState(true);
+  const [includeNotSelectedAttention, setIncludeNotSelectedAttention] = useState(true);
+  const [sending, setSending] = useState(false);
+  const sendKeyRef = useRef("");
+
+  async function loadCommunication() {
+    const response = await fetch(`/api/matches/${match.id}/selection-send`, { cache: "no-store" });
+    if (!response.ok) return;
+    setCommunication(await response.json());
+  }
 
   useEffect(() => {
     void fetch(`/api/matches/${match.id}/preparation`, { cache: "no-store" }).then(async response => {
@@ -50,6 +70,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
       const current = body.match as Match & Record<string, any>;
       setCanPlan(body.capabilities?.canPlan === true);
       setCanSelect(body.capabilities?.canSelect === true);
+      setCanViewSelection(body.capabilities?.canViewSelection === true || body.capabilities?.canSelect === true);
       setCanUseTags(body.capabilities?.canTags === true || body.capabilities?.canCreateTagLink === true);
       const availableOptions = (body.options ?? []) as Option[];
       const defaultMeetingPlace = availableOptions.find(option =>
@@ -78,7 +99,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
           selected: saved?.selected ?? (current.player_ids ?? []).includes(player.id),
           jerseyNumber: saved?.jersey_number?.toString() ?? player.jersey_number?.toString() ?? "",
           reasonId: saved?.non_selection_reason_id ?? "",
-          note: saved?.note ?? ""
+          attentionPoint: saved?.individual_attention_point ?? saved?.note ?? ""
         };
       }));
       setMeetingTimeEnabled(current.meeting_time_enabled === true || !current.meeting_time);
@@ -94,7 +115,12 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
       setMeetingPlaceOptionId(current.meeting_place_option_id ?? defaultMeetingPlace?.id ?? "");
       setMeetingPlaceCustom(current.meeting_place_custom ?? "");
       setMeetingPlaceEnabled(!!current.meeting_place_option_id || !!current.meeting_place_custom || !!defaultMeetingPlace);
+      setMatchFormat(current.match_format ?? "");
+      setPeriodCount(current.match_period_count?.toString() ?? "");
+      setPeriodMinutes(current.match_period_minutes?.toString() ?? "");
+      setMinimumPlayers(current.match_minimum_players?.toString() ?? "");
       setBusy(false);
+      void loadCommunication();
     });
   }, [match.id, t]);
 
@@ -109,12 +135,12 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
     if (!player || players.some(item => item.id === player.id)) return;
     setPlayers(current => [...current, player]);
     setDrafts(current => [...current, {
-      playerId: player.id, selected: true, jerseyNumber: player.jersey_number?.toString() ?? "", reasonId: "", note: ""
+      playerId: player.id, selected: true, jerseyNumber: player.jersey_number?.toString() ?? "", reasonId: "", attentionPoint: ""
     }]);
     setExtraPlayerId("");
   }
 
-  async function save() {
+  async function save(closeAfter = true) {
     setBusy(true); setNotice("");
     const response = await fetch(`/api/matches/${match.id}/preparation`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
@@ -124,10 +150,14 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
         departureTime: !isHomeMatch ? departureTime : "",
         fieldOptionId, lockerRoomOptionId, visitorLockerRoomOptionId, refereeOptionId,
         meetingPlaceEnabled, meetingPlaceOptionId, meetingPlaceCustom, tagNames,
+        matchFormat,
+        periodCount: periodCount === "" ? null : Number(periodCount),
+        periodMinutes: periodMinutes === "" ? null : Number(periodMinutes),
+        minimumPlayers: minimumPlayers === "" ? null : Number(minimumPlayers),
         players: drafts.map(item => ({
           playerId: item.playerId, selected: item.selected,
           jerseyNumber: item.jerseyNumber === "" ? null : Number(item.jerseyNumber),
-          reasonId: item.reasonId, note: item.note
+          reasonId: item.reasonId, attentionPoint: item.attentionPoint
         })),
         guestPlayers: guestPlayers.map(item => ({
           firstName: item.firstName, lastName: item.lastName,
@@ -137,12 +167,41 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
     });
     const body = await response.json();
     setBusy(false);
-    if (!response.ok) { setNotice(body.error || t("matchPrep.saveFailed")); return; }
-    await onSaved();
-    onClose();
+    if (!response.ok) { setNotice(body.error || t("matchPrep.saveFailed")); return false; }
+    if (closeAfter) { await onSaved(); onClose(); }
+    return true;
+  }
+
+  async function prepareSelectionSend() {
+    if (!await save(false)) return;
+    await loadCommunication();
+    setSendOpen(true);
+  }
+
+  async function sendSelection() {
+    setSending(true); setNotice("");
+    if (!sendKeyRef.current) sendKeyRef.current = crypto.randomUUID();
+    const response = await fetch(`/api/matches/${match.id}/selection-send`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idempotencyKey: sendKeyRef.current, notifyNotSelected, includeSelectedAttention, includeNotSelectedAttention })
+    });
+    const body = await response.json();
+    setSending(false);
+    if (!response.ok) { setNotice(body.error || "Selectie kon niet worden verstuurd."); await loadCommunication(); return; }
+    sendKeyRef.current = "";
+    setSendOpen(false);
+    await loadCommunication();
+    setNotice(body.send?.status === "sent" ? "Selectie verstuurd." : "Selectie gedeeltelijk verstuurd. Controleer de verzendstatus.");
   }
 
   const placeIsOther = meetingPlaceOptionId === "custom";
+  const selectedDrafts = drafts.filter(item => item.selected);
+  const selectedPlayerIds = new Set(selectedDrafts.map(item => item.playerId));
+  const selectedKeepers = players.filter(player => selectedPlayerIds.has(player.id) && player.is_goalkeeper).length;
+  const selectedFieldPlayers = selectedDrafts.length - selectedKeepers;
+  const duplicateJerseyNumbers = Array.from(new Set(selectedDrafts
+    .map(item => item.jerseyNumber.trim()).filter(Boolean)
+    .filter((number, index, numbers) => numbers.indexOf(number) !== index)));
   return <div className={embedded ? "w-full" : "fixed inset-0 z-50 grid place-items-center bg-black/75 p-3"} role={embedded ? undefined : "dialog"} aria-modal={embedded ? undefined : true}>
     <div className={embedded ? "w-full rounded-2xl border border-border bg-cardAlt" : "max-h-[calc(100vh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-2xl border border-border bg-cardAlt shadow-2xl"}>
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-cardAlt p-4">
@@ -150,6 +209,9 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
         {!embedded && <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-3 py-2 text-textPrimary">{t("common.close")}</button>}
       </header>
       {busy && !loadedMatch ? <p className="p-6 text-textMuted">{t("common.loading")}</p> : <div className="space-y-3 p-4">
+        {communication && <section className={`rounded-xl border p-3 text-sm ${!communication.latest ? "border-borderSubtle bg-cardDeep text-textMuted" : communication.changedSinceSend ? "border-amber-500/30 bg-amber-500/10 text-amber-200" : communication.latest.status === "sent" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200" : "border-red-500/30 bg-red-500/10 text-red-200"}`}>
+          {!communication.latest ? <strong>Selectie nog niet verstuurd</strong> : <><strong>{communication.changedSinceSend ? "Gewijzigd sinds verzending" : communication.latest.status === "sent" ? "Selectie verstuurd" : communication.latest.status === "partial" ? "Selectie gedeeltelijk verstuurd" : "Selectieverzending mislukt"}</strong><span className="ml-2 text-xs opacity-80">{new Date(communication.latest.completed_at ?? communication.latest.created_at).toLocaleString("nl-BE")} door {communication.latest.profiles?.full_name || "staff"}</span></>}
+        </section>}
         {canPlan && <section className="rounded-xl border border-border bg-card">
           <button type="button" onClick={() => setGeneralOpen(open => !open)} className="flex w-full items-center justify-between p-4 text-left font-bold text-textBright">
             {t("matchPrep.general")}<span className={`text-accent transition ${generalOpen ? "rotate-180" : ""}`}>▼</span>
@@ -164,6 +226,10 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
               <strong className="block text-textBright">{match.team_a_name} – {match.team_b_name}</strong>
               <span>{match.match_date || "—"}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</span>
             </div>
+            <label className="text-sm text-textSecondary">Spelvorm<select value={matchFormat} onChange={event => setMatchFormat(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option><option value="5v5">5v5</option><option value="8v8">8v8</option><option value="11v11">11v11</option></select></label>
+            <label className="text-sm text-textSecondary">Aantal periodes<input type="number" min="1" max="12" value={periodCount} onChange={event => setPeriodCount(event.target.value)} className={`mt-1 ${inputClass}`} /></label>
+            <label className="text-sm text-textSecondary">Minuten per periode<input type="number" min="1" max="120" value={periodMinutes} onChange={event => setPeriodMinutes(event.target.value)} className={`mt-1 ${inputClass}`} /></label>
+            <label className="text-sm text-textSecondary">Minimum spelers<input type="number" min="1" max="30" value={minimumPlayers} onChange={event => setMinimumPlayers(event.target.value)} className={`mt-1 ${inputClass}`} /><span className="mt-1 block text-[11px] text-textMuted">Alleen gebruikt om een tekort in de selectie te signaleren.</span></label>
             {isHomeMatch && <label className="text-sm text-textSecondary">{t("matchPrep.field")}<select value={fieldOptionId} onChange={event => setFieldOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("field").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
             {isHomeMatch && <label className="text-sm text-textSecondary">{t("matchPrep.lockerRoom")}<select value={lockerRoomOptionId} onChange={event => setLockerRoomOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("locker_room").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
             {isHomeMatch && <label className="text-sm text-textSecondary">Kleedkamer bezoekers<select value={visitorLockerRoomOptionId} onChange={event => setVisitorLockerRoomOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("visitor_locker_room").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
@@ -178,12 +244,14 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
             </div>}
           </div>}
         </section>}
-        {canSelect && <section className="rounded-xl border border-border bg-card">
+        {canViewSelection && <section className="rounded-xl border border-border bg-card">
           <button type="button" onClick={() => setSelectionOpen(open => !open)} className="flex w-full items-center justify-between p-4 text-left font-bold text-textBright">
-            <span>{t("matchPrep.selection")} <span className="font-normal text-textMuted">({drafts.filter(item => item.selected).length}/{drafts.length})</span></span><span className={`text-accent transition ${selectionOpen ? "rotate-180" : ""}`}>▼</span>
+            <span>{t("matchPrep.selection")} <span className="font-normal text-textMuted">({selectedDrafts.length} geselecteerd · {selectedFieldPlayers} + {selectedKeepers} K)</span></span><span className={`text-accent transition ${selectionOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
           {selectionOpen && <div className="space-y-3 border-t border-borderSubtle p-4">
             <p className="rounded-lg border border-borderSubtle bg-cardDeep p-3 text-sm text-textMuted">Alleen spelers die aan deze ploeg zijn toegewezen, kunnen geselecteerd worden.</p>
+            {drafts.length > 0 && minimumPlayers !== "" && drafts.filter(item => item.selected).length < Number(minimumPlayers) && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Voor {matchFormat || "deze spelvorm"} zijn minstens {minimumPlayers} spelers nodig. Momenteel zijn {drafts.filter(item => item.selected).length} spelers geselecteerd.</p>}
+            {duplicateJerseyNumbers.length > 0 && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Dubbel rugnummer bij de geselecteerde spelers: {duplicateJerseyNumbers.join(", ")}.</p>}
             <div className="hidden">
               <h3 className="text-sm font-bold text-textBright">Extra speler uit spelerslijst</h3>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -212,10 +280,10 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
             {players.map(player => {
             const draft = drafts.find(item => item.playerId === player.id)!;
             return <div key={player.id} className="grid gap-2 rounded-lg border border-borderSubtle bg-cardDeep p-3 md:grid-cols-[70px_minmax(160px,1fr)_150px_minmax(180px,1fr)] md:items-center">
-              <input type="number" min="0" max="99" value={draft.jerseyNumber} onChange={event => updatePlayer(player.id, { jerseyNumber: event.target.value })} placeholder="#" className={inputClass} />
-              <div><strong className="text-sm text-textBright">{player.first_name} {player.last_name}</strong><div className="mt-1 flex flex-wrap gap-3"><label className="flex items-center gap-1.5 text-xs text-textSecondary"><input type="radio" name={`selection-${player.id}`} checked={draft.selected} onChange={() => updatePlayer(player.id, { selected: true, reasonId: "" })} className="accent-accent" />{t("matchPrep.selected")}</label><label className="flex items-center gap-1.5 text-xs text-textSecondary"><input type="radio" name={`selection-${player.id}`} checked={!draft.selected} onChange={() => updatePlayer(player.id, { selected: false })} className="accent-accent" />{t("matchPrep.notSelected")}</label></div></div>
-              {!draft.selected ? <select value={draft.reasonId} onChange={event => updatePlayer(player.id, { reasonId: event.target.value })} className={inputClass}><option value="">{t("matchPrep.reason")}</option>{byType("non_selection_reason").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select> : <span className="text-xs text-textMuted">{t("matchPrep.available")}</span>}
-              <input value={draft.note} onChange={event => updatePlayer(player.id, { note: event.target.value })} placeholder={t("matchPrep.note")} className={inputClass} />
+              <input disabled={!canSelect} type="number" min="0" max="99" value={draft.jerseyNumber} onChange={event => updatePlayer(player.id, { jerseyNumber: event.target.value })} placeholder="#" className={`${inputClass} disabled:opacity-60`} />
+              <div><strong className="text-sm text-textBright">{player.first_name} {player.last_name}</strong><div className="mt-1 flex flex-wrap gap-3"><label className="flex items-center gap-1.5 text-xs text-textSecondary"><input disabled={!canSelect} type="radio" name={`selection-${player.id}`} checked={draft.selected} onChange={() => updatePlayer(player.id, { selected: true, reasonId: "" })} className="accent-accent" />{t("matchPrep.selected")}</label><label className="flex items-center gap-1.5 text-xs text-textSecondary"><input disabled={!canSelect} type="radio" name={`selection-${player.id}`} checked={!draft.selected} onChange={() => updatePlayer(player.id, { selected: false })} className="accent-accent" />{t("matchPrep.notSelected")}</label></div></div>
+              {!draft.selected ? <select disabled={!canSelect} value={draft.reasonId} onChange={event => updatePlayer(player.id, { reasonId: event.target.value })} className={`${inputClass} disabled:opacity-60`}><option value="">{t("matchPrep.reason")}</option>{byType("non_selection_reason").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select> : <span className="text-xs text-textMuted">{t("matchPrep.available")}</span>}
+              <input disabled={!canSelect} value={draft.attentionPoint} onChange={event => updatePlayer(player.id, { attentionPoint: event.target.value })} placeholder={t("matchPrep.individualAttention")} className={`${inputClass} disabled:opacity-60`} />
             </div>;
           })}</div>}
         </section>}
@@ -227,8 +295,26 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
           <button type="button" onClick={async () => { const response = await fetch(`/api/matches/${match.id}/tag-link`, { method: "POST" }); const body = await response.json(); if (!response.ok || !body.token) return setNotice(body.error || "Taglink kon niet worden gemaakt."); await navigator.clipboard.writeText(`${window.location.origin}/tag/${body.token}`); setNotice("Taglink gekopieerd."); }} className="mt-3 rounded-lg bg-accent px-4 py-2 font-bold text-page">Taglink genereren en kopiëren</button>
         </section>}
         {notice && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">{notice}</p>}
-        <div className="flex justify-end gap-2">{!embedded && <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-4 py-2 text-textPrimary">{t("common.cancel")}</button>}<button type="button" disabled={busy} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{t("common.save")}</button></div>
+        <div className="flex flex-wrap justify-end gap-2">{!embedded && <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-4 py-2 text-textPrimary">{t("common.cancel")}</button>}{canSelect && <button type="button" disabled={busy} onClick={() => void prepareSelectionSend()} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent disabled:opacity-50">{communication?.latest ? "Selectie opnieuw versturen" : "Selectie versturen"}</button>}{(canPlan || canSelect || canUseTags) && <button type="button" disabled={busy} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{t("common.save")}</button>}</div>
       </div>}
     </div>
+    {sendOpen && communication && <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-3"><section role="dialog" aria-modal="true" aria-label="Selectie versturen" className="w-full max-w-xl rounded-2xl border border-border bg-cardAlt p-5 shadow-2xl">
+      <h2 className="text-xl font-bold text-textBright">Selectie versturen</h2>
+      <p className="mt-1 text-sm text-textMuted">Controleer welke spelers en contactpersonen een persoonlijk bericht ontvangen.</p>
+      <div className="mt-4 space-y-3">
+        <div className="rounded-lg border border-borderSubtle bg-cardDeep p-3">
+          <p className="font-semibold text-textPrimary">Geselecteerde spelers en contactpersonen</p>
+          <p className="text-xs text-textMuted">{communication.selectedRecipients} e-mailontvangers{communication.selectedPlayersWithoutEmail ? ` · ${communication.selectedPlayersWithoutEmail} speler(s) zonder bereikbaar e-mailadres` : ""}</p>
+          <label className="mt-2 flex items-center gap-2 text-sm text-textSecondary"><input type="checkbox" checked={includeSelectedAttention} onChange={event => setIncludeSelectedAttention(event.target.checked)} className="accent-accent" />Individuele aandachtspunten meesturen</label>
+        </div>
+        <div className="rounded-lg border border-borderSubtle bg-cardDeep p-3">
+          <label className="flex items-center gap-2 font-semibold text-textPrimary"><input type="checkbox" checked={notifyNotSelected} onChange={event => setNotifyNotSelected(event.target.checked)} className="accent-accent" />Niet-geselecteerde spelers en hun contactpersonen verwittigen</label>
+          <p className="mt-1 text-xs text-textMuted">{communication.notSelectedRecipients} mogelijke e-mailontvangers</p>
+          <label className={`mt-2 flex items-center gap-2 text-sm ${notifyNotSelected ? "text-textSecondary" : "text-textMuted"}`}><input type="checkbox" disabled={!notifyNotSelected} checked={includeNotSelectedAttention} onChange={event => setIncludeNotSelectedAttention(event.target.checked)} className="accent-accent" />Hun individuele aandachtspunten meesturen</label>
+        </div>
+      </div>
+      {!!communication.history.length && <details className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-3"><summary className="cursor-pointer text-sm font-semibold text-textPrimary">Verzendhistoriek</summary><div className="mt-2 space-y-2">{communication.history.map(item => <div key={item.id} className="flex items-center justify-between gap-3 text-xs text-textMuted"><span>{new Date(item.completed_at ?? item.created_at).toLocaleString("nl-BE")} · {item.profiles?.full_name || "staff"}</span><span>{item.sent_recipient_count}/{item.intended_recipient_count} verstuurd · {item.status}</span></div>)}</div></details>}
+      <div className="mt-5 flex justify-end gap-2"><button type="button" disabled={sending} onClick={() => setSendOpen(false)} className="rounded-lg border border-borderButton px-4 py-2 text-textPrimary">Annuleren</button><button type="button" disabled={sending || communication.selectedRecipients + (notifyNotSelected ? communication.notSelectedRecipients : 0) === 0} onClick={() => void sendSelection()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{sending ? "Versturen…" : "Selectie versturen"}</button></div>
+    </section></div>}
   </div>;
 }

@@ -20,33 +20,42 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
   const [unresolvedClubNameCount, setUnresolvedClubNameCount] = useState(0);
   const [canApproveRequests, setCanApproveRequests] = useState(false);
   const [canReviewClubNames, setCanReviewClubNames] = useState(false);
-  const primaryNavigation = navigation.filter((item) => item.primary);
-  const moreNavigation = navigation.filter((item) => !item.primary);
+  const mailboxIndex = navigation.findIndex((item) => item.href === "/dashboard/inbox");
+  const beforeMessages = mailboxIndex >= 0 ? navigation.slice(0, mailboxIndex + 1) : navigation;
+  const afterMessages = mailboxIndex >= 0 ? navigation.slice(mailboxIndex + 1) : [];
   const actionCount = unreadMailboxCount + pendingApprovalCount + unresolvedClubNameCount;
   const showClubSelector = isPlatformAdmin || clubs.length > 1;
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/dashboard/badge-counts")
-      .then((response) => response.ok ? response.json() : null)
-      .then((body: { unreadMailboxCount?: number; pendingApprovalCount?: number; unresolvedClubNameCount?: number; canApproveRequests?: boolean; canReviewClubNames?: boolean } | null) => {
-        if (cancelled || !body) return;
-        setUnreadMailboxCount(body.unreadMailboxCount ?? 0);
-        setPendingApprovalCount(body.pendingApprovalCount ?? 0);
-        setUnresolvedClubNameCount(body.unresolvedClubNameCount ?? 0);
-        setCanApproveRequests(body.canApproveRequests === true);
-        setCanReviewClubNames(body.canReviewClubNames === true);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
+    function refreshCounts() {
+      fetch("/api/dashboard/badge-counts", { cache: "no-store" })
+        .then((response) => response.ok ? response.json() : null)
+        .then((body: { unreadMailboxCount?: number; pendingApprovalCount?: number; unresolvedClubNameCount?: number; canApproveRequests?: boolean; canReviewClubNames?: boolean } | null) => {
+          if (cancelled || !body) return;
+          setUnreadMailboxCount(body.unreadMailboxCount ?? 0);
+          setPendingApprovalCount(body.pendingApprovalCount ?? 0);
+          setUnresolvedClubNameCount(body.unresolvedClubNameCount ?? 0);
+          setCanApproveRequests(body.canApproveRequests === true);
+          setCanReviewClubNames(body.canReviewClubNames === true);
+        })
+        .catch(() => {});
+    }
+    refreshCounts();
+    window.addEventListener("dashboard-badges:refresh", refreshCounts);
+    window.addEventListener("focus", refreshCounts);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("dashboard-badges:refresh", refreshCounts);
+      window.removeEventListener("focus", refreshCounts);
+    };
   }, [activeClubId]);
   const actionsMenuRef = useRef<HTMLDetailsElement>(null);
-  const moreMenuRef = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
     function closeMenus(event: PointerEvent) {
       const target = event.target as Node;
-      for (const menu of [actionsMenuRef.current, moreMenuRef.current]) {
+      for (const menu of [actionsMenuRef.current]) {
         if (menu?.open && !menu.contains(target)) menu.open = false;
       }
     }
@@ -56,7 +65,6 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
 
   useEffect(() => {
     if (actionsMenuRef.current) actionsMenuRef.current.open = false;
-    if (moreMenuRef.current) moreMenuRef.current.open = false;
   }, [pathname]);
   async function signOut() {
     await createClient().auth.signOut();
@@ -68,15 +76,8 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
 
   return (
     <div className="sticky top-0 z-40 border-b border-border bg-card/95 px-1.5 py-1.5 backdrop-blur sm:px-5 sm:py-3">
-      <div className="mx-auto flex max-w-7xl items-center gap-1 sm:gap-3">
-        <Link
-          href="/dashboard"
-          title="Home"
-          aria-label="Home"
-          className={actionClass}
-        >
-          <MenuIcon src="/branding/Menu/home.svg" />
-        </Link>
+      <div className="relative mx-auto flex max-w-[96rem] flex-col items-center justify-center gap-1 sm:gap-2 xl:flex-row">
+        <div className="flex items-center gap-3 xl:absolute xl:left-0">
         {activeClub?.logoUrl ? (
           <Image
             src={activeClub.logoUrl}
@@ -106,18 +107,21 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
             {clubs.map((club) => <option key={club.id} value={club.id}>{club.name}</option>)}
           </select>
         )}
-        <div className="ml-auto flex min-w-0 items-center justify-end gap-1 sm:gap-2">
-          <nav aria-label="Belangrijkste modules" className="flex min-w-0 items-center gap-1 overflow-x-auto py-1 sm:gap-2">
-            {primaryNavigation.map(item => (
+        </div>
+        <div className="flex min-w-0 max-w-full items-center justify-center gap-1 sm:gap-2">
+          <nav aria-label="Hoofdnavigatie" className="flex min-w-0 items-center gap-1 overflow-x-auto py-1 sm:gap-2">
+            <Link href="/dashboard" title="Home" aria-label="Home" className={`${actionClass} ${pathname === "/dashboard" ? activeClass : ""}`}>
+              <MenuIcon src="/branding/cbcs_black_icons/home.png" />
+            </Link>
+            {beforeMessages.map(item => (
               <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} ${pathname.startsWith(item.href) ? activeClass : ""}`}>
                 <MenuIcon src={item.icon} />
               </Link>
             ))}
-          </nav>
           <details ref={actionsMenuRef} className="group/actions relative">
-            <summary title="Acties en meldingen" aria-label={`${actionCount} openstaande acties`} className={`${actionClass} relative cursor-pointer list-none ${pathname.startsWith("/dashboard/inbox") ? activeClass : ""}`}>
-              <MenuIcon src="/branding/Menu/taken-notities.png" />
-              {actionCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-card bg-red-500 px-1 text-[10px] font-black leading-none text-white">{actionCount > 99 ? "99+" : actionCount}</span>}
+            <summary title="Berichten en meldingen" aria-label={`${actionCount} openstaande acties`} className={`${actionClass} relative cursor-pointer list-none`}>
+              <MenuIcon src="/branding/cbcs_black_icons/berichten.png" />
+              <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-card bg-red-500 px-1 text-[10px] font-black leading-none text-white">{actionCount > 99 ? "99+" : actionCount}</span>
             </summary>
             <div className="absolute right-0 top-full mt-2 w-72 overflow-hidden rounded-xl border border-border bg-cardAlt shadow-2xl">
               <div className="border-b border-borderSubtle px-4 py-3"><strong className="text-textBright">Acties</strong><p className="text-xs text-textMuted">Alles wat je aandacht vraagt.</p></div>
@@ -139,16 +143,15 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
               {!unreadMailboxCount && !canApproveRequests && !canReviewClubNames && <p className="border-t border-borderSubtle px-4 py-3 text-xs text-textMuted">Geen openstaande acties.</p>}
             </div>
           </details>
-          <details ref={moreMenuRef} className="group/more relative">
-            <summary title="Meer" aria-label="Meer navigatie" className={`${actionClass} cursor-pointer list-none`}><MenuIcon src="/branding/Menu/meer.png" /></summary>
-            <div className="absolute right-0 top-full mt-2 w-64 overflow-hidden rounded-xl border border-border bg-cardAlt py-2 shadow-2xl">
-              {moreNavigation.map((item) => <Link key={item.href} href={item.href} className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-cardHover ${pathname.startsWith(item.href) ? "bg-accentDim text-accent" : "text-textPrimary"}`}><MenuIcon src={item.icon} compact />{item.label}</Link>)}
-              <div className="my-2 border-t border-borderSubtle" />
-              <Link href="/dashboard/settings" className="flex items-center gap-3 px-4 py-2.5 text-sm text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/Menu/instellingen.png" compact />Instellingen</Link>
-              <Link href="/dashboard/help" className="flex items-center gap-3 px-4 py-2.5 text-sm text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/Menu/help.png" compact />Help</Link>
-              <button type="button" onClick={() => void signOut()} className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/Menu/afmelden.png" compact />Afmelden</button>
-            </div>
-          </details>
+            {afterMessages.map(item => (
+              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} ${pathname.startsWith(item.href) ? activeClass : ""}`}>
+                <MenuIcon src={item.icon} />
+              </Link>
+            ))}
+            <Link href="/dashboard/settings" title="Instellingen" aria-label="Instellingen" className={`${actionClass} ${pathname.startsWith("/dashboard/settings") ? activeClass : ""}`}><MenuIcon src="/branding/cbcs_black_icons/instellingen.png" /></Link>
+            <Link href="/dashboard/help" title="Help" aria-label="Help" className={`${actionClass} ${pathname.startsWith("/dashboard/help") ? activeClass : ""}`}><MenuIcon src="/branding/cbcs_black_icons/help.png" /></Link>
+            <button type="button" title="Afmelden" aria-label="Afmelden" onClick={() => void signOut()} className={actionClass}><MenuIcon src="/branding/cbcs_black_icons/afmelden.png" /></button>
+          </nav>
         </div>
       </div>
     </div>

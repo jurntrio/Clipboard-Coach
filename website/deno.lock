@@ -20,6 +20,8 @@
         "npm:@types/react@^18.3.5",
         "npm:autoprefixer@^10.4.20",
         "npm:clsx@^2.1.1",
+        "npm:eslint-config-next@^14.2.35",
+        "npm:eslint@^8.57.1",
         "npm:hls.js@^1.5.15",
         "npm:mediabunny@^1.50.9",
         "npm:next@^14.2.15",

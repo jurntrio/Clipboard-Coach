@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { cookies } from "next/headers";
+import { ACTIVE_TEAM_COOKIE, readActiveTeamSelection } from "@/lib/auth/active-team";
 
 export async function GET() {
   const context = await getClubContext();
@@ -13,11 +15,14 @@ export async function GET() {
     if (!access) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
     const authorization = await getClubAccess(context.activeClubId, user);
     if (!hasClubPermission(authorization, "teams.view")) return NextResponse.json({ error: "Geen toegang tot Teams." }, { status: 403 });
-    const [{ data: clubTeams }, { data: permissions }] = await Promise.all([
-      admin.from("club_teams").select("id, trainers_can_edit_roster, display_order").eq("club_id", context.activeClubId).eq("status", "active").order("display_order").order("name"),
+    const [{ data: activeSeason }, { data: permissions }] = await Promise.all([
+      admin.from("club_seasons").select("id").eq("club_id", context.activeClubId).eq("status", "ACTIVE").maybeSingle(),
       admin.from("club_module_entitlements").select("module_key, enabled").eq("club_id", context.activeClubId)
         .in("module_key", ["teams_manage", "teams_import"])
     ]);
+    const { data: clubTeams } = activeSeason
+      ? await admin.from("club_teams").select("id, trainers_can_edit_roster, display_order").eq("club_id", context.activeClubId).eq("season_id", activeSeason.id).neq("status", "merged").order("display_order").order("name")
+      : { data: [] };
     const teamsManageEnabled = permissions?.find((item) => item.module_key === "teams_manage")?.enabled !== false;
     const teamsImportEnabled = teamsManageEnabled && permissions?.find((item) => item.module_key === "teams_import")?.enabled !== false;
     let allowedIds = (clubTeams ?? []).map((team) => team.id);
@@ -25,6 +30,8 @@ export async function GET() {
     if (!clubWide) {
       allowedIds = allowedIds.filter((id) => canAccessTeam(authorization, id));
     }
+    const selection = readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(allowedIds));
+    if (selection.teamId) allowedIds = [selection.teamId];
     const { data: teams } = allowedIds.length
       ? await admin.from("teams").select("*, players(id, role), club_teams!inner(trainers_can_edit_roster, display_order)").in("club_team_id", allowedIds)
       : { data: [] };

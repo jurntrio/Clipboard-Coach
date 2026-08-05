@@ -30,7 +30,7 @@ export function ClubApprovals() {
       : await fetch("/api/club/approvals", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, id, decision }) });
     const body = await response.json().catch(() => null);
     if (!response.ok) setError(body?.error || "De aanvraag kon niet beoordeeld worden.");
-    else { await load(); router.refresh(); }
+    else { await load(); window.dispatchEvent(new Event("dashboard-badges:refresh")); router.refresh(); }
     setBusy("");
   }
 

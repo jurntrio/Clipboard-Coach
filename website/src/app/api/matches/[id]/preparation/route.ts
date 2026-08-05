@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { isMatchFormat } from "@/lib/match-defaults";
 
 async function context(matchId: string) {
   const supabase = createClient();
@@ -15,7 +16,7 @@ async function context(matchId: string) {
     return { response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
   const canPrepare = hasClubPermission(access, "games.planning.manage") || hasClubPermission(access, "games.selection.manage")
-    || hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.tag_link.create");
+    || hasClubPermission(access, "games.selection.view") || hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.tag_link.create");
   if (!canPrepare) return { response: NextResponse.json({ error: "Geen recht om deze wedstrijd voor te bereiden." }, { status: 403 }) };
   return { admin, match, access };
 }
@@ -25,21 +26,31 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   if ("response" in ctx) return ctx.response;
   const canPlan = hasClubPermission(ctx.access, "games.planning.manage");
   const canSelect = hasClubPermission(ctx.access, "games.selection.manage");
+  const canViewSelection = canSelect || hasClubPermission(ctx.access, "games.selection.view");
   const canTags = hasClubPermission(ctx.access, "games.tag");
   const canCreateTagLink = hasClubPermission(ctx.access, "games.tag_link.create");
-  const [{ data: options }, { data: selections }, { data: team }] = await Promise.all([
-    canPlan || canSelect ? ctx.admin.from("club_match_options").select("*").eq("club_id", ctx.match.club_id).eq("active", true).order("label") : Promise.resolve({ data: [] }),
-    canSelect ? ctx.admin.from("match_player_selections").select("*").eq("match_id", params.id) : Promise.resolve({ data: [] }),
-    canSelect && ctx.match.team_a_id
+  const [{ data: options }, { data: selections }, { data: team }, { data: clubTeam }] = await Promise.all([
+    canPlan || canViewSelection ? ctx.admin.from("club_match_options").select("*").eq("club_id", ctx.match.club_id).eq("active", true).order("label") : Promise.resolve({ data: [] }),
+    canViewSelection ? ctx.admin.from("match_player_selections").select("*").eq("match_id", params.id) : Promise.resolve({ data: [] }),
+    canViewSelection && ctx.match.team_a_id
       ? ctx.admin.from("teams").select("id, players(*)").eq("id", ctx.match.team_a_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    ctx.match.club_team_id
+      ? ctx.admin.from("club_teams").select("match_format, match_period_count, match_period_minutes, match_minimum_players").eq("id", ctx.match.club_team_id).maybeSingle()
       : Promise.resolve({ data: null })
   ]);
   const allowedPlayerIds = ctx.access.goalkeeperPlayerIds;
   return NextResponse.json({
-    match: allowedPlayerIds === null ? ctx.match : { ...ctx.match, player_ids: (ctx.match.player_ids ?? []).filter((id: string) => allowedPlayerIds.has(id)) },
+    match: {
+      ...(allowedPlayerIds === null ? ctx.match : { ...ctx.match, player_ids: (ctx.match.player_ids ?? []).filter((id: string) => allowedPlayerIds.has(id)) }),
+      match_format: ctx.match.match_format ?? clubTeam?.match_format ?? null,
+      match_period_count: ctx.match.match_period_count ?? clubTeam?.match_period_count ?? null,
+      match_period_minutes: ctx.match.match_period_minutes ?? clubTeam?.match_period_minutes ?? null,
+      match_minimum_players: ctx.match.match_minimum_players ?? clubTeam?.match_minimum_players ?? null
+    },
     options: options ?? [], selections: allowedPlayerIds === null ? selections ?? [] : (selections ?? []).filter((selection) => allowedPlayerIds.has(selection.player_id)),
     players: allowedPlayerIds === null ? team?.players ?? [] : (team?.players ?? []).filter((player) => allowedPlayerIds.has(player.id)),
-    extraPlayers: [], guestPlayers: [], capabilities: { canPlan, canSelect, canTags, canCreateTagLink }
+    extraPlayers: [], guestPlayers: [], capabilities: { canPlan, canSelect, canViewSelection, canTags, canCreateTagLink }
   });
 }
 
@@ -52,13 +63,14 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const body = await request.json().catch(() => null) as Record<string, any> | null;
   const time = (value: unknown) => typeof value === "string" && /^\d{2}:\d{2}$/.test(value) ? value : null;
   const id = (value: unknown) => typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
+  const integer = (value: unknown, min: number, max: number) => Number.isInteger(value) && Number(value) >= min && Number(value) <= max ? Number(value) : null;
   const selectedRows = Array.isArray(body?.players) ? body.players.slice(0, 100).flatMap((row: any) => {
     if (!id(row?.playerId)) return [];
     return [{
       match_id: params.id, player_id: row.playerId, selected: row.selected === true,
       jersey_number: Number.isInteger(row.jerseyNumber) && row.jerseyNumber >= 0 && row.jerseyNumber <= 99 ? row.jerseyNumber : null,
       non_selection_reason_id: row.selected === true ? null : id(row.reasonId),
-      note: typeof row.note === "string" ? row.note.trim().slice(0, 500) || null : null,
+      individual_attention_point: typeof row.attentionPoint === "string" ? row.attentionPoint.trim().slice(0, 1000) || null : null,
       updated_at: new Date().toISOString()
     }];
   }) : [];
@@ -102,6 +114,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       referee_option_id: id(body?.refereeOptionId),
       meeting_place_option_id: body?.meetingPlaceEnabled === true ? id(body?.meetingPlaceOptionId) : null,
       meeting_place_custom: body?.meetingPlaceEnabled === true && typeof body?.meetingPlaceCustom === "string" ? body.meetingPlaceCustom.trim().slice(0, 150) || null : null,
+      match_format: isMatchFormat(body?.matchFormat) ? body.matchFormat : null,
+      match_period_count: integer(body?.periodCount, 1, 12),
+      match_period_minutes: integer(body?.periodMinutes, 1, 120),
+      match_minimum_players: integer(body?.minimumPlayers, 1, 30),
       ...(canTags ? { live_tag_names: tags } : {})
     } : {}),
     ...(canSelect ? { player_ids: ctx.access.goalkeeperPlayerIds === null

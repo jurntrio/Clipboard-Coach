@@ -3,6 +3,7 @@ import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { defaultsForAgeCategory, isMatchFormat } from "@/lib/match-defaults";
 
 const teamRoles = new Set(["coach", "assistant_coach", "team_manager"]);
 const teamStatuses = new Set(["active", "inactive", "pending", "rejected", "archived"]);
@@ -33,6 +34,10 @@ function text(value: unknown, max = 120) {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "";
 }
 
+function integer(value: unknown, min: number, max: number) {
+  return Number.isInteger(value) && Number(value) >= min && Number(value) <= max ? Number(value) : null;
+}
+
 export async function POST(request: Request) {
   const ctx = await context(request);
   if ("response" in ctx) return ctx.response;
@@ -42,10 +47,16 @@ export async function POST(request: Request) {
   if (!clubId || !name) return NextResponse.json({ error: "Club en teamnaam zijn verplicht." }, { status: 400 });
   if (!await canManage(ctx.admin, ctx.user.id, clubId, ctx.platformAdmin)) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
   const { data: lastTeam } = await ctx.admin.from("club_teams").select("display_order").eq("club_id", clubId).order("display_order", { ascending: false }).limit(1).maybeSingle();
+  const ageCategory = text(body?.ageCategory, 60);
+  const defaults = defaultsForAgeCategory(ageCategory);
   const { data, error } = await ctx.admin.from("club_teams").insert({
     club_id: clubId, name, normalized_name: name,
     display_order: (lastTeam?.display_order ?? -1) + 1,
-    age_category: text(body?.ageCategory, 60) || null,
+    age_category: ageCategory || null,
+    match_format: isMatchFormat(body?.matchFormat) ? body.matchFormat : defaults?.format ?? null,
+    match_period_count: integer(body?.periodCount, 1, 12) ?? defaults?.periodCount ?? null,
+    match_period_minutes: integer(body?.periodMinutes, 1, 120) ?? defaults?.periodMinutes ?? null,
+    match_minimum_players: integer(body?.minimumPlayers, 1, 30) ?? defaults?.minimumPlayers ?? null,
     level_or_competition: text(body?.levelOrCompetition, 100) || null,
     status: "active", created_by: ctx.user.id, approved_by: ctx.user.id, approved_at: new Date().toISOString()
   }).select("*").single();
@@ -93,6 +104,10 @@ export async function PATCH(request: Request) {
   if ("levelOrCompetition" in (body ?? {})) update.level_or_competition = text(body?.levelOrCompetition, 100) || null;
   if ("trainersCanEditRoster" in (body ?? {})) update.trainers_can_edit_roster = body?.trainersCanEditRoster === true;
   if ("trainersCanManageMatches" in (body ?? {})) update.trainers_can_manage_matches = body?.trainersCanManageMatches === true;
+  if ("matchFormat" in (body ?? {})) update.match_format = isMatchFormat(body?.matchFormat) ? body.matchFormat : null;
+  if ("periodCount" in (body ?? {})) update.match_period_count = integer(body?.periodCount, 1, 12);
+  if ("periodMinutes" in (body ?? {})) update.match_period_minutes = integer(body?.periodMinutes, 1, 120);
+  if ("minimumPlayers" in (body ?? {})) update.match_minimum_players = integer(body?.minimumPlayers, 1, 30);
   if (status) update.status = status;
   if (status === "active" && team.status === "pending") Object.assign(update, { approved_by: ctx.user.id, approved_at: new Date().toISOString() });
   const { data, error } = await ctx.admin.from("club_teams").update(update).eq("id", teamId).select("*").single();

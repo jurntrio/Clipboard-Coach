@@ -55,6 +55,10 @@ export type ClubTeam = {
   name: string;
   normalized_name: string;
   age_category: string | null;
+  match_format: "5v5" | "8v8" | "11v11" | null;
+  match_period_count: number | null;
+  match_period_minutes: number | null;
+  match_minimum_players: number | null;
   level_or_competition: string | null;
   trainers_can_edit_roster: boolean;
   trainers_can_manage_matches: boolean;
@@ -317,6 +321,10 @@ export type Match = {
   referee_option_id: string | null;
   meeting_place_option_id: string | null;
   meeting_place_custom: string | null;
+  match_format: "5v5" | "8v8" | "11v11" | null;
+  match_period_count: number | null;
+  match_period_minutes: number | null;
+  match_minimum_players: number | null;
 };
 
 export type TeamTrainingSession = {

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { TeamContextHeader } from "@/components/teams/TeamContextHeader";
 
 export type ProfileContext = {
   id: string;
@@ -64,6 +65,8 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
       </div>
       <Link href="/dashboard/settings" className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent">Profiel bewerken</Link>
     </header>
+
+    <TeamContextHeader />
 
     <section>
       <div className="mb-3">

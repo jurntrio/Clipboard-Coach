@@ -1,5 +1,7 @@
 # Clipboard Coach Studio — Web
 
+Productideeën en bewust uitgesteld werk worden centraal bijgehouden in [docs/product-backlog.md](docs/product-backlog.md).
+
 Web version of the desktop app: Teams, Video Viewer + Tagging, Clip Builder,
 Clip Library, and Shareable Clip links. Player tracking/heatmaps stay
 desktop-only and are not part of this project.

@@ -25,6 +25,11 @@ type Team = {
   sponsor_source?: "team" | "club" | "none";
   trainers_can_edit_roster: boolean;
   trainers_can_manage_matches: boolean;
+  age_category: string | null;
+  match_format: "5v5" | "8v8" | "11v11" | null;
+  match_period_count: number | null;
+  match_period_minutes: number | null;
+  match_minimum_players: number | null;
   club_trainer_teams?: { trainer_id: string; role: string; status: string }[];
   teams?: { id: string; players: { id: string; first_name: string; last_name: string; date_of_birth: string | null; email: string | null; phone_numbers: string[]; role: "player" | "staff"; is_goalkeeper: boolean }[] }[];
 };
