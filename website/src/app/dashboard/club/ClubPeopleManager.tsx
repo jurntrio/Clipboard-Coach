@@ -14,10 +14,12 @@ type Role = {
 type Invitation = {
   id: string; intended_email: string | null; status: string; expires_at: string; created_at: string;
 };
+type PlayerOption = { id: string; first_name: string; last_name: string };
+type PlayerContact = { id: string; club_player_id: string; profile_id: string; revoked_at: string | null };
 type Person = {
   id: string; personId: string; firstName: string; lastName: string; dateOfBirth: string | null;
   status: string; personStatus: string; externalMemberId: string | null;
-  accounts: Account[]; roles: Role[]; invitations: Invitation[];
+  accounts: Account[]; roles: Role[]; invitations: Invitation[]; playerContacts: PlayerContact[];
 };
 type Claim = {
   id: string; requested_profile_id: string; candidate_person_id: string | null; reason: string;
@@ -45,14 +47,17 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
 }) {
   const [people, setPeople] = useState<Person[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
+  const [players, setPlayers] = useState<PlayerOption[]>([]);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState("");
   const [busy, setBusy] = useState("");
+  const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
   async function load() {
     setError("");
+    setLoading(true);
     const [peopleResponse, claimsResponse] = await Promise.all([
       fetch(`/api/club/people?clubId=${encodeURIComponent(clubId)}`),
       readOnly ? Promise.resolve(null) : fetch(`/api/club/person-claims?clubId=${encodeURIComponent(clubId)}`)
@@ -60,15 +65,17 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
     const peopleBody = await peopleResponse.json();
     if (!peopleResponse.ok) throw new Error(peopleBody.error || "Personen konden niet geladen worden.");
     setPeople(peopleBody.people ?? []);
+    setPlayers(peopleBody.players ?? []);
     if (claimsResponse) {
       const claimsBody = await claimsResponse.json();
       if (!claimsResponse.ok) throw new Error(claimsBody.error || "Claims konden niet geladen worden.");
       setClaims(claimsBody.claims ?? []);
     }
+    setLoading(false);
   }
 
   useEffect(() => {
-    void load().catch((reason) => setError(reason.message));
+    void load().catch((reason) => { setError(reason.message); setLoading(false); });
   }, [clubId]);
 
   const visiblePeople = useMemo(() => {
@@ -122,12 +129,12 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
       <input value={query} onChange={(event) => setQuery(event.target.value)}
         placeholder="Zoek op naam of e-mail…" className={inputClass} />
     </div>
-    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+    {!loading && !error && <div className="mt-3 flex flex-wrap gap-2 text-xs">
       <Summary label="Personen" value={people.length} />
       <Summary label="Gekoppelde accounts" value={people.filter(person => person.accounts.some(account => account.status === "active")).length} />
       <Summary label="Zonder account" value={people.filter(person => !person.accounts.some(account => account.status === "active")).length} />
       {!readOnly && <Summary label="Claims te beoordelen" value={claims.length} warning={claims.length > 0} />}
-    </div>
+    </div>}
     {notice && <p className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</p>}
     {error && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
 
@@ -151,7 +158,8 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
       </div>)}</div>
     </div>}
 
-    <div className="mt-5 space-y-2">{visiblePeople.map((person) => {
+    {loading && <p className="mt-5 text-sm text-textMuted">Personen laden…</p>}
+    {!loading && !error && <div className="mt-5 space-y-2">{visiblePeople.map((person) => {
       const activeAccount = person.accounts.find((account) => account.status === "active");
       const activeRoles = person.roles.filter((role) => role.status === "active");
       const pendingInvite = person.invitations.find((invite) => invite.status === "pending" && new Date(invite.expires_at) > new Date());
@@ -167,7 +175,7 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
           <span aria-hidden="true" className="text-textMuted">{expanded === person.id ? "▲" : "▼"}</span>
         </button>
         {expanded === person.id && <div className="border-t border-borderSubtle p-4">
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-3">
             <div>
               <h4 className="text-sm font-semibold text-textPrimary">Account</h4>
               {activeAccount ? <div className="mt-2 rounded-lg border border-border bg-card p-3 text-sm">
@@ -183,12 +191,45 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
             </div>
             <RoleEditor person={person} roles={activeRoles} teams={teams} readOnly={readOnly} busy={busy}
               onRequest={request} clubId={clubId} />
+            <PlayerContactEditor person={person} players={players} readOnly={readOnly} busy={busy}
+              onRequest={request} clubId={clubId} />
           </div>
         </div>}
       </article>;
-    })}</div>
-    {!visiblePeople.length && <p className="mt-5 text-sm text-textMuted">Geen personen gevonden.</p>}
+    })}</div>}
+    {!loading && !error && !visiblePeople.length && <p className="mt-5 text-sm text-textMuted">Geen personen gevonden.</p>}
   </section>;
+}
+
+function PlayerContactEditor({ person, players, readOnly, busy, onRequest, clubId }: {
+  person: Person; players: PlayerOption[]; readOnly: boolean; busy: string;
+  onRequest: (path: string, method: string, body: Record<string, unknown>, key: string) => Promise<unknown>;
+  clubId: string;
+}) {
+  const [playerId, setPlayerId] = useState("");
+  const linkedIds = new Set(person.playerContacts.map((contact) => contact.club_player_id));
+  const linkedPlayers = players.filter((player) => linkedIds.has(player.id));
+  const availablePlayers = players.filter((player) => !linkedIds.has(player.id));
+  return <div>
+    <h4 className="text-sm font-semibold text-textPrimary">Contactpersoon van</h4>
+    <div className="mt-2 space-y-2">{linkedPlayers.map((player) => <div key={player.id} className="flex items-center gap-2 rounded-lg border border-border bg-card p-3 text-sm">
+      <span className="min-w-0 flex-1 text-textPrimary">{player.first_name} {player.last_name}</span>
+      {!readOnly && <button disabled={!!busy} onClick={() => void onRequest("/api/club/person-player-contacts", "DELETE", {
+        clubId, clubPersonId: person.id, clubPlayerId: player.id
+      }, `contact:${person.id}:${player.id}`)} className={secondaryButton}>Ontkoppelen</button>}
+    </div>)}</div>
+    {!linkedPlayers.length && <p className="mt-2 text-sm text-textMuted">Niet gekoppeld aan een speler.</p>}
+    {!readOnly && person.accounts.some((account) => account.status === "active") && <div className="mt-3 flex gap-2">
+      <select value={playerId} onChange={(event) => setPlayerId(event.target.value)} className={`${inputClass} min-w-0 flex-1`}>
+        <option value="">Kies een speler…</option>
+        {availablePlayers.map((player) => <option key={player.id} value={player.id}>{player.first_name} {player.last_name}</option>)}
+      </select>
+      <button disabled={!!busy || !playerId} onClick={() => void onRequest("/api/club/person-player-contacts", "POST", {
+        clubId, clubPersonId: person.id, clubPlayerId: playerId
+      }, `contact:${person.id}:${playerId}`).then(() => setPlayerId(""))} className={primaryButton}>Speler koppelen</button>
+    </div>}
+    {!readOnly && !person.accounts.some((account) => account.status === "active") && <p className="mt-2 text-xs text-textMuted">Koppel eerst een account aan deze persoon.</p>}
+  </div>;
 }
 
 function RoleEditor({ person, roles, teams, readOnly, busy, onRequest, clubId }: {

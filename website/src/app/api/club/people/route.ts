@@ -27,7 +27,10 @@ export async function GET(request: Request) {
       id, person_id, external_member_id, status, joined_at, left_at,
       people(
         id, first_name, last_name, date_of_birth, status,
-        person_accounts(id, profile_id, status, link_method, verified_at, revoked_at, profiles(email))
+        person_accounts(
+          id, profile_id, status, link_method, verified_at, revoked_at,
+          profiles!person_accounts_profile_id_fkey(email)
+        )
       ),
       club_role_assignments(
         id, role_type, club_team_id, valid_from, valid_until, status,
@@ -38,6 +41,21 @@ export async function GET(request: Request) {
     .eq("club_id", clubId)
     .order("created_at");
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  const profileIds = [...new Set((clubPeople ?? []).flatMap((clubPerson) => {
+    const person = clubPerson.people as unknown as { person_accounts?: Array<{ profile_id: string; status: string; revoked_at: string | null }> } | null;
+    return (person?.person_accounts ?? [])
+      .filter((account) => account.status === "active" && !account.revoked_at)
+      .map((account) => account.profile_id);
+  }))];
+  const [{ data: clubPlayers, error: playersError }, { data: contactLinks, error: contactsError }] = await Promise.all([
+    admin.from("club_players").select("id, first_name, last_name").eq("club_id", clubId).order("last_name").order("first_name"),
+    profileIds.length
+      ? admin.from("player_guardians").select("id, club_player_id, profile_id, revoked_at").in("profile_id", profileIds).is("revoked_at", null)
+      : Promise.resolve({ data: [], error: null })
+  ]);
+  if (playersError) return NextResponse.json({ error: playersError.message }, { status: 400 });
+  if (contactsError) return NextResponse.json({ error: contactsError.message }, { status: 400 });
 
   const people = (clubPeople ?? []).map((clubPerson) => {
     const person = clubPerson.people as unknown as {
@@ -68,9 +86,12 @@ export async function GET(request: Request) {
       dateOfBirth: person.date_of_birth,
       personStatus: person.status,
       accounts: person.person_accounts ?? [],
+      playerContacts: (contactLinks ?? []).filter((link) =>
+        person.person_accounts.some((account) => account.profile_id === link.profile_id)
+      ),
       roles: clubPerson.club_role_assignments ?? [],
       invitations: clubPerson.person_account_invitations ?? []
     };
   });
-  return NextResponse.json({ people, readOnly: authorization.readOnly });
+  return NextResponse.json({ people, players: clubPlayers ?? [], readOnly: authorization.readOnly });
 }
