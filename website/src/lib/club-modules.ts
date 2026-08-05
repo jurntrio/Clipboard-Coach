@@ -4,6 +4,7 @@ export const CLUB_MODULES = [
   { key: "matches", label: "Wedstrijden" },
   { key: "clips", label: "Clips" },
   { key: "training", label: "Training" },
+  { key: "training_builder", label: "Trainingstool (tekentool)" },
   { key: "intradesk", label: "Intradesk" },
   { key: "media", label: "Media" },
   { key: "attendance", label: "Aanwezigheden" },
@@ -26,7 +27,7 @@ export const CLUB_MODULE_BUNDLES = [
     key: "training",
     label: "Training",
     description: "Trainingen, tekentool en de gedeelde Intradesk-bibliotheek.",
-    modules: ["training", "intradesk"]
+    modules: ["training", "training_builder", "intradesk"]
   },
   {
     key: "video_analysis",

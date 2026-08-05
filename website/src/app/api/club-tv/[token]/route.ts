@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveClubLogoById } from "@/lib/belgian-clubs/resolve-club-logo";
+import { isClubModuleEnabled } from "@/lib/auth/club-module";
+import { getServerI18n } from "@/i18n/server";
 export const dynamic = "force-dynamic";
 
 export async function GET(
@@ -22,6 +24,15 @@ export async function GET(
       { error: "Club-TV-scherm niet gevonden." },
       { status: 404 },
     );
+  // Preview requests come from the dashboard, which already gates the
+  // "media" module at the page level (including a platform-admin bypass) -
+  // only the public, token-based screen playback needs the check here.
+  if (!preview && !(await isClubModuleEnabled(screen.club_id, "media", admin))) {
+    return NextResponse.json(
+      { error: getServerI18n().t("clubModule.mediaDisabled") },
+      { status: 403 },
+    );
+  }
   const all = (screen.club_tv_blocks ?? [])
       .filter((b: any) => b.active)
       .sort((a: any, b: any) => a.display_order - b.display_order),

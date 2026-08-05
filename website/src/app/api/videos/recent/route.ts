@@ -5,6 +5,8 @@ import { ACTIVE_TEAM_COOKIE, readActiveTeamSelection } from "@/lib/auth/active-t
 import { resolveDefaultTeamId } from "@/lib/auth/default-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { isClubModuleEnabled } from "@/lib/auth/club-module";
+import { getServerI18n } from "@/i18n/server";
 
 const RECENT_LIMIT = 3;
 const SEARCH_LIMIT = 20;
@@ -18,6 +20,9 @@ export async function GET(request: Request) {
   const clubId = context.activeClubId;
   const access = await getClubAccess(clubId, context.user);
   if (!hasClubPermission(access, "video.view")) return NextResponse.json({ error: "Geen toegang tot Video Viewer." }, { status: 403 });
+  if (!context.isPlatformAdmin && !(await isClubModuleEnabled(clubId, "video_viewer"))) {
+    return NextResponse.json({ error: getServerI18n().t("clubModule.videoDisabled") }, { status: 403 });
+  }
 
   const url = new URL(request.url);
   const searchMode = url.searchParams.has("q") || url.searchParams.has("before");

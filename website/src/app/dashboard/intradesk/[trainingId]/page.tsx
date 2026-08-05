@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { TrainingReadOnlyView } from "@/components/training/TrainingBuilder";
+import { TrainingReadOnlyView } from "@/components/training/TrainingReadOnlyView";
 import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { getClubContext } from "@/lib/auth/active-club";
 
@@ -27,7 +27,10 @@ export default async function IntradeskTrainingPage({ params }: { params: { trai
     trainers?: string[]; themes?: string[]; material?: string; blocks?: Record<string, any>[];
   };
   const access = await getClubAccess(training.club_id, user);
-  const canEdit = hasClubPermission(access, "training.manage");
+  const { data: builderEntitlement } = access.role === "platform_admin"
+    ? { data: { club_id: training.club_id } }
+    : await admin.from("club_module_entitlements").select("club_id").eq("club_id", training.club_id).eq("module_key", "training_builder").eq("enabled", true).maybeSingle();
+  const canEdit = hasClubPermission(access, "training.manage") && !!builderEntitlement;
 
   return <div className="mx-auto max-w-5xl p-4 sm:p-8">
     <SectionHeader title={training.title} subtitle={`${training.age_category} · versie ${training.current_version}`} artworkSrc="/branding/intradesk.png" backHref="/dashboard/intradesk" showHome={false} />

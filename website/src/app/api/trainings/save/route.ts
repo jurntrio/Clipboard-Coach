@@ -4,6 +4,8 @@ import { isTrainingAgeCategory, supportsBelgianTeamTactics } from "@/lib/trainin
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { isClubModuleEnabled } from "@/lib/auth/club-module";
+import { getServerI18n } from "@/i18n/server";
 
 const TRAINER_ROLES = new Set(["trainer", "coach", "assistant_coach", "club_admin"]);
 
@@ -21,6 +23,9 @@ export async function POST(request: Request) {
   const access = await getClubAccess(body.clubId, user);
   if (!hasClubPermission(access, "training.manage")) {
     return NextResponse.json({ error: "Je mag voor deze club geen trainingen bewaren." }, { status: 403 });
+  }
+  if (access.role !== "platform_admin" && !(await isClubModuleEnabled(body.clubId, "training"))) {
+    return NextResponse.json({ error: getServerI18n().t("clubModule.trainingDisabled") }, { status: 403 });
   }
   let linkedSession: { id: string; club_team_id: string; staff_ids: string[] } | null = null;
   if (typeof body.sessionId === "string") {

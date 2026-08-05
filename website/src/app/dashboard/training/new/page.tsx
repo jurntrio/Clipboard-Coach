@@ -2,8 +2,10 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TrainingBuilder } from "@/components/training/TrainingBuilder";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
+import { requireClubFeature } from "@/lib/auth/club-module";
 
 export default async function NewTrainingPage({ searchParams }: { searchParams?: { source?: string; edit?: string; personal?: string; sessionId?: string } }) {
+  await requireClubFeature("training_builder", "training.manage");
   const admin = createAdminClient();
   const context = await getClubContext();
   const user = context.user;

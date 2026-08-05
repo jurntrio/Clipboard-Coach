@@ -15,13 +15,16 @@ export default async function TrainingPage() {
   const admin = createAdminClient();
   const clubId = context.activeClubId;
   const access = clubId && context.user ? await getClubAccess(clubId, context.user) : null;
-  const [{ data: options }, { data: intradeskEntitlement }, { data: ownTrainer }, { data: clubTeams }] = await Promise.all([
+  const [{ data: options }, { data: intradeskEntitlement }, { data: builderEntitlement }, { data: ownTrainer }, { data: clubTeams }] = await Promise.all([
     clubId
       ? admin.from("club_match_options").select("id, club_id, option_type, label").eq("club_id", clubId).eq("active", true)
       : Promise.resolve({ data: [] }),
     clubId
       ? admin.from("club_module_entitlements").select("club_id").eq("club_id", clubId).eq("module_key", "intradesk").eq("enabled", true).maybeSingle()
       : Promise.resolve({ data: null }),
+    clubId && !context.isPlatformAdmin
+      ? admin.from("club_module_entitlements").select("club_id").eq("club_id", clubId).eq("module_key", "training_builder").eq("enabled", true).maybeSingle()
+      : Promise.resolve({ data: { club_id: clubId } }),
     clubId && context.user
       ? admin.from("club_trainers").select("id").eq("club_id", clubId).eq("profile_id", context.user.id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -74,7 +77,7 @@ export default async function TrainingPage() {
     <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
       <nav className="flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label="Trainingstool">
         <Link href="/dashboard/training" className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Overzicht</Link>
-        <Link href="/dashboard/training/new" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Losse training maken</Link>
+        {!!builderEntitlement && <Link href="/dashboard/training/new" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Losse training maken</Link>}
         <Link href="/dashboard/training/statistics" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Statistieken</Link>
         {intradeskEntitlement && <Link href="/dashboard/intradesk" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Open Intradesk</Link>}
       </nav>

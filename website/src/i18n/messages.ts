@@ -912,6 +912,9 @@ const nl = {
   ,"guardianInvite.scopeAllHistory": "volledige geschiedenis"
   ,"guardianInvite.addressStillCorrect": "Deze gegevens kloppen nog"
   ,"guardianInvite.addressSectionTitle": "Adres van het kind"
+  ,"clubModule.trainingDisabled": "Deze club heeft geen toegang tot de trainingstool."
+  ,"clubModule.videoDisabled": "Deze club heeft geen toegang tot de Video Viewer."
+  ,"clubModule.mediaDisabled": "Deze club heeft geen toegang tot Media / ClubTV."
 } as const;
 
 type MessageKey = keyof typeof nl;
@@ -1828,6 +1831,9 @@ const en: Record<MessageKey, string> = {
   ,"guardianInvite.scopeAllHistory": "full history"
   ,"guardianInvite.addressStillCorrect": "This information is still correct"
   ,"guardianInvite.addressSectionTitle": "Child's address"
+  ,"clubModule.trainingDisabled": "This club doesn't have access to the training tool."
+  ,"clubModule.videoDisabled": "This club doesn't have access to the Video Viewer."
+  ,"clubModule.mediaDisabled": "This club doesn't have access to Media / ClubTV."
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { nl, en };
