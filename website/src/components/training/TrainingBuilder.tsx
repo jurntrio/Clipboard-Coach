@@ -6,6 +6,7 @@ import { supportsBelgianTeamTactics, TRAINING_AGE_CATEGORIES } from "@/lib/train
 
 const ASSET_ROOT = "/branding/Training";
 const FIELD_SRC = `${ASSET_ROOT}/11vs11.jpg`;
+const GREEN_FIELD_SRC = `${ASSET_ROOT}/11vs11-groen.png`;
 const TEAM_TACTIC_GROUPS = [
   {
     label: "Offensieve principes",
@@ -67,7 +68,7 @@ type AreaShape = "polygon" | "rectangle";
 type FieldArea = { id: string; points: { x: number; y: number }[]; color: string; style: AreaStyle; number?: number };
 type FieldDribble = { id: string; points: { x: number; y: number }[]; color: string; number?: number };
 type SelectedDrawing = { kind: "line" | "area" | "dribble"; id: string } | null;
-type FieldType = "full" | "half" | "blank";
+type FieldType = "full" | "half" | "blank" | "full-green" | "half-green" | "blank-green";
 type Block = {
   id: string; code: string; label: string; active: boolean; title: string; minutes: number;
   organisation: string; flow: string; coaching: string; fieldType: FieldType;
@@ -394,10 +395,13 @@ function Pitch({ fieldType = "full", items, lines, areas, dribbles, preview = fa
   hoverPoint?: { x: number; y: number } | null;
   drawingColor?: string;
 }) {
+  const isGreen = fieldType.endsWith("-green");
+  const isHalf = fieldType === "half" || fieldType === "half-green";
+  const isBlank = fieldType === "blank" || fieldType === "blank-green";
   return (
-    <div onClick={onOpen} className={`relative aspect-[414/612] w-full overflow-hidden bg-white ${preview ? "cursor-pointer" : pendingAsset ? "cursor-none" : "cursor-crosshair"}`}>
-      {fieldType !== "blank" && <Image src={FIELD_SRC} alt={fieldType === "half" ? "Half voetbalveld" : "11 tegen 11 voetbalveld"} fill sizes={preview ? "360px" : "620px"}
-        className={`pointer-events-none object-fill ${fieldType === "half" ? "origin-top scale-[1.6667]" : ""}`} priority />}
+    <div onClick={onOpen} className={`relative aspect-[414/612] w-full overflow-hidden ${isGreen ? "bg-[#269c36]" : "bg-white"} ${preview ? "cursor-pointer" : pendingAsset ? "cursor-none" : "cursor-crosshair"}`}>
+      {!isBlank && <Image src={isGreen ? GREEN_FIELD_SRC : FIELD_SRC} alt={`${isHalf ? "Half" : "Volledig"} voetbalveld op ${isGreen ? "groene" : "witte"} achtergrond`} fill sizes={preview ? "360px" : "620px"}
+        className={`pointer-events-none object-fill ${isHalf ? "origin-top scale-[1.6667]" : ""}`} priority />}
       <svg className="pointer-events-none absolute inset-0 z-[5] h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <marker id={preview ? "training-arrow-preview" : "training-arrow-editor"} viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
@@ -1303,7 +1307,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
                 <div className="mx-auto mb-3 flex max-w-[940px] flex-wrap items-center gap-2 rounded-lg border border-[#dbe2de] bg-[#f7f9f8] p-2 text-[#182019]">
                   <div className="flex items-center gap-1 rounded border border-[#cbd5cf] bg-white p-1">
                     <span className="px-2 text-[10px] font-black uppercase text-[#66706b]">Ondergrond</span>
-                    {([["full", "Volledig veld"], ["half", "Half veld"], ["blank", "Wit vlak"]] as const).map(([value, label]) =>
+                    {([["full", "Volledig · wit"], ["half", "Half · wit"], ["blank", "Vlak · wit"], ["full-green", "Volledig · groen"], ["half-green", "Half · groen"], ["blank-green", "Vlak · groen"]] as const).map(([value, label]) =>
                       <button key={value} type="button" onClick={() => updateBlock(activeIndex, { fieldType: value })}
                         className={`rounded px-2.5 py-1.5 text-xs font-bold ${activeBlock.fieldType === value ? "bg-[#169447] text-white" : "bg-[#f7f9f8] text-[#36423b]"}`}>{label}</button>)}
                   </div>
