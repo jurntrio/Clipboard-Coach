@@ -5,8 +5,11 @@ import { useState } from "react";
 import { colors, path, playerFamilies } from "@/components/training/constants";
 import type { PaletteAsset } from "@/components/training/types";
 
-export function PlayerGroup({ family, onPick, activeAsset }: {
+type DragHandler = (event: React.PointerEvent<HTMLButtonElement>, asset: PaletteAsset) => void;
+
+export function PlayerGroup({ family, onPick, activeAsset, onDragMove, onDragEnd }: {
   family: typeof playerFamilies[number]; onPick: (asset: PaletteAsset) => void; activeAsset?: PaletteAsset | null;
+  onDragMove?: DragHandler; onDragEnd?: DragHandler;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [customNumber, setCustomNumber] = useState("");
@@ -69,7 +72,8 @@ export function PlayerGroup({ family, onPick, activeAsset }: {
                 playerNumberColor: color.file === "Wit" ? "black" : "white"
               };
               return <AssetButton key={number} asset={asset} onPick={onPick}
-                active={activeAsset?.src === asset.src && activeAsset.playerNumber === asset.playerNumber} player />;
+                active={activeAsset?.src === asset.src && activeAsset.playerNumber === asset.playerNumber} player
+                onDragMove={onDragMove} onDragEnd={onDragEnd} />;
             })}
           </div>
         ))}
@@ -78,17 +82,16 @@ export function PlayerGroup({ family, onPick, activeAsset }: {
   );
 }
 
-export function AssetButton({ asset, onPick, active = false, player = false }: {
+export function AssetButton({ asset, onPick, active = false, player = false, onDragMove, onDragEnd }: {
   asset: PaletteAsset; onPick: (asset: PaletteAsset) => void; active?: boolean; player?: boolean;
+  onDragMove?: DragHandler; onDragEnd?: DragHandler;
 }) {
   return (
-    <button type="button" title={`${asset.label} · klik of sleep naar het veld`} onClick={() => onPick(asset)} draggable
-      onDragStart={event => {
-        onPick(asset);
-        event.dataTransfer.effectAllowed = "copy";
-        event.dataTransfer.setData("application/x-cbcs-training-asset", JSON.stringify(asset));
-      }}
-      className={`${player ? "aspect-square p-0.5" : "h-10 p-1"} group min-w-0 rounded border border-[#dbe2de] border-l-4 ${active ? "border-l-[#169447] bg-[#eef8f1] shadow-sm" : "border-l-transparent bg-white"} hover:border-[#169447] hover:bg-[#eef8f1]`}>
+    <button type="button" title={`${asset.label} · klik of sleep naar het veld`} onClick={() => onPick(asset)}
+      onPointerDown={event => { onPick(asset); event.currentTarget.setPointerCapture(event.pointerId); }}
+      onPointerMove={event => onDragMove?.(event, asset)}
+      onPointerUp={event => onDragEnd?.(event, asset)}
+      className={`${player ? "aspect-square p-0.5" : "h-10 p-1"} group min-w-0 touch-none rounded border border-[#dbe2de] border-l-4 ${active ? "border-l-[#169447] bg-[#eef8f1] shadow-sm" : "border-l-transparent bg-white"} hover:border-[#169447] hover:bg-[#eef8f1]`}>
       <span className="relative mx-auto block h-full max-h-[34px] w-full transition-transform group-hover:scale-110">
         <Image src={asset.src} alt="" fill sizes="44px" className="object-contain" />
         {asset.playerNumber !== undefined && <span aria-hidden="true"

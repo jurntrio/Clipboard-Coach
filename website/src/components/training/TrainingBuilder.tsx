@@ -417,19 +417,24 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
     if (!selectedAsset) return;
     placeAsset(selectedAsset, x, y);
   }
-  function dropAsset(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    const raw = event.dataTransfer.getData("application/x-cbcs-training-asset");
-    if (!raw) return;
-    try {
-      const asset = JSON.parse(raw) as PaletteAsset;
-      const rect = event.currentTarget.getBoundingClientRect();
+  function dragAssetMove(event: React.PointerEvent<HTMLButtonElement>) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId) || !editorFieldRef.current) return;
+    const rect = editorFieldRef.current.getBoundingClientRect();
+    setHoverPoint({
+      x: Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100))
+    });
+  }
+  function dragAssetEnd(event: React.PointerEvent<HTMLButtonElement>, asset: PaletteAsset) {
+    if (!editorFieldRef.current) return;
+    const rect = editorFieldRef.current.getBoundingClientRect();
+    const withinField = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+    if (withinField) {
       const x = Math.max(2, Math.min(98, ((event.clientX - rect.left) / rect.width) * 100));
       const y = Math.max(2, Math.min(98, ((event.clientY - rect.top) / rect.height) * 100));
       placeAsset(asset, x, y);
-    } catch {
-      // Ongeldige externe sleepgegevens worden genegeerd.
     }
+    setHoverPoint(null);
   }
   function moveItem(event: React.PointerEvent<HTMLButtonElement>, id: string) {
     if (!event.currentTarget.hasPointerCapture(event.pointerId) || activeIndex === null || !editorFieldRef.current) return;
@@ -707,12 +712,12 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
             </header>
             <div className="grid min-h-0 flex-1 gap-3 overflow-auto bg-white p-3 lg:grid-cols-[430px_1fr]">
               <aside className="space-y-2 overflow-auto lg:max-h-[78vh]">
-                {playerFamilies.map(family => <PlayerGroup key={family.file} family={family} onPick={chooseAsset} activeAsset={selectedAsset} />)}
+                {playerFamilies.map(family => <PlayerGroup key={family.file} family={family} onPick={chooseAsset} activeAsset={selectedAsset} onDragMove={dragAssetMove} onDragEnd={dragAssetEnd} />)}
                 {equipmentGroups.map(group => (
                   <section key={group.label} className="rounded-lg border border-[#dbe2de] bg-white p-2">
                     <h3 className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#243029]">{group.label}</h3>
                     <div className="grid grid-cols-10 gap-1">
-                      {group.assets.map(asset => <AssetButton key={asset.src} asset={asset} onPick={chooseAsset} active={selectedAsset?.src === asset.src} />)}
+                      {group.assets.map(asset => <AssetButton key={asset.src} asset={asset} onPick={chooseAsset} active={selectedAsset?.src === asset.src} onDragMove={dragAssetMove} onDragEnd={dragAssetEnd} />)}
                     </div>
                   </section>
                 ))}
@@ -764,8 +769,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
                   </p>
                 </div>
                 <div ref={editorFieldRef} onClick={placeItem} onPointerMove={trackDrawingPointer} onPointerLeave={() => setHoverPoint(null)}
-                  onDragOver={event => { if (event.dataTransfer.types.includes("application/x-cbcs-training-asset")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
-                  onDrop={dropAsset} className="mx-auto w-full max-w-[620px] self-start overflow-hidden rounded border border-[#dbe2de] bg-white shadow-sm">
+                  className="mx-auto w-full max-w-[620px] self-start overflow-hidden rounded border border-[#dbe2de] bg-white shadow-sm">
                   <Pitch fieldType={activeBlock.fieldType} items={activeBlock.items} lines={activeBlock.lines} areas={activeBlock.areas} dribbles={activeBlock.dribbles} selectedId={selectedId} selectedDrawing={selectedDrawing}
                     drawingInteractive={!selectedAsset && !lineStyle && !areaMode && !dribbleMode}
                     onSelect={id => { setSelectedId(id); setSelectedDrawing(null); }} onDeleteItem={deleteFieldItem}
