@@ -71,7 +71,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       if (typeof position?.playerId !== "string" || !allowedLineupPlayerIds.has(position.playerId) || playerIds.has(position.playerId)
         || !Number.isFinite(position?.x) || !Number.isFinite(position?.y)) return [];
       playerIds.add(position.playerId);
-      return [{ playerId: position.playerId, x: Math.max(0, Math.min(100, Number(position.x))), y: Math.max(0, Math.min(100, Number(position.y))), placed: position.placed !== false }];
+      return [{
+        playerId: position.playerId,
+        x: Math.max(0, Math.min(100, Number(position.x))),
+        y: Math.max(0, Math.min(100, Number(position.y))),
+        placed: position.placed !== false,
+        positionId: typeof position?.positionId === "string" ? position.positionId.slice(0, 20) : ""
+      }];
     });
     return [{ id: typeof block?.id === "string" ? block.id.slice(0, 100) : `block-${blockIndex}`, startMinute, positions }];
   }) : [];
