@@ -44,6 +44,7 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
   quickLinks: ProfileQuickLink[];
 }) {
   const [activeContext, setActiveContext] = useState("all");
+  const [expandedContext, setExpandedContext] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
   const filtered = useMemo(() => activities.filter(activity =>
     activeContext === "all" || activity.contextIds.includes(activeContext)
@@ -53,6 +54,7 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
   const recent = filtered.filter(item => item.status === "completed" || item.status === "finished" || (!!item.date && item.date < today))
     .sort((a, b) => (b.sortAt ?? `${b.date}${b.time ?? ""}`).localeCompare(a.sortAt ?? `${a.date}${a.time ?? ""}`)).slice(0, 6);
   const contextNames = new Map(contexts.map(item => [item.id, item.subject]));
+  const activeContextLabel = activeContext === "all" ? "Alles" : contexts.find(item => item.id === activeContext)?.label ?? "Alles";
 
   function showContextInPlanning(contextId: string) {
     setActiveContext(contextId);
@@ -75,35 +77,35 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
     <section>
       <div className="mb-3">
         <h2 className="text-lg font-bold text-textBright">Mijn rollen en spelers</h2>
-        <p className="text-sm text-textMuted">Open een kaart voor een apart overzicht.</p>
       </div>
-      {contexts.length ? <div className="grid gap-3 lg:grid-cols-3">
+      {contexts.length ? <div className="grid items-start gap-3 lg:grid-cols-3">
         {contexts.map(context => {
           const next = activities.filter(item => item.contextIds.includes(context.id) && !!item.date && item.date >= today && item.status !== "completed")
             .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).slice(0, 3);
-          return <details key={context.id} className="group rounded-xl border border-border bg-card">
-            <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
+          const expanded = expandedContext === context.id;
+          return <article key={context.id} className="self-start rounded-xl border border-border bg-card">
+            <button type="button" aria-expanded={expanded} onClick={() => setExpandedContext(expanded ? null : context.id)} className="flex w-full cursor-pointer items-center gap-3 p-4 text-left">
               <div className="grid h-11 w-11 place-items-center rounded-full bg-accent/15 text-sm font-black text-accent">{context.subject.split(/\s+/).map(part => part[0]).slice(0, 2).join("")}</div>
               <div className="min-w-0 flex-1"><strong className="block truncate text-textBright">{context.label}</strong><span className="text-xs text-textMuted">{context.role}</span></div>
-              <span className="text-accent transition group-open:rotate-90">▶</span>
-            </summary>
-            <div className="border-t border-borderSubtle p-4">
+              <span aria-hidden="true" className={`text-accent transition ${expanded ? "rotate-90" : ""}`}>▶</span>
+            </button>
+            {expanded && <div className="border-t border-borderSubtle p-4">
               {next.length ? <div className="space-y-2">{next.map(item => <ActivityRow key={item.id} item={item} labels={contextNames} compact />)}</div>
                 : <p className="text-sm text-textMuted">Geen komende wedstrijden of trainingen gepland.</p>}
               <button type="button" onClick={() => showContextInPlanning(context.id)} className="mt-3 text-sm font-semibold text-accent hover:underline">Toon in mijn planning</button>
-            </div>
-          </details>;
+            </div>}
+          </article>;
         })}
       </div> : <div className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Er is nog geen ploeg- of spelerscontext aan je account gekoppeld.</div>}
+      {contexts.length > 1 && <div className="mt-4 flex max-w-full gap-2 overflow-x-auto pb-1">
+        <button onClick={() => setActiveContext("all")} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${activeContext === "all" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Alles</button>
+        {contexts.map(context => <button key={context.id} onClick={() => setActiveContext(context.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${activeContext === context.id ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{context.label}</button>)}
+      </div>}
     </section>
 
     <section id="mijn-planning" className="scroll-mt-4 rounded-2xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h2 className="text-xl font-bold text-textBright">Mijn planning</h2><p className="text-sm text-textMuted">Wedstrijden en geplande trainingen, chronologisch samengebracht.</p></div>
-        {contexts.length > 1 && <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
-          <button onClick={() => setActiveContext("all")} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${activeContext === "all" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Alles</button>
-          {contexts.map(context => <button key={context.id} onClick={() => setActiveContext(context.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${activeContext === context.id ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{context.label}</button>)}
-        </div>}
+        <div><h2 className="text-xl font-bold text-textBright">Mijn planning</h2><p className="text-sm font-semibold text-textMuted">Planning: <span className="text-textPrimary">{activeContextLabel}</span></p></div>
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div><h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-textSecondary">Komend</h3>

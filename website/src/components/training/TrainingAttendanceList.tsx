@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 type Player = { id: string; first_name: string; last_name: string };
 type Reason = { id: string; label: string };
@@ -18,6 +18,8 @@ export function TrainingAttendanceList({ sessionId, players, reasons, initial, e
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState(confirmedAt);
   const [trainerInfo, setTrainerInfo] = useState(initialTrainerInfo ?? "");
+  const reasonOptions = useMemo(() => reasons.map(reason => <option key={reason.id} value={reason.id}>{reason.label}</option>), [reasons]);
+  const reasonLabels = useMemo(() => new Map(reasons.map(reason => [reason.id, reason.label])), [reasons]);
 
   async function save(playerId: string, patch: Partial<Attendance>) {
     const next = { ...rows[playerId], ...patch };
@@ -49,24 +51,24 @@ export function TrainingAttendanceList({ sessionId, players, reasons, initial, e
     const body = await response.json(); setBusy("");
     if (!response.ok) return setError(body.error || "Aanwezigheden konden niet worden bevestigd.");
     setConfirmed(body.confirmedAt);
+    window.dispatchEvent(new Event("dashboard-badges:refresh"));
   }
 
-  return <section className="rounded-2xl border border-border bg-card p-5">
+  return <section id="aanwezigheden" className="scroll-mt-24 rounded-2xl border border-border bg-card p-5">
     <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-xl font-bold text-textBright">Spelerslijst</h2><p className="text-sm text-textMuted">{confirmed ? `Aanwezigheden bevestigd op ${new Date(confirmed).toLocaleString("nl-BE")}.` : "Iedereen staat standaard op aanwezig. Pas alleen uitzonderingen aan."}</p></div><span className="text-xs text-textMuted">{players.length} spelers</span></div>
     {error && <p className="mt-3 rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
-    <div className="mt-4 space-y-2">{players.map(player => {
+    {!!players.length && <div className="mt-4 divide-y divide-borderSubtle overflow-hidden rounded-xl border border-borderSubtle bg-cardDeep">{players.map(player => {
       const row = rows[player.id];
-      return <div key={player.id} className="grid gap-2 rounded-xl border border-borderSubtle bg-cardDeep p-3 md:grid-cols-[1fr_150px_220px] md:items-center">
+      return <div key={player.id} className="grid gap-2 px-3 py-2.5 md:grid-cols-[1fr_150px_220px] md:items-center">
         <strong className="text-sm text-textPrimary">{player.first_name} {player.last_name}</strong>
-        {confirmed ? <strong className={row.attendance_status === "absent" ? "text-red-300" : "text-accent"}>{row.attendance_status === "absent" ? "Afwezig" : "Aanwezig"}</strong>
-          : <select disabled={!editable || busy === player.id} value={row.attendance_status} onChange={event => void save(player.id, { attendance_status: event.target.value as Attendance["attendance_status"], absence_reason_id: event.target.value === "absent" ? row.absence_reason_id : null })} className={inputClass}>
+        {editable ? <select disabled={busy === player.id} value={row.attendance_status} onChange={event => void save(player.id, { attendance_status: event.target.value as Attendance["attendance_status"], absence_reason_id: event.target.value === "absent" ? row.absence_reason_id : null })} className={inputClass}>
             <option value="present">Aanwezig</option><option value="absent">Afwezig</option>
-          </select>}
-        {row.attendance_status === "absent" && !confirmed ? <select disabled={!editable || busy === player.id} value={row.absence_reason_id ?? ""} onChange={event => void save(player.id, { absence_reason_id: event.target.value || null })} className={inputClass}>
-          <option value="">Reden niet bepaald</option>{reasons.map(reason => <option key={reason.id} value={reason.id}>{reason.label}</option>)}
-        </select> : <span className="text-xs text-textMuted">{row.attendance_status === "absent" ? reasons.find(reason => reason.id === row.absence_reason_id)?.label ?? "Reden niet bepaald" : "Aanwezig"}</span>}
+          </select> : <strong className={row.attendance_status === "absent" ? "text-red-300" : "text-accent"}>{row.attendance_status === "absent" ? "Afwezig" : "Aanwezig"}</strong>}
+        {row.attendance_status === "absent" && editable ? <select disabled={busy === player.id} value={row.absence_reason_id ?? ""} onChange={event => void save(player.id, { absence_reason_id: event.target.value || null })} className={inputClass}>
+          <option value="">Reden niet bepaald</option>{reasonOptions}
+        </select> : <span className="text-xs text-textMuted">{row.attendance_status === "absent" ? reasonLabels.get(row.absence_reason_id ?? "") ?? "Reden niet bepaald" : "Aanwezig"}</span>}
       </div>;
-    })}</div>
+    })}</div>}
     {!players.length && <p className="mt-4 rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Er zijn nog geen spelers aan dit team gekoppeld.</p>}
     <div className="mt-5 rounded-xl border border-borderSubtle bg-cardDeep p-4">
       <label className="text-sm font-semibold text-textPrimary">Info van de trainer

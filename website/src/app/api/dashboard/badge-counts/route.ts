@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getClubContext } from "@/lib/auth/active-club";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { getUnresolvedClubNameCount } from "@/lib/belgian-clubs/unresolved-club-names";
 
 export async function GET() {
@@ -26,6 +26,58 @@ export async function GET() {
     canReviewClubNames ? getUnresolvedClubNameCount(admin) : Promise.resolve(0)
   ]);
   const pendingApprovalCount = approvalCounts.reduce((total, result) => total + (result.count ?? 0), 0);
+  const canManageTraining = !!access && !access.readOnly && hasClubPermission(access, "training.manage");
+  let unconfirmedTrainings: { id: string; training_date: string; start_time: string; teamName: string }[] = [];
+  if (clubId && canManageTraining) {
+    const { data: ownTrainer } = await admin.from("club_trainers").select("id").eq("club_id", clubId).eq("profile_id", context.user.id).maybeSingle();
+    const { data: groupLinks } = ownTrainer
+      ? await admin.from("player_group_staff").select("group_id").eq("trainer_id", ownTrainer.id)
+      : { data: [] };
+    const groupIds = new Set((groupLinks ?? []).map(link => link.group_id));
+    const { data: pendingTrainings } = await admin.from("team_training_sessions")
+      .select("id, club_team_id, player_group_id, staff_ids, training_date, start_time, club_teams(name), player_groups(name)")
+      .eq("club_id", clubId).lt("training_date", new Date().toISOString().slice(0, 10))
+      .is("attendance_confirmed_at", null).order("training_date", { ascending: false }).order("start_time", { ascending: false }).limit(100);
+    unconfirmedTrainings = (pendingTrainings ?? []).filter(session =>
+      access.teamIds === null
+      || (!!session.club_team_id && access.teamIds.has(session.club_team_id))
+      || (!!session.player_group_id && groupIds.has(session.player_group_id))
+      || session.staff_ids.includes(ownTrainer?.id ?? "")
+    ).map(session => ({
+      id: session.id,
+      training_date: session.training_date,
+      start_time: session.start_time,
+      teamName: (session.player_groups as unknown as { name: string } | null)?.name
+        ?? (session.club_teams as unknown as { name: string } | null)?.name
+        ?? "Training"
+    }));
+  }
+  const canManageReports = !!access && !access.readOnly && hasClubPermission(access, "games.report.manage");
+  let pendingMatchReports: { id: string; match_date: string; start_time: string | null; title: string }[] = [];
+  if (clubId && canManageReports) {
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Brussels" });
+    const { data: playedMatches } = await admin.from("matches")
+      .select("id, club_team_id, team_a_name, team_b_name, match_date, start_time, status")
+      .eq("club_id", clubId).not("match_date", "is", null).or(`status.eq.finished,match_date.lt.${today}`)
+      .order("match_date", { ascending: false }).order("start_time", { ascending: false }).limit(100);
+    const accessibleMatches = (playedMatches ?? []).filter(match => !!match.club_team_id && canAccessTeam(access, match.club_team_id));
+    const matchIds = accessibleMatches.map(match => match.id);
+    const { data: dossiers } = matchIds.length
+      ? await admin.from("match_dossiers").select("match_id, general_report, positives, improvements, highlights, cards, chances, goal_events").in("match_id", matchIds)
+      : { data: [] };
+    const reportsByMatch = new Map((dossiers ?? []).map(dossier => [dossier.match_id, dossier]));
+    pendingMatchReports = accessibleMatches.filter(match => {
+      const dossier = reportsByMatch.get(match.id);
+      if (!dossier) return true;
+      return ![dossier.general_report, dossier.positives, dossier.improvements, dossier.highlights, dossier.cards, dossier.chances]
+        .some(value => value?.trim()) && !(Array.isArray(dossier.goal_events) && dossier.goal_events.length);
+    }).map(match => ({
+      id: match.id,
+      match_date: match.match_date!,
+      start_time: match.start_time,
+      title: `${match.team_a_name} – ${match.team_b_name}`
+    }));
+  }
 
-  return NextResponse.json({ unreadMailboxCount: unreadMailboxCount ?? 0, pendingApprovalCount, canApproveRequests, unresolvedClubNameCount, canReviewClubNames });
+  return NextResponse.json({ unreadMailboxCount: unreadMailboxCount ?? 0, pendingApprovalCount, canApproveRequests, unresolvedClubNameCount, canReviewClubNames, unconfirmedTrainings, pendingMatchReports });
 }

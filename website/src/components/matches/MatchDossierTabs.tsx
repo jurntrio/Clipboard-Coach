@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { MatchLineupEditor, type LineupPosition } from "./MatchLineupEditor";
 
 export type MatchDossier = {
   lineup_notes: string;
@@ -15,6 +16,7 @@ export type MatchDossier = {
   chances: string;
   scouting: string;
   goal_events: GoalEvent[];
+  lineup_positions: LineupPosition[];
 };
 
 type Player = { id: string; first_name: string; last_name: string; jersey_number: number | null };
@@ -28,7 +30,7 @@ type GoalEvent = {
 
 const emptyDossier: MatchDossier = {
   lineup_notes: "", general_report: "", positives: "", improvements: "",
-  highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: []
+  highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: [], lineup_positions: []
 };
 
 export function MatchDossierTabs({ matchId, players, reportPlayers = players, clips, initialDossier, editable, canComplete = false, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, showSelection = true, showReport = false, showScouting = false }: {
@@ -48,7 +50,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
 
-  function field(key: Exclude<keyof MatchDossier, "goal_events">, label: string, placeholder: string) {
+  function field(key: Exclude<keyof MatchDossier, "goal_events" | "lineup_positions">, label: string, placeholder: string) {
     if (!editable && !draft[key].trim()) return null;
     if (!editable) return <div>
       <span className="mb-1 block text-xs font-black uppercase tracking-wide text-textMuted">{label}</span>
@@ -94,6 +96,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
     });
     const body = await response.json().catch(() => null) as { error?: string } | null;
     if (!response.ok) { setSaving(false); return setNotice(body?.error || "Bewaren is mislukt."); }
+    window.dispatchEvent(new Event("dashboard-badges:refresh"));
     if (complete) {
       const completeResponse = await fetch(`/api/matches/${matchId}/dossier`, { method: "POST" });
       const completeBody = await completeResponse.json().catch(() => null) as { error?: string } | null;
@@ -121,11 +124,15 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
       </div> : <Empty text="Nog geen clips voor deze wedstrijd." />}
     </ClosedPanel>}
 
-    {(editable || !!draft.lineup_notes.trim()) && <ClosedPanel title="Opstelling" expanded={played}>
-      {field("lineup_notes", "Opstelling", "Noteer de basisopstelling, formatie, posities en wissels…")}
+    {(editable || !!draft.lineup_notes.trim() || draft.lineup_positions.length > 0) && <ClosedPanel title="Opstelling" expanded={played}>
+      <div className="space-y-4">
+        <MatchLineupEditor players={reportPlayers} positions={draft.lineup_positions} editable={editable}
+          onChange={lineup_positions => setDraft(current => ({ ...current, lineup_positions }))} />
+        {field("lineup_notes", "Notities bij de opstelling", "Noteer de formatie, posities en wissels…")}
+      </div>
     </ClosedPanel>}
 
-    {played && showReport && hasReport && <ClosedPanel title="Wedstrijdverslag" expanded>
+    {played && showReport && hasReport && <div id="wedstrijdverslag" className="scroll-mt-24"><ClosedPanel title="Wedstrijdverslag" expanded>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">{field("general_report", "Algemeen wedstrijdverslag", "Beschrijf het wedstrijdverloop…")}</div>
         {field("positives", "Pluspunten", "Wat liep goed?")}
@@ -138,7 +145,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
         {field("cards", "Kaarten", "Gele en rode kaarten…")}
         {field("chances", "Kansen", "Grote kansen en gemiste mogelijkheden…")}
       </div>
-    </ClosedPanel>}
+    </ClosedPanel></div>}
 
     {showSelection && (players.length > 0 || editable) && <ClosedPanel title={`Selectie (${players.length})`} expanded={played}>
       {players.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">

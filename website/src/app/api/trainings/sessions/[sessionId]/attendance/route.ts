@@ -38,7 +38,6 @@ export async function PUT(request: Request, { params }: { params: { sessionId: s
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ confirmedAt });
   }
-  if (session.attendance_confirmed_at) return NextResponse.json({ error: "De aanwezigheden zijn al bevestigd." }, { status: 409 });
   if (!body?.playerId || !["unknown", "present", "absent"].includes(body.status ?? "")) {
     return NextResponse.json({ error: "Ongeldige aanwezigheidsstatus." }, { status: 400 });
   }

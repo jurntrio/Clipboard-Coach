@@ -161,7 +161,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       clips={dossierClips}
       initialDossier={dossier ? {
         ...dossier,
-        ...(!canViewReport ? { lineup_notes: "", general_report: "", positives: "", improvements: "", highlights: "", goals: "", cards: "", chances: "", goal_events: [] } : {}),
+        ...(!canViewReport ? { lineup_notes: "", lineup_positions: [], general_report: "", positives: "", improvements: "", highlights: "", goals: "", cards: "", chances: "", goal_events: [] } : {}),
         scouting: canViewScouting ? dossier.scouting : ""
       } : null}
       editable={editing && canManageReport}
