@@ -13,7 +13,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const admin = createAdminClient();
-  const { data: match } = await admin.from("matches").select("id, club_id, club_team_id, player_ids").eq("id", params.id).maybeSingle();
+  const { data: match } = await admin.from("matches").select("id, club_id, club_team_id, team_a_id, player_ids").eq("id", params.id).maybeSingle();
   if (!match?.club_id) return NextResponse.json({ error: "Wedstrijd niet gevonden." }, { status: 404 });
   const access = await getClubAccess(match.club_id, user);
   const canEditDossier = hasClubPermission(access, "games.report.manage");
@@ -41,11 +41,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     assistName: typeof event?.assistName === "string" ? event.assistName.trim().slice(0, 150) : "",
     description: typeof event?.description === "string" ? event.description.trim().slice(0, 1000) : ""
   })) : [];
-  const { data: guestPlayers } = canEditDossier
-    ? await admin.from("match_guest_players").select("id").eq("match_id", match.id)
-    : { data: [] };
+  const [{ data: guestPlayers }, { data: teamPlayers }] = canEditDossier ? await Promise.all([
+    admin.from("match_guest_players").select("id").eq("match_id", match.id),
+    match.team_a_id ? admin.from("players").select("id").eq("team_id", match.team_a_id).eq("role", "player") : Promise.resolve({ data: [] })
+  ]) : [{ data: [] }, { data: [] }];
   const allowedLineupPlayerIds = new Set([
     ...((match.player_ids as string[] | null) ?? []),
+    ...(teamPlayers ?? []).map(player => player.id),
     ...(guestPlayers ?? []).map(player => player.id)
   ]);
   const savedLineupPlayerIds = new Set<string>();
@@ -59,9 +61,23 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       y: Math.max(0, Math.min(100, Number(position.y)))
     }];
   }) : [];
+  const savedBlockMinutes = new Set<number>();
+  const lineupBlocks = canEditDossier && Array.isArray(body.lineup_blocks) ? body.lineup_blocks.slice(0, 20).flatMap((block: any, blockIndex: number) => {
+    const startMinute = blockIndex === 0 ? 0 : Number(block?.startMinute);
+    if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 120 || savedBlockMinutes.has(startMinute) || !Array.isArray(block?.positions)) return [];
+    savedBlockMinutes.add(startMinute);
+    const playerIds = new Set<string>();
+    const positions = block.positions.slice(0, 30).flatMap((position: any) => {
+      if (typeof position?.playerId !== "string" || !allowedLineupPlayerIds.has(position.playerId) || playerIds.has(position.playerId)
+        || !Number.isFinite(position?.x) || !Number.isFinite(position?.y)) return [];
+      playerIds.add(position.playerId);
+      return [{ playerId: position.playerId, x: Math.max(0, Math.min(100, Number(position.x))), y: Math.max(0, Math.min(100, Number(position.y))), placed: position.placed !== false }];
+    });
+    return [{ id: typeof block?.id === "string" ? block.id.slice(0, 100) : `block-${blockIndex}`, startMinute, positions }];
+  }) : [];
   const { error } = await admin.from("match_dossiers").upsert({
     match_id: match.id, ...payload, ...scouting,
-    ...(canEditDossier ? { goal_events: goalEvents, lineup_positions: lineupPositions } : {}),
+    ...(canEditDossier ? { goal_events: goalEvents, lineup_positions: lineupPositions, lineup_blocks: lineupBlocks } : {}),
     updated_by: user.id, updated_at: new Date().toISOString()
   }, { onConflict: "match_id" });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

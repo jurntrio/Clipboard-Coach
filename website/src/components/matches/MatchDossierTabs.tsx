@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { MatchLineupEditor, type LineupPosition } from "./MatchLineupEditor";
+import { MatchLineupEditor, type LineupBlock, type LineupPosition } from "./MatchLineupEditor";
 
 export type MatchDossier = {
   lineup_notes: string;
@@ -17,6 +17,7 @@ export type MatchDossier = {
   scouting: string;
   goal_events: GoalEvent[];
   lineup_positions: LineupPosition[];
+  lineup_blocks: LineupBlock[];
 };
 
 type Player = { id: string; first_name: string; last_name: string; jersey_number: number | null };
@@ -30,7 +31,7 @@ type GoalEvent = {
 
 const emptyDossier: MatchDossier = {
   lineup_notes: "", general_report: "", positives: "", improvements: "",
-  highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: [], lineup_positions: []
+  highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: [], lineup_positions: [], lineup_blocks: []
 };
 
 export function MatchDossierTabs({ matchId, players, reportPlayers = players, clips, initialDossier, editable, canComplete = false, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, showSelection = true, showReport = false, showScouting = false }: {
@@ -50,7 +51,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
 
-  function field(key: Exclude<keyof MatchDossier, "goal_events" | "lineup_positions">, label: string, placeholder: string) {
+  function field(key: Exclude<keyof MatchDossier, "goal_events" | "lineup_positions" | "lineup_blocks">, label: string, placeholder: string) {
     if (!editable && !draft[key].trim()) return null;
     if (!editable) return <div>
       <span className="mb-1 block text-xs font-black uppercase tracking-wide text-textMuted">{label}</span>
@@ -110,6 +111,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
     setNotice("Wedstrijddossier bewaard.");
   }
 
+  const lineupBlocks = draft.lineup_blocks.length > 0 ? draft.lineup_blocks : [{ id: "block-0", startMinute: 0, positions: draft.lineup_positions }];
   const hasReport = editable || [draft.general_report, draft.positives, draft.improvements, draft.highlights, draft.cards, draft.chances].some(value => value.trim()) || draft.goal_events.length > 0;
   const dossierClass = played ? "overflow-hidden rounded-2xl border border-border bg-card divide-y divide-border" : "space-y-3";
 
@@ -124,10 +126,10 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
       </div> : <Empty text="Nog geen clips voor deze wedstrijd." />}
     </ClosedPanel>}
 
-    {(editable || !!draft.lineup_notes.trim() || draft.lineup_positions.length > 0) && <ClosedPanel title="Opstelling" expanded={played}>
+    {(editable || !!draft.lineup_notes.trim() || lineupBlocks.some(block => block.positions.length > 0)) && <ClosedPanel title="Opstelling" expanded={played}>
       <div className="space-y-4">
-        <MatchLineupEditor players={reportPlayers} positions={draft.lineup_positions} editable={editable}
-          onChange={lineup_positions => setDraft(current => ({ ...current, lineup_positions }))} />
+        <MatchLineupEditor players={reportPlayers} blocks={lineupBlocks} editable={editable}
+          onChange={lineup_blocks => setDraft(current => ({ ...current, lineup_blocks }))} />
         {field("lineup_notes", "Notities bij de opstelling", "Noteer de formatie, posities en wissels…")}
       </div>
     </ClosedPanel>}

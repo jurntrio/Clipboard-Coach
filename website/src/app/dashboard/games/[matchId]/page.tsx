@@ -62,9 +62,12 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       : Promise.resolve({ data: null })
   ]);
   const videoIds = (matchVideos ?? []).map(item => item.video_id);
-  const [{ data: selectedPlayers }, { data: guestPlayers }, { data: dossier }, { data: clips }, { data: completedByProfile }] = staffCanView ? await Promise.all([
+  const [{ data: selectedPlayers }, { data: teamPlayers }, { data: guestPlayers }, { data: dossier }, { data: clips }, { data: completedByProfile }] = staffCanView ? await Promise.all([
     (canViewSelection || canViewReport) && match.player_ids?.length
       ? admin.from("players").select("id, first_name, last_name, jersey_number").in("id", match.player_ids).order("jersey_number")
+      : Promise.resolve({ data: [] }),
+    canViewReport && match.team_a_id
+      ? admin.from("players").select("id, first_name, last_name, jersey_number").eq("team_id", match.team_a_id).eq("role", "player").order("jersey_number")
       : Promise.resolve({ data: [] }),
     admin.from("match_guest_players").select("id, first_name, last_name, jersey_number").eq("match_id", match.id).order("created_at"),
     admin.from("match_dossiers").select("*").eq("match_id", match.id).maybeSingle(),
@@ -74,12 +77,12 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     match.completed_by
       ? admin.from("profiles").select("full_name, email").eq("id", match.completed_by).maybeSingle()
       : Promise.resolve({ data: null })
-  ]) : [{ data: [] }, { data: [] }, { data: null }, { data: [] }, { data: null }];
+  ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: null }, { data: [] }, { data: null }];
   const videoCount = videoIds.length;
   const selectionPlayers = access.goalkeeperPlayerIds === null
     ? [...(selectedPlayers ?? []), ...(guestPlayers ?? [])]
     : (selectedPlayers ?? []).filter((player) => access.goalkeeperPlayerIds?.has(player.id));
-  const reportPlayers = [...(selectedPlayers ?? []), ...(guestPlayers ?? [])];
+  const reportPlayers = [...((selectedPlayers?.length ? selectedPlayers : teamPlayers) ?? []), ...(guestPlayers ?? [])];
   const dossierClips = (clips ?? []).map((clip: any) => ({
     id: clip.id,
     name: clip.name,
@@ -161,7 +164,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       clips={dossierClips}
       initialDossier={dossier ? {
         ...dossier,
-        ...(!canViewReport ? { lineup_notes: "", lineup_positions: [], general_report: "", positives: "", improvements: "", highlights: "", goals: "", cards: "", chances: "", goal_events: [] } : {}),
+        ...(!canViewReport ? { lineup_notes: "", lineup_positions: [], lineup_blocks: [], general_report: "", positives: "", improvements: "", highlights: "", goals: "", cards: "", chances: "", goal_events: [] } : {}),
         scouting: canViewScouting ? dossier.scouting : ""
       } : null}
       editable={editing && canManageReport}
