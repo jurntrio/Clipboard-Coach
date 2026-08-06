@@ -62,9 +62,12 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       : Promise.resolve({ data: null })
   ]);
   const videoIds = (matchVideos ?? []).map(item => item.video_id);
-  const [{ data: selectedPlayers }, { data: teamPlayers }, { data: guestPlayers }, { data: dossier }, { data: clips }, { data: completedByProfile }] = staffCanView ? await Promise.all([
+  const [{ data: selectedPlayers }, { data: matchSelections }, { data: teamPlayers }, { data: guestPlayers }, { data: dossier }, { data: clips }, { data: completedByProfile }] = staffCanView ? await Promise.all([
     (canViewSelection || canViewReport) && match.player_ids?.length
       ? admin.from("players").select("id, first_name, last_name, jersey_number").in("id", match.player_ids).order("jersey_number")
+      : Promise.resolve({ data: [] }),
+    canViewReport
+      ? admin.from("match_player_selections").select("player_id, jersey_number").eq("match_id", match.id).eq("selected", true)
       : Promise.resolve({ data: [] }),
     canViewReport && match.team_a_id
       ? admin.from("players").select("id, first_name, last_name, jersey_number").eq("team_id", match.team_a_id).eq("role", "player").order("jersey_number")
@@ -77,12 +80,19 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     match.completed_by
       ? admin.from("profiles").select("full_name, email").eq("id", match.completed_by).maybeSingle()
       : Promise.resolve({ data: null })
-  ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: null }, { data: [] }, { data: null }];
+  ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: null }, { data: [] }, { data: null }];
   const videoCount = videoIds.length;
   const selectionPlayers = access.goalkeeperPlayerIds === null
     ? [...(selectedPlayers ?? []), ...(guestPlayers ?? [])]
     : (selectedPlayers ?? []).filter((player) => access.goalkeeperPlayerIds?.has(player.id));
-  const reportPlayers = [...((selectedPlayers?.length ? selectedPlayers : teamPlayers) ?? []), ...(guestPlayers ?? [])];
+  const selectionNumberByPlayer = new Map((matchSelections ?? []).map(selection => [selection.player_id, selection.jersey_number]));
+  const reportPlayers = [
+    ...((selectedPlayers?.length ? selectedPlayers : teamPlayers) ?? []).map(player => ({
+      ...player,
+      jersey_number: selectionNumberByPlayer.get(player.id) ?? player.jersey_number
+    })),
+    ...(guestPlayers ?? [])
+  ];
   const dossierClips = (clips ?? []).map((clip: any) => ({
     id: clip.id,
     name: clip.name,
@@ -179,6 +189,8 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       homeTeamName={match.team_a_name}
       awayTeamName={match.team_b_name}
       completed={match.status === "finished"}
+      matchPeriodCount={match.match_period_count}
+      matchPeriodMinutes={match.match_period_minutes}
       showSelection={canViewSelection}
     />}
 

@@ -34,9 +34,9 @@ const emptyDossier: MatchDossier = {
   highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: [], lineup_positions: [], lineup_blocks: []
 };
 
-export function MatchDossierTabs({ matchId, players, reportPlayers = players, clips, initialDossier, editable, canComplete = false, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, showSelection = true, showReport = false, showScouting = false }: {
+export function MatchDossierTabs({ matchId, players, reportPlayers = players, clips, initialDossier, editable, canComplete = false, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, matchPeriodCount, matchPeriodMinutes, showSelection = true, showReport = false, showScouting = false }: {
   matchId: string; players: Player[]; reportPlayers?: Player[]; clips: Clip[]; initialDossier?: Partial<MatchDossier> | null; editable: boolean;
-  canComplete?: boolean; scoutingEditable?: boolean; played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean; showSelection?: boolean; showReport?: boolean; showScouting?: boolean;
+  canComplete?: boolean; scoutingEditable?: boolean; played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean; matchPeriodCount?: number | null; matchPeriodMinutes?: number | null; showSelection?: boolean; showReport?: boolean; showScouting?: boolean;
 }) {
   const router = useRouter();
   const expectedGoals = Array.from({ length: (scoreA ?? 0) + (scoreB ?? 0) }, (_, index) => ({ id: `goal-${index + 1}` }));
@@ -111,7 +111,18 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
     setNotice("Wedstrijddossier bewaard.");
   }
 
-  const lineupBlocks = draft.lineup_blocks.length > 0 ? draft.lineup_blocks : [{ id: "block-0", startMinute: 0, positions: draft.lineup_positions }];
+  const savedLineupBlocks = draft.lineup_blocks.length > 0 ? draft.lineup_blocks : [{ id: "block-0", startMinute: 0, positions: draft.lineup_positions }];
+  const expectedBlockStarts = matchPeriodCount && matchPeriodMinutes
+    ? Array.from({ length: matchPeriodCount }, (_, index) => index * matchPeriodMinutes)
+    : [0];
+  const lineupBlocks = [
+    ...savedLineupBlocks,
+    ...expectedBlockStarts.filter(startMinute => !savedLineupBlocks.some(block => block.startMinute === startMinute)).map(startMinute => ({
+      id: `period-${startMinute}`,
+      startMinute,
+      positions: savedLineupBlocks.filter(block => block.startMinute < startMinute).sort((a, b) => b.startMinute - a.startMinute)[0]?.positions.map(position => ({ ...position })) ?? []
+    }))
+  ].sort((a, b) => a.startMinute - b.startMinute);
   const hasReport = editable || [draft.general_report, draft.positives, draft.improvements, draft.highlights, draft.cards, draft.chances].some(value => value.trim()) || draft.goal_events.length > 0;
   const dossierClass = played ? "overflow-hidden rounded-2xl border border-border bg-card divide-y divide-border" : "space-y-3";
 
