@@ -46,12 +46,16 @@ export async function POST(request: Request) {
   const name = text(body?.name);
   if (!clubId || !name) return NextResponse.json({ error: "Club en teamnaam zijn verplicht." }, { status: 400 });
   if (!await canManage(ctx.admin, ctx.user.id, clubId, ctx.platformAdmin)) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
-  const { data: lastTeam } = await ctx.admin.from("club_teams").select("display_order").eq("club_id", clubId).order("display_order", { ascending: false }).limit(1).maybeSingle();
+  const { data: activeSeason } = await ctx.admin.from("club_seasons").select("id").eq("club_id", clubId).eq("status", "ACTIVE").maybeSingle();
+  const lastTeamQuery = ctx.admin.from("club_teams").select("display_order").eq("club_id", clubId);
+  const { data: lastTeam } = await (activeSeason ? lastTeamQuery.eq("season_id", activeSeason.id) : lastTeamQuery.is("season_id", null))
+    .order("display_order", { ascending: false }).limit(1).maybeSingle();
   const ageCategory = text(body?.ageCategory, 60);
   const defaults = defaultsForAgeCategory(ageCategory);
   const { data, error } = await ctx.admin.from("club_teams").insert({
     club_id: clubId, name, normalized_name: name,
     display_order: (lastTeam?.display_order ?? -1) + 1,
+    season_id: activeSeason?.id ?? null,
     age_category: ageCategory || null,
     match_format: isMatchFormat(body?.matchFormat) ? body.matchFormat : defaults?.format ?? null,
     match_period_count: integer(body?.periodCount, 1, 12) ?? defaults?.periodCount ?? null,

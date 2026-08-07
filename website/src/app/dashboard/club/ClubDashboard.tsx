@@ -12,6 +12,7 @@ import { ClubPeopleManager } from "./ClubPeopleManager";
 import { ClubMatchOptionsManager, type ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
 import { ClubMatchCsvImporter } from "./ClubMatchCsvImporter";
 import { PlayerGroupsManager } from "./PlayerGroupsManager";
+import { SeasonManager } from "./SeasonManager";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean };
 type Team = {
@@ -20,6 +21,7 @@ type Team = {
   name: string;
   status: string;
   display_order: number;
+  season_id: string | null;
   sponsor_url?: string | null;
   sponsor_enabled?: boolean;
   sponsor_source?: "team" | "club" | "none";
@@ -44,7 +46,7 @@ type TrainingSettings = {
   new_version_policy: "automatic" | "approval_required"; trainers_can_create_versions: boolean;
   trainers_can_download: boolean; age_category_required: boolean; change_note_required: boolean;
 };
-type Overview = { clubs: Club[]; teams: Team[]; trainers: Trainer[]; matches: Match[]; assignments: Assignment[]; memberships: Membership[]; moduleEntitlements: ModuleEntitlement[]; trainingSettings: TrainingSettings[]; memberPermissions: { club_id: string; profile_id: string; permission_key: string; enabled: boolean }[]; memberTeamAccess: { club_id: string; profile_id: string; club_team_id: string }[]; rolePermissionDefaults: { club_id: string; function_role: string; permission_key: string; enabled: boolean }[]; matchOptions: ClubMatchOption[]; migrationIssues: MigrationIssue[]; currentAccess: { role: string; functionRole: string; permissions: string[] } | null };
+type Overview = { clubs: Club[]; teams: Team[]; activeSeasons: { id: string; club_id: string; name: string }[]; trainers: Trainer[]; matches: Match[]; assignments: Assignment[]; memberships: Membership[]; moduleEntitlements: ModuleEntitlement[]; trainingSettings: TrainingSettings[]; memberPermissions: { club_id: string; profile_id: string; permission_key: string; enabled: boolean }[]; memberTeamAccess: { club_id: string; profile_id: string; club_team_id: string }[]; rolePermissionDefaults: { club_id: string; function_role: string; permission_key: string; enabled: boolean }[]; matchOptions: ClubMatchOption[]; migrationIssues: MigrationIssue[]; currentAccess: { role: string; functionRole: string; permissions: string[] } | null };
 
 const roleLabels: Record<Membership["role"], string> = { club_admin: "Club Admin", club_admin_viewer: "Club Admin (viewer)", analyst: "Analyst", trainer: "Trainer" };
 const roleBadgeClass: Record<Membership["role"], string> = { club_admin: "bg-blue-500/15 text-blue-300", club_admin_viewer: "bg-blue-500/10 text-blue-200", analyst: "bg-cyan-500/15 text-cyan-300", trainer: "bg-accent/15 text-accent" };
@@ -76,7 +78,8 @@ export function ClubDashboard() {
   }, [activeClubId]);
 
   const club = data?.clubs.find((item) => item.id === selectedClubId);
-  const teams = useMemo(() => data?.teams.filter((item) => item.club_id === selectedClubId) ?? [], [data, selectedClubId]);
+  const activeSeason = data?.activeSeasons.find((season) => season.club_id === selectedClubId);
+  const teams = useMemo(() => data?.teams.filter((item) => item.club_id === selectedClubId && (!activeSeason || item.season_id === activeSeason.id)) ?? [], [data, selectedClubId, activeSeason]);
   const trainers = useMemo(() => data?.trainers.filter((item) => item.club_id === selectedClubId) ?? [], [data, selectedClubId]);
   const migrationIssues = useMemo(() => data?.migrationIssues.filter((item) => item.clubId === selectedClubId) ?? [], [data, selectedClubId]);
   const matches = useMemo(() => data?.matches.filter((item) => item.club_id === selectedClubId) ?? [], [data, selectedClubId]);
@@ -227,6 +230,10 @@ export function ClubDashboard() {
       {moduleEnabled("teams") && canManageTeams && <ModuleAccordion title="Teams & spelers" icon="/branding/teams.png">
         <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} coordinatorTrainerIds={youthCoordinatorTrainerIds} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} migrationIssues={migrationIssues} onChanged={load}
           readOnly={readOnly || !canManageTeams || !moduleEnabled("teams_manage")} allowImport={moduleEnabled("teams_import") && data.currentAccess?.permissions.includes("teams.import") === true} allowReorder={!readOnly && ["club_admin", "platform_admin"].includes(data.currentAccess?.role ?? "")} />
+      </ModuleAccordion>}
+
+      {fullAdmin && !readOnly && <ModuleAccordion title="Seizoenen & overgang" icon="/branding/teams.png">
+        <SeasonManager />
       </ModuleAccordion>}
 
       {fullAdmin && moduleEnabled("matches") && <ModuleAccordion title="Imports & koppelingen" icon="/branding/games.png">

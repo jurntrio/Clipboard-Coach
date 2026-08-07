@@ -26,7 +26,16 @@ export default async function TrainingStatisticsPage() {
   const rows: TrainingStatistic[] = visibleTeams.flatMap(team => {
     const teamSessions = (sessions ?? []).filter(session => session.club_team_id === team.id); const ids = new Set(teamSessions.map(session => session.id));
     const operational = team.teams as unknown as { id: string; players: { id: string; first_name: string; last_name: string; role: string }[] }[];
-    return operational.flatMap(item => item.players).filter(player => player.role === "player").map(player => ({ playerId: player.id, playerName: `${player.first_name} ${player.last_name}`.trim(), teamId: team.id, teamName: team.name, confirmedTrainings: teamSessions.length, missedTrainings: (attendance ?? []).filter(row => ids.has(row.training_session_id) && row.player_id === player.id && row.attendance_status === "absent").length }));
+    return operational.flatMap(item => item.players).filter(player => player.role === "player").map(player => ({
+      playerId: player.id,
+      playerName: `${player.first_name} ${player.last_name}`.trim(),
+      teamId: team.id,
+      teamName: team.name,
+      confirmedTrainings: teamSessions.length,
+      presentTrainings: (attendance ?? []).filter(row => ids.has(row.training_session_id) && row.player_id === player.id && row.attendance_status === "present").length,
+      missedTrainings: (attendance ?? []).filter(row => ids.has(row.training_session_id) && row.player_id === player.id && row.attendance_status === "absent").length,
+      injuredTrainings: (attendance ?? []).filter(row => ids.has(row.training_session_id) && row.player_id === player.id && row.attendance_status === "injured").length
+    }));
   });
   return <main className="mx-auto max-w-6xl p-4 sm:p-8"><SectionHeader title="Trainingsstatistieken" artworkSrc="/branding/training.png" showHome={false} /><nav className="mb-5 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2"><Link href="/dashboard/training" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Overzicht</Link><Link href="/dashboard/training/new" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Losse training maken</Link><span className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Statistieken</span><Link href="/dashboard/intradesk" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Open Intradesk</Link></nav><TeamContextHeader teams={teams.map(team => ({ id: team.id, name: team.name }))} activeTeamId={activeTeamId} /><TrainingStatistics rows={rows} /></main>;
 }

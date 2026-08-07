@@ -18,9 +18,11 @@ export async function GET() {
   const clubIds = context.activeClubId ? [context.activeClubId] : [];
   if (!clubIds.length) return NextResponse.json({ clubs: [] });
 
-  const [{ data: clubs }, { data: teams }, { data: trainers }, { data: matches }, { data: clubMemberships }, { data: moduleEntitlements }, { data: trainingSettings }, { data: memberPermissions }, { data: memberTeamAccess }, { data: rolePermissionDefaults }, { data: matchOptions }] = await Promise.all([
+  const [{ data: clubs }, { data: teams }, { data: activeSeasons }, { data: trainers }, { data: matches }, { data: clubMemberships }, { data: moduleEntitlements }, { data: trainingSettings }, { data: memberPermissions }, { data: memberTeamAccess }, { data: rolePermissionDefaults }, { data: matchOptions }] = await Promise.all([
     admin.from("clubs").select("*").in("id", clubIds).order("name"),
-    admin.from("club_teams").select("*, club_trainer_teams(trainer_id, role, status), teams(id, players(*))").in("club_id", clubIds).neq("status", "merged").order("display_order").order("name"),
+    admin.from("club_teams").select("*, club_seasons!inner(status), club_trainer_teams(trainer_id, role, status), teams(id, players(*))")
+      .in("club_id", clubIds).eq("club_seasons.status", "ACTIVE").neq("status", "merged").order("display_order").order("name"),
+    admin.from("club_seasons").select("id, club_id, name").in("club_id", clubIds).eq("status", "ACTIVE"),
     admin.from("club_trainers").select("*, profiles(email), club_trainer_teams(club_team_id)").in("club_id", clubIds).order("display_name"),
     admin.from("matches").select("id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, external_source").in("club_id", clubIds).order("match_date", { ascending: false }),
     admin.from("club_memberships").select("club_id, profile_id, role, function_role, custom_role_name, team_scope").in("club_id", clubIds),
@@ -82,7 +84,7 @@ export async function GET() {
         }))
   }));
   return NextResponse.json({
-    clubs: clubs ?? [], teams: visibleTeams, trainers: trainers ?? [], matches: fullAdmin ? matches ?? [] : [],
+    clubs: clubs ?? [], teams: visibleTeams, activeSeasons: activeSeasons ?? [], trainers: trainers ?? [], matches: fullAdmin ? matches ?? [] : [],
     assignments: fullAdmin ? assignments ?? [] : [], memberships: fullAdmin ? clubMemberships ?? [] : (clubMemberships ?? []).filter((membership) => membership.profile_id === user.id), moduleEntitlements: moduleEntitlements ?? [],
     trainingSettings: fullAdmin ? trainingSettings ?? [] : [], memberPermissions: fullAdmin ? memberPermissions ?? [] : [],
     memberTeamAccess: fullAdmin ? memberTeamAccess ?? [] : [], rolePermissionDefaults: fullAdmin ? rolePermissionDefaults ?? [] : [], matchOptions: matchOptions ?? [], migrationIssues: fullAdmin ? migrationIssues : [],
