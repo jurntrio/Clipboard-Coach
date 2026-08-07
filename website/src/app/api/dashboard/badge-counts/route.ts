@@ -22,6 +22,7 @@ export async function GET() {
       admin.from("club_memberships").select("profile_id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending"),
       admin.from("club_teams").select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending"),
       admin.from("person_claim_reviews").select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending")
+      ,admin.from("club_registration_requests").select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("status", "pending")
     ]) : Promise.resolve([]),
     canReviewClubNames ? getUnresolvedClubNameCount(admin) : Promise.resolve(0)
   ]);
