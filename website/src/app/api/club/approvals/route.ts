@@ -30,7 +30,7 @@ export async function GET() {
       .select("id, requested_profile_id, reason, created_at, profiles!person_claim_reviews_requested_profile_id_fkey(email, full_name), people(first_name, last_name)")
       .eq("club_id", auth.clubId).eq("status", "pending").order("created_at"),
     auth.admin.from("club_registration_requests")
-      .select("id, profile_id, request_kind, requested_function_role, requested_custom_role, requested_team_id, player_first_name, player_last_name, player_date_of_birth, created_at, profiles(email, full_name)")
+      .select("id, profile_id, request_kind, requested_function_role, requested_custom_role, requested_team_id, player_first_name, player_last_name, player_date_of_birth, created_at, profiles!club_registration_requests_profile_id_fkey(email, full_name)")
       .eq("club_id", auth.clubId).eq("status", "pending").order("created_at"),
     auth.admin.from("club_players").select("id, first_name, last_name, date_of_birth")
       .eq("club_id", auth.clubId).order("last_name").order("first_name"),
