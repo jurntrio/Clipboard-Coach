@@ -20,7 +20,7 @@ export async function GET() {
 
   const [{ data: clubs }, { data: teams }, { data: activeSeasons }, { data: trainers }, { data: matches }, { data: clubMemberships }, { data: moduleEntitlements }, { data: trainingSettings }, { data: memberPermissions }, { data: memberTeamAccess }, { data: rolePermissionDefaults }, { data: matchOptions }] = await Promise.all([
     admin.from("clubs").select("*").in("id", clubIds).order("name"),
-    admin.from("club_teams").select("*, club_seasons!inner(status), club_trainer_teams(trainer_id, role, status), teams(id, players(*))")
+    admin.from("club_teams").select("*, club_seasons!club_teams_season_id_fkey!inner(status), club_trainer_teams(trainer_id, role, status), teams(id, players(*))")
       .in("club_id", clubIds).eq("club_seasons.status", "ACTIVE").neq("status", "merged").order("display_order").order("name"),
     admin.from("club_seasons").select("id, club_id, name").in("club_id", clubIds).eq("status", "ACTIVE"),
     admin.from("club_trainers").select("*, profiles(email), club_trainer_teams(club_team_id)").in("club_id", clubIds).order("display_name"),

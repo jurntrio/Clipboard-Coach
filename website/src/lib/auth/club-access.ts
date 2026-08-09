@@ -72,7 +72,7 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
   const teamIds = new Set((selected ?? []).map((row) => row.club_team_id));
   if (membership.team_scope === "assigned" && trainer) {
     const { data: assignments } = await admin.from("club_trainer_teams")
-      .select("club_team_id, club_teams!inner(club_seasons!inner(status, trainers_visible_from))")
+      .select("club_team_id, club_teams!inner(club_seasons!club_teams_season_id_fkey!inner(status, trainers_visible_from))")
       .eq("trainer_id", trainer.id).eq("status", "active");
     for (const assignment of assignments ?? []) {
       const team = assignment.club_teams as unknown as { club_seasons: { status: string; trainers_visible_from: string | null } | null } | null;

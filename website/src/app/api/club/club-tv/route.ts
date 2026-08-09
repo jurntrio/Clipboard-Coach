@@ -37,7 +37,7 @@ export async function GET() {
       admin
         .from("club_teams")
         .select(
-          "id,name,age_category,status,season_id,club_seasons(name,status)",
+          "id,name,age_category,status,season_id,club_seasons!club_teams_season_id_fkey(name,status)",
         )
         .eq("club_id", ctx.clubId)
         .eq("status", "active")

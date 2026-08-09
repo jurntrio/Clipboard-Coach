@@ -38,6 +38,7 @@ type Team = {
   trainers_can_edit_roster: boolean;
   trainers_can_manage_matches: boolean;
   age_category: string | null;
+  level_or_competition: string | null;
   match_format: MatchFormat | null;
   match_period_count: number | null;
   match_period_minutes: number | null;
@@ -49,6 +50,7 @@ type Trainer = { id: string; profile_id: string | null; display_name: string };
 type MigrationIssue = { id: string; clubId: string; clubPlayerId: string; playerName: string; seasonId: string | null; candidates: { teamId: string; teamName: string; membershipType: string }[] };
 type SearchResult = { club_player_id: string; first_name: string; last_name: string; birth_year: number | null; current_team_names: string[] };
 type ImportMode = "merge" | "sync" | "replace";
+const TEAM_LEVELS = ["Elite", "IP", "P", "Gew", "1e ploeg", "B ploeg", "Beloften A", "Beloften B"];
 
 const inputClass = "w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary";
 const emptyPlayer = (): PlayerRow => ({ firstName: "", lastName: "", dateOfBirth: "", email: "", phoneNumbers: "" });
@@ -87,6 +89,7 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
   const { t } = useI18n();
   const [name, setName] = useState("");
   const [newAgeCategory, setNewAgeCategory] = useState("");
+  const [newLevel, setNewLevel] = useState("");
   const [editing, setEditing] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -107,10 +110,10 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
     event.preventDefault();
     const defaults = defaultsForAgeCategory(newAgeCategory);
     if (await request("POST", {
-      clubId, name, ageCategory: newAgeCategory,
+      clubId, name, ageCategory: newAgeCategory, levelOrCompetition: newLevel,
       matchFormat: defaults?.format, periodCount: defaults?.periodCount,
       periodMinutes: defaults?.periodMinutes, minimumPlayers: defaults?.minimumPlayers
-    })) { setName(""); setNewAgeCategory(""); }
+    })) { setName(""); setNewAgeCategory(""); setNewLevel(""); }
   }
 
   async function resolvePrimary(issue: MigrationIssue, teamId: string) {
@@ -138,6 +141,8 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
       <input required value={name} onChange={(event) => setName(event.target.value)} placeholder={t("clubTeams.namePlaceholder")} className={`${inputClass} min-w-60 flex-1`} />
       <input required list="new-team-age-categories" value={newAgeCategory} onChange={(event) => setNewAgeCategory(event.target.value)} placeholder="Leeftijdscategorie" className={`${inputClass} w-52`} />
       <datalist id="new-team-age-categories">{AGE_CATEGORIES.map(category => <option key={category} value={category} />)}</datalist>
+      <input list="new-team-levels" value={newLevel} onChange={(event) => setNewLevel(event.target.value)} placeholder="Niveau" className={`${inputClass} w-44`} />
+      <datalist id="new-team-levels">{TEAM_LEVELS.map(level => <option key={level} value={level} />)}</datalist>
       <button disabled={busy === "create"} className="shrink-0 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{t("clubTeams.create")}</button>
     </form>}
     {error && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
@@ -164,6 +169,7 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
         <div className="flex flex-wrap items-center gap-3">
           <div className="mr-auto">
             <h3 className="font-semibold text-textPrimary">{team.name}</h3>
+            {(team.age_category || team.level_or_competition) && <p className="mt-1 text-xs font-semibold text-accent">{[team.age_category, team.level_or_competition].filter(Boolean).join(" · ")}</p>}
             <p className="mt-1 text-sm text-textMuted">{t("clubTeams.coachesLabel", { names: coachNames.join(", ") || t("clubTeams.noCoachAssigned") })}</p>
           </div>
           <span className="text-xs text-textMuted">{t("matchHub.lineupCount", { count: team.teams?.[0]?.players?.filter((player) => player.role === "player").length ?? 0 })}</span>
@@ -190,6 +196,7 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
   const [canManageMatches, setCanManageMatches] = useState(team.trainers_can_manage_matches ?? false);
   const ageDefaults = defaultsForAgeCategory(team.age_category);
   const [ageCategory, setAgeCategory] = useState(team.age_category ?? "");
+  const [levelOrCompetition, setLevelOrCompetition] = useState(team.level_or_competition ?? "");
   const [matchFormat, setMatchFormat] = useState<MatchFormat | "">(team.match_format ?? ageDefaults?.format ?? "");
   const [periodCount, setPeriodCount] = useState((team.match_period_count ?? ageDefaults?.periodCount ?? "").toString());
   const [periodMinutes, setPeriodMinutes] = useState((team.match_period_minutes ?? ageDefaults?.periodMinutes ?? "").toString());
@@ -293,7 +300,7 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
     }
     setRosterStatus(t("common.saving"));
     const savedTeam = await request("PATCH", {
-      teamId: team.id, name, ageCategory, trainersCanEditRoster: canEdit, trainersCanManageMatches: canManageMatches,
+      teamId: team.id, name, ageCategory, levelOrCompetition, trainersCanEditRoster: canEdit, trainersCanManageMatches: canManageMatches,
       matchFormat, periodCount: Number(periodCount), periodMinutes: Number(periodMinutes), minimumPlayers: Number(minimumPlayers)
     });
     if (!savedTeam) { setRosterStatus(""); return; }
@@ -372,7 +379,7 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
     <section className="rounded-xl border border-borderSubtle bg-card p-4">
       <h4 className="text-sm font-semibold text-textBright">Standaard wedstrijdindeling</h4>
       <p className="mt-1 text-xs text-textMuted">Nieuwe wedstrijden nemen deze waarden over. In de wedstrijdvoorbereiding blijven ze aanpasbaar.</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <label className="text-xs text-textSecondary">Leeftijdscategorie
           <input list={`age-categories-${team.id}`} value={ageCategory} disabled={readOnly} onChange={event => {
             const category = event.target.value;
@@ -384,6 +391,10 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
             }
           }} className={`mt-1 ${inputClass}`} />
           <datalist id={`age-categories-${team.id}`}>{AGE_CATEGORIES.map(category => <option key={category} value={category} />)}</datalist>
+        </label>
+        <label className="text-xs text-textSecondary">Niveau
+          <input list={`team-levels-${team.id}`} value={levelOrCompetition} disabled={readOnly} onChange={event => setLevelOrCompetition(event.target.value)} className={`mt-1 ${inputClass}`} />
+          <datalist id={`team-levels-${team.id}`}>{TEAM_LEVELS.map(level => <option key={level} value={level} />)}</datalist>
         </label>
         <label className="text-xs text-textSecondary">Spelvorm<select value={matchFormat} disabled={readOnly} onChange={event => setMatchFormat(event.target.value as MatchFormat)} className={`mt-1 ${inputClass}`}><option value="">—</option><option value="5v5">5v5</option><option value="8v8">8v8</option><option value="11v11">11v11</option></select></label>
         <label className="text-xs text-textSecondary">Aantal periodes<input required type="number" min="1" max="12" value={periodCount} disabled={readOnly} onChange={event => setPeriodCount(event.target.value)} className={`mt-1 ${inputClass}`} /></label>

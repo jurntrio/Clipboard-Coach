@@ -28,6 +28,7 @@ type Team = {
   trainers_can_edit_roster: boolean;
   trainers_can_manage_matches: boolean;
   age_category: string | null;
+  level_or_competition: string | null;
   match_format: "5v5" | "8v8" | "11v11" | null;
   match_period_count: number | null;
   match_period_minutes: number | null;
