@@ -5,7 +5,7 @@ import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club
 import { cookies } from "next/headers";
 import { ACTIVE_TEAM_COOKIE, readActiveTeamSelection } from "@/lib/auth/active-team";
 
-export async function GET() {
+export async function GET(request: Request) {
   const context = await getClubContext();
   const user = context.user;
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +31,7 @@ export async function GET() {
       allowedIds = allowedIds.filter((id) => canAccessTeam(authorization, id));
     }
     const selection = readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(allowedIds));
-    if (selection.teamId) allowedIds = [selection.teamId];
+    if (selection.teamId && new URL(request.url).searchParams.get("all") !== "true") allowedIds = [selection.teamId];
     const { data: teams } = allowedIds.length
       ? await admin.from("teams").select("*, players(id, role), club_teams!inner(trainers_can_edit_roster, display_order)").in("club_team_id", allowedIds)
       : { data: [] };

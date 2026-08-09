@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { useI18n } from "@/i18n/client";
@@ -12,6 +13,7 @@ type TeamSummary = Team & { player_count?: number };
 type StaffInvitation = { id: string; team_name: string };
 
 export default function TeamsPage() {
+  const router = useRouter();
   const { t } = useI18n();
   const { activeClubId } = useActiveClub();
   const [teams, setTeams] = useState<TeamSummary[]>([]);
@@ -26,7 +28,9 @@ export default function TeamsPage() {
     const response = await fetch("/api/teams");
     if (!response.ok) return;
     const body = await response.json() as { teams: TeamSummary[] };
-    setTeams((body.teams ?? []).filter((team) => team.name.trim().toUpperCase() !== "EXTRA"));
+    const visibleTeams = (body.teams ?? []).filter((team) => team.name.trim().toUpperCase() !== "EXTRA");
+    setTeams(visibleTeams);
+    if (visibleTeams.length === 1) router.replace(`/dashboard/teams/${visibleTeams[0].id}`);
   }
 
   async function loadInvitations() {

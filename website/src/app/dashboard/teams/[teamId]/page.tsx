@@ -9,6 +9,7 @@ import type { MessageKey } from "@/i18n/messages";
 import type { Match, Player, Team } from "@/types/database";
 
 type Tab = "overview" | "staff" | "matches" | "training" | "evaluations";
+type TrainingView = "upcoming" | "past" | "statistics";
 type StaffMember = { id: string; full_name: string; role: string };
 type PlayerContact = { id: string; full_name: string; email: string | null; phone_number: string | null };
 type DetailedPlayer = Player & { contacts?: PlayerContact[]; can_manage?: boolean };
@@ -19,7 +20,9 @@ export default function TeamDetailPage() {
   const { teamId } = useParams<{ teamId: string }>();
   const { t, locale } = useI18n();
   const [tab, setTab] = useState<Tab>("overview");
+  const [trainingView, setTrainingView] = useState<TrainingView>("upcoming");
   const [team, setTeam] = useState<TeamDetail | null>(null);
+  const [teamOptions, setTeamOptions] = useState<Team[]>([]);
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [trainings, setTrainings] = useState<Training[] | null>(null);
   const [optionNames, setOptionNames] = useState<Record<string, string>>({});
@@ -33,6 +36,14 @@ export default function TeamDetailPage() {
       setTeam(body.team);
     }).finally(() => setLoading(false));
   }, [teamId]);
+
+  useEffect(() => {
+    void fetch("/api/teams?all=true", { cache: "no-store" }).then(async response => {
+      if (!response.ok) return;
+      const body = await response.json() as { teams?: Team[] };
+      setTeamOptions((body.teams ?? []).filter(item => item.name.trim().toUpperCase() !== "EXTRA"));
+    });
+  }, []);
 
   useEffect(() => {
     if (tab === "matches" && matches === null && loadingSection === null) {
@@ -67,11 +78,20 @@ export default function TeamDetailPage() {
     { id: "evaluations", label: t("team.evaluations") }
   ];
 
+  async function openTeam(option: Team) {
+    if (option.club_team_id) await fetch("/api/team-context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clubTeamId: option.club_team_id }) });
+    window.location.href = `/dashboard/teams/${option.id}`;
+  }
+
   if (loading) return <div className="mx-auto max-w-6xl p-5 sm:p-7"><p className="rounded-xl border border-border bg-card p-5 text-textMuted">{t("team.loading")}</p></div>;
   if (!team) return <div className="mx-auto max-w-6xl p-5 sm:p-7"><Link href="/dashboard/teams" className="text-accent">← {t("common.back")}</Link><p className="mt-5 text-textMuted">{t("team.notFound")}</p></div>;
 
   return <div className="mx-auto max-w-6xl p-5 sm:p-7">
     <SectionHeader title={team.name} artworkSrc="/branding/teams.png" backHref="/dashboard/teams" showHome={false} />
+    {teamOptions.length > 1 && <nav className="mb-5 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-3" aria-label="Ploeg kiezen">
+      <Link href="/dashboard/teams" className="rounded-lg px-3 py-2 text-sm font-semibold text-textPrimary hover:bg-cardDeep">Alles</Link>
+      {teamOptions.map(option => <button type="button" key={option.id} onClick={() => void openTeam(option)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${option.id === team.id ? "bg-accent text-page" : "text-textPrimary hover:bg-cardDeep"}`}>{option.name}</button>)}
+    </nav>}
     <nav className="mb-6 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label={t("team.navigation")}>
       {tabs.map((item) => <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`rounded-lg px-4 py-2 text-sm font-bold ${tab === item.id ? "bg-accent text-page" : "text-textPrimary hover:bg-cardDeep"}`}>{item.label}</button>)}
     </nav>
@@ -82,7 +102,17 @@ export default function TeamDetailPage() {
 
     {tab === "matches" && <section><h2 className="mb-3 text-lg font-bold text-textBright">{t("team.matchesOf", { team: team.name })}</h2>{loadingSection === "matches" && <Loading text={t("team.loadingMatches")} />}{matches !== null && (matches.length ? <div className="space-y-3">{matches.map((match) => <div key={match.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4"><div><p className="font-bold text-textBright">{match.team_a_name} – {match.team_b_name}</p><p className="mt-1 text-sm text-textMuted">{formatDate(match.match_date, locale)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p></div>{match.score_a !== null && match.score_b !== null && <strong className="text-xl text-accent">{match.score_a} – {match.score_b}</strong>}</div>)}</div> : <Empty text={t("team.noMatches")} />)}</section>}
 
-    {tab === "training" && <section><h2 className="mb-3 text-lg font-bold text-textBright">{t("team.trainingsOf", { team: team.name })}</h2>{loadingSection === "training" && <Loading text={t("team.loadingTrainings")} />}{trainings !== null && <><TrainingGroups title={t("team.upcomingTrainings")} trainings={upcomingTrainings} locale={locale} optionNames={optionNames} t={t} empty={t("team.noUpcomingTrainings")} />{pastTrainings.length > 0 && <div className="mt-8"><TrainingGroups title={t("team.pastTrainings")} trainings={pastTrainings} locale={locale} optionNames={optionNames} t={t} empty="" /></div>}</>}</section>}
+    {tab === "training" && <section><h2 className="mb-3 text-lg font-bold text-textBright">{t("team.trainingsOf", { team: team.name })}</h2>
+      <nav className="mb-5 flex flex-wrap gap-6 border-b border-border" aria-label="Trainingen bekijken">
+        <button type="button" onClick={() => setTrainingView("upcoming")} className={`border-b-2 px-1 pb-3 text-sm font-bold ${trainingView === "upcoming" ? "border-accent text-textBright" : "border-transparent text-textMuted hover:text-textPrimary"}`}>Komende trainingen</button>
+        <button type="button" onClick={() => setTrainingView("past")} className={`border-b-2 px-1 pb-3 text-sm font-bold ${trainingView === "past" ? "border-accent text-textBright" : "border-transparent text-textMuted hover:text-textPrimary"}`}>Afgelopen trainingen</button>
+        <button type="button" onClick={() => setTrainingView("statistics")} className={`border-b-2 px-1 pb-3 text-sm font-bold ${trainingView === "statistics" ? "border-accent text-textBright" : "border-transparent text-textMuted hover:text-textPrimary"}`}>Statistieken</button>
+      </nav>
+      {loadingSection === "training" && <Loading text={t("team.loadingTrainings")} />}
+      {trainings !== null && trainingView === "upcoming" && <TrainingGroups title="" trainings={upcomingTrainings} locale={locale} optionNames={optionNames} t={t} empty={t("team.noUpcomingTrainings")} />}
+      {trainings !== null && trainingView === "past" && <TrainingGroups title="" trainings={pastTrainings} locale={locale} optionNames={optionNames} t={t} empty="Nog geen afgelopen trainingen." />}
+      {trainingView === "statistics" && <div className="rounded-xl border border-border bg-card p-5"><h3 className="font-bold text-textBright">Aanwezigheidsstatistieken</h3><p className="mt-1 text-sm text-textMuted">Bekijk aanwezigheid, afwezigheid en blessures voor {team.name}.</p><Link href="/dashboard/training/statistics" className="mt-4 inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Statistieken openen</Link></div>}
+    </section>}
 
     {tab === "evaluations" && <Empty text={t("team.evaluationsComingSoon")} />}
   </div>;

@@ -34,7 +34,7 @@ export async function GET() {
       .eq("club_id", auth.clubId).eq("status", "pending").order("created_at"),
     auth.admin.from("club_players").select("id, first_name, last_name, date_of_birth")
       .eq("club_id", auth.clubId).order("last_name").order("first_name"),
-    auth.admin.from("club_teams").select("id, name, club_seasons!inner(status)").eq("club_id", auth.clubId).eq("status", "active")
+    auth.admin.from("club_teams").select("id, name, club_seasons!club_teams_season_id_fkey!inner(status)").eq("club_id", auth.clubId).eq("status", "active")
       .eq("club_seasons.status", "ACTIVE").order("display_order").order("name")
   ]);
   const error = memberships.error || teams.error || claims.error || registrations.error || players.error || activeTeams.error;
@@ -71,7 +71,7 @@ export async function PATCH(request: Request) {
       const technicalRole = functionRole === "video_analyst" ? "analyst" : functionRole === "team_manager" ? "team_manager" : functionRole === "assistant_trainer" ? "assistant_coach" : "trainer";
       const teamIds = [...new Set((body.teamIds ?? []).filter(Boolean))];
       if (teamIds.length) {
-        const { count } = await auth.admin.from("club_teams").select("id, club_seasons!inner(status)", { count: "exact", head: true }).eq("club_id", auth.clubId).eq("club_seasons.status", "ACTIVE").in("id", teamIds);
+        const { count } = await auth.admin.from("club_teams").select("id, club_seasons!club_teams_season_id_fkey!inner(status)", { count: "exact", head: true }).eq("club_id", auth.clubId).eq("club_seasons.status", "ACTIVE").in("id", teamIds);
         if (count !== teamIds.length) return NextResponse.json({ error: "Een gekozen team behoort niet tot deze club." }, { status: 400 });
       }
       const { error: memberError } = await auth.admin.from("club_memberships").upsert({ club_id: auth.clubId, profile_id: registration.profile_id, role: technicalRole, status: "active", function_role: functionRole, custom_role_name: functionRole === "custom" ? body.customRoleName?.trim() : null, team_scope: teamIds.length ? "assigned" : "none" }, { onConflict: "club_id,profile_id" });
