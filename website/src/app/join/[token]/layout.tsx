@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashInviteToken } from "@/lib/invite-tokens";
 
-const siteUrl = "https://clipboardcoachstudio.com";
+const siteUrl = "https://app.sportvisualsystems.com";
 
 export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
   const admin = createAdminClient();
@@ -44,10 +44,10 @@ function preview(title: string, description: string): Metadata {
     robots: { index: false, follow: false },
     openGraph: {
       type: "website",
-      siteName: "Clipboard Coach Studio",
+      siteName: "Sport Visual Systems",
       title,
       description,
-      images: [{ url: `${siteUrl}/branding/banner.png`, alt: "Clipboard Coach Studio" }]
+      images: [{ url: `${siteUrl}/branding/banner.png`, alt: "Sport Visual Systems" }]
     },
     twitter: { card: "summary_large_image", title, description, images: [`${siteUrl}/branding/banner.png`] }
   };

@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-const PRODUCTION_ORIGIN = "https://clipboardcoachstudio.com";
+const PRODUCTION_ORIGIN = "https://app.sportvisualsystems.com";
 
 export function mailboxEmailNotificationsEnabled() {
   return Boolean(process.env.RESEND_API_KEY && process.env.MAILBOX_EMAIL_FROM);
@@ -98,10 +98,10 @@ export async function sendMailboxNotificationEmails(notifications: MailboxNotifi
 
 function notificationHtml(params: MailboxNotification) {
   const inboxUrl = `${getAppOrigin()}/dashboard/inbox?thread=${encodeURIComponent(params.threadId)}`;
-  return `<p><strong>${escapeHtml(params.senderName)}</strong> stuurde je een nieuwe e-mail via de CBC Studio-mailbox:</p>
+  return `<p><strong>${escapeHtml(params.senderName)}</strong> stuurde je een nieuwe e-mail via de Sport Visual Systems-mailbox:</p>
     <p style="white-space: pre-wrap;">${escapeHtml(params.body)}</p>
-    <p><a href="${inboxUrl}">Open deze e-mailthread in CBC Studio</a></p>
-    <p style="color: #888; font-size: 13px;">Antwoorden worden centraal in de CBC Studio-mailbox bewaard. Antwoord daarom niet rechtstreeks op deze notificatiemail.</p>`;
+    <p><a href="${inboxUrl}">Open deze e-mailthread in Sport Visual Systems</a></p>
+    <p style="color: #888; font-size: 13px;">Antwoorden worden centraal in de Sport Visual Systems-mailbox bewaard. Antwoord daarom niet rechtstreeks op deze notificatiemail.</p>`;
 }
 
 function escapeHtml(value: string) {

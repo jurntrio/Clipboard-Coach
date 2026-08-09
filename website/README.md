@@ -48,6 +48,7 @@ open **Settings > CORS Policy** and allow the exact production website origin
 [
   {
     "AllowedOrigins": [
+      "https://app.sportvisualsystems.com",
       "https://clipboardcoachstudio.com",
       "https://www.clipboardcoachstudio.com",
       "https://clipboard-coach-studio.netlify.app",
@@ -71,7 +72,7 @@ Not needed yet, only once you build those phases:
   email already handles signup confirmation for free at low volume.
 
 Mailbox e-mail notifications require both `RESEND_API_KEY` and
-`MAILBOX_EMAIL_FROM` (for example `CBC Studio <noreply@clipboardcoachstudio.com>`).
+`MAILBOX_EMAIL_FROM` (for example `Sport Visual Systems <noreply@sportvisualsystems.com>`).
 The sender domain must be verified in Resend. Without both values the mailbox
 continues to work in-app and the compose UI states that no e-mail is sent.
 - **Railway** (or similar) — hosts the `worker/` service that compresses
