@@ -84,6 +84,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const idempotencyKey = typeof body?.idempotencyKey === "string" && /^[0-9a-f-]{36}$/i.test(body.idempotencyKey) ? body.idempotencyKey : null;
   if (!idempotencyKey) return NextResponse.json({ error: "Ongeldige verzendaanvraag." }, { status: 400 });
   const notifyNotSelected = body?.notifyNotSelected === true;
+  const individualNotSelectedIds = new Set(Array.isArray(body?.individualNotSelectedIds) ? body.individualNotSelectedIds.filter((id): id is string => typeof id === "string").slice(0, 100) : []);
   const includeSelectedAttention = body?.includeSelectedAttention !== false;
   const includeNotSelectedAttention = body?.includeNotSelectedAttention !== false;
   const { selections, players, optionLabels } = await selectionData(ctx.admin, ctx.match);
@@ -97,7 +98,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const deliveries = players.flatMap(player => {
     const selection = selectionByPlayer.get(player.id);
     const selected = selection?.selected === true;
-    if (!selected && !notifyNotSelected) return [];
+    if (!selected && (!notifyNotSelected || (individualNotSelectedIds.size > 0 && !individualNotSelectedIds.has(player.id)))) return [];
     const attentionPoint = typeof selection?.individual_attention_point === "string" ? selection.individual_attention_point : null;
     const includeAttention = selected ? includeSelectedAttention : includeNotSelectedAttention;
     return recipientsForPlayer(player).map(recipient => ({

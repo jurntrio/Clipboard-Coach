@@ -18,7 +18,10 @@ export type MatchDossier = {
   goal_events: GoalEvent[];
   lineup_positions: LineupPosition[];
   lineup_blocks: LineupBlock[];
+  player_reviews: PlayerReview[];
 };
+
+type PlayerReview = { playerId: string; rating: number | null; report: string };
 
 type Player = { id: string; first_name: string; last_name: string; jersey_number: number | null };
 type Clip = { id: string; name: string; render_status: string; created_at: string; shareToken: string | null };
@@ -31,7 +34,7 @@ type GoalEvent = {
 
 const emptyDossier: MatchDossier = {
   lineup_notes: "", general_report: "", positives: "", improvements: "",
-  highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: [], lineup_positions: [], lineup_blocks: []
+  highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: [], lineup_positions: [], lineup_blocks: [], player_reviews: []
 };
 
 export function MatchDossierTabs({ matchId, players, reportPlayers = players, clips, initialDossier, editable, canComplete = false, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, matchPeriodCount, matchPeriodMinutes, showSelection = true, showReport = false, showScouting = false }: {
@@ -51,7 +54,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
 
-  function field(key: Exclude<keyof MatchDossier, "goal_events" | "lineup_positions" | "lineup_blocks">, label: string, placeholder: string) {
+  function field(key: Exclude<keyof MatchDossier, "goal_events" | "lineup_positions" | "lineup_blocks" | "player_reviews">, label: string, placeholder: string) {
     if (!editable && !draft[key].trim()) return null;
     if (!editable) return <div>
       <span className="mb-1 block text-xs font-black uppercase tracking-wide text-textMuted">{label}</span>
@@ -127,16 +130,6 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
   const dossierClass = played ? "overflow-hidden rounded-2xl border border-border bg-card divide-y divide-border" : "space-y-3";
 
   return <section className={dossierClass}>
-    {(clips.length > 0 || editable) && <ClosedPanel title={`Clips (${clips.length})`} expanded={played}>
-      {clips.length ? <div className="grid gap-3 sm:grid-cols-2">
-        {clips.map(clip => <article key={clip.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
-          <strong className="block text-textBright">{clip.name}</strong>
-          <span className="mt-1 block text-xs text-textMuted">{new Date(clip.created_at).toLocaleDateString("nl-BE")} · {clip.render_status}</span>
-          {clip.shareToken && <Link href={`/share/${clip.shareToken}`} className="mt-3 inline-flex text-sm font-bold text-accent">Clip openen</Link>}
-        </article>)}
-      </div> : <Empty text="Nog geen clips voor deze wedstrijd." />}
-    </ClosedPanel>}
-
     {(editable || !!draft.lineup_notes.trim() || lineupBlocks.some(block => block.positions.length > 0)) && <ClosedPanel title="Opstelling" expanded={played}>
       <div className="space-y-4">
         <MatchLineupEditor players={reportPlayers} blocks={lineupBlocks} editable={editable}
@@ -160,12 +153,18 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
       </div>
     </ClosedPanel></div>}
 
-    {showSelection && (players.length > 0 || editable) && <ClosedPanel title={`Selectie (${players.length})`} expanded={played}>
-      {players.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {players.map(player => <div key={player.id} className="rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 text-sm text-textPrimary">
-          {player.jersey_number != null && <span className="mr-2 font-black text-accent">{player.jersey_number}</span>}
-          {player.first_name} {player.last_name}
-        </div>)}
+    {showSelection && (players.length > 0 || editable) && <ClosedPanel title={`Spelersbeoordeling (${players.length})`} expanded={played}>
+      <p className="mb-4 rounded-lg border border-borderSubtle bg-cardDeep p-3 text-xs text-textMuted">Intern: nooit zichtbaar voor spelers of contactpersonen.</p>
+      {players.length ? <div className="overflow-hidden rounded-xl border border-borderSubtle">
+        {players.map(player => {
+          const review = draft.player_reviews.find(item => item.playerId === player.id) ?? { playerId: player.id, rating: null, report: "" };
+          const updateReview = (patch: Partial<PlayerReview>) => setDraft(current => ({ ...current, player_reviews: [...current.player_reviews.filter(item => item.playerId !== player.id), { ...review, ...patch }] }));
+          return <div key={player.id} className="grid gap-3 border-b border-borderSubtle bg-cardDeep p-3 last:border-b-0 md:grid-cols-[minmax(180px,1fr)_110px_2fr] md:items-center">
+            <strong className="text-sm text-textBright">{player.jersey_number != null && <span className="mr-2 text-accent">{player.jersey_number}</span>}{player.first_name} {player.last_name}</strong>
+            <label className="text-xs font-bold text-textSecondary">Punten / 10<input type="number" min={0} max={10} step={0.5} disabled={!editable} value={review.rating ?? ""} onChange={event => updateReview({ rating: event.target.value === "" ? null : Math.max(0, Math.min(10, Number(event.target.value))) })} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:opacity-70" /></label>
+            <label className="text-xs font-bold text-textSecondary">Individueel verslag<textarea rows={2} disabled={!editable} value={review.report} onChange={event => updateReview({ report: event.target.value })} placeholder="Korte interne beoordeling…" className="mt-1 w-full resize-y rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary disabled:opacity-70" /></label>
+          </div>;
+        })}
       </div> : <Empty text="Nog geen spelers geselecteerd." />}
     </ClosedPanel>}
 
@@ -174,6 +173,16 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
         <textarea value={draft.scouting} onChange={event => setDraft(current => ({ ...current, scouting: event.target.value }))}
           placeholder="Observaties over eigen spelers, tegenstander en aandachtspunten…" rows={4} className="w-full resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
       </label> : field("scouting", "Scouting", "Observaties over eigen spelers, tegenstander en aandachtspunten…")}
+    </ClosedPanel>}
+
+    {(clips.length > 0 || editable) && <ClosedPanel title={`Clips (${clips.length})`} expanded={false}>
+      {clips.length ? <div className="grid gap-3 sm:grid-cols-2">
+        {clips.map(clip => <article key={clip.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
+          <strong className="block text-textBright">{clip.name}</strong>
+          <span className="mt-1 block text-xs text-textMuted">{new Date(clip.created_at).toLocaleDateString("nl-BE")} · {clip.render_status}</span>
+          {clip.shareToken && <Link href={`/share/${clip.shareToken}`} className="mt-3 inline-flex text-sm font-bold text-accent">Clip openen</Link>}
+        </article>)}
+      </div> : <Empty text="Nog geen clips voor deze wedstrijd. Bij een verplaatsing blijft dit vaak leeg." />}
     </ClosedPanel>}
 
     {(editable || canComplete || scoutingEditable) && <div className="flex flex-wrap items-center justify-end gap-3 p-5">

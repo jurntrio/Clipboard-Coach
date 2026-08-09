@@ -29,15 +29,16 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   const canViewSelection = canSelect || hasClubPermission(ctx.access, "games.selection.view");
   const canTags = hasClubPermission(ctx.access, "games.tag");
   const canCreateTagLink = hasClubPermission(ctx.access, "games.tag_link.create");
-  const [{ data: options }, { data: selections }, { data: team }, { data: clubTeam }] = await Promise.all([
+  const [{ data: options }, { data: selections }, { data: team }, { data: clubTeam }, { data: guestPlayers }] = await Promise.all([
     canPlan || canViewSelection ? ctx.admin.from("club_match_options").select("*").eq("club_id", ctx.match.club_id).eq("active", true).order("label") : Promise.resolve({ data: [] }),
     canViewSelection ? ctx.admin.from("match_player_selections").select("*").eq("match_id", params.id) : Promise.resolve({ data: [] }),
     canViewSelection && ctx.match.team_a_id
       ? ctx.admin.from("teams").select("id, players(*)").eq("id", ctx.match.team_a_id).maybeSingle()
       : Promise.resolve({ data: null }),
     ctx.match.club_team_id
-      ? ctx.admin.from("club_teams").select("match_format, match_period_count, match_period_minutes, match_minimum_players").eq("id", ctx.match.club_team_id).maybeSingle()
-      : Promise.resolve({ data: null })
+      ? ctx.admin.from("club_teams").select("age_category, match_format, match_period_count, match_period_minutes, match_minimum_players").eq("id", ctx.match.club_team_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    canViewSelection ? ctx.admin.from("match_guest_players").select("*").eq("match_id", params.id).order("created_at") : Promise.resolve({ data: [] })
   ]);
   const allowedPlayerIds = ctx.access.goalkeeperPlayerIds;
   return NextResponse.json({
@@ -48,9 +49,10 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       match_period_minutes: ctx.match.match_period_minutes ?? clubTeam?.match_period_minutes ?? null,
       match_minimum_players: ctx.match.match_minimum_players ?? clubTeam?.match_minimum_players ?? null
     },
+    ageCategory: clubTeam?.age_category ?? null,
     options: options ?? [], selections: allowedPlayerIds === null ? selections ?? [] : (selections ?? []).filter((selection) => allowedPlayerIds.has(selection.player_id)),
     players: allowedPlayerIds === null ? team?.players ?? [] : (team?.players ?? []).filter((player) => allowedPlayerIds.has(player.id)),
-    extraPlayers: [], guestPlayers: [], capabilities: { canPlan, canSelect, canViewSelection, canTags, canCreateTagLink }
+    extraPlayers: [], guestPlayers: guestPlayers ?? [], capabilities: { canPlan, canSelect, canViewSelection, canTags, canCreateTagLink }
   });
 }
 
@@ -118,6 +120,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       match_period_count: integer(body?.periodCount, 1, 12),
       match_period_minutes: integer(body?.periodMinutes, 1, 120),
       match_minimum_players: integer(body?.minimumPlayers, 1, 30),
+      transport_mode: !isHomeMatch && body?.transportMode === "club" ? "club" : "own",
       ...(canTags ? { live_tag_names: tags } : {})
     } : {}),
     ...(canSelect ? { player_ids: ctx.access.goalkeeperPlayerIds === null
@@ -133,6 +136,20 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   if (canSelect && selectedRows.length) {
     const { error: selectionError } = await ctx.admin.from("match_player_selections").upsert(selectedRows, { onConflict: "match_id,player_id" });
     if (selectionError) return NextResponse.json({ error: selectionError.message }, { status: 400 });
+  }
+  if (canSelect && Array.isArray(body?.guestPlayers)) {
+    const guests = body.guestPlayers.slice(0, 20).flatMap((guest: any) => {
+      const firstName = typeof guest?.firstName === "string" ? guest.firstName.trim().slice(0, 80) : "";
+      const lastName = typeof guest?.lastName === "string" ? guest.lastName.trim().slice(0, 80) : "";
+      if (!firstName && !lastName) return [];
+      return [{ match_id: params.id, first_name: firstName || "Onbekend", last_name: lastName, jersey_number: integer(guest?.jerseyNumber, 0, 99), note: typeof guest?.note === "string" ? guest.note.trim().slice(0, 500) || null : null }];
+    });
+    const { error: deleteGuestError } = await ctx.admin.from("match_guest_players").delete().eq("match_id", params.id);
+    if (deleteGuestError) return NextResponse.json({ error: deleteGuestError.message }, { status: 400 });
+    if (guests.length) {
+      const { error: guestError } = await ctx.admin.from("match_guest_players").insert(guests);
+      if (guestError) return NextResponse.json({ error: guestError.message }, { status: 400 });
+    }
   }
   return NextResponse.json({ ok: true });
 }

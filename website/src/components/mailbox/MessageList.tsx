@@ -29,8 +29,7 @@ export function MessageList({ threads, selectedThreadId, onSelect }: {
                 <span className={`truncate ${thread.unreadCount ? "font-bold text-textBright" : "font-semibold text-textPrimary"}`}>{thread.subject}</span>
                 {thread.unreadCount > 0 && <span className="flex-shrink-0 rounded-full bg-accent px-2 py-0.5 text-xs font-bold text-page">{thread.unreadCount}</span>}
               </div>
-              <p className="mt-0.5 truncate text-sm text-textMuted">{lastMessage?.senderName}: {lastMessage?.body}</p>
-              <p className="mt-0.5 text-xs text-textMuted">{lastMessage && formatDate(lastMessage.createdAt)}</p>
+              <p className="mt-1 text-xs text-textMuted">{lastMessage && formatDate(lastMessage.createdAt)}</p>
             </button>
           </li>
         );

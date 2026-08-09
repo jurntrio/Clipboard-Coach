@@ -7,16 +7,18 @@ import { useI18n } from "@/i18n/client";
 
 const inputClass = "mt-1 w-full rounded-xl border border-border bg-input px-3 py-2.5 text-textPrimary";
 
-export function ComposeDialog({ sendTargets, currentUserId, emailNotificationsEnabled, onClose, onSent }: {
+export function ComposeDialog({ sendTargets, currentUserId, emailNotificationsEnabled, initialSubject = "", initialBody = "", onClose, onSent }: {
   sendTargets: MailboxSendTargets;
   currentUserId: string;
   emailNotificationsEnabled: boolean;
+  initialSubject?: string;
+  initialBody?: string;
   onClose: () => void;
   onSent: () => void;
 }) {
   const { t } = useI18n();
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [subject, setSubject] = useState(initialSubject);
+  const [body, setBody] = useState(initialBody);
   const [selected, setSelected] = useState<Map<string, MailboxTarget>>(new Map());
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");

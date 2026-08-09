@@ -84,7 +84,7 @@ export default function SignupPage() {
     const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: {
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`, data: {
         full_name: fullName, legal_accepted: true, legal_accepted_at: new Date().toISOString(),
         terms_version: TERMS_VERSION, privacy_version: PRIVACY_VERSION, legal_statement_version: LEGAL_STATEMENT_VERSION, legal_locale: locale,
         club_onboarding: {

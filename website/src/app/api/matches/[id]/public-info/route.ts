@@ -7,7 +7,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const admin = createAdminClient();
-  const { data: match } = await admin.from("matches").select("id, club_id, club_team_id").eq("id", params.id).maybeSingle();
+  const { data: match } = await admin.from("matches").select("id, club_id, club_team_id, score_a, score_b").eq("id", params.id).maybeSingle();
   if (!match?.club_id) return Response.json({ error: "Wedstrijd niet gevonden." }, { status: 404 });
   const access = await getClubAccess(match.club_id, user);
   if (!hasClubPermission(access, "games.communication.manage") || !canAccessTeam(access, match.club_team_id)) {
@@ -17,8 +17,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const sponsorSource = ["none", "club", "team"].includes(body?.sponsorSource) ? body.sponsorSource : "none";
   const { data: club } = await admin.from("clubs").select("clip_advertising_enabled").eq("id", match.club_id).maybeSingle();
   const resolvedSponsorSource = club?.clip_advertising_enabled ? sponsorSource : "none";
-  const scoreA = body?.scoreA === null || body?.scoreA === "" ? null : Number(body?.scoreA);
-  const scoreB = body?.scoreB === null || body?.scoreB === "" ? null : Number(body?.scoreB);
+  const scoreA = body?.scoreA === undefined ? match.score_a : body?.scoreA === null || body?.scoreA === "" ? null : Number(body?.scoreA);
+  const scoreB = body?.scoreB === undefined ? match.score_b : body?.scoreB === null || body?.scoreB === "" ? null : Number(body?.scoreB);
   if ((scoreA !== null && (!Number.isInteger(scoreA) || scoreA < 0)) || (scoreB !== null && (!Number.isInteger(scoreB) || scoreB < 0))) {
     return Response.json({ error: "Ongeldige uitslag." }, { status: 400 });
   }

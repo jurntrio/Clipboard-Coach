@@ -41,6 +41,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     assistName: typeof event?.assistName === "string" ? event.assistName.trim().slice(0, 150) : "",
     description: typeof event?.description === "string" ? event.description.trim().slice(0, 1000) : ""
   })) : [];
+  const playerReviews = canEditDossier && Array.isArray(body.player_reviews) ? body.player_reviews.slice(0, 40).flatMap((review: any) => {
+    if (typeof review?.playerId !== "string") return [];
+    const rating = review.rating === null ? null : Number(review.rating);
+    return [{ playerId: review.playerId.slice(0, 100), rating: rating !== null && Number.isFinite(rating) ? Math.max(0, Math.min(10, rating)) : null, report: typeof review.report === "string" ? review.report.trim().slice(0, 2000) : "" }];
+  }) : [];
   const [{ data: guestPlayers }, { data: teamPlayers }] = canEditDossier ? await Promise.all([
     admin.from("match_guest_players").select("id").eq("match_id", match.id),
     match.team_a_id ? admin.from("players").select("id").eq("team_id", match.team_a_id).eq("role", "player") : Promise.resolve({ data: [] })
@@ -83,7 +88,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }) : [];
   const { error } = await admin.from("match_dossiers").upsert({
     match_id: match.id, ...payload, ...scouting,
-    ...(canEditDossier ? { goal_events: goalEvents, lineup_positions: lineupPositions, lineup_blocks: lineupBlocks } : {}),
+    ...(canEditDossier ? { goal_events: goalEvents, lineup_positions: lineupPositions, lineup_blocks: lineupBlocks, player_reviews: playerReviews.filter(review => allowedLineupPlayerIds.has(review.playerId)) } : {}),
     updated_by: user.id, updated_at: new Date().toISOString()
   }, { onConflict: "match_id" });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

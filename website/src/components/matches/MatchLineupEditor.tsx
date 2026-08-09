@@ -85,6 +85,13 @@ export function MatchLineupEditor({ players, blocks, editable, onChange }: {
     onChange([...blocks, block]); setActiveBlockId(block.id); setNewMinute("");
   }
 
+  function copyPreviousBlock() {
+    if (!activeBlock) return;
+    const previous = orderedBlocks.filter(block => block.startMinute < activeBlock.startMinute).at(-1);
+    if (!previous) return;
+    onChange(blocks.map(block => block.id === activeBlock.id ? { ...block, positions: previous.positions.map(position => ({ ...position })) } : block));
+  }
+
   if (!players.length) return <p className="rounded-lg border border-dashed border-border p-4 text-sm text-textMuted">Er zijn nog geen spelers aan deze wedstrijd of ploeg gekoppeld.</p>;
 
   return <div className="space-y-4">
@@ -100,6 +107,8 @@ export function MatchLineupEditor({ players, blocks, editable, onChange }: {
         <button type="button" onClick={addBlock} disabled={!newMinute} className="rounded-lg bg-accent px-3 py-2 text-sm font-black text-page disabled:opacity-40">Blok toevoegen</button>
       </div>}
     </div>
+
+    {editable && activeBlock && activeBlock.startMinute > 0 && <div className="flex justify-end"><button type="button" onClick={copyPreviousBlock} className="rounded-lg border border-accent px-3 py-2 text-sm font-bold text-accent">Selectie van vorig blok kopiëren</button></div>}
 
     <div className="grid items-start gap-5 lg:grid-cols-[minmax(360px,620px)_minmax(230px,1fr)]">
       <div className="w-full max-w-[620px]">

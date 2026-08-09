@@ -19,6 +19,29 @@ export default async function DashboardHomePage() {
   const admin = createAdminClient();
   const supabase = createClient();
   const { data: profile } = await admin.from("profiles").select("full_name, account_role").eq("id", user.id).maybeSingle();
+  const { data: registrationRequest } = await admin.from("club_registration_requests")
+    .select("request_kind, requested_function_role, requested_custom_role, player_first_name, player_last_name, status, clubs(name)")
+    .eq("profile_id", user.id).in("status", ["pending", "rejected"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+
+  if (registrationRequest?.status === "pending") {
+    const club = registrationRequest.clubs as unknown as { name: string } | null;
+    const requestDescription = registrationRequest.request_kind === "contact"
+      ? `contactpersoon van ${`${registrationRequest.player_first_name ?? ""} ${registrationRequest.player_last_name ?? ""}`.trim()}`
+      : registrationRequest.requested_custom_role || registrationRequest.requested_function_role || "staflid";
+    return <section className="mx-auto max-w-2xl rounded-2xl border border-border bg-card p-6 text-center sm:p-10">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-amber-500/15 text-2xl text-amber-300">✓</div>
+      <h1 className="mt-4 text-2xl font-bold text-textBright">Je account is bevestigd</h1>
+      <p className="mt-3 text-textSecondary">Je aanvraag als <strong className="text-textPrimary">{requestDescription}</strong>{club?.name ? <> bij <strong className="text-textPrimary">{club.name}</strong></> : null} is goed ontvangen.</p>
+      <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+        De clubbeheerder moet je functie, eventuele teams of spelerkoppeling nog goedkeuren. Je krijgt toegang zodra dat gebeurd is.
+      </div>
+      <p className="mt-4 text-xs text-textMuted">Je kunt deze pagina later opnieuw openen om de status te controleren.</p>
+    </section>;
+  }
+
+  if (registrationRequest?.status === "rejected") {
+    return <section className="mx-auto max-w-2xl rounded-2xl border border-border bg-card p-6 text-center sm:p-10"><h1 className="text-2xl font-bold text-textBright">Aanvraag niet goedgekeurd</h1><p className="mt-3 text-textSecondary">Neem contact op met de clubbeheerder als je denkt dat dit niet klopt.</p></section>;
+  }
 
   const [{ data: trainer }, { data: guardianRowsRaw }] = await Promise.all([
     clubId
@@ -68,7 +91,7 @@ export default async function DashboardHomePage() {
         id: `child:${row.child_key}`,
         label: `${fullName}${row.team_name ? ` · ${row.team_name}` : ""}`,
         subject: fullName,
-        role: "Ouder",
+      role: "Contactpersoon",
         teamName: row.team_name || "Geen ploeg gekoppeld",
         teamIds: row.team_id ? [row.team_id] : [],
         clubTeamIds: clubTeamId ? [clubTeamId] : []

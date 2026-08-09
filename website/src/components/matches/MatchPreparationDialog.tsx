@@ -23,7 +23,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
   const [extraPlayerId, setExtraPlayerId] = useState("");
   const [guestPlayers, setGuestPlayers] = useState<GuestDraft[]>([]);
   const [drafts, setDrafts] = useState<PlayerDraft[]>([]);
-  const [generalOpen, setGeneralOpen] = useState(true);
+  const [generalOpen, setGeneralOpen] = useState(false);
   const [selectionOpen, setSelectionOpen] = useState(false);
   const [meetingTimeEnabled, setMeetingTimeEnabled] = useState(false);
   const [isHomeMatch, setIsHomeMatch] = useState(true);
@@ -49,9 +49,11 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
   const [periodCount, setPeriodCount] = useState("");
   const [periodMinutes, setPeriodMinutes] = useState("");
   const [minimumPlayers, setMinimumPlayers] = useState("");
+  const [transportMode, setTransportMode] = useState<"club" | "own">("own");
   const [communication, setCommunication] = useState<SelectionCommunication | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
   const [notifyNotSelected, setNotifyNotSelected] = useState(false);
+  const [individualNotSelectedIds, setIndividualNotSelectedIds] = useState<string[]>([]);
   const [includeSelectedAttention, setIncludeSelectedAttention] = useState(true);
   const [includeNotSelectedAttention, setIncludeNotSelectedAttention] = useState(true);
   const [sending, setSending] = useState(false);
@@ -119,6 +121,8 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
       setPeriodCount(current.match_period_count?.toString() ?? "");
       setPeriodMinutes(current.match_period_minutes?.toString() ?? "");
       setMinimumPlayers(current.match_minimum_players?.toString() ?? "");
+      const age = Number(String(body.ageCategory ?? "").match(/U(\d+)/i)?.[1] ?? 99);
+      setTransportMode(current.transport_mode === "club" || (!current.transport_mode && current.is_home_match === false && age <= 13) ? "club" : "own");
       setBusy(false);
       void loadCommunication();
     });
@@ -153,7 +157,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
         matchFormat,
         periodCount: periodCount === "" ? null : Number(periodCount),
         periodMinutes: periodMinutes === "" ? null : Number(periodMinutes),
-        minimumPlayers: minimumPlayers === "" ? null : Number(minimumPlayers),
+        minimumPlayers: minimumPlayers === "" ? null : Number(minimumPlayers), transportMode,
         players: drafts.map(item => ({
           playerId: item.playerId, selected: item.selected,
           jerseyNumber: item.jerseyNumber === "" ? null : Number(item.jerseyNumber),
@@ -183,7 +187,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
     if (!sendKeyRef.current) sendKeyRef.current = crypto.randomUUID();
     const response = await fetch(`/api/matches/${match.id}/selection-send`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idempotencyKey: sendKeyRef.current, notifyNotSelected, includeSelectedAttention, includeNotSelectedAttention })
+      body: JSON.stringify({ idempotencyKey: sendKeyRef.current, notifyNotSelected, individualNotSelectedIds, includeSelectedAttention, includeNotSelectedAttention })
     });
     const body = await response.json();
     setSending(false);
@@ -242,6 +246,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
               <label className="flex items-center gap-2 text-sm text-textPrimary"><input type="checkbox" checked={departureTimeEnabled} onChange={event => setDepartureTimeEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.departureTime")}</label>
               {departureTimeEnabled && <input type="time" value={departureTime} onChange={event => setDepartureTime(event.target.value)} className={inputClass} />}
             </div>}
+            {!isHomeMatch && <label className="text-sm text-textSecondary">Vervoer<select value={transportMode} onChange={event => setTransportMode(event.target.value as "club" | "own")} className={`mt-1 ${inputClass}`}><option value="club">Door de club</option><option value="own">Eigen vervoer</option></select><span className="mt-1 block text-[11px] text-textMuted">U13 en jonger staat standaard op ‘Door de club’; je kunt dit steeds vervangen.</span></label>}
           </div>}
         </section>}
         {canViewSelection && <section className="rounded-xl border border-border bg-card">
@@ -249,7 +254,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
             <span>{t("matchPrep.selection")} <span className="font-normal text-textMuted">({selectedDrafts.length} geselecteerd · {selectedFieldPlayers} + {selectedKeepers} K)</span></span><span className={`text-accent transition ${selectionOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
           {selectionOpen && <div className="space-y-3 border-t border-borderSubtle p-4">
-            <p className="rounded-lg border border-borderSubtle bg-cardDeep p-3 text-sm text-textMuted">Alleen spelers die aan deze ploeg zijn toegewezen, kunnen geselecteerd worden.</p>
+            <p className="rounded-lg border border-borderSubtle bg-cardDeep p-3 text-sm text-textMuted">De volledige selectie staat compact in één venster. Je kunt ook een speler uit een andere ploeg of een losse naam toevoegen.</p>
             {drafts.length > 0 && minimumPlayers !== "" && drafts.filter(item => item.selected).length < Number(minimumPlayers) && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Voor {matchFormat || "deze spelvorm"} zijn minstens {minimumPlayers} spelers nodig. Momenteel zijn {drafts.filter(item => item.selected).length} spelers geselecteerd.</p>}
             {duplicateJerseyNumbers.length > 0 && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Dubbel rugnummer bij de geselecteerde spelers: {duplicateJerseyNumbers.join(", ")}.</p>}
             <div className="hidden">
@@ -263,11 +268,11 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
                 <button type="button" disabled={!extraPlayerId} onClick={addExtraPlayer} className="rounded-lg border border-accent px-3 py-2 text-sm font-bold text-accent disabled:opacity-40">Toevoegen</button>
               </div>
             </div>
-            <div className="hidden">
+            <div>
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-bold text-textBright">Testspeler</h3>
+                <h3 className="text-sm font-bold text-textBright">Speler op naam</h3>
                 <button type="button" onClick={() => setGuestPlayers(current => [...current, { firstName: "", lastName: "", jerseyNumber: "", note: "" }])}
-                  className="rounded-lg border border-accent px-3 py-1.5 text-xs font-bold text-accent">Testspeler toevoegen</button>
+                  className="rounded-lg border border-accent px-3 py-1.5 text-xs font-bold text-accent">Naam toevoegen</button>
               </div>
               <div className="mt-2 space-y-2">{guestPlayers.map((guest, index) => <div key={index} className="grid gap-2 md:grid-cols-[1fr_1fr_80px_1fr_auto]">
                 <input value={guest.firstName} onChange={event => setGuestPlayers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, firstName: event.target.value } : item))} placeholder="Voornaam" className={inputClass} />
@@ -295,7 +300,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
           <button type="button" onClick={async () => { const response = await fetch(`/api/matches/${match.id}/tag-link`, { method: "POST" }); const body = await response.json(); if (!response.ok || !body.token) return setNotice(body.error || "Taglink kon niet worden gemaakt."); await navigator.clipboard.writeText(`${window.location.origin}/tag/${body.token}`); setNotice("Taglink gekopieerd."); }} className="mt-3 rounded-lg bg-accent px-4 py-2 font-bold text-page">Taglink genereren en kopiëren</button>
         </section>}
         {notice && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">{notice}</p>}
-        <div className="flex flex-wrap justify-end gap-2">{!embedded && <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-4 py-2 text-textPrimary">{t("common.cancel")}</button>}{canSelect && <button type="button" disabled={busy} onClick={() => void prepareSelectionSend()} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent disabled:opacity-50">{communication?.latest ? "Selectie opnieuw versturen" : "Selectie versturen"}</button>}{(canPlan || canSelect || canUseTags) && <button type="button" disabled={busy} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{t("common.save")}</button>}</div>
+        <div className="flex flex-wrap justify-end gap-2">{!embedded && <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-4 py-2 text-textPrimary">{t("common.cancel")}</button>}{canSelect && <button type="button" disabled={busy} onClick={() => void prepareSelectionSend()} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent disabled:opacity-50">{communication?.latest ? "Huidige selectie opnieuw verwittigen" : "Verwittig huidige selectie"}</button>}{(canPlan || canSelect || canUseTags) && <button type="button" disabled={busy} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{t("common.save")}</button>}</div>
       </div>}
     </div>
     {sendOpen && communication && <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-3"><section role="dialog" aria-modal="true" aria-label="Selectie versturen" className="w-full max-w-xl rounded-2xl border border-border bg-cardAlt p-5 shadow-2xl">
@@ -311,6 +316,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
           <label className="flex items-center gap-2 font-semibold text-textPrimary"><input type="checkbox" checked={notifyNotSelected} onChange={event => setNotifyNotSelected(event.target.checked)} className="accent-accent" />Niet-geselecteerde spelers en hun contactpersonen verwittigen</label>
           <p className="mt-1 text-xs text-textMuted">{communication.notSelectedRecipients} mogelijke e-mailontvangers</p>
           <label className={`mt-2 flex items-center gap-2 text-sm ${notifyNotSelected ? "text-textSecondary" : "text-textMuted"}`}><input type="checkbox" disabled={!notifyNotSelected} checked={includeNotSelectedAttention} onChange={event => setIncludeNotSelectedAttention(event.target.checked)} className="accent-accent" />Hun individuele aandachtspunten meesturen</label>
+          {notifyNotSelected && <div className="mt-3 border-t border-borderSubtle pt-3"><p className="text-xs font-bold text-textSecondary">Of beperk dit tot individuele niet-geselecteerde spelers:</p><div className="mt-2 grid gap-2 sm:grid-cols-2">{drafts.filter(item => !item.selected).map(item => { const player = players.find(candidate => candidate.id === item.playerId); return player ? <label key={item.playerId} className="flex items-center gap-2 text-xs text-textSecondary"><input type="checkbox" checked={individualNotSelectedIds.includes(item.playerId)} onChange={event => setIndividualNotSelectedIds(current => event.target.checked ? [...current, item.playerId] : current.filter(id => id !== item.playerId))} className="accent-accent" />{player.first_name} {player.last_name}</label> : null; })}</div><p className="mt-2 text-[11px] text-textMuted">Niets aangevinkt = alle niet-geselecteerde spelers verwittigen.</p></div>}
         </div>
       </div>
       {!!communication.history.length && <details className="mt-4 rounded-lg border border-borderSubtle bg-cardDeep p-3"><summary className="cursor-pointer text-sm font-semibold text-textPrimary">Verzendhistoriek</summary><div className="mt-2 space-y-2">{communication.history.map(item => <div key={item.id} className="flex items-center justify-between gap-3 text-xs text-textMuted"><span>{new Date(item.completed_at ?? item.created_at).toLocaleString("nl-BE")} · {item.profiles?.full_name || "staff"}</span><span>{item.sent_recipient_count}/{item.intended_recipient_count} verstuurd · {item.status}</span></div>)}</div></details>}

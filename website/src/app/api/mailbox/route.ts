@@ -68,11 +68,12 @@ export async function GET() {
 
   const threadsById = new Map<string, { threadId: string; subject: string; messages: Array<{ id: string; senderId: string | null; senderName: string; body: string; createdAt: string; read: boolean; recipients: Array<{ profileId: string; name: string; readAt: string | null }> }> }>();
   for (const message of (threadMessages ?? []) as MailboxMessageRow[]) {
+    const isSystemRequest = message.subject === "Nieuwe registratieaanvraag" || message.subject === "Nieuwe aanvraag om lid te worden";
     if (!threadsById.has(message.thread_id)) threadsById.set(message.thread_id, { threadId: message.thread_id, subject: message.subject, messages: [] });
     threadsById.get(message.thread_id)!.messages.push({
       id: message.id,
-      senderId: message.sender_id,
-      senderName: (message.sender_id && senderNameById.get(message.sender_id)) || "Onbekend",
+      senderId: isSystemRequest ? null : message.sender_id,
+      senderName: isSystemRequest ? "Sports Visual Systems" : (message.sender_id && senderNameById.get(message.sender_id)) || "Onbekend",
       body: message.body,
       createdAt: message.created_at,
       read: message.sender_id === user.id || !!readAtByMessageId.get(message.id),
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
   if (!user || !activeClubId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const payload = await request.json().catch(() => null) as {
-    subject?: string; body?: string; targets?: MailboxTarget[]; threadId?: string;
+    subject?: string; body?: string; targets?: MailboxTarget[]; threadId?: string; replyMode?: "reply" | "replyAll";
   } | null;
   const messageBody = payload?.body?.trim();
   if (!messageBody) return NextResponse.json({ error: "Berichttekst is verplicht." }, { status: 400 });
@@ -133,12 +134,19 @@ export async function POST(request: Request) {
 
   if (payload?.threadId) {
     const { data: threadMessages } = await admin.from("mailbox_messages")
-      .select("id, club_id, subject").eq("thread_id", payload.threadId).order("created_at").limit(1);
+      .select("id, club_id, subject, sender_id").eq("thread_id", payload.threadId).order("created_at");
     const rootMessage = threadMessages?.[0];
     if (!rootMessage || rootMessage.club_id !== activeClubId) return NextResponse.json({ error: "Gesprek niet gevonden." }, { status: 404 });
     const { data: rootRecipients } = await admin.from("mailbox_recipients").select("profile_id").eq("message_id", rootMessage.id);
-    recipientIds = new Set((rootRecipients ?? []).map((row) => row.profile_id));
-    if (!recipientIds.has(user.id)) return NextResponse.json({ error: "Geen toegang tot dit gesprek." }, { status: 403 });
+    const threadParticipantIds = new Set((rootRecipients ?? []).map((row) => row.profile_id));
+    if (!threadParticipantIds.has(user.id)) return NextResponse.json({ error: "Geen toegang tot dit gesprek." }, { status: 403 });
+    const systemRequest = rootMessage.subject === "Nieuwe registratieaanvraag" || rootMessage.subject === "Nieuwe aanvraag om lid te worden";
+    if (systemRequest) return NextResponse.json({ error: "Op deze systeemmail kan je niet antwoorden." }, { status: 400 });
+    const replyTarget = [...(threadMessages ?? [])].reverse().find((message) => message.sender_id && message.sender_id !== user.id)?.sender_id;
+    if (payload.replyMode === "reply" && !replyTarget) return NextResponse.json({ error: "Geen afzender gevonden om te beantwoorden." }, { status: 400 });
+    recipientIds = payload.replyMode === "reply"
+      ? new Set([replyTarget!])
+      : threadParticipantIds;
     targetsToStore = [];
     subject = rootMessage.subject;
     threadId = payload.threadId;

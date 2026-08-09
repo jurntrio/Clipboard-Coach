@@ -150,7 +150,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
         hasClubSponsor={!!club?.general_sponsor_url}
         hasTeamSponsor={!!clubTeam?.sponsor_url}
         canEdit={editing && canManagePublicInfo}
-        expanded={played}
+        expanded={false}
       >
         {staffCanView && hasClubPermission(access, "games.planning.manage") && <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <Info label="Afgesproken tijdstip" value={match.meeting_time_enabled ? match.meeting_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />

@@ -47,7 +47,7 @@ export default function TeamsPage() {
   }
 
   return <div className="mx-auto max-w-6xl p-5 sm:p-7">
-    <SectionHeader title={t("common.teams")} artworkSrc="/branding/teams.png" showHome={false} />
+    <SectionHeader title="Spelerslijsten" subtitle="Open een ploeg om de volledige spelerslijst en de individuele spelersfiches te bekijken." artworkSrc="/branding/cbcs_black_icons/selecties.png" showHome={false} />
     <TeamContextHeader />
 
     {invitations.length > 0 && <div className="mb-6 space-y-3">{invitations.map((invitation) => <div key={invitation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accentDim p-4"><p className="text-sm text-textPrimary">{t("team.invitedTo", { team: invitation.team_name })}</p><div className="flex gap-2"><button type="button" onClick={() => void answerInvitation(invitation.id, "decline")} className="rounded-lg border border-borderButton px-3 py-2 text-sm text-textSecondary">{t("team.declineInvitation")}</button><button type="button" onClick={() => void answerInvitation(invitation.id, "accept")} className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page">{t("team.acceptInvitation")}</button></div></div>)}</div>}

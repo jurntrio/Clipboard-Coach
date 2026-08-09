@@ -18,12 +18,22 @@ export default function SettingsPage() {
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [tagNameDraft, setTagNameDraft] = useState("");
   const [mailboxEmailNotifications, setMailboxEmailNotifications] = useState(true);
+  const [canManageTags, setCanManageTags] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
-    loadStandardTags();
+    loadCapabilities();
     loadMailboxPreference();
   }, []);
+
+  async function loadCapabilities() {
+    const response = await fetch("/api/settings/capabilities");
+    if (!response.ok) return;
+    const capabilities = await response.json() as { canManageTags?: boolean };
+    const allowed = capabilities.canManageTags === true;
+    setCanManageTags(allowed);
+    if (allowed) await loadStandardTags();
+  }
 
   async function loadStandardTags() {
     const {
@@ -106,7 +116,7 @@ export default function SettingsPage() {
       </section>
 
 
-      <section id="quick-tags">
+      {canManageTags && <section id="quick-tags">
         <h2 className="text-textBright font-semibold mb-2">{t("settings.quickTags")}</h2>
         <p className="text-textMuted text-sm mb-3">{t("settings.quickTagsHelp")}</p>
 
@@ -133,13 +143,13 @@ export default function SettingsPage() {
             {t("settings.add")}
           </button>
         </form>
-      </section>
+      </section>}
 
-      <section className="mt-8">
+      {canManageTags && <section className="mt-8">
         <h2 className="mb-2 font-semibold text-textBright">{t("clipProfiles.title")}</h2>
         <p className="mb-3 text-sm text-textMuted">{t("settings.clipProfilesHelp")}</p>
         <ClipProfilesTable />
-      </section>
+      </section>}
 
       <PrivacyDataSection />
 

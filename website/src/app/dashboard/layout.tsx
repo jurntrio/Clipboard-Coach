@@ -28,6 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const moduleOn = (key: ClubModuleKey) => !clubId || clubContext.isPlatformAdmin || !modules.configured || modules.enabled.has(key);
   const iconRoot = "/branding/cbcs_black_icons";
   const navigation = [];
+  if (access && hasClubPermission(access, "teams.view") && moduleOn("teams")) navigation.push({ href: "/dashboard/teams", label: "Spelerslijsten", icon: `${iconRoot}/selecties.png`, primary: true });
   if (access && hasClubPermission(access, "games.view") && moduleOn("matches")) navigation.push({ href: "/dashboard/clips", label: "Wedstrijden", icon: `${iconRoot}/wedstrijden.png`, primary: true });
   if (access && hasClubPermission(access, "training.view") && moduleOn("training")) navigation.push({ href: "/dashboard/training", label: "Trainingen", icon: `${iconRoot}/trainingen.png`, primary: true });
   if (access && hasClubPermission(access, "intradesk.view") && moduleOn("intradesk")) navigation.push({ href: "/dashboard/intradesk", label: "Intradesk", icon: `${iconRoot}/intradesk.png`, primary: true });

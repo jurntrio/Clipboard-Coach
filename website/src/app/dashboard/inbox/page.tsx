@@ -20,6 +20,7 @@ export default function InboxPage() {
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(false);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [composeDraft, setComposeDraft] = useState({ subject: "", body: "" });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -69,7 +70,7 @@ export default function InboxPage() {
       <SectionHeader title={t("mailbox.title")} artworkSrc="/branding/inbox.svg" showHome={false} />
 
       <div className="mb-4 flex justify-end">
-        <button type="button" onClick={() => setComposeOpen(true)} disabled={sendTargetsLoading} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page hover:opacity-90 disabled:cursor-wait disabled:opacity-50">{t("mailbox.newMessage")}</button>
+        <button type="button" onClick={() => { setComposeDraft({ subject: "", body: "" }); setComposeOpen(true); }} disabled={sendTargetsLoading} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page hover:opacity-90 disabled:cursor-wait disabled:opacity-50">{t("mailbox.newMessage")}</button>
       </div>
 
       {loading ? (
@@ -85,6 +86,7 @@ export default function InboxPage() {
                   thread={selectedThread}
                   currentUserId={currentUserId}
                   onReplySent={() => void load()}
+                  onForward={(subject, body) => { setComposeDraft({ subject, body }); setComposeOpen(true); }}
                   onDeleted={() => { setSelectedThreadId(null); void load(); }}
                 />
               : <p className="p-5 text-textMuted">{t("mailbox.noThreadSelected")}</p>}
@@ -97,6 +99,8 @@ export default function InboxPage() {
           sendTargets={sendTargets}
           currentUserId={currentUserId}
           emailNotificationsEnabled={emailNotificationsEnabled}
+          initialSubject={composeDraft.subject}
+          initialBody={composeDraft.body}
           onClose={() => setComposeOpen(false)}
           onSent={() => { setComposeOpen(false); void load(); }}
         />
