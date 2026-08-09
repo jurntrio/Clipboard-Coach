@@ -41,6 +41,11 @@ export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSpo
     </button>
     {open && <div className="mt-5 space-y-5 border-t border-borderSubtle pt-5">
       {children}
+      {!canEdit && <dl className="grid gap-3 border-t border-borderSubtle pt-5 text-sm sm:grid-cols-2">
+        <Info label="Publieke locatie" value={match.show_public_location && match.public_location ? match.public_location : "Niet getoond"} />
+        <Info label="Reclame op gedeelde clips" value={match.sponsor_source === "club" ? "Algemene clubsponsor" : match.sponsor_source === "team" ? "Ploegsponsor" : "Geen reclame"} />
+        {match.sponsor_caption && <Info label="Sponsortekst" value={match.sponsor_caption} />}
+      </dl>}
       {canEdit && <div className="space-y-5 border-t border-borderSubtle pt-5">
       <div><strong className="text-sm text-textBright">Publieke wedstrijdinformatie</strong><p className="mt-1 text-xs text-textMuted">Zichtbaar op gedeelde cliplinks.</p></div>
       <div>
@@ -70,3 +75,4 @@ export function PublicMatchInfoEditor({ match, sponsorFeatureEnabled, hasClubSpo
 }
 
 const inputClass = "mt-1 w-full rounded-xl border border-border bg-input px-3 py-2.5 text-textPrimary";
+function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-borderSubtle bg-cardDeep p-3"><dt className="text-xs text-textMuted">{label}</dt><dd className="mt-1 font-semibold text-textPrimary">{value}</dd></div>; }

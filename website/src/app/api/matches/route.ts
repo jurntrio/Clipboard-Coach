@@ -6,6 +6,7 @@ import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club
 type MatchInput = {
   id?: string; team_a_id?: string | null; team_a_name?: string; team_b_name?: string;
   match_date?: string | null; start_time?: string | null; status?: "scheduled" | "live" | "finished";
+  recording_start_time?: string | null;
   score_a?: number | null; score_b?: number | null; player_ids?: string[]; live_tag_names?: string[];
   is_home_match?: boolean;
 };
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
   const payload = {
     team_a_id: body.team_a_id ?? null, team_a_name: body.team_a_name.trim(), team_b_id: null,
     team_b_name: body.team_b_name.trim(), match_date: body.match_date ?? null, start_time: body.start_time ?? null,
+    recording_start_time: body.recording_start_time ?? null,
     status: body.status ?? "scheduled", score_a: body.score_a ?? null, score_b: body.score_b ?? null,
     player_ids: body.player_ids ?? [], live_tag_names: body.live_tag_names ?? [], club_id: context.activeClubId,
     club_team_id: linkedClubTeamId, is_home_match: body.is_home_match !== false

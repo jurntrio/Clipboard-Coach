@@ -8,6 +8,7 @@ import { MatchDossierTabs } from "@/components/matches/MatchDossierTabs";
 import { MatchPreparationEditor } from "@/components/matches/MatchPreparationEditor";
 import { MatchTagLinkButton } from "@/components/matches/MatchTagLinkButton";
 import { getClubContext } from "@/lib/auth/active-club";
+import { MatchCoreInfoEditor } from "@/components/matches/MatchCoreInfoEditor";
 
 type GuardianPlayer = { player_id: string; team_id: string | null };
 
@@ -49,7 +50,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   const canManageScouting = staffCanView && hasClubPermission(access, "games.scouting.manage");
   const canEditAnything = canManage || canPrepare || canManagePublicInfo || canManageReport || canManageScouting;
   const editing = canEditAnything && searchParams?.edit === "1";
-  const [{ data: matchVideos }, { data: options }, { data: club }, { data: clubTeam }] = await Promise.all([
+  const [{ data: matchVideos }, { data: options }, { data: club }, { data: clubTeam }, { data: editableTeams }] = await Promise.all([
     canViewVideo
       ? admin.from("match_videos").select("video_id").eq("match_id", match.id)
       : Promise.resolve({ data: [] }),
@@ -59,7 +60,10 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       : Promise.resolve({ data: null }),
     canManagePublicInfo && match.club_team_id
       ? admin.from("club_teams").select("sponsor_url, sponsor_enabled").eq("id", match.club_team_id).maybeSingle()
-      : Promise.resolve({ data: null })
+      : Promise.resolve({ data: null }),
+    canManage
+      ? admin.from("teams").select("id, name, club_teams!inner(club_id)").eq("club_teams.club_id", match.club_id).order("name")
+      : Promise.resolve({ data: [] })
   ]);
   const videoIds = (matchVideos ?? []).map(item => item.video_id);
   const [{ data: selectedPlayers }, { data: matchSelections }, { data: teamPlayers }, { data: guestPlayers }, { data: dossier }, { data: clips }, { data: completedByProfile }] = staffCanView ? await Promise.all([
@@ -143,6 +147,8 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       </p>}
     </header>
 
+    {editing && canManage && <MatchCoreInfoEditor match={match} teams={(editableTeams ?? []).map(team => ({ id: team.id, name: team.name }))} />}
+
     <section className="grid gap-4">
       <PublicMatchInfoEditor
         match={match}
@@ -152,7 +158,8 @@ export default async function GameOverviewPage({ params, searchParams }: { param
         canEdit={editing && canManagePublicInfo}
         expanded={false}
       >
-        {staffCanView && hasClubPermission(access, "games.planning.manage") && <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        {staffCanView && <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <Info label="Start van de opname" value={match.recording_start_time?.slice(0, 5) || "Niet ingesteld"} />
           <Info label="Afgesproken tijdstip" value={match.meeting_time_enabled ? match.meeting_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />
           {!match.is_home_match && <Info label="Vertrek" value={match.departure_time_enabled ? match.departure_time?.slice(0, 5) || "Nog niet bepaald" : "Niet ingesteld"} />}
           <Info label="Verzamelplaats" value={match.meeting_place_custom || optionNames.get(match.meeting_place_option_id) || "Niet ingesteld"} />
