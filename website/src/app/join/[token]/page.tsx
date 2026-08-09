@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -64,7 +64,7 @@ export default function JoinPlayerPage() {
       <div className="w-full max-w-md">
         <Link href="/" className="inline-flex items-center gap-1 text-textMuted hover:text-accent font-mono text-xs uppercase tracking-widest mb-5">&larr; {t("common.backHome")}</Link>
         <div className="bg-card rounded-2xl border border-border p-8 text-center">
-          <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={280} height={90} className="mx-auto mb-4" />
+          <SvsBrand className="mx-auto mb-5 w-full max-w-[320px]" priority />
           {loadingInvite ? (
             <p className="text-textMuted text-sm">Uitnodiging laden…</p>
           ) : inviteError ? (

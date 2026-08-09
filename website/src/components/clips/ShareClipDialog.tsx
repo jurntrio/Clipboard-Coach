@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/client";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 
 export function ShareClipDialog({ clipName, shareUrl, onClose }: { clipName: string; shareUrl: string; onClose: () => void }) {
   const { t } = useI18n();
@@ -40,10 +40,10 @@ export function ShareClipDialog({ clipName, shareUrl, onClose }: { clipName: str
           <button type="button" onClick={onClose} className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full text-xl text-textMuted hover:bg-button hover:text-textBright" aria-label={t("share.close")}>×</button>
           <div className="flex items-center gap-3 pr-10">
             <div className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-xl border border-accent/40 bg-accentDim">
-              <Image src="/branding/logo.png" alt="" width={42} height={42} className="h-10 w-10 object-contain" />
+              <SvsBrand format="square" width={42} height={42} className="h-10 w-10 rounded-lg" />
             </div>
             <div className="min-w-0">
-              <p className="font-display text-xs uppercase tracking-[0.18em] text-accent">Clipboard Coach Studio</p>
+              <p className="font-display text-xs uppercase tracking-[0.18em] text-accent">Sport Visual Systems</p>
               <h2 id="share-dialog-title" className="mt-1 truncate text-xl font-bold text-textBright">{t("share.title")}</h2>
               <p className="truncate text-sm text-textSecondary">{clipName}</p>
             </div>

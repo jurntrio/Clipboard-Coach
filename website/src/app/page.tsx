@@ -6,6 +6,7 @@ import { InlineSignIn } from "@/components/auth/InlineSignIn";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { useI18n } from "@/i18n/client";
 import { LegalLinks } from "@/components/legal/LegalLinks";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 
 export default function HomePage() {
   const { t } = useI18n();
@@ -20,9 +21,9 @@ export default function HomePage() {
       <header className="sticky top-0 z-20 bg-page border-b border-border">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
-            <Image src="/branding/logo.png" alt="" width={36} height={36} className="rounded" />
+            <SvsBrand format="square" width={40} height={40} className="h-10 w-10 rounded-lg" />
             <span className="hidden min-[390px]:inline font-display uppercase tracking-wide text-textBright text-sm">
-              Clipboard <span className="text-accent">Coach</span> Studio
+              Sport <span className="text-accent">Visual</span> Systems
             </span>
           </div>
           <div className="hidden md:flex items-center gap-3">
@@ -45,7 +46,7 @@ export default function HomePage() {
 
       <main>
         <section className="max-w-3xl mx-auto px-5 sm:px-6 pt-10 sm:pt-16 pb-10 text-center">
-          <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={640} height={200} className="mx-auto mb-6 sm:mb-8" priority />
+          <SvsBrand className="mx-auto mb-6 w-full max-w-[640px] sm:mb-8" priority />
           <p className="font-mono text-xs tracking-[0.3em] uppercase text-accent mb-4">{t("home.tagline")}</p>
           <h1 className="font-display uppercase text-3xl min-[390px]:text-4xl sm:text-5xl leading-[0.95] text-textBright">
             {t("home.heroTitle")}
@@ -86,8 +87,8 @@ export default function HomePage() {
       <footer className="border-t border-border py-8">
         <div className="max-w-5xl mx-auto px-6 flex flex-wrap items-center justify-between gap-3 text-textMuted text-sm">
           <div className="flex items-center gap-2">
-            <Image src="/branding/logo.png" alt="" width={24} height={24} className="rounded" />
-            <span>Clipboard Coach Studio</span>
+            <SvsBrand format="square" width={28} height={28} className="h-7 w-7 rounded" />
+            <span>Sport Visual Systems</span>
           </div>
           <span>{t("home.tagline")}</span><LegalLinks />
         </div>

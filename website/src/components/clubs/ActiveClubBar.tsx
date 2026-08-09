@@ -9,6 +9,7 @@ import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import { useActiveClub } from "./ActiveClubProvider";
 import { MenuIcon } from "@/components/ui/MenuIcon";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 
 export type DashboardNavItem = { href: string; label: string; icon: string; primary: boolean };
 
@@ -92,6 +93,9 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
     <div className="sticky top-0 z-40 border-b border-border bg-card/95 px-1.5 py-1.5 backdrop-blur sm:px-5 sm:py-3">
       <div className="relative mx-auto flex max-w-[96rem] flex-col items-center justify-center gap-1 sm:gap-2 xl:flex-row">
         <div className="flex items-center gap-3 xl:absolute xl:left-0">
+        <Link href="/dashboard" aria-label="Sport Visual Systems home" className="hidden sm:block">
+          <SvsBrand format="square" width={52} height={52} className="h-[52px] w-[52px] rounded-xl border border-borderButton" />
+        </Link>
         {activeClub?.logoUrl ? (
           <Image
             src={activeClub.logoUrl}

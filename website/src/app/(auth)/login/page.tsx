@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/i18n/client";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { LegalLinks } from "@/components/legal/LegalLinks";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 
 export default function LoginPage() {
   const { locale, t } = useI18n();
@@ -58,7 +58,7 @@ export default function LoginPage() {
         </Link>
 
         <div className="bg-card rounded-2xl border border-border p-8 text-center">
-          <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={280} height={90} className="mx-auto mb-4" />
+          <SvsBrand className="mx-auto mb-5 w-full max-w-[320px]" priority />
           <h1 className="font-display uppercase text-2xl text-textBright">{t("auth.coachSignIn")}</h1>
           <p className="text-textMuted text-sm mb-6">{t("auth.welcomeBackIntro")}</p>
 
@@ -112,7 +112,7 @@ export default function LoginPage() {
           onClick={() => setShowHelp((current) => !current)}
           className="w-full mt-4 flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-accent transition text-left"
         >
-          <Image src="/branding/help.png" alt="" width={36} height={36} />
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-accentDim font-bold text-accent">?</span>
           <span className="text-textPrimary font-semibold">{t("auth.needSignInHelp")}</span>
         </button>
 

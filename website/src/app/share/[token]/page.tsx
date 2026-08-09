@@ -5,6 +5,7 @@ import { ShareClipPlayer } from "@/components/clips/ShareClipPlayer";
 import { getServerI18n } from "@/i18n/server";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 import type { Metadata } from "next";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +111,7 @@ export default async function SharePage({ params }: { params: { token: string } 
     <div className="flex min-h-screen flex-col bg-page">
       <header className="border-b border-border bg-black/80 px-4 py-5">
         <div className="mx-auto flex max-w-6xl justify-center">
-          <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={480} height={150} className="h-auto w-full max-w-md" priority />
+          <SvsBrand className="w-full max-w-md" priority />
         </div>
       </header>
 
@@ -150,7 +151,7 @@ export default async function SharePage({ params }: { params: { token: string } 
 
       <footer className="mt-auto border-t border-border bg-black px-4 py-8 text-center">
         <div className="mx-auto flex max-w-6xl flex-col items-center">
-          <Image src="/branding/logo.png" alt="" width={48} height={48} className="mb-3 h-12 w-12" />
+          <SvsBrand format="square" width={48} height={48} className="mb-3 h-12 w-12 rounded-lg" />
           <p className="text-sm font-semibold text-textPrimary">{t("public.madeWith")}</p>
           <p className="mt-1 text-xs text-textMuted">{t("public.tagline")}</p>
           <a href="/signup" className="mt-4 inline-block rounded-lg bg-accent px-6 py-2 font-semibold text-page">

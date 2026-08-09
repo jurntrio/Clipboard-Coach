@@ -47,7 +47,7 @@ export function PrivacyDataSection() {
     </div>
     {message && <p className="mt-3 text-sm text-textSecondary">{message}</p>}
     <div className="mt-5 rounded-lg border border-border bg-cardDeep p-4 text-xs leading-6 text-textMuted"><p>{t("privacy.currentVersions", { terms: TERMS_VERSION, privacy: PRIVACY_VERSION })}</p>{acceptance && <p>{t("privacy.accepted", { date: new Date(acceptance.accepted_at).toLocaleString(locale === "nl" ? "nl-BE" : "en-GB"), terms: acceptance.terms_version, privacy: acceptance.privacy_version })}</p>}</div>
-    <div className="mt-4 flex flex-wrap gap-4 text-sm text-accent"><a href="/privacy">{t("legal.privacy")}</a><a href="/terms">{t("legal.terms")}</a><a href="/children-and-images">{t("legal.children")}</a><a href="mailto:info@clipboardcoach.com">info@clipboardcoach.com</a></div>
+    <div className="mt-4 flex flex-wrap gap-4 text-sm text-accent"><a href="/privacy">{t("legal.privacy")}</a><a href="/terms">{t("legal.terms")}</a><a href="/children-and-images">{t("legal.children")}</a><a href="mailto:info@sportvisualsystems.com">info@sportvisualsystems.com</a></div>
     <ConfirmDialog open={action === "links"} title={t("privacy.revokeTitle")} message={t("privacy.revokeMessage")} confirmLabel={t("privacy.revokeConfirm")} destructive busy={busy} onCancel={() => setAction(null)} onConfirm={() => void confirmAction()} />
     <ConfirmDialog open={action === "account"} title={t("privacy.deleteTitle")} message={t("privacy.deleteMessage")} confirmLabel={t("privacy.deleteConfirm")} destructive busy={busy} onCancel={() => setAction(null)} onConfirm={() => void confirmAction()} />
   </section>;

@@ -9,8 +9,20 @@ const spaceMono = Space_Mono({ subsets: ["latin"], weight: ["400", "700"], varia
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope" });
 
 export const metadata: Metadata = {
-  title: "Clipboard Coach Studio",
-  description: "Tag match video, build clips, and share them with your team."
+  metadataBase: new URL("https://app.sportvisualsystems.com"),
+  title: {
+    default: "Sport Visual Systems",
+    template: "%s | Sport Visual Systems"
+  },
+  description: "Sportanalyse, teambeheer, videoreview en communicatie in één platform.",
+  applicationName: "Sport Visual Systems",
+  icons: { icon: "/icon.png", apple: "/branding/svs-square-light.png" },
+  openGraph: {
+    title: "Sport Visual Systems",
+    description: "Sportanalyse, teambeheer, videoreview en communicatie in één platform.",
+    siteName: "Sport Visual Systems",
+    images: [{ url: "/branding/svs-square-dark.png", width: 887, height: 887, alt: "Sport Visual Systems" }]
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

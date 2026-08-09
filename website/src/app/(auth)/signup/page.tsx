@@ -8,6 +8,7 @@ import { useI18n } from "@/i18n/client";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { LEGAL_STATEMENT_VERSION, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 import { LegalLinks } from "@/components/legal/LegalLinks";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 
 export default function SignupPage() {
   const { locale, t } = useI18n();
@@ -130,7 +131,7 @@ export default function SignupPage() {
         </Link>
 
         <div className="bg-card rounded-2xl border border-border p-8 text-center">
-          <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={280} height={90} className="mx-auto mb-4" />
+          <SvsBrand className="mx-auto mb-5 w-full max-w-[320px]" priority />
 
           {submitted ? (
             <>
@@ -158,7 +159,7 @@ export default function SignupPage() {
                   />
                 </div>
                 <fieldset className="space-y-3 rounded-xl border border-border bg-cardDeep p-4">
-                  <legend className="px-2 font-display text-lg uppercase text-textBright">Hoe wil je CBCS gebruiken?</legend>
+                  <legend className="px-2 font-display text-lg uppercase text-textBright">Hoe wil je Sport Visual Systems gebruiken?</legend>
                   <div className="grid gap-2 sm:grid-cols-3">{([['staff','Staflid'],['contact','Contactpersoon'],['none','Nog geen functie']] as const).map(([value,label]) => <button key={value} type="button" onClick={() => { setRequestKind(value); if (value !== 'staff') setTeamMode('none'); }} className={`rounded-lg border p-3 text-left text-sm ${requestKind === value ? "border-accent bg-accentDim text-textPrimary" : "border-borderButton text-textSecondary"}`}>{label}</button>)}</div>
                   <p className="text-xs text-textMuted">Je keuze geeft nog geen toegang. Een clubbeheerder keurt de koppeling en rechten goed.</p>
                 </fieldset>
@@ -267,8 +268,8 @@ export default function SignupPage() {
 
 function readableSignupError(error: unknown, locale: "nl" | "en") {
   const fallback = locale === "nl"
-    ? "Je account kon niet worden aangemaakt. Probeer het opnieuw of neem contact op met info@clipboardcoach.com."
-    : "Your account could not be created. Try again or contact info@clipboardcoach.com.";
+    ? "Je account kon niet worden aangemaakt. Probeer het opnieuw of neem contact op met info@sportvisualsystems.com."
+    : "Your account could not be created. Try again or contact info@sportvisualsystems.com.";
   if (!error || typeof error !== "object") return fallback;
   const candidate = error as { message?: unknown; code?: unknown; status?: unknown };
   const message = typeof candidate.message === "string" ? candidate.message.trim() : "";
@@ -290,8 +291,8 @@ function readableSignupError(error: unknown, locale: "nl" | "en") {
   }
   if (normalized.includes("database error") || normalized.includes("saving new user")) {
     return locale === "nl"
-      ? "De club- of teamkoppeling kon niet worden opgeslagen. Probeer opnieuw; blijft dit gebeuren, neem dan contact op met info@clipboardcoach.com."
-      : "The club or team link could not be saved. Try again; if this continues, contact info@clipboardcoach.com.";
+          ? "De club- of teamkoppeling kon niet worden opgeslagen. Probeer opnieuw; blijft dit gebeuren, neem dan contact op met info@sportvisualsystems.com."
+      : "The club or team link could not be saved. Try again; if this continues, contact info@sportvisualsystems.com.";
   }
   if (!message || message === "{}" || message === "[]" || message === "[object Object]") return fallback;
   return message;

@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LEGAL_STATEMENT_VERSION, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 import { createClient } from "@/lib/supabase/client";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 
 export default function PersonInvitePage() {
   const { token } = useParams<{ token: string }>();
@@ -73,13 +73,7 @@ export default function PersonInvitePage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-page p-4">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8">
-        <Image
-          src="/branding/banner.png"
-          alt="Clipboard Coach Studio"
-          width={280}
-          height={90}
-          className="mx-auto mb-5"
-        />
+        <SvsBrand className="mx-auto mb-5 w-full max-w-[320px]" priority />
         <h1 className="text-2xl font-bold text-textBright">Persoonlijk account activeren</h1>
         <p className="mt-2 text-sm text-textMuted">
           Deze persoonlijke link koppelt je account veilig aan je bestaande clubgegevens en kan maar

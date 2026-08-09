@@ -266,7 +266,7 @@ const nl = {
   "auth.resetLinkInvalid": "Deze link is ongeldig of verlopen. Vraag een nieuwe resetlink aan.",
   "auth.requestNewLink": "Nieuwe resetlink aanvragen",
   "settings.appearance": "Weergave",
-  "settings.appearanceHelp": "Kies hoe Clipboard Coach Studio er op dit apparaat uitziet.",
+  "settings.appearanceHelp": "Kies hoe Sport Visual Systems er op dit apparaat uitziet.",
   "settings.languageHelp": "Kies de taal van de interface op dit apparaat.",
   "settings.quickTags": "Snelle tags",
   "settings.quickTagsHelp": "Deze verschijnen als knoppen die je met één tik gebruikt in de videoviewer.",
@@ -276,7 +276,7 @@ const nl = {
   "settings.privacyHelp": "Bekijk hoe gegevens en beelden worden verwerkt of neem contact op voor een verzoek.",
   "settings.privacy": "Privacyverklaring",
   "settings.children": "Kinderen en beelden",
-  "settings.contact": "Contact: info@clipboardcoach.com",
+  "settings.contact": "Contact: info@sportvisualsystems.com",
   "settings.mailbox": "Mailbox",
   "settings.mailboxHelp": "Bepaal of je per nieuw mailboxbericht een e-mailnotificatie met de volledige tekst krijgt.",
   "settings.mailboxEmailLabel": "E-mailnotificatie met berichttekst ontvangen",
@@ -324,13 +324,13 @@ const nl = {
   "share.phone": "Delen via telefoon",
   "share.email": "E-mail",
   "share.review": "Ik heb gecontroleerd dat de personen in deze clip voor dit doel mogen worden getoond en deel de link alleen met het bedoelde publiek.",
-  "share.secure": "Beperkte deellink via Clipboard Coach",
+  "share.secure": "Beperkte deellink via Sport Visual Systems",
   "share.report": "Dit beeld melden",
   "share.thisClip": "deze clip",
-  "share.watch": "Bekijk {clip} van Clipboard Coach Studio",
-  "share.emailSubject": "Een Clipboard Coach-clip voor jou",
-  "share.emailSubjectNamed": "Clipboard Coach-clip: {name}",
-  "share.clipTitle": "Clipboard Coach-clip",
+  "share.watch": "Bekijk {clip} van Sport Visual Systems",
+  "share.emailSubject": "Een Sport Visual Systems-clip voor jou",
+  "share.emailSubjectNamed": "Sport Visual Systems-clip: {name}",
+  "share.clipTitle": "Sport Visual Systems-clip",
   "share.close": "Deelvenster sluiten",
   "share.copyLink": "Link kopiëren",
   "errors.sessionExpired": "Je sessie is verlopen. Meld je opnieuw aan en probeer nogmaals."
@@ -665,7 +665,7 @@ const nl = {
   ,"public.sharedClip": "Gedeelde clip"
   ,"public.unavailable": "Clip niet online beschikbaar"
   ,"public.unavailableBody": "Deze link bevat geen geüploade video. Maak de clip opnieuw terwijl alle oorspronkelijke wedstrijdvideo’s gekoppeld zijn en deel daarna de nieuwe clip."
-  ,"public.madeWith": "Gemaakt met Clipboard Coach Studio"
+  ,"public.madeWith": "Gemaakt met Sport Visual Systems"
   ,"public.tagline": "Bekijk wedstrijden, tag momenten en deel de clips die ertoe doen."
   ,"public.start": "Maak je eigen clips"
   ,"admin.subtitle": "Coaches, teams en opslag voor alle accounts"
@@ -787,7 +787,7 @@ const nl = {
   ,"legal.report": "Beeld of privacyprobleem melden"
   ,"legal.version": "Versie {version}"
   ,"terms.title": "Gebruiksvoorwaarden"
-  ,"terms.intro": "Deze voorwaarden gelden voor Clipboard Coach Studio, aangeboden door Jurn Trio. Contact: info@clipboardcoach.com."
+  ,"terms.intro": "Deze voorwaarden gelden voor Sport Visual Systems, aangeboden door Jurn Trio. Contact: info@sportvisualsystems.com."
   ,"terms.accountTitle": "1. Account en leeftijd"
   ,"terms.accountBody": "Je moet minstens 18 jaar zijn en bevoegd zijn om voor jezelf of je organisatie te handelen. Je bent verantwoordelijk voor je account, toegangsgegevens en het gebruik door personen aan wie je toegang geeft."
   ,"terms.videosTitle": "2. Lokale video's en online clips"
@@ -801,7 +801,7 @@ const nl = {
   ,"terms.changesTitle": "6. Beëindiging en wijzigingen"
   ,"terms.changesBody": "Je kunt je account via Instellingen verwijderen. We kunnen toegang beperken bij misbruik, veiligheidsrisico's of wettelijke noodzaak. Bij wezenlijke wijzigingen vragen we waar nodig opnieuw akkoord."
   ,"privacyPolicy.title": "Privacyverklaring"
-  ,"privacyPolicy.intro": "Clipboard Coach Studio wordt beheerd door Jurn Trio. Voor privacyvragen of verzoeken kun je contact opnemen via info@clipboardcoach.com."
+  ,"privacyPolicy.intro": "Sport Visual Systems wordt beheerd door Jurn Trio. Voor privacyvragen of verzoeken kun je contact opnemen via info@sportvisualsystems.com."
   ,"privacyPolicy.dataTitle": "1. Welke gegevens we verwerken"
   ,"privacyPolicy.dataBody": "We verwerken accountgegevens, team- en spelergegevens die je invoert, wedstrijdmetadata, tags, tekeningen, korte clips, doelgroepkeuzes, deellinks en technisch noodzakelijke beveiligingsgegevens. Volledige wedstrijdvideo's blijven lokaal op jouw apparaat en worden niet naar Clipboard Coach geüpload."
   ,"privacyPolicy.purposesTitle": "2. Doeleinden en rechtsgronden"
@@ -813,7 +813,7 @@ const nl = {
   ,"privacyPolicy.retentionTitle": "5. Bewaring en beveiliging"
   ,"privacyPolicy.retentionBody": "Accountinhoud en korte clips bewaren we zolang dat nodig is voor de dienst, met een maximale reguliere bewaartermijn van twee jaar. Bij accountverwijdering verwijderen we actieve gegevens en online clipbestanden; tijdelijke back-ups en beveiligingslogs kunnen nog beperkt blijven bestaan volgens de technische back-up- en beveiligingscycli."
   ,"privacyPolicy.rightsTitle": "6. Jouw rechten"
-  ,"privacyPolicy.rightsBody": "Je kunt inzage, correctie, verwijdering, beperking, overdracht of bezwaar vragen. In Instellingen kun je gegevens exporteren, deellinks intrekken en je account verwijderen. Je kunt ook contact opnemen via info@clipboardcoach.com en een klacht indienen bij de Belgische Gegevensbeschermingsautoriteit."
+  ,"privacyPolicy.rightsBody": "Je kunt inzage, correctie, verwijdering, beperking, overdracht of bezwaar vragen. In Instellingen kun je gegevens exporteren, deellinks intrekken en je account verwijderen. Je kunt ook contact opnemen via info@sportvisualsystems.com en een klacht indienen bij de Belgische Gegevensbeschermingsautoriteit."
   ,"childrenPolicy.title": "Kinderen en beelden"
   ,"childrenPolicy.subtitle": "Praktische regels voor sportbeelden"
   ,"childrenPolicy.intro": "Clipboard Coach-accounts zijn alleen voor volwassenen van minstens 18 jaar. Een volwassen coach of organisatie kan wel sportbeelden verwerken waarop kinderen staan, maar alleen met de juiste bevoegdheid en waar nodig toestemming."
@@ -826,7 +826,7 @@ const nl = {
   ,"childrenPolicy.contactTitle": "Contactgegevens"
   ,"childrenPolicy.contactBody": "Voeg e-mail, telefoonnummer of geboortedatum alleen toe als dit echt nodig is, je daarvoor bevoegd bent en de speler of ouder de nodige privacy-informatie heeft gekregen."
   ,"childrenPolicy.objectionTitle": "Bezwaar of verwijdering"
-  ,"childrenPolicy.objectionBody": "Stop het gebruik en onderzoek een verzoek van een speler, ouder, voogd, club of andere betrokkene snel. Trek deellinks in en verwijder clips waar nodig. Meld een probleem via info@clipboardcoach.com."
+  ,"childrenPolicy.objectionBody": "Stop het gebruik en onderzoek een verzoek van een speler, ouder, voogd, club of andere betrokkene snel. Trek deellinks in en verwijder clips waar nodig. Meld een probleem via info@sportvisualsystems.com."
   ,"consent.title": "We hebben opnieuw je akkoord nodig"
   ,"consent.intro": "Onze juridische voorwaarden zijn bijgewerkt. Bekijk de actuele versies voordat je verdergaat."
   ,"consent.checkbox": "Ik ben minstens 18 jaar, ben bevoegd om voor mijn organisatie te handelen, aanvaard de Gebruiksvoorwaarden en heb de Privacyverklaring gelezen."
@@ -1190,7 +1190,7 @@ const en: Record<MessageKey, string> = {
   "auth.resetLinkInvalid": "This link is invalid or has expired. Request a new reset link.",
   "auth.requestNewLink": "Request a new reset link",
   "settings.appearance": "Appearance",
-  "settings.appearanceHelp": "Choose how Clipboard Coach Studio looks on this device.",
+  "settings.appearanceHelp": "Choose how Sport Visual Systems looks on this device.",
   "settings.languageHelp": "Choose the interface language on this device.",
   "settings.quickTags": "Quick tags",
   "settings.quickTagsHelp": "These show up as one-tap buttons in the video viewer.",
@@ -1200,7 +1200,7 @@ const en: Record<MessageKey, string> = {
   "settings.privacyHelp": "Learn how data and images are handled or contact us with a request.",
   "settings.privacy": "Privacy Policy",
   "settings.children": "Children and images",
-  "settings.contact": "Contact: info@clipboardcoach.com",
+  "settings.contact": "Contact: info@sportvisualsystems.com",
   "settings.mailbox": "Mailbox",
   "settings.mailboxHelp": "Choose whether every new mailbox message also sends you an email notification containing the full text.",
   "settings.mailboxEmailLabel": "Receive an email notification with the message text",
@@ -1248,13 +1248,13 @@ const en: Record<MessageKey, string> = {
   "share.phone": "Share via phone",
   "share.email": "Email",
   "share.review": "I have checked that the people in this clip may be shown for this purpose and will only share the link with the intended audience.",
-  "share.secure": "Restricted share link through Clipboard Coach",
+  "share.secure": "Restricted share link through Sport Visual Systems",
   "share.report": "Report this image",
   "share.thisClip": "this clip",
-  "share.watch": "Watch {clip} from Clipboard Coach Studio",
-  "share.emailSubject": "A Clipboard Coach clip for you",
-  "share.emailSubjectNamed": "Clipboard Coach clip: {name}",
-  "share.clipTitle": "Clipboard Coach clip",
+  "share.watch": "Watch {clip} from Sport Visual Systems",
+  "share.emailSubject": "A Sport Visual Systems clip for you",
+  "share.emailSubjectNamed": "Sport Visual Systems clip: {name}",
+  "share.clipTitle": "Sport Visual Systems clip",
   "share.close": "Close share window",
   "share.copyLink": "Copy link",
   "errors.sessionExpired": "Your session has expired. Sign in again and retry."
@@ -1589,7 +1589,7 @@ const en: Record<MessageKey, string> = {
   ,"public.sharedClip": "Shared clip"
   ,"public.unavailable": "Clip not available online"
   ,"public.unavailableBody": "This link has no uploaded video. Recreate the clip while all original match videos are connected, then share the new clip."
-  ,"public.madeWith": "Made with Clipboard Coach Studio"
+  ,"public.madeWith": "Made with Sport Visual Systems"
   ,"public.tagline": "Review matches, tag moments and share the clips that matter."
   ,"public.start": "Start making your own clips"
   ,"admin.subtitle": "Coaches, teams and storage across all accounts"
@@ -1711,7 +1711,7 @@ const en: Record<MessageKey, string> = {
   ,"legal.report": "Report an image or privacy issue"
   ,"legal.version": "Version {version}"
   ,"terms.title": "Terms of Use"
-  ,"terms.intro": "These terms apply to Clipboard Coach Studio, provided by Jurn Trio. Contact: info@clipboardcoach.com."
+  ,"terms.intro": "These terms apply to Sport Visual Systems, provided by Jurn Trio. Contact: info@sportvisualsystems.com."
   ,"terms.accountTitle": "1. Account and age"
   ,"terms.accountBody": "You must be at least 18 and authorised to act for yourself or your organisation. You are responsible for your account, credentials and use by anyone you give access to."
   ,"terms.videosTitle": "2. Local videos and online clips"
@@ -1725,7 +1725,7 @@ const en: Record<MessageKey, string> = {
   ,"terms.changesTitle": "6. Termination and changes"
   ,"terms.changesBody": "You can delete your account through Settings. We may restrict access for misuse, security risks or legal necessity. For material changes, we will request renewed acceptance where required."
   ,"privacyPolicy.title": "Privacy Policy"
-  ,"privacyPolicy.intro": "Clipboard Coach Studio is operated by Jurn Trio. For privacy questions or requests, contact info@clipboardcoach.com."
+  ,"privacyPolicy.intro": "Sport Visual Systems is operated by Jurn Trio. For privacy questions or requests, contact info@sportvisualsystems.com."
   ,"privacyPolicy.dataTitle": "1. Data we process"
   ,"privacyPolicy.dataBody": "We process account data, team and player data you enter, match metadata, tags, drawings, short clips, audience choices, share links and technically necessary security data. Full match videos stay locally on your device and are not uploaded to Clipboard Coach."
   ,"privacyPolicy.purposesTitle": "2. Purposes and legal bases"
@@ -1737,7 +1737,7 @@ const en: Record<MessageKey, string> = {
   ,"privacyPolicy.retentionTitle": "5. Retention and security"
   ,"privacyPolicy.retentionBody": "We keep account content and short clips as needed for the service, with a maximum standard retention period of two years. When an account is deleted, active data and online clip files are removed; temporary backups and security logs may remain for a limited period under technical backup and security cycles."
   ,"privacyPolicy.rightsTitle": "6. Your rights"
-  ,"privacyPolicy.rightsBody": "You can request access, correction, deletion, restriction, portability or object to processing. In Settings you can export data, revoke share links and delete your account. You can also contact info@clipboardcoach.com and complain to the Belgian Data Protection Authority."
+  ,"privacyPolicy.rightsBody": "You can request access, correction, deletion, restriction, portability or object to processing. In Settings you can export data, revoke share links and delete your account. You can also contact info@sportvisualsystems.com and complain to the Belgian Data Protection Authority."
   ,"childrenPolicy.title": "Children and images"
   ,"childrenPolicy.subtitle": "Practical rules for sports images"
   ,"childrenPolicy.intro": "Clipboard Coach accounts are only for adults aged 18 or over. An adult coach or organisation may process sports footage showing children, but only with proper authority and consent where required."
@@ -1750,7 +1750,7 @@ const en: Record<MessageKey, string> = {
   ,"childrenPolicy.contactTitle": "Contact data"
   ,"childrenPolicy.contactBody": "Only add email, phone number or date of birth when genuinely needed, when authorised and after the player or parent has received the necessary privacy information."
   ,"childrenPolicy.objectionTitle": "Objection or removal"
-  ,"childrenPolicy.objectionBody": "Promptly stop and review a request from a player, parent, guardian, club or other person. Revoke share links and delete clips where appropriate. Report an issue via info@clipboardcoach.com."
+  ,"childrenPolicy.objectionBody": "Promptly stop and review a request from a player, parent, guardian, club or other person. Revoke share links and delete clips where appropriate. Report an issue via info@sportvisualsystems.com."
   ,"consent.title": "We need your renewed acceptance"
   ,"consent.intro": "Our legal terms have been updated. Review the current versions before continuing."
   ,"consent.checkbox": "I am at least 18 years old, am authorised to act for my organisation, accept the Terms of Use and have read the Privacy Policy."

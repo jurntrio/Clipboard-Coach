@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/i18n/client";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { LegalLinks } from "@/components/legal/LegalLinks";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 
 export default function ForgotPasswordPage() {
   const { t } = useI18n();
@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
         </Link>
 
         <div className="bg-card rounded-2xl border border-border p-8 text-center">
-          <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={280} height={90} className="mx-auto mb-4" />
+          <SvsBrand className="mx-auto mb-5 w-full max-w-[320px]" priority />
 
           {sent ? (
             <>

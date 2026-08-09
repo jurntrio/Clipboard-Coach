@@ -47,9 +47,9 @@ function preview(title: string, description: string): Metadata {
       siteName: "Sport Visual Systems",
       title,
       description,
-      images: [{ url: `${siteUrl}/branding/banner.png`, alt: "Sport Visual Systems" }]
+      images: [{ url: `${siteUrl}/branding/svs-square-dark.png`, width: 887, height: 887, alt: "Sport Visual Systems" }]
     },
-    twitter: { card: "summary_large_image", title, description, images: [`${siteUrl}/branding/banner.png`] }
+    twitter: { card: "summary_large_image", title, description, images: [`${siteUrl}/branding/svs-square-dark.png`] }
   };
 }
 

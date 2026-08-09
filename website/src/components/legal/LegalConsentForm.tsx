@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { useI18n } from "@/i18n/client";
 import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 
 export function LegalConsentForm() {
   const { locale, t } = useI18n();
@@ -42,7 +42,7 @@ export function LegalConsentForm() {
 
   return <div className="flex min-h-screen items-center justify-center bg-page px-4 py-10 text-textPrimary">
     <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-8">
-      <div className="mb-6 flex items-center justify-between gap-4"><Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={240} height={77} /><LanguageSwitcher compact /></div>
+      <div className="mb-6 flex items-center justify-between gap-4"><SvsBrand width={280} height={70} className="w-full max-w-[280px]" /><LanguageSwitcher compact /></div>
       <h1 className="font-display text-2xl uppercase text-textBright">{t("consent.title")}</h1>
       <p className="mt-3 text-sm leading-6 text-textSecondary">{t("consent.intro")}</p>
       <div className="mt-5 flex flex-wrap gap-4 text-sm text-accent"><Link href="/terms" target="_blank" className="hover:underline">{t("legal.terms")} ({TERMS_VERSION})</Link><Link href="/privacy" target="_blank" className="hover:underline">{t("legal.privacy")} ({PRIVACY_VERSION})</Link><Link href="/children-and-images" target="_blank" className="hover:underline">{t("legal.children")}</Link></div>

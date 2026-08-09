@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { LEGAL_STATEMENT_VERSION, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 
 type Invite = {
   clubName: string | null; teamName: string | null; roleLabel: string;
@@ -55,9 +55,9 @@ export default function ClubInvitePage() {
   }
 
   return <div className="flex min-h-screen items-center justify-center bg-page p-4"><div className="w-full max-w-md rounded-2xl border border-border bg-card p-8">
-    <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={280} height={90} className="mx-auto mb-5" />
+    <SvsBrand className="mx-auto mb-5 w-full max-w-[320px]" priority />
     {loading ? <p className="text-center text-textMuted">Uitnodiging laden…</p> : submitted ? <div className="text-center"><h1 className="text-2xl font-bold text-textBright">Controleer je e-mail</h1><p className="mt-2 text-textSecondary">Bevestig je account om toegang te krijgen.</p></div> : error && !invite ? <p className="text-center text-red-300">{error}</p> : <>
-      <h1 className="text-2xl font-bold text-textBright">{invite?.clubName ? `Uitnodiging voor ${invite.clubName}` : "Uitnodiging voor Clipboard Coach"}</h1>
+      <h1 className="text-2xl font-bold text-textBright">{invite?.clubName ? `Uitnodiging voor ${invite.clubName}` : "Uitnodiging voor Sport Visual Systems"}</h1>
       {invite?.teamName && <p className="mt-1 text-sm text-textSecondary">Ploeg: <strong>{invite.teamName}</strong></p>}
       {invite?.contactPhone && <p className="mt-1 text-xs text-textMuted">Gsm: {invite.contactPhone}</p>}
       <p className="mt-2 text-sm text-textMuted">Je wordt geregistreerd als <strong className="text-textPrimary">{invite?.roleLabel}</strong>. Deze link kan maar door één persoon worden gebruikt.</p>

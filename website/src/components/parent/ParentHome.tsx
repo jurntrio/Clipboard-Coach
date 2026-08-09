@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getPlayerDisplayName } from "@/lib/utils";
@@ -10,6 +9,7 @@ import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/C
 import { ExitCard } from "@/components/ui/ExitCard";
 import { useI18n } from "@/i18n/client";
 import { ContactTrainingAvailability } from "@/components/parent/ContactTrainingAvailability";
+import { SvsBrand } from "@/components/branding/SvsBrand";
 
 // Fase 3: 1 rij per operationele players-rij (een club-breed kind kan er meerdere hebben, 1 per
 // team/seizoen-lidmaatschap). child_key groepeert ze -- club_player_id voor een clubbrede speler,
@@ -60,7 +60,7 @@ export function ParentHome({ showBackLink }: { showBackLink?: boolean } = {}) {
   if (!loading && !children.length) {
     return <div className="mx-auto max-w-2xl p-8 text-center">
       {showBackLink && <Link href="/dashboard" className="mb-6 inline-block text-sm text-accent hover:underline">&larr; Terug naar dashboard</Link>}
-      <Image src="/branding/banner.png" alt="Clipboard Coach Studio" width={280} height={90} className="mx-auto mb-6" />
+      <SvsBrand className="mx-auto mb-6 w-full max-w-[320px]" />
       <p className="text-textMuted">Je account is nog niet aan een speler gekoppeld.</p>
       <div className="mt-6"><ExitCard /></div>
     </div>;
@@ -72,9 +72,9 @@ export function ParentHome({ showBackLink }: { showBackLink?: boolean } = {}) {
     <div className="mx-auto max-w-5xl space-y-8 p-6">
       {showBackLink && <Link href="/dashboard" className="inline-block text-sm text-accent hover:underline">&larr; Terug naar dashboard</Link>}
       <header className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4">
-        <Image src="/branding/logo.png" alt="" width={44} height={44} />
+        <SvsBrand format="square" width={44} height={44} className="h-11 w-11 rounded-lg" />
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold text-textBright">Clipboard Coach Studio</h1>
+          <h1 className="text-xl font-bold text-textBright">Sport Visual Systems</h1>
         </div>
       </header>
       {children.length > 1 && (

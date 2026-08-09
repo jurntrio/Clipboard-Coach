@@ -62,12 +62,11 @@ export async function sendSelectionNotificationEmails(notifications: SelectionNo
 
 function selectionNotificationHtml(notification: SelectionNotification) {
   const details = [notification.matchDate, notification.startTime ? `aanvang ${notification.startTime.slice(0, 5)}` : null, notification.meetingTime ? `afspraak ${notification.meetingTime.slice(0, 5)}` : null, notification.location].filter(Boolean).join(" · ");
-  return `<p>Beste${notification.recipientName ? ` ${escapeHtml(notification.recipientName)}` : ""},</p>
+  return brandedEmail(`<p>Beste${notification.recipientName ? ` ${escapeHtml(notification.recipientName)}` : ""},</p>
     <p><strong>${escapeHtml(notification.playerName)}</strong> is <strong>${notification.selected ? "geselecteerd" : "niet geselecteerd"}</strong> voor ${escapeHtml(notification.matchTitle)}.</p>
     ${details ? `<p>${escapeHtml(details)}</p>` : ""}
     ${notification.nonSelectionReason ? `<p><strong>Reden</strong><br>${escapeHtml(notification.nonSelectionReason)}</p>` : ""}
-    ${notification.attentionPoint ? `<p><strong>Individueel aandachtspunt</strong><br>${escapeHtml(notification.attentionPoint)}</p>` : ""}
-    <p style="color:#888;font-size:13px;">Dit bericht werd verstuurd vanuit SVS.</p>`;
+    ${notification.attentionPoint ? `<p><strong>Individueel aandachtspunt</strong><br>${escapeHtml(notification.attentionPoint)}</p>` : ""}`);
 }
 
 export async function sendMailboxNotificationEmails(notifications: MailboxNotification[]): Promise<Set<string>> {
@@ -98,10 +97,22 @@ export async function sendMailboxNotificationEmails(notifications: MailboxNotifi
 
 function notificationHtml(params: MailboxNotification) {
   const inboxUrl = `${getAppOrigin()}/dashboard/inbox?thread=${encodeURIComponent(params.threadId)}`;
-  return `<p><strong>${escapeHtml(params.senderName)}</strong> stuurde je een nieuwe e-mail via de Sport Visual Systems-mailbox:</p>
+  return brandedEmail(`<p><strong>${escapeHtml(params.senderName)}</strong> stuurde je een nieuwe e-mail via de Sport Visual Systems-mailbox:</p>
     <p style="white-space: pre-wrap;">${escapeHtml(params.body)}</p>
-    <p><a href="${inboxUrl}">Open deze e-mailthread in Sport Visual Systems</a></p>
-    <p style="color: #888; font-size: 13px;">Antwoorden worden centraal in de Sport Visual Systems-mailbox bewaard. Antwoord daarom niet rechtstreeks op deze notificatiemail.</p>`;
+    <p><a href="${inboxUrl}" style="display:inline-block;border-radius:8px;background:#18b84a;color:#071109;padding:12px 18px;text-decoration:none;font-weight:700;">Open in Sport Visual Systems</a></p>
+    <p style="color:#66736b;font-size:13px;">Antwoorden worden centraal in de Sport Visual Systems-mailbox bewaard. Antwoord daarom niet rechtstreeks op deze notificatiemail.</p>`);
+}
+
+function brandedEmail(content: string) {
+  const logoUrl = `${getAppOrigin()}/branding/svs-banner-light.png`;
+  return `<!doctype html><html><body style="margin:0;background:#eef2ee;font-family:Arial,sans-serif;color:#18221b;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 12px;background:#eef2ee;"><tr><td align="center">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;overflow:hidden;border:1px solid #d6dfd7;border-radius:14px;background:#fff;">
+        <tr><td style="padding:24px 28px 14px;text-align:center;"><img src="${logoUrl}" width="420" alt="Sport Visual Systems" style="display:block;width:100%;max-width:420px;height:auto;margin:0 auto;"></td></tr>
+        <tr><td style="padding:8px 32px 28px;font-size:16px;line-height:1.6;">${content}</td></tr>
+        <tr><td style="border-top:1px solid #e3e9e4;padding:16px 32px;color:#66736b;font-size:12px;">Sport Visual Systems · <a href="${getAppOrigin()}" style="color:#169447;">app.sportvisualsystems.com</a></td></tr>
+      </table>
+    </td></tr></table></body></html>`;
 }
 
 function escapeHtml(value: string) {
