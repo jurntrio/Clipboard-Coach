@@ -32,7 +32,7 @@ export default async function TrainingStatisticsPage() {
       teamId: team.id,
       teamName: team.name,
       confirmedTrainings: teamSessions.length,
-      presentTrainings: (attendance ?? []).filter(row => ids.has(row.training_session_id) && row.player_id === player.id && row.attendance_status === "present").length,
+      presentTrainings: teamSessions.filter(session => !(attendance ?? []).some(row => row.training_session_id === session.id && row.player_id === player.id && ["absent", "injured"].includes(row.attendance_status))).length,
       missedTrainings: (attendance ?? []).filter(row => ids.has(row.training_session_id) && row.player_id === player.id && row.attendance_status === "absent").length,
       injuredTrainings: (attendance ?? []).filter(row => ids.has(row.training_session_id) && row.player_id === player.id && row.attendance_status === "injured").length
     }));

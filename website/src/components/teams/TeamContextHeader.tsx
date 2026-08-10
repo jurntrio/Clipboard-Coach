@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { TeamContextPanel, type TeamContextOption } from "@/components/teams/TeamContextPanel";
 
-type TeamOption = { id: string; name: string };
+type TeamOption = TeamContextOption;
 
 export function TeamContextHeader({ teams: suppliedTeams, activeTeamId: suppliedActiveTeamId, allowAll = true }: {
   teams?: TeamOption[];
@@ -44,8 +45,5 @@ export function TeamContextHeader({ teams: suppliedTeams, activeTeamId: supplied
     window.location.reload();
   }
 
-  return <nav className="mb-5 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-3" aria-label="Ploeg kiezen">
-    {allowAll && <button type="button" disabled={changing} onClick={() => void selectTeam(null)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${activeTeamId ? "text-textPrimary hover:bg-cardDeep" : "bg-accent text-page"}`}>Alles</button>}
-    {teams.map(team => <button key={team.id} type="button" disabled={changing} onClick={() => void selectTeam(team.id)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${activeTeamId === team.id ? "bg-accent text-page" : "text-textPrimary hover:bg-cardDeep"}`}>{team.name}</button>)}
-  </nav>;
+  return <TeamContextPanel teams={teams} activeTeamId={activeTeamId} allowAll={allowAll} changing={changing} onSelect={teamId => void selectTeam(teamId)} />;
 }
