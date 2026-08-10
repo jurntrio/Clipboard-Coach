@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveBelgianClubByName } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
+import { resolveBelgianClubByName, resolveBelgianClubForClub } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
 type CalendarEvent = {
   uid: string;
@@ -208,7 +208,7 @@ export async function syncFoot24Feed(teamId: string) {
     const externalMatchId = `${team.id}:${event.uid}`;
     const opponent = fixture.opponent;
     const [teamABelgianClubId, teamBBelgianClubId] = await Promise.all([
-      resolveBelgianClubByName(team.name),
+      resolveBelgianClubForClub(team.club_id),
       resolveBelgianClubByName(opponent)
     ]);
     const payload = {

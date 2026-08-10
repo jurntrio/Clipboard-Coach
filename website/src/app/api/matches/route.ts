@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getClubContext } from "@/lib/auth/active-club";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { resolveBelgianClubByName, resolveBelgianClubForClub } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
 type MatchInput = {
   id?: string; team_a_id?: string | null; team_a_name?: string; team_b_name?: string;
@@ -57,9 +58,15 @@ export async function POST(request: Request) {
       if (!assignment) return NextResponse.json({ error: "Je bent niet aan deze ploeg toegewezen." }, { status: 403 });
     }
   }
+  const [ownBelgianClubId, opponentBelgianClubId] = await Promise.all([
+    resolveBelgianClubForClub(context.activeClubId),
+    resolveBelgianClubByName(body.team_b_name)
+  ]);
   const payload = {
     team_a_id: body.team_a_id ?? null, team_a_name: body.team_a_name.trim(), team_b_id: null,
-    team_b_name: body.team_b_name.trim(), match_date: body.match_date ?? null, start_time: body.start_time ?? null,
+    team_a_belgian_club_id: ownBelgianClubId,
+    team_b_name: body.team_b_name.trim(), team_b_belgian_club_id: opponentBelgianClubId,
+    match_date: body.match_date ?? null, start_time: body.start_time ?? null,
     recording_start_time: body.recording_start_time ?? null,
     status: body.status ?? "scheduled", score_a: body.score_a ?? null, score_b: body.score_b ?? null,
     player_ids: body.player_ids ?? [], live_tag_names: body.live_tag_names ?? [], club_id: context.activeClubId,

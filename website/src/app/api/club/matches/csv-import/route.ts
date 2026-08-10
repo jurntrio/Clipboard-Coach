@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { parseClubMatchCsv } from "@/lib/club-match-csv";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
-import { resolveBelgianClubByName } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
+import { resolveBelgianClubByName, resolveBelgianClubForClub } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
 export async function POST(request: Request) {
   const supabase = createClient();
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const externalMatchId = `${team.id}:${createHash("sha256").update(signature).digest("hex").slice(0, 24)}`;
     const opponent = row.isHome ? row.awayTeam : row.homeTeam;
     const [teamABelgianClubId, teamBBelgianClubId] = await Promise.all([
-      resolveBelgianClubByName(team.name),
+      resolveBelgianClubForClub(team.club_id),
       resolveBelgianClubByName(opponent)
     ]);
     const payload = {

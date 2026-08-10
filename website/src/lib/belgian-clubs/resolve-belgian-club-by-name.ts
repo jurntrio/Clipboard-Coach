@@ -79,3 +79,27 @@ export async function resolveBelgianClubByName(name: string | null | undefined):
   const index = await getNameIndex();
   return index.get(normalizeClubName(trimmed)) ?? null;
 }
+
+/** Resolve the Belgian club behind an application club. The registration
+ * number is authoritative; the club name is only a fallback for older clubs
+ * that do not have one configured yet. Team names (U13, Beloften, ...) must
+ * never be used for this lookup. */
+export async function resolveBelgianClubForClub(clubId: string): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data: club } = await admin.from("clubs")
+    .select("name, rbfa_registration_number")
+    .eq("id", clubId)
+    .maybeSingle();
+  if (!club) return null;
+
+  const registrationNumber = Number.parseInt(String(club.rbfa_registration_number ?? "").trim(), 10);
+  if (Number.isInteger(registrationNumber) && registrationNumber > 0) {
+    const { data: belgianClub } = await admin.from("belgian_clubs")
+      .select("id")
+      .eq("stamnummer", registrationNumber)
+      .maybeSingle();
+    if (belgianClub?.id) return belgianClub.id as string;
+  }
+
+  return resolveBelgianClubByName(club.name as string);
+}

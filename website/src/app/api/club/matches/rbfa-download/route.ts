@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { downloadRbfaClubFixtures, filterUnlinkedRbfaFixtures } from "@/lib/rbfa-club-downloads";
-import { resolveBelgianClubByName } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
+import { resolveBelgianClubByName, resolveBelgianClubForClub } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
 async function context(clubId: string) {
   const supabase = createClient();
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     if (!operationalTeam?.id) continue;
     const opponent = fixture.ownIsHome ? fixture.awayTeam : fixture.homeTeam;
     const [ownClubId, opponentClubId] = await Promise.all([
-      resolveBelgianClubByName(team.name),
+      resolveBelgianClubForClub(ctx.club.id),
       resolveBelgianClubByName(opponent)
     ]);
     const externalMatchId = `${ctx.club.id}:${fixture.key}`;

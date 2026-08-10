@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { removeFoot24Advertisements } from "@/lib/foot24-calendar";
-import { resolveBelgianClubByName } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
+import { resolveBelgianClubByName, resolveBelgianClubForClub } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
 type OfficialGame = {
   id: string;
@@ -80,8 +80,8 @@ export async function syncVoetbalVlaanderenFeed(teamId: string) {
   const { data: standardTags } = await admin.from("standard_tags").select("name").eq("coach_id", owner.profile_id).order("created_at");
   const defaultTags = (standardTags ?? []).map((tag) => tag.name).filter((name) => !["start", "end"].includes(name.trim().toLowerCase()));
 
-  // team.name doesn't change across games in this sync, so resolve it once.
-  const ownClubId = await resolveBelgianClubByName(team.name);
+  // The parent club doesn't change across games in this sync, so resolve it once.
+  const ownClubId = await resolveBelgianClubForClub(team.club_id);
 
   let imported = 0;
   let updated = 0;
