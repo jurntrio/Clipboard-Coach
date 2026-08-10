@@ -14,7 +14,10 @@ function ageToken(value: string) {
 
 function suggestedTeamId(fixture: Fixture, teams: Team[]) {
   const ownName = fixture.ownIsHome ? fixture.homeTeam : fixture.awayTeam;
-  const seniorSuffix = ownName.match(/KM\s+Torhout\s+([AB])\s*$/i)?.[1]?.toUpperCase();
+  const normalizedDivision = fixture.division.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const seniorSuffix = normalizedDivision === "2A"
+    ? "A"
+    : ownName.match(/KM\s+Torhout\s+([AB])\s*$/i)?.[1]?.toUpperCase();
   if (seniorSuffix) {
     const senior = teams.filter(team => team.name.toUpperCase() === `KMT ${seniorSuffix}`);
     if (senior.length === 1) return senior[0].id;
