@@ -52,6 +52,31 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
     return NextResponse.json({ trainings: sessions ?? [], training_options: options ?? [] });
   }
 
+  if (section === "statistics") {
+    if (!clubTeam) return NextResponse.json({ statistics: [] });
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: sessions } = await admin.from("team_training_sessions").select("id")
+      .eq("club_team_id", clubTeam.id).lt("training_date", today).not("attendance_confirmed_at", "is", null);
+    const confirmedSessions = sessions ?? [];
+    const sessionIds = confirmedSessions.map(session => session.id);
+    const { data: attendance } = sessionIds.length
+      ? await admin.from("team_training_attendance").select("training_session_id, player_id, attendance_status").in("training_session_id", sessionIds)
+      : { data: [] };
+    const statistics = ((team.players ?? []) as Array<{ id: string; first_name: string; last_name: string; role: string }>)
+      .filter(player => player.role === "player")
+      .map(player => ({
+        playerId: player.id,
+        playerName: `${player.first_name} ${player.last_name}`.trim(),
+        teamId: clubTeam.id,
+        teamName: team.name,
+        confirmedTrainings: confirmedSessions.length,
+        presentTrainings: confirmedSessions.filter(session => !(attendance ?? []).some(row => row.training_session_id === session.id && row.player_id === player.id && ["absent", "injured"].includes(row.attendance_status))).length,
+        missedTrainings: (attendance ?? []).filter(row => row.player_id === player.id && row.attendance_status === "absent").length,
+        injuredTrainings: (attendance ?? []).filter(row => row.player_id === player.id && row.attendance_status === "injured").length
+      }));
+    return NextResponse.json({ statistics });
+  }
+
   const allPlayers = (team.players ?? []) as Array<Record<string, unknown> & { id: string }>;
   const privatePlayers = access?.goalkeeperPlayerIds === null || !access
     ? allPlayers

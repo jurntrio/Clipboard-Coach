@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { TrainingStatistics, type TrainingStatistic } from "@/components/training/TrainingStatistics";
+import { TeamContextPanel } from "@/components/teams/TeamContextPanel";
 import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/messages";
 import type { Match, Player, Team } from "@/types/database";
@@ -15,10 +17,12 @@ type PlayerContact = { id: string; full_name: string; email: string | null; phon
 type DetailedPlayer = Player & { contacts?: PlayerContact[]; can_manage?: boolean };
 type TeamDetail = Team & { players: DetailedPlayer[]; linked_staff?: StaffMember[] };
 type Training = { id: string; training_date: string; start_time: string; field_option_id: string | null; locker_room_option_id: string | null };
+type TrainingData = { trainings: Training[]; optionNames: Record<string, string> };
 
 export default function TeamDetailPage() {
-  const { teamId } = useParams<{ teamId: string }>();
+  const { teamId: initialTeamId } = useParams<{ teamId: string }>();
   const { t, locale } = useI18n();
+  const [teamId, setTeamId] = useState(initialTeamId);
   const [tab, setTab] = useState<Tab>("overview");
   const [trainingView, setTrainingView] = useState<TrainingView>("upcoming");
   const [team, setTeam] = useState<TeamDetail | null>(null);
@@ -26,15 +30,36 @@ export default function TeamDetailPage() {
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [trainings, setTrainings] = useState<Training[] | null>(null);
   const [optionNames, setOptionNames] = useState<Record<string, string>>({});
+  const [statistics, setStatistics] = useState<TrainingStatistic[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingSection, setLoadingSection] = useState<"matches" | "training" | null>(null);
+  const overviewCache = useRef(new Map<string, TeamDetail>());
+  const matchesCache = useRef(new Map<string, Match[]>());
+  const trainingCache = useRef(new Map<string, TrainingData>());
+  const statisticsCache = useRef(new Map<string, TrainingStatistic[]>());
+  const activeTeamId = useRef(initialTeamId);
+  const overviewPrefetchStarted = useRef(false);
+  const sectionRequests = useRef(new Map<string, Promise<void>>());
 
   useEffect(() => {
+    let cancelled = false;
+    activeTeamId.current = teamId;
+    const cachedTeam = overviewCache.current.get(teamId);
+    if (cachedTeam) {
+      setTeam(cachedTeam);
+      setLoading(false);
+      return () => { cancelled = true; };
+    }
+    setLoading(true);
     void fetch(`/api/teams/${teamId}`).then(async (response) => {
       if (!response.ok) return;
       const body = await response.json() as { team: TeamDetail };
-      setTeam(body.team);
-    }).finally(() => setLoading(false));
+      overviewCache.current.set(teamId, body.team);
+      if (!cancelled) setTeam(body.team);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
   }, [teamId]);
 
   useEffect(() => {
@@ -46,24 +71,32 @@ export default function TeamDetailPage() {
   }, []);
 
   useEffect(() => {
-    if (tab === "matches" && matches === null && loadingSection === null) {
+    if (overviewPrefetchStarted.current || teamOptions.length === 0) return;
+    overviewPrefetchStarted.current = true;
+    const teamsToPrefetch = teamOptions.filter(option => option.id !== initialTeamId).slice(0, 4);
+    void Promise.all(teamsToPrefetch.map(async option => {
+      if (overviewCache.current.has(option.id)) return;
+      const response = await fetch(`/api/teams/${option.id}`);
+      if (!response.ok) return;
+      const body = await response.json() as { team: TeamDetail };
+      overviewCache.current.set(option.id, body.team);
+    }));
+  }, [initialTeamId, teamOptions]);
+
+  useEffect(() => {
+    if (tab === "matches" && matches === null) {
       setLoadingSection("matches");
-      void fetch(`/api/teams/${teamId}?section=matches`).then(async (response) => {
-        if (!response.ok) { setMatches([]); return; }
-        const body = await response.json() as { matches: Match[] };
-        setMatches(body.matches ?? []);
-      }).finally(() => setLoadingSection(null));
+      void preloadTeamSections(teamId).finally(() => {
+        if (activeTeamId.current === teamId) setLoadingSection(null);
+      });
     }
-    if (tab === "training" && trainings === null && loadingSection === null) {
+    if (tab === "training" && trainings === null) {
       setLoadingSection("training");
-      void fetch(`/api/teams/${teamId}?section=training`).then(async (response) => {
-        if (!response.ok) { setTrainings([]); return; }
-        const body = await response.json() as { trainings: Training[]; training_options: { id: string; label: string }[] };
-        setTrainings(body.trainings ?? []);
-        setOptionNames(Object.fromEntries((body.training_options ?? []).map((option) => [option.id, option.label])));
-      }).finally(() => setLoadingSection(null));
+      void preloadTeamSections(teamId).finally(() => {
+        if (activeTeamId.current === teamId) setLoadingSection(null);
+      });
     }
-  }, [loadingSection, matches, tab, teamId, trainings]);
+  }, [matches, tab, teamId, trainings]);
 
   const players = useMemo(() => (team?.players ?? []).filter((player) => player.role !== "staff").sort(sortPeople), [team]);
   const legacyStaff = useMemo(() => (team?.players ?? []).filter((player) => player.role === "staff").sort(sortPeople), [team]);
@@ -78,22 +111,82 @@ export default function TeamDetailPage() {
     { id: "evaluations", label: t("team.evaluations") }
   ];
 
-  async function openTeam(option: Team) {
-    if (option.club_team_id) await fetch("/api/team-context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clubTeamId: option.club_team_id }) });
-    window.location.href = `/dashboard/teams/${option.id}`;
+  function openTeam(option: Team) {
+    if (option.id === teamId) return;
+    if (option.club_team_id) void fetch("/api/team-context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clubTeamId: option.club_team_id }) });
+    window.history.replaceState(null, "", `/dashboard/teams/${option.id}`);
+    const cachedTeam = overviewCache.current.get(option.id);
+    const cachedMatches = matchesCache.current.get(option.id) ?? null;
+    const cachedTraining = trainingCache.current.get(option.id) ?? null;
+    const cachedStatistics = statisticsCache.current.get(option.id) ?? null;
+    activeTeamId.current = option.id;
+    if (cachedTeam) setTeam(cachedTeam);
+    setMatches(cachedMatches);
+    setTrainings(cachedTraining?.trainings ?? null);
+    setOptionNames(cachedTraining?.optionNames ?? {});
+    setStatistics(cachedStatistics);
+    setLoadingSection(null);
+    setTab("overview");
+    setTeamId(option.id);
+    void preloadTeamSections(option.id);
   }
 
-  if (loading) return <div className="mx-auto max-w-6xl p-5 sm:p-7"><p className="rounded-xl border border-border bg-card p-5 text-textMuted">{t("team.loading")}</p></div>;
+  function selectClubTeam(clubTeamId: string | null) {
+    const option = teamOptions.find(item => item.club_team_id === clubTeamId);
+    if (option) openTeam(option);
+  }
+
+  async function preloadTeamSections(selectedTeamId: string) {
+    const existingRequest = sectionRequests.current.get(selectedTeamId);
+    if (existingRequest) return existingRequest;
+    const request = Promise.all([
+      matchesCache.current.has(selectedTeamId) ? Promise.resolve() : fetch(`/api/teams/${selectedTeamId}?section=matches`).then(async response => {
+        if (!response.ok) return;
+        const body = await response.json() as { matches: Match[] };
+        const nextMatches = body.matches ?? [];
+        matchesCache.current.set(selectedTeamId, nextMatches);
+        if (activeTeamId.current === selectedTeamId) setMatches(nextMatches);
+      }),
+      trainingCache.current.has(selectedTeamId) ? Promise.resolve() : fetch(`/api/teams/${selectedTeamId}?section=training`).then(async response => {
+        if (!response.ok) return;
+        const body = await response.json() as { trainings: Training[]; training_options: { id: string; label: string }[] };
+        const data = {
+          trainings: body.trainings ?? [],
+          optionNames: Object.fromEntries((body.training_options ?? []).map(option => [option.id, option.label]))
+        };
+        trainingCache.current.set(selectedTeamId, data);
+        if (activeTeamId.current === selectedTeamId) {
+          setTrainings(data.trainings);
+          setOptionNames(data.optionNames);
+        }
+      }),
+      statisticsCache.current.has(selectedTeamId) ? Promise.resolve() : fetch(`/api/teams/${selectedTeamId}?section=statistics`).then(async response => {
+        if (!response.ok) return;
+        const body = await response.json() as { statistics: TrainingStatistic[] };
+        const nextStatistics = body.statistics ?? [];
+        statisticsCache.current.set(selectedTeamId, nextStatistics);
+        if (activeTeamId.current === selectedTeamId) setStatistics(nextStatistics);
+      })
+    ]).then(() => undefined).finally(() => sectionRequests.current.delete(selectedTeamId));
+    sectionRequests.current.set(selectedTeamId, request);
+    return request;
+  }
+
+  if (loading && !team) return <div className="mx-auto max-w-6xl p-5 sm:p-7"><p className="rounded-xl border border-border bg-card p-5 text-textMuted">{t("team.loading")}</p></div>;
   if (!team) return <div className="mx-auto max-w-6xl p-5 sm:p-7"><Link href="/dashboard/teams" className="text-accent">← {t("common.back")}</Link><p className="mt-5 text-textMuted">{t("team.notFound")}</p></div>;
 
   return <div className="mx-auto max-w-6xl p-5 sm:p-7">
     <SectionHeader title={team.name} artworkSrc="/branding/teams.png" showHome={false} />
-    {teamOptions.length > 1 && <nav className="mb-5 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-3" aria-label="Ploeg kiezen">
-      {teamOptions.map(option => <button type="button" key={option.id} onClick={() => void openTeam(option)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${option.id === team.id ? "bg-accent text-page" : "text-textPrimary hover:bg-cardDeep"}`}>{option.name}</button>)}
-    </nav>}
+    <TeamContextPanel
+      teams={teamOptions.flatMap(option => option.club_team_id ? [{ id: option.club_team_id, name: option.name }] : [])}
+      activeTeamId={teamOptions.find(option => option.id === teamId)?.club_team_id ?? null}
+      allowAll={false}
+      onSelect={selectClubTeam}
+    />
     <nav className="mb-6 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label={t("team.navigation")}>
       {tabs.map((item) => <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`rounded-lg px-4 py-2 text-sm font-bold ${tab === item.id ? "bg-accent text-page" : "text-textPrimary hover:bg-cardDeep"}`}>{item.label}</button>)}
     </nav>
+    {loading && <Loading text={t("team.loading")} />}
 
     {tab === "overview" && <section><h2 className="mb-3 text-lg font-bold text-textBright">{t("team.players", { count: players.length })}</h2>{players.length ? <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full min-w-[1020px] table-fixed border-collapse text-left text-sm"><colgroup><col className="w-[15%]" /><col className="w-[10%]" /><col className="w-[13%]" /><col className="w-[13%]" /><col className="w-[13%]" /><col className="w-[20%]" /><col className="w-[16%]" /></colgroup><thead className="bg-accent text-[11px] uppercase tracking-wide text-page"><tr><th className="px-3 py-2">{t("team.lastName")}</th><th className="px-3 py-2">{t("team.firstName")}</th><th className="px-3 py-2 text-center">{t("team.birthDate")}</th><th className="px-3 py-2 text-center">{t("team.phoneContact1")}</th><th className="px-3 py-2 text-center">{t("team.phoneContact2")}</th><th className="px-3 py-2">{t("team.emailContact1")}</th><th className="px-3 py-2">{t("team.emailContact2")}</th></tr></thead><tbody className="divide-y divide-borderSubtle">{players.map((player) => { const [contact1, contact2] = contactsForPlayer(player); return <tr key={player.id} className="bg-card hover:bg-cardHover"><td className="px-3 py-2 font-semibold"><Link href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.last_name || "–"}</Link>{player.is_goalkeeper && <span className="ml-2 rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-300">{t("team.goalkeeper")}</span>}</td><td className="px-3 py-2"><Link href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.first_name || "–"}</Link></td><td className="whitespace-nowrap px-3 py-2 text-center text-textSecondary">{player.date_of_birth ? new Date(`${player.date_of_birth}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB") : "–"}</td><td title={contact1?.full_name} className="px-3 py-2 text-center text-textSecondary">{contact1?.phone_number || "–"}</td><td title={contact2?.full_name} className="px-3 py-2 text-center text-textSecondary">{contact2?.phone_number || "–"}</td><td title={contact1?.full_name} className="px-3 py-2 text-textSecondary">{contact1?.email || "–"}</td><td title={contact2?.full_name} className="px-3 py-2 text-textSecondary">{contact2?.email || "–"}</td></tr>; })}</tbody></table></div> : <Empty text={t("team.noPlayers")} />}</section>}
 
@@ -110,7 +203,7 @@ export default function TeamDetailPage() {
       {loadingSection === "training" && <Loading text={t("team.loadingTrainings")} />}
       {trainings !== null && trainingView === "upcoming" && <TrainingGroups title="" trainings={upcomingTrainings} locale={locale} optionNames={optionNames} t={t} empty={t("team.noUpcomingTrainings")} />}
       {trainings !== null && trainingView === "past" && <TrainingGroups title="" trainings={pastTrainings} locale={locale} optionNames={optionNames} t={t} empty="Nog geen afgelopen trainingen." />}
-      {trainingView === "statistics" && <div className="rounded-xl border border-border bg-card p-5"><h3 className="font-bold text-textBright">Aanwezigheidsstatistieken</h3><p className="mt-1 text-sm text-textMuted">Bekijk aanwezigheid, afwezigheid en blessures voor {team.name}.</p><Link href="/dashboard/training/statistics" className="mt-4 inline-flex rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Statistieken openen</Link></div>}
+      {trainingView === "statistics" && (statistics ? <TrainingStatistics rows={statistics} /> : <Loading text="Statistieken laden…" />)}
     </section>}
 
     {tab === "evaluations" && <Empty text={t("team.evaluationsComingSoon")} />}

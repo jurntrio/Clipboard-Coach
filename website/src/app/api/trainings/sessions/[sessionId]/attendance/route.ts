@@ -32,6 +32,33 @@ export async function PUT(request: Request, { params }: { params: { sessionId: s
   }
   if (body?.action === "confirm") {
     const confirmedAt = new Date().toISOString();
+    const { data: operationalTeams } = session.club_team_id
+      ? await admin.from("teams").select("id").eq("club_team_id", session.club_team_id)
+      : { data: [] };
+    const operationalTeamIds = (operationalTeams ?? []).map(team => team.id);
+    const { data: roster } = session.player_group_id
+      ? await admin.from("players").select("id, player_group_players!inner(group_id)").eq("player_group_players.group_id", session.player_group_id).neq("role", "staff")
+      : operationalTeamIds.length
+        ? await admin.from("players").select("id").in("team_id", operationalTeamIds).neq("role", "staff")
+        : { data: [] };
+    const rosterIds = (roster ?? []).map(player => player.id);
+    const { data: savedAttendance } = rosterIds.length
+      ? await admin.from("team_training_attendance").select("player_id").eq("training_session_id", session.id).in("player_id", rosterIds)
+      : { data: [] };
+    const savedPlayerIds = new Set((savedAttendance ?? []).map(row => row.player_id));
+    const missingPresentRows = rosterIds.filter(playerId => !savedPlayerIds.has(playerId)).map(playerId => ({
+      training_session_id: session.id,
+      player_id: playerId,
+      attendance_status: "present",
+      absence_reason_id: null,
+      note: null,
+      updated_by: context.user.id,
+      updated_at: confirmedAt
+    }));
+    if (missingPresentRows.length) {
+      const { error: attendanceError } = await admin.from("team_training_attendance").upsert(missingPresentRows);
+      if (attendanceError) return NextResponse.json({ error: attendanceError.message }, { status: 400 });
+    }
     const { error } = await admin.from("team_training_sessions").update({
       attendance_confirmed_at: confirmedAt, attendance_confirmed_by: context.user.id
     }).eq("id", session.id).is("attendance_confirmed_at", null);
