@@ -2835,6 +2835,31 @@ select:focus {
 }
 
 /* ── Teams card layout ─────────────────────────────────────────── */
+.teamTabs {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  overflow-x: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.teamTabs button {
+  flex: 0 0 auto;
+  padding: 9px 14px;
+  color: var(--text-main);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.teamTabs button.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .teamsGrid {
   display: flex;
   flex-direction: column;

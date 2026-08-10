@@ -22,6 +22,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
   const [unresolvedClubNameCount, setUnresolvedClubNameCount] = useState(0);
   const [unconfirmedTrainings, setUnconfirmedTrainings] = useState<{ id: string; training_date: string; start_time: string; teamName: string }[]>([]);
   const [pendingMatchReports, setPendingMatchReports] = useState<{ id: string; match_date: string; start_time: string | null; title: string }[]>([]);
+  const [pendingOfficialImportCount, setPendingOfficialImportCount] = useState(0);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
   const [canApproveRequests, setCanApproveRequests] = useState(false);
@@ -29,7 +30,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
   const mailboxIndex = navigation.findIndex((item) => item.href === "/dashboard/inbox");
   const beforeMessages = mailboxIndex >= 0 ? navigation.slice(0, mailboxIndex + 1) : navigation;
   const afterMessages = mailboxIndex >= 0 ? navigation.slice(mailboxIndex + 1) : [];
-  const actionCount = unreadMailboxCount + pendingApprovalCount + unresolvedClubNameCount + unconfirmedTrainings.length + pendingMatchReports.length;
+  const actionCount = unreadMailboxCount + pendingApprovalCount + unresolvedClubNameCount + unconfirmedTrainings.length + pendingMatchReports.length + pendingOfficialImportCount;
   const showClubSelector = isPlatformAdmin || clubs.length > 1;
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
     function refreshCounts() {
       fetch("/api/dashboard/badge-counts", { cache: "no-store" })
         .then((response) => response.ok ? response.json() : null)
-        .then((body: { unreadMailboxCount?: number; pendingApprovalCount?: number; unresolvedClubNameCount?: number; canApproveRequests?: boolean; canReviewClubNames?: boolean; unconfirmedTrainings?: { id: string; training_date: string; start_time: string; teamName: string }[]; pendingMatchReports?: { id: string; match_date: string; start_time: string | null; title: string }[] } | null) => {
+        .then((body: { unreadMailboxCount?: number; pendingApprovalCount?: number; unresolvedClubNameCount?: number; canApproveRequests?: boolean; canReviewClubNames?: boolean; unconfirmedTrainings?: { id: string; training_date: string; start_time: string; teamName: string }[]; pendingMatchReports?: { id: string; match_date: string; start_time: string | null; title: string }[]; pendingOfficialImportCount?: number } | null) => {
           if (cancelled || !body) return;
           setUnreadMailboxCount(body.unreadMailboxCount ?? 0);
           setPendingApprovalCount(body.pendingApprovalCount ?? 0);
@@ -46,6 +47,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
           setCanReviewClubNames(body.canReviewClubNames === true);
           setUnconfirmedTrainings(body.unconfirmedTrainings ?? []);
           setPendingMatchReports(body.pendingMatchReports ?? []);
+          setPendingOfficialImportCount(body.pendingOfficialImportCount ?? 0);
         })
         .catch(() => {});
     }
@@ -132,8 +134,9 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
               <MenuIcon src="/branding/cbcs_black_icons/home.png" />
             </Link>
             {beforeMessages.map(item => (
-              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} ${pathname.startsWith(item.href) ? activeClass : ""}`}>
+              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} relative ${pathname.startsWith(item.href) ? activeClass : ""}`}>
                 <MenuIcon src={item.icon} />
+                {item.href === "/dashboard/club" && pendingOfficialImportCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-card bg-red-500 px-1 text-[10px] font-black leading-none text-white">{pendingOfficialImportCount > 99 ? "99+" : pendingOfficialImportCount}</span>}
               </Link>
             ))}
             <button ref={actionsButtonRef} type="button" title="Berichten en meldingen" aria-label={actionCount ? `${actionCount} openstaande acties` : "Geen openstaande acties"} aria-expanded={actionsOpen} onClick={toggleActions} className={`${actionClass} relative`}>
@@ -165,12 +168,18 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
                 <span className="min-w-0 flex-1"><strong className="block text-sm font-semibold text-textBright">Clubnaam-matching</strong><span className="mt-0.5 block text-sm leading-5 text-textSecondary">Clubnamen nog aan een logo koppelen</span></span>
                 <span className="min-w-7 rounded-full bg-accentDim px-2 py-1 text-center text-xs font-bold text-accent">{unresolvedClubNameCount}</span>
               </Link>}
+              {pendingOfficialImportCount > 0 && <Link href="/dashboard/club#imports-koppelingen" className="flex items-center gap-3 border-t border-borderSubtle px-5 py-4 transition hover:bg-cardHover">
+                <MenuIcon src="/branding/Menu/clubbeheer.png" compact />
+                <span className="min-w-0 flex-1"><strong className="block text-sm font-semibold text-textBright">Wedstrijden koppelen</strong><span className="mt-0.5 block text-sm leading-5 text-textSecondary">Officiële wedstrijden wachten op een SVS-ploeg</span></span>
+                <span className="min-w-7 rounded-full bg-red-500 px-2 py-1 text-center text-xs font-bold text-white">{pendingOfficialImportCount > 99 ? "99+" : pendingOfficialImportCount}</span>
+              </Link>}
               {!actionCount && <p className="px-5 py-5 text-sm text-textSecondary">Geen openstaande acties.</p>}
             </div>
             , document.body)}
             {afterMessages.map(item => (
-              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} ${pathname.startsWith(item.href) ? activeClass : ""}`}>
+              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} relative ${pathname.startsWith(item.href) ? activeClass : ""}`}>
                 <MenuIcon src={item.icon} />
+                {item.href === "/dashboard/club" && pendingOfficialImportCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-card bg-red-500 px-1 text-[10px] font-black leading-none text-white">{pendingOfficialImportCount > 99 ? "99+" : pendingOfficialImportCount}</span>}
               </Link>
             ))}
             <Link href="/dashboard/settings" title="Instellingen" aria-label="Instellingen" className={`${actionClass} ${pathname.startsWith("/dashboard/settings") ? activeClass : ""}`}><MenuIcon src="/branding/cbcs_black_icons/instellingen.png" /></Link>

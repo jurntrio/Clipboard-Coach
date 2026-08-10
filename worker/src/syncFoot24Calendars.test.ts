@@ -64,10 +64,17 @@ test("distinguishes Foot24 fixtures from advertising events", () => {
 test("uses the Foot24 ball marker as the authoritative home-team indicator", () => {
   assert.deepEqual(
     mappedFoot24Fixture("KMT B - ⚽ KSV. VEURNE", "KMT B", "KM Torhout"),
-    { home: "KSV. VEURNE", away: "KMT B", isHome: false }
+    { home: "KSV. VEURNE", away: "KMT B", isHome: false, opponent: "KSV. VEURNE" }
   );
   assert.deepEqual(
     mappedFoot24Fixture("⚽ KMT A - KVV. ZELZATE (1 A)", "KMT A", "KM Torhout"),
-    { home: "KMT A", away: "KVV. ZELZATE (1 A)", isHome: true }
+    { home: "KMT A", away: "KVV. ZELZATE (1 A)", isHome: true, opponent: "KVV. ZELZATE (1 A)" }
+  );
+});
+
+test("treats a short age label as the configured own team", () => {
+  assert.equal(
+    mappedFoot24Fixture("U13A - KSV. OUDENAARDE (U13 A)", "IP U13 Groen", "KM Torhout").opponent,
+    "KSV. OUDENAARDE (U13 A)"
   );
 });

@@ -35,7 +35,15 @@ export function mappedFoot24Fixture(summary: string, teamName: string, clubName:
   const awayIsTeam = normalizeTeamName(away).includes(teamKey) || teamKey.includes(normalizeTeamName(away));
   const homeIsClub = homeIsTeam || (!awayIsTeam && normalizeTeamName(home).includes(clubKey));
   const awayIsClub = awayIsTeam || (!homeIsTeam && normalizeTeamName(away).includes(clubKey));
-  return { home, away, isHome: homeIsClub || !awayIsClub };
+  const ownAge = teamName.toUpperCase().match(/U\d{1,2}/)?.[0] ?? "";
+  const isShortOwnLabel = (value: string) => {
+    const compact = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return !!ownAge && compact.includes(ownAge) && /^(?:[A-Z])?U\d{1,2}[A-Z]?$/.test(compact);
+  };
+  const homeIsOwn = homeIsClub || isShortOwnLabel(home);
+  const awayIsOwn = awayIsClub || isShortOwnLabel(away);
+  const isHome = homeIsClub || !awayIsClub;
+  return { home, away, isHome, opponent: homeIsOwn && !awayIsOwn ? away : awayIsOwn && !homeIsOwn ? home : (isHome ? away : home) };
 }
 
 export function isFixtureForClub(summary: string, clubName: string) {

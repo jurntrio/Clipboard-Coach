@@ -46,10 +46,11 @@ async function syncFeed(feed: Record<string, any>) {
   let updated = 0;
   for (const event of events) {
     const names = mappedFoot24Fixture(event.summary, team.name, clubName);
+    const opponent = names.opponent;
     const externalMatchId = `${team.id}:${event.uid}`;
     const payload = {
       coach_id: owner.profile_id, club_id: team.club_id, club_team_id: team.id, team_a_id: operationalTeam.id,
-      team_a_name: names.home, team_b_name: names.away, is_home_match: names.isHome, match_date: event.startsAt.toISOString().slice(0, 10),
+      team_a_name: team.name, team_b_name: opponent, is_home_match: names.isHome, match_date: event.startsAt.toISOString().slice(0, 10),
       start_time: event.startsAt.toLocaleTimeString("nl-BE", { timeZone: "Europe/Brussels", hour12: false, hour: "2-digit", minute: "2-digit" }),
       status: event.cancelled ? "finished" : "scheduled", external_source: "foot24", external_match_id: externalMatchId
     };

@@ -132,10 +132,19 @@ function mappedFixture(summary: string, teamName: string, clubName: string) {
   const awayIsTeam = normalize(away).includes(teamKey) || teamKey.includes(normalize(away));
   const homeIsClub = homeIsTeam || (!awayIsTeam && normalize(home).includes(clubKey));
   const awayIsClub = awayIsTeam || (!homeIsTeam && normalize(away).includes(clubKey));
+  const ownAge = teamName.toUpperCase().match(/U\d{1,2}/)?.[0] ?? "";
+  const isShortOwnLabel = (value: string) => {
+    const compact = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return !!ownAge && compact.includes(ownAge) && /^(?:[A-Z])?U\d{1,2}[A-Z]?$/.test(compact);
+  };
+  const homeIsOwn = homeIsClub || isShortOwnLabel(home);
+  const awayIsOwn = awayIsClub || isShortOwnLabel(away);
+  const isHome = homeIsClub || !awayIsClub;
   return {
     home,
     away,
-    isHome: homeIsClub || !awayIsClub
+    isHome,
+    opponent: homeIsOwn && !awayIsOwn ? away : awayIsOwn && !homeIsOwn ? home : (isHome ? away : home)
   };
 }
 
@@ -197,21 +206,19 @@ export async function syncFoot24Feed(teamId: string) {
   for (const event of events) {
     const fixture = mappedFixture(event.summary, team.name, clubName);
     const externalMatchId = `${team.id}:${event.uid}`;
-    // team_a/team_b are the literal home/away side here (not "own team" vs
-    // "opponent" - that flips depending on fixture.isHome), so both are
-    // resolved independently against the Belgian club reference list.
+    const opponent = fixture.opponent;
     const [teamABelgianClubId, teamBBelgianClubId] = await Promise.all([
-      resolveBelgianClubByName(fixture.home),
-      resolveBelgianClubByName(fixture.away)
+      resolveBelgianClubByName(team.name),
+      resolveBelgianClubByName(opponent)
     ]);
     const payload = {
       coach_id: owner.profile_id,
       club_id: team.club_id,
       club_team_id: team.id,
       team_a_id: operationalTeam.id,
-      team_a_name: fixture.home,
+      team_a_name: team.name,
       team_a_belgian_club_id: teamABelgianClubId,
-      team_b_name: fixture.away,
+      team_b_name: opponent,
       team_b_belgian_club_id: teamBBelgianClubId,
       is_home_match: fixture.isHome,
       match_date: event.startsAt.toISOString().slice(0, 10),

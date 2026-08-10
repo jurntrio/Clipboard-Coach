@@ -325,6 +325,7 @@ export type AppStore = {
 
 export type AppSettings = {
   standardTags: string[];
+  lastSelectedTeamId?: string;
   activeMatchTeamId?: string;
   activeMatchPlayerIds: string[];
   playerNameOrder?: "first_last" | "last_first";

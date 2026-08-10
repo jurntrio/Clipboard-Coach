@@ -11,6 +11,7 @@ import { ClubInvitationCreator } from "./ClubInvitationCreator";
 import { ClubPeopleManager } from "./ClubPeopleManager";
 import { ClubMatchOptionsManager, type ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
 import { ClubMatchCsvImporter } from "./ClubMatchCsvImporter";
+import { OfficialRbfaDownloadImporter } from "./OfficialRbfaDownloadImporter";
 import { PlayerGroupsManager } from "./PlayerGroupsManager";
 import { SeasonManager } from "./SeasonManager";
 
@@ -59,6 +60,7 @@ export function ClubDashboard() {
   const [saving, setSaving] = useState("");
   const [selectedClubId, setSelectedClubId] = useState("");
   const [currentUserId, setCurrentUserId] = useState("");
+  const [pendingOfficialImportCount, setPendingOfficialImportCount] = useState(0);
   const supabase = createClient();
 
   async function load() {
@@ -70,12 +72,19 @@ export function ClubDashboard() {
     }).catch((reason) => setError(reason.message));
   }
 
+  async function refreshImportCount() {
+    const response = await fetch("/api/dashboard/badge-counts", { cache: "no-store" });
+    const body = response.ok ? await response.json() as { pendingOfficialImportCount?: number } : null;
+    setPendingOfficialImportCount(body?.pendingOfficialImportCount ?? 0);
+  }
+
   useEffect(() => {
     void load();
+    void refreshImportCount();
     void supabase.auth.getUser().then(({ data: authData }) => setCurrentUserId(authData.user?.id ?? ""));
   }, []);
   useEffect(() => {
-    if (activeClubId) setSelectedClubId(activeClubId);
+    if (activeClubId) { setSelectedClubId(activeClubId); void refreshImportCount(); }
   }, [activeClubId]);
 
   const club = data?.clubs.find((item) => item.id === selectedClubId);
@@ -237,13 +246,14 @@ export function ClubDashboard() {
         <SeasonManager />
       </ModuleAccordion>}
 
-      {fullAdmin && moduleEnabled("matches") && <ModuleAccordion title="Imports & koppelingen" icon="/branding/games.png">
+      {fullAdmin && moduleEnabled("matches") && <ModuleAccordion id="imports-koppelingen" title="Imports & koppelingen" icon="/branding/games.png" badgeCount={pendingOfficialImportCount}>
         <div className="space-y-5">
           <div>
             <h2 className="text-xl font-semibold text-textBright">Wedstrijdkalenders</h2>
             <p className="mt-1 text-sm text-textMuted">Importeer of synchroniseer wedstrijdgegevens hier. De pagina Wedstrijden blijft zo gericht op de dagelijkse werking.</p>
           </div>
           <ClubMatchCsvImporter teams={teams.filter(team => team.status === "active").map(team => ({ id: team.id, name: team.name }))} readOnly={readOnly} onImported={load} />
+          <OfficialRbfaDownloadImporter clubId={selectedClubId} teams={teams.filter(team => team.status === "active").map(team => ({ id: team.id, name: team.name }))} readOnly={readOnly} onImported={async () => { await load(); await refreshImportCount(); window.dispatchEvent(new Event("dashboard-badges:refresh")); }} />
           <p className="rounded-lg border border-borderSubtle bg-cardDeep p-4 text-sm text-textSecondary">Automatische kalenderkoppelingen worden per ploeg ingesteld bij Teams & spelers.</p>
         </div>
       </ModuleAccordion>}
@@ -495,11 +505,12 @@ function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, ass
   </div>;
 }
 
-function ModuleAccordion({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
-  return <details className="group rounded-xl border border-border bg-card">
+function ModuleAccordion({ id, title, icon, badgeCount = 0, children }: { id?: string; title: string; icon: string; badgeCount?: number; children: React.ReactNode }) {
+  return <details id={id} className="group rounded-xl border border-border bg-card">
     <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
       <img src={icon} alt="" className="h-10 w-10 rounded-lg object-cover" />
       <span className="flex-1 text-lg font-semibold text-textBright">{title}</span>
+      {badgeCount > 0 && <span className="grid min-h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-xs font-black text-white">{badgeCount > 99 ? "99+" : badgeCount}</span>}
       <span className="text-accent transition-transform group-open:rotate-90">▶</span>
     </summary>
     <div className="border-t border-borderSubtle p-4">{children}</div>

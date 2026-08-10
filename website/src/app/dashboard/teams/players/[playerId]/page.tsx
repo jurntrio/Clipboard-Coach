@@ -279,14 +279,9 @@ export default function PlayerClipsPage() {
   }
 
   function currentTeamMatchNames(match: TeamMatch) {
-    const currentName = player?.teams?.name;
-    let teamA = match.team_a_name;
-    let teamB = match.team_b_name;
-    if (currentName) {
-      if (match.team_a_id === player?.team_id || (match.club_team_id === player?.teams?.club_team_id && match.is_home_match)) teamA = currentName;
-      if (match.team_b_id === player?.team_id || (match.club_team_id === player?.teams?.club_team_id && !match.is_home_match)) teamB = currentName;
-    }
-    return `${teamA} – ${teamB}`;
+    // Importers persist the intended display names. Re-deriving a side from
+    // is_home_match can replace the opponent with the player's own team.
+    return `${match.team_a_name} – ${match.team_b_name}`;
   }
 
   const todayStart = new Date();

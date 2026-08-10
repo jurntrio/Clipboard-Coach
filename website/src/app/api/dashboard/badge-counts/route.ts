@@ -3,6 +3,7 @@ import { getClubContext } from "@/lib/auth/active-club";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { getUnresolvedClubNameCount } from "@/lib/belgian-clubs/unresolved-club-names";
+import { downloadRbfaClubFixtures, filterUnlinkedRbfaFixtures } from "@/lib/rbfa-club-downloads";
 
 export async function GET() {
   const context = await getClubContext();
@@ -13,6 +14,7 @@ export async function GET() {
   const canApproveRequests = !!access && (["club_admin", "platform_admin"].includes(access.role) || hasClubPermission(access, "teams.manage_all"));
   const { data: profile } = await admin.from("profiles").select("account_role").eq("id", context.user.id).maybeSingle();
   const canReviewClubNames = context.isPlatformAdmin || profile?.account_role === "admin_viewer";
+  const canReviewOfficialImports = !!clubId && !!access && ["club_admin", "platform_admin"].includes(access.role);
 
   const [{ count: unreadMailboxCount }, approvalCounts, unresolvedClubNameCount] = await Promise.all([
     clubId ? admin.from("mailbox_recipients").select("id, mailbox_messages!inner(club_id)", { count: "exact", head: true })
@@ -27,6 +29,19 @@ export async function GET() {
     canReviewClubNames ? getUnresolvedClubNameCount(admin) : Promise.resolve(0)
   ]);
   const pendingApprovalCount = approvalCounts.reduce((total, result) => total + (result.count ?? 0), 0);
+  let pendingOfficialImportCount = 0;
+  if (canReviewOfficialImports && clubId) {
+    const { data: club } = await admin.from("clubs").select("name, rbfa_registration_number").eq("id", clubId).maybeSingle();
+    if (club?.rbfa_registration_number) {
+      try {
+        const fixtures = await downloadRbfaClubFixtures(club.name, club.rbfa_registration_number);
+        const { data: matches } = await admin.from("matches").select("club_team_id, match_date, start_time, team_b_name").eq("club_id", clubId);
+        pendingOfficialImportCount = filterUnlinkedRbfaFixtures(fixtures, matches ?? []).length;
+      } catch {
+        pendingOfficialImportCount = 0;
+      }
+    }
+  }
   const canManageTraining = !!access && !access.readOnly && hasClubPermission(access, "training.manage");
   let unconfirmedTrainings: { id: string; training_date: string; start_time: string; teamName: string }[] = [];
   if (clubId && canManageTraining) {
@@ -80,5 +95,5 @@ export async function GET() {
     }));
   }
 
-  return NextResponse.json({ unreadMailboxCount: unreadMailboxCount ?? 0, pendingApprovalCount, canApproveRequests, unresolvedClubNameCount, canReviewClubNames, unconfirmedTrainings, pendingMatchReports });
+  return NextResponse.json({ unreadMailboxCount: unreadMailboxCount ?? 0, pendingApprovalCount, canApproveRequests, unresolvedClubNameCount, canReviewClubNames, unconfirmedTrainings, pendingMatchReports, pendingOfficialImportCount, canReviewOfficialImports });
 }

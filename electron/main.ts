@@ -242,6 +242,7 @@ function normalizeStore(store: TagStore): AppStore {
     }),
     settings: {
       standardTags: store.settings?.standardTags?.length ? store.settings.standardTags : ["Start", "Goal"],
+      lastSelectedTeamId: store.settings?.lastSelectedTeamId,
       activeMatchTeamId: store.settings?.activeMatchTeamId,
       activeMatchPlayerIds: store.settings?.activeMatchPlayerIds ?? [],
       playerNameOrder: store.settings?.playerNameOrder ?? "first_last",

@@ -1049,6 +1049,12 @@ function App() {
     window.clipboardCoach.loadStore().then((loadedStore) => {
       setStore(loadedStore);
       setStandardTags(loadedStore.settings.standardTags.length ? loadedStore.settings.standardTags : ["Start", "Goal"]);
+      const rememberedTeamId = loadedStore.settings.lastSelectedTeamId;
+      setSelectedTeamId(
+        rememberedTeamId && loadedStore.teams.some((team) => team.id === rememberedTeamId)
+          ? rememberedTeamId
+          : loadedStore.teams[0]?.id ?? null
+      );
       setVideoTeamId("");
       setActivePlayerIds([]);
     });
@@ -1368,6 +1374,15 @@ function App() {
 
     setStore(nextStore);
     await persistStore(nextStore);
+  }
+
+  function selectTeam(teamId: string) {
+    if (!store.teams.some((team) => team.id === teamId)) {
+      return;
+    }
+
+    setSelectedTeamId(teamId);
+    void persistSettings({ lastSelectedTeamId: teamId });
   }
 
   function buildMatchState(teamId: string, playerIds: string[], sourceStore = store): MatchState | undefined {
@@ -2276,7 +2291,9 @@ function App() {
     };
 
     setTeamText("");
-    setSelectedTeamId(nextStore.teams[nextStore.teams.length - 1].id);
+    const createdTeamId = nextStore.teams[nextStore.teams.length - 1].id;
+    nextStore.settings = { ...nextStore.settings, lastSelectedTeamId: createdTeamId };
+    setSelectedTeamId(createdTeamId);
     setStore(nextStore);
     await persistStore(nextStore);
   }
@@ -2326,7 +2343,11 @@ function App() {
       players,
       createdAt: new Date().toISOString()
     };
-    const nextStore = { ...store, teams: [...store.teams, nextTeam] };
+    const nextStore = {
+      ...store,
+      teams: [...store.teams, nextTeam],
+      settings: { ...store.settings, lastSelectedTeamId: nextTeam.id }
+    };
 
     setCreateTeamDraft({ name: "", players: [{ firstName: "", lastName: "", email: "" }] });
     setIsCreateTeamModalOpen(false);
@@ -2336,8 +2357,14 @@ function App() {
   }
 
   async function deleteTeam(teamId: string) {
-    const nextStore = { ...store, teams: store.teams.filter((team) => team.id !== teamId) };
-    setSelectedTeamId(nextStore.teams[0]?.id ?? null);
+    const remainingTeams = store.teams.filter((team) => team.id !== teamId);
+    const nextSelectedTeamId = remainingTeams[0]?.id ?? null;
+    const nextStore = {
+      ...store,
+      teams: remainingTeams,
+      settings: { ...store.settings, lastSelectedTeamId: nextSelectedTeamId ?? undefined }
+    };
+    setSelectedTeamId(nextSelectedTeamId);
     if (videoTeamId === teamId) {
       setVideoTeamId("");
       setActivePlayerIds([]);
@@ -3525,15 +3552,31 @@ function App() {
     return (
       <main className="sectionShell">
         <Header
-          title="Teams"
+          title={selectedTeam?.name ?? "Teams"}
           subtitle=""
           onBack={() => setScreen("home")}
           visualSrc={homeTeamsUrl}
         />
 
+        {store.teams.length > 0 ? (
+          <nav className="teamTabs" aria-label="Kies een spelerslijst">
+            {store.teams.map((team) => (
+              <button
+                key={team.id}
+                type="button"
+                className={team.id === selectedTeam?.id ? "active" : ""}
+                aria-current={team.id === selectedTeam?.id ? "page" : undefined}
+                onClick={() => selectTeam(team.id)}
+              >
+                {team.name}
+              </button>
+            ))}
+          </nav>
+        ) : null}
+
         <section className="teamsGrid">
           {store.teams.length === 0 ? <div className="emptyPanel">Nog geen teams. Maak een team aan.</div> : null}
-          {store.teams.map((team) => (
+          {selectedTeam ? [selectedTeam].map((team) => (
             <article className="teamCard" key={team.id}>
               <div className="teamCardHeader">
                 {editingTeamId === team.id ? (
@@ -3608,7 +3651,7 @@ function App() {
                 );
               })()}
             </article>
-          ))}
+          )) : null}
         </section>
 
         <div className="bottomActionRow">
