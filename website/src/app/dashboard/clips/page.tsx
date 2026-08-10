@@ -234,11 +234,17 @@ function MatchSection({ title, matches, empty, allowTagging, canPrepare, optionN
     const expanded = expandedId === match.id; const matchClips = clipsByMatch.get(match.id) ?? [];
     const lineup = players.filter((player) => (match.player_ids ?? []).includes(player.id));
     const teamClips = matchClips.filter((clip) => clip.audience_type === "full_team");
+    const homeTeamName = match.is_home_match ? match.team_a_name : match.team_b_name;
+    const awayTeamName = match.is_home_match ? match.team_b_name : match.team_a_name;
+    const homeTeamLogo = match.is_home_match ? match.team_a_logo : match.team_b_logo;
+    const awayTeamLogo = match.is_home_match ? match.team_b_logo : match.team_a_logo;
+    const homeScore = match.is_home_match ? match.score_a : match.score_b;
+    const awayScore = match.is_home_match ? match.score_b : match.score_a;
     return <article key={match.id} className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex items-center gap-2 p-3">
         <button type="button" onClick={() => setExpandedId(expanded ? null : match.id)} className="flex min-w-0 flex-1 items-center gap-4 rounded-xl p-1 text-left hover:bg-cardHover">
-          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="flex min-w-0 items-center gap-1.5 truncate font-bold text-textBright"><ClubLogoImage logo={match.team_a_logo} naam={match.team_a_name} purpose="ui" className="shrink-0" /><span className="truncate">{match.team_a_name} – {match.team_b_name}</span><ClubLogoImage logo={match.team_b_logo} naam={match.team_b_name} purpose="ui" className="shrink-0" /></h3><span className="text-sm text-textMuted">{match.match_date || "—"}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</span>{match.status === "live" && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-bold text-red-300">LIVE</span>}</div></div>
-          {match.score_a !== null && match.score_b !== null && <strong className="rounded-xl bg-cardDeep px-4 py-2 text-xl text-textBright">{match.score_a} – {match.score_b}</strong>}
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="flex min-w-0 items-center gap-1.5 truncate font-bold text-textBright"><ClubLogoImage logo={homeTeamLogo} naam={homeTeamName} purpose="ui" className="shrink-0" /><span className="truncate">{homeTeamName} – {awayTeamName}</span><ClubLogoImage logo={awayTeamLogo} naam={awayTeamName} purpose="ui" className="shrink-0" /></h3><span className="text-sm text-textMuted">{match.match_date || "—"}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</span>{match.status === "live" && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-bold text-red-300">LIVE</span>}</div></div>
+          {homeScore !== null && awayScore !== null && <strong className="rounded-xl bg-cardDeep px-4 py-2 text-xl text-textBright">{homeScore} – {awayScore}</strong>}
         </button>
         <button type="button" onClick={() => onPrepare(match)} title={t("matchPrep.open")} aria-label={t("matchPrep.open")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-borderButton bg-button text-sm font-black text-accent hover:border-accent">i</button>
       </div>
