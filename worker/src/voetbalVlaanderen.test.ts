@@ -10,4 +10,5 @@ test("extracts the official team id from overview and calendar links", () => {
 
 test("normalizes team names for cross-source duplicate detection", () => {
   assert.equal(normalizedTeamName("K. SV Veurne A"), normalizedTeamName("K SV VEURNE A"));
+  assert.equal(normalizedTeamName("RACING CLUB GENT (U13 A)"), normalizedTeamName("Racing Club Gent"));
 });

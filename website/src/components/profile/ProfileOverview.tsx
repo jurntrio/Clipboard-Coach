@@ -35,6 +35,26 @@ function formatDate(value: string | null) {
     .format(new Date(`${value}T12:00:00`));
 }
 
+function activityIdentity(activity: ProfileActivity) {
+  const normalizedTitle = activity.title
+    .replace(/\(\s*u\d{1,2}(?:\s+[a-z0-9]+)*\s*\)/gi, "")
+    .toLocaleLowerCase("nl")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+  return `${activity.kind}:${activity.date ?? ""}:${activity.time ?? ""}:${normalizedTitle}`;
+}
+
+function withoutDuplicateActivities(activities: ProfileActivity[]) {
+  const seen = new Set<string>();
+  return activities.filter(activity => {
+    const identity = activityIdentity(activity);
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
+
 export function ProfileOverview({ name, email, clubName, contexts, activities, quickLinks }: {
   name: string;
   email: string;
@@ -46,9 +66,10 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
   const [activeContext, setActiveContext] = useState("all");
   const [expandedContext, setExpandedContext] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
-  const filtered = useMemo(() => activities.filter(activity =>
+  const uniqueActivities = useMemo(() => withoutDuplicateActivities(activities), [activities]);
+  const filtered = useMemo(() => uniqueActivities.filter(activity =>
     activeContext === "all" || activity.contextIds.includes(activeContext)
-  ), [activities, activeContext]);
+  ), [uniqueActivities, activeContext]);
   const upcoming = filtered.filter(item => !!item.date && item.date >= today && item.status !== "finished" && item.status !== "completed")
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).slice(0, 6);
   const recent = filtered.filter(item => item.status === "completed" || item.status === "finished" || (!!item.date && item.date < today))
@@ -80,7 +101,7 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
       </div>
       {contexts.length ? <div className="grid items-start gap-3 lg:grid-cols-3">
         {contexts.map(context => {
-          const next = activities.filter(item => item.contextIds.includes(context.id) && !!item.date && item.date >= today && item.status !== "completed")
+          const next = uniqueActivities.filter(item => item.contextIds.includes(context.id) && !!item.date && item.date >= today && item.status !== "completed")
             .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).slice(0, 3);
           const expanded = expandedContext === context.id;
           return <article key={context.id} className="self-start rounded-xl border border-border bg-card">

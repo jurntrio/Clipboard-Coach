@@ -8,5 +8,10 @@ export function officialTeamId(raw: string) {
 }
 
 export function normalizedTeamName(value: string) {
-  return value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  return value
+    .replace(/\(\s*u\d{1,2}(?:\s+[a-z0-9]+)*\s*\)\s*$/i, "")
+    .toLocaleLowerCase("nl")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
 }
