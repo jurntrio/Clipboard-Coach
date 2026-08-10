@@ -37,6 +37,7 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const unresolved = useMemo(() => fixtures.filter(fixture => !assignments[fixture.key]).length, [fixtures, assignments]);
+  const assignedCount = fixtures.length - unresolved;
 
   async function checkDownloads() {
     setBusy(true); setError(""); setMessage("");
@@ -76,7 +77,7 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
     <p className="mt-1 text-sm text-textMuted">Downloadt de officiële ZIP-bestanden, filtert uitsluitend op het stamnummer van deze club en laat dubbelzinnige jeugdwedstrijden eerst aan de juiste ploeg koppelen.</p>
     <div className="mt-3 flex flex-wrap gap-2">
       <button type="button" disabled={readOnly || busy || !clubId} onClick={() => void checkDownloads()} className="rounded-lg bg-button px-4 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">{busy ? "Controleren…" : "Officiële downloads controleren"}</button>
-      {!!fixtures.length && <button type="button" disabled={readOnly || busy || fixtures.length === unresolved} onClick={() => void importAssigned()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:opacity-50">Toegewezen wedstrijden importeren</button>}
+      {!!fixtures.length && <button type="button" disabled={readOnly || busy || assignedCount === 0} onClick={() => void importAssigned()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:opacity-50">Bevestigen en {assignedCount} toegewezen wedstrijd{assignedCount === 1 ? "" : "en"} importeren</button>}
     </div>
     {message && <p className="mt-3 text-sm text-accent">{message}</p>}
     {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
@@ -94,6 +95,10 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
           </tr>)}
         </tbody>
       </table>
+    </div>}
+    {!!fixtures.length && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-borderSubtle bg-cardDeep p-3">
+      <p className="text-sm text-textMuted">{assignedCount} toegewezen · {unresolved} nog te koppelen</p>
+      <button type="button" disabled={readOnly || busy || assignedCount === 0} onClick={() => void importAssigned()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:opacity-50">Bevestigen en importeren</button>
     </div>}
   </div>;
 }
