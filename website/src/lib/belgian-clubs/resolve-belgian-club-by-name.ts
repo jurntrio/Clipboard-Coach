@@ -10,6 +10,8 @@ export function normalizeClubName(value: string) {
     // Team/division codes like "(1 A)" or "(U13 A)" are never part of the
     // club's identity - drop them before comparing.
     .replace(/\([^)]*\)/g, "")
+    // A trailing A/B in fixture exports identifies a team, not the club.
+    .replace(/[\s._-]+[AB]\s*$/i, "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLocaleLowerCase("nl")
@@ -25,13 +27,31 @@ async function getNameIndex(): Promise<Map<string, string>> {
   if (nameIndexCache) return nameIndexCache;
 
   const admin = createAdminClient();
-  const [{ data: clubs }, { data: aliases }] = await Promise.all([
+  const [{ data: clubs }, { data: aliases }, { data: linkedMatches }] = await Promise.all([
     admin.from("belgian_clubs").select("id, naam"),
-    admin.from("club_name_aliases").select("alias, belgian_club_id")
+    admin.from("club_name_aliases").select("alias, belgian_club_id"),
+    admin.from("matches").select("team_a_name, team_a_belgian_club_id, team_b_name, team_b_belgian_club_id")
+      .or("team_a_belgian_club_id.not.is.null,team_b_belgian_club_id.not.is.null").limit(10_000)
   ]);
 
   const index = new Map<string, string>();
   for (const club of clubs ?? []) index.set(normalizeClubName(club.naam as string), club.id as string);
+  const linkedIdsByName = new Map<string, Set<string>>();
+  for (const match of linkedMatches ?? []) {
+    for (const [name, clubId] of [
+      [match.team_a_name, match.team_a_belgian_club_id],
+      [match.team_b_name, match.team_b_belgian_club_id]
+    ] as const) {
+      if (!name || !clubId) continue;
+      const normalized = normalizeClubName(name);
+      const ids = linkedIdsByName.get(normalized) ?? new Set<string>();
+      ids.add(clubId);
+      linkedIdsByName.set(normalized, ids);
+    }
+  }
+  for (const [name, ids] of linkedIdsByName) {
+    if (ids.size === 1) index.set(name, [...ids][0]);
+  }
   // Aliases are inserted after club names so a confirmed alias always wins.
   for (const alias of aliases ?? []) index.set(normalizeClubName(alias.alias as string), alias.belgian_club_id as string);
 

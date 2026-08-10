@@ -27,6 +27,7 @@ const supabase = createClient(requireEnv("NEXT_PUBLIC_SUPABASE_URL"), requireEnv
 function normalizeClubName(value) {
   return value
     .replace(/\([^)]*\)/g, "")
+    .replace(/[\s._-]+[AB]\s*$/i, "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLocaleLowerCase("nl")
@@ -47,12 +48,29 @@ async function fetchAll(table, columns) {
 }
 
 async function buildNameIndex() {
-  const [clubs, aliases] = await Promise.all([
+  const [clubs, aliases, linkedMatches] = await Promise.all([
     fetchAll("belgian_clubs", "id, naam"),
-    fetchAll("club_name_aliases", "alias, belgian_club_id")
+    fetchAll("club_name_aliases", "alias, belgian_club_id"),
+    fetchAll("matches", "team_a_name, team_a_belgian_club_id, team_b_name, team_b_belgian_club_id")
   ]);
   const index = new Map();
   for (const club of clubs) index.set(normalizeClubName(club.naam), club.id);
+  const linkedIdsByName = new Map();
+  for (const match of linkedMatches) {
+    for (const [name, clubId] of [
+      [match.team_a_name, match.team_a_belgian_club_id],
+      [match.team_b_name, match.team_b_belgian_club_id]
+    ]) {
+      if (!name || !clubId) continue;
+      const normalized = normalizeClubName(name);
+      const ids = linkedIdsByName.get(normalized) ?? new Set();
+      ids.add(clubId);
+      linkedIdsByName.set(normalized, ids);
+    }
+  }
+  for (const [name, ids] of linkedIdsByName) {
+    if (ids.size === 1) index.set(name, [...ids][0]);
+  }
   for (const alias of aliases) index.set(normalizeClubName(alias.alias), alias.belgian_club_id);
   return index;
 }
