@@ -87,9 +87,8 @@ export default function TeamDetailPage() {
   if (!team) return <div className="mx-auto max-w-6xl p-5 sm:p-7"><Link href="/dashboard/teams" className="text-accent">← {t("common.back")}</Link><p className="mt-5 text-textMuted">{t("team.notFound")}</p></div>;
 
   return <div className="mx-auto max-w-6xl p-5 sm:p-7">
-    <SectionHeader title={team.name} artworkSrc="/branding/teams.png" backHref="/dashboard/teams" showHome={false} />
+    <SectionHeader title={team.name} artworkSrc="/branding/teams.png" showHome={false} />
     {teamOptions.length > 1 && <nav className="mb-5 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-3" aria-label="Ploeg kiezen">
-      <Link href="/dashboard/teams" className="rounded-lg px-3 py-2 text-sm font-semibold text-textPrimary hover:bg-cardDeep">Alles</Link>
       {teamOptions.map(option => <button type="button" key={option.id} onClick={() => void openTeam(option)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${option.id === team.id ? "bg-accent text-page" : "text-textPrimary hover:bg-cardDeep"}`}>{option.name}</button>)}
     </nav>}
     <nav className="mb-6 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label={t("team.navigation")}>
