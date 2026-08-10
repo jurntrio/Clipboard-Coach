@@ -108,7 +108,7 @@ export default async function DashboardHomePage() {
   const activityUntil = dateOnly(addDays(today, 120));
   const [{ data: matches }, { data: trainingSessions }, { data: trainingPlans }] = await Promise.all([
     clubId
-      ? admin.from("matches").select("id, club_team_id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, completed_at")
+      ? admin.from("matches").select("id, club_team_id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, is_home_match, completed_at")
           .eq("club_id", clubId)
           .gte("match_date", activityFrom)
           .lte("match_date", activityUntil)
@@ -136,15 +136,19 @@ export default async function DashboardHomePage() {
       || (!!match.team_b_id && item.teamIds.includes(match.team_b_id))
     ).map(item => item.id);
     if (!contextIds.length) return [];
+    const homeTeamName = match.is_home_match ? match.team_a_name : match.team_b_name;
+    const awayTeamName = match.is_home_match ? match.team_b_name : match.team_a_name;
+    const homeScore = match.is_home_match ? match.score_a : match.score_b;
+    const awayScore = match.is_home_match ? match.score_b : match.score_a;
     return [{
       id: `match:${match.id}`,
       kind: "match" as const,
-      title: `${match.team_a_name} – ${match.team_b_name}`,
+      title: `${homeTeamName} – ${awayTeamName}`,
       date: match.match_date,
       time: match.start_time?.slice(0, 5) || null,
       sortAt: match.completed_at ?? `${match.match_date ?? ""}T${match.start_time?.slice(0, 5) ?? "00:00"}`,
       status: match.status,
-      score: match.score_a !== null && match.score_b !== null ? `${match.score_a}–${match.score_b}` : null,
+      score: homeScore !== null && awayScore !== null ? `${homeScore}–${awayScore}` : null,
       contextIds,
       href: `/dashboard/games/${match.id}`
     }];
