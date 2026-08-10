@@ -53,7 +53,12 @@ async function fetchOfficialGames(teamId: string): Promise<OfficialGame[]> {
 }
 
 function normalized(value: string) {
-  return value.toLocaleLowerCase("nl").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  return value
+    .replace(/\(\s*u\d{1,2}(?:\s+[a-z0-9]+)*\s*\)\s*$/i, "")
+    .toLocaleLowerCase("nl")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
 }
 
 export async function syncVoetbalVlaanderenFeed(teamId: string) {
