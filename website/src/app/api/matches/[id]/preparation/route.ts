@@ -29,7 +29,12 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   const canViewSelection = canSelect || hasClubPermission(ctx.access, "games.selection.view");
   const canTags = hasClubPermission(ctx.access, "games.tag");
   const canCreateTagLink = hasClubPermission(ctx.access, "games.tag_link.create");
-  const [{ data: options }, { data: selections }, { data: team }, { data: clubTeam }, { data: guestPlayers }] = await Promise.all([
+  const extraTeamsQuery = ctx.admin.from("club_teams")
+    .select("id, name, teams(id, players(*))")
+    .eq("club_id", ctx.match.club_id)
+    .neq("status", "merged");
+  if (ctx.match.season_id) extraTeamsQuery.eq("season_id", ctx.match.season_id);
+  const [{ data: options }, { data: selections }, { data: team }, { data: clubTeam }, { data: guestPlayers }, { data: extraTeams }] = await Promise.all([
     canPlan || canViewSelection ? ctx.admin.from("club_match_options").select("*").eq("club_id", ctx.match.club_id).eq("active", true).order("label") : Promise.resolve({ data: [] }),
     canViewSelection ? ctx.admin.from("match_player_selections").select("*").eq("match_id", params.id) : Promise.resolve({ data: [] }),
     canViewSelection && ctx.match.team_a_id
@@ -38,9 +43,17 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     ctx.match.club_team_id
       ? ctx.admin.from("club_teams").select("age_category, match_format, match_period_count, match_period_minutes, match_minimum_players").eq("id", ctx.match.club_team_id).maybeSingle()
       : Promise.resolve({ data: null }),
-    canViewSelection ? ctx.admin.from("match_guest_players").select("*").eq("match_id", params.id).order("created_at") : Promise.resolve({ data: [] })
+    canViewSelection ? ctx.admin.from("match_guest_players").select("*").eq("match_id", params.id).order("created_at") : Promise.resolve({ data: [] }),
+    canViewSelection ? extraTeamsQuery.order("name") : Promise.resolve({ data: [] })
   ]);
   const allowedPlayerIds = ctx.access.goalkeeperPlayerIds;
+  const extraPlayers = ((extraTeams ?? []).flatMap(clubTeamRow => {
+    const linkedTeams = (clubTeamRow.teams ?? []) as unknown as { id: string; players: Record<string, unknown>[] }[];
+    return linkedTeams.flatMap(linkedTeam => (linkedTeam.players ?? []).map(player => ({
+      ...(player as Record<string, any>),
+      team_name: clubTeamRow.name
+    })));
+  }) as Array<Record<string, any>>).filter(player => player.role === "player" && player.team_id !== ctx.match.team_a_id);
   return NextResponse.json({
     match: {
       ...(allowedPlayerIds === null ? ctx.match : { ...ctx.match, player_ids: (ctx.match.player_ids ?? []).filter((id: string) => allowedPlayerIds.has(id)) }),
@@ -52,7 +65,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     ageCategory: clubTeam?.age_category ?? null,
     options: options ?? [], selections: allowedPlayerIds === null ? selections ?? [] : (selections ?? []).filter((selection) => allowedPlayerIds.has(selection.player_id)),
     players: allowedPlayerIds === null ? team?.players ?? [] : (team?.players ?? []).filter((player) => allowedPlayerIds.has(player.id)),
-    extraPlayers: [], guestPlayers: guestPlayers ?? [], capabilities: { canPlan, canSelect, canViewSelection, canTags, canCreateTagLink }
+    extraPlayers: allowedPlayerIds === null ? extraPlayers : [], guestPlayers: guestPlayers ?? [], capabilities: { canPlan, canSelect, canViewSelection, canTags, canCreateTagLink }
   });
 }
 
@@ -80,7 +93,17 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   if (canSelect && !ctx.match.team_a_id) return NextResponse.json({ error: "Match has no linked team." }, { status: 400 });
   if (canSelect && selectedRows.length) {
     const { data: rosterPlayers } = await ctx.admin.from("players").select("id, team_id").in("id", selectedRows.map((row: any) => row.player_id));
-    const validIds = new Set((rosterPlayers ?? []).filter(player => player.team_id === ctx.match.team_a_id).map(player => player.id));
+    const playerTeamIds = Array.from(new Set((rosterPlayers ?? []).map(player => player.team_id).filter((teamId): teamId is string => !!teamId)));
+    const { data: linkedTeams } = playerTeamIds.length
+      ? await ctx.admin.from("teams").select("id, club_team_id").in("id", playerTeamIds)
+      : { data: [] };
+    const clubTeamIds = Array.from(new Set((linkedTeams ?? []).map(team => team.club_team_id).filter((clubTeamId): clubTeamId is string => !!clubTeamId)));
+    let allowedClubTeamsQuery = ctx.admin.from("club_teams").select("id").eq("club_id", ctx.match.club_id).in("id", clubTeamIds);
+    if (ctx.match.season_id) allowedClubTeamsQuery = allowedClubTeamsQuery.eq("season_id", ctx.match.season_id);
+    const { data: allowedClubTeams } = clubTeamIds.length ? await allowedClubTeamsQuery : { data: [] };
+    const allowedClubTeamIds = new Set((allowedClubTeams ?? []).map(team => team.id));
+    const allowedTeamIds = new Set((linkedTeams ?? []).filter(team => team.club_team_id && allowedClubTeamIds.has(team.club_team_id)).map(team => team.id));
+    const validIds = new Set((rosterPlayers ?? []).filter(player => player.team_id && allowedTeamIds.has(player.team_id)).map(player => player.id));
     if (validIds.size !== new Set(selectedRows.map((row: any) => row.player_id)).size) {
       return NextResponse.json({ error: "Ongeldige spelerselectie." }, { status: 400 });
     }
