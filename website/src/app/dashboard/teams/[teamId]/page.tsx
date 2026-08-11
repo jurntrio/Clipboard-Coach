@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TrainingStatistics, type TrainingStatistic } from "@/components/training/TrainingStatistics";
 import { TeamContextPanel } from "@/components/teams/TeamContextPanel";
+import { useKeyedFetch } from "@/hooks/useKeyedFetch";
 import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/messages";
 import type { Match, Player, Team } from "@/types/database";
@@ -33,33 +34,29 @@ export default function TeamDetailPage() {
   const [statistics, setStatistics] = useState<TrainingStatistic[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingSection, setLoadingSection] = useState<"matches" | "training" | null>(null);
-  const overviewCache = useRef(new Map<string, TeamDetail>());
-  const matchesCache = useRef(new Map<string, Match[]>());
-  const trainingCache = useRef(new Map<string, TrainingData>());
-  const statisticsCache = useRef(new Map<string, TrainingStatistic[]>());
+  const overview = useKeyedFetch<TeamDetail>();
+  const matchesSection = useKeyedFetch<Match[]>();
+  const trainingSection = useKeyedFetch<TrainingData>();
+  const statisticsSection = useKeyedFetch<TrainingStatistic[]>();
   const activeTeamId = useRef(initialTeamId);
   const overviewPrefetchStarted = useRef(false);
   const sectionRequests = useRef(new Map<string, Promise<void>>());
 
   useEffect(() => {
-    let cancelled = false;
     activeTeamId.current = teamId;
-    const cachedTeam = overviewCache.current.get(teamId);
+    const cachedTeam = overview.getCached(teamId);
     if (cachedTeam) {
       setTeam(cachedTeam);
       setLoading(false);
-      return () => { cancelled = true; };
+      return;
     }
     setLoading(true);
-    void fetch(`/api/teams/${teamId}`).then(async (response) => {
-      if (!response.ok) return;
-      const body = await response.json() as { team: TeamDetail };
-      overviewCache.current.set(teamId, body.team);
-      if (!cancelled) setTeam(body.team);
+    void overview.fetchKeyed(teamId, `/api/teams/${teamId}`, (body: { team: TeamDetail }) => body.team).then((result) => {
+      if (result && activeTeamId.current === teamId) setTeam(result);
     }).finally(() => {
-      if (!cancelled) setLoading(false);
+      if (activeTeamId.current === teamId) setLoading(false);
     });
-    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
   useEffect(() => {
@@ -74,13 +71,8 @@ export default function TeamDetailPage() {
     if (overviewPrefetchStarted.current || teamOptions.length === 0) return;
     overviewPrefetchStarted.current = true;
     const teamsToPrefetch = teamOptions.filter(option => option.id !== initialTeamId).slice(0, 4);
-    void Promise.all(teamsToPrefetch.map(async option => {
-      if (overviewCache.current.has(option.id)) return;
-      const response = await fetch(`/api/teams/${option.id}`);
-      if (!response.ok) return;
-      const body = await response.json() as { team: TeamDetail };
-      overviewCache.current.set(option.id, body.team);
-    }));
+    void Promise.all(teamsToPrefetch.map(option => overview.fetchKeyed(option.id, `/api/teams/${option.id}`, (body: { team: TeamDetail }) => body.team)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTeamId, teamOptions]);
 
   useEffect(() => {
@@ -115,10 +107,10 @@ export default function TeamDetailPage() {
     if (option.id === teamId) return;
     if (option.club_team_id) void fetch("/api/team-context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clubTeamId: option.club_team_id }) });
     window.history.replaceState(null, "", `/dashboard/teams/${option.id}`);
-    const cachedTeam = overviewCache.current.get(option.id);
-    const cachedMatches = matchesCache.current.get(option.id) ?? null;
-    const cachedTraining = trainingCache.current.get(option.id) ?? null;
-    const cachedStatistics = statisticsCache.current.get(option.id) ?? null;
+    const cachedTeam = overview.getCached(option.id);
+    const cachedMatches = matchesSection.getCached(option.id) ?? null;
+    const cachedTraining = trainingSection.getCached(option.id) ?? null;
+    const cachedStatistics = statisticsSection.getCached(option.id) ?? null;
     activeTeamId.current = option.id;
     if (cachedTeam) setTeam(cachedTeam);
     setMatches(cachedMatches);
@@ -140,33 +132,14 @@ export default function TeamDetailPage() {
     const existingRequest = sectionRequests.current.get(selectedTeamId);
     if (existingRequest) return existingRequest;
     const request = Promise.all([
-      matchesCache.current.has(selectedTeamId) ? Promise.resolve() : fetch(`/api/teams/${selectedTeamId}?section=matches`).then(async response => {
-        if (!response.ok) return;
-        const body = await response.json() as { matches: Match[] };
-        const nextMatches = body.matches ?? [];
-        matchesCache.current.set(selectedTeamId, nextMatches);
-        if (activeTeamId.current === selectedTeamId) setMatches(nextMatches);
-      }),
-      trainingCache.current.has(selectedTeamId) ? Promise.resolve() : fetch(`/api/teams/${selectedTeamId}?section=training`).then(async response => {
-        if (!response.ok) return;
-        const body = await response.json() as { trainings: Training[]; training_options: { id: string; label: string }[] };
-        const data = {
-          trainings: body.trainings ?? [],
-          optionNames: Object.fromEntries((body.training_options ?? []).map(option => [option.id, option.label]))
-        };
-        trainingCache.current.set(selectedTeamId, data);
-        if (activeTeamId.current === selectedTeamId) {
-          setTrainings(data.trainings);
-          setOptionNames(data.optionNames);
-        }
-      }),
-      statisticsCache.current.has(selectedTeamId) ? Promise.resolve() : fetch(`/api/teams/${selectedTeamId}?section=statistics`).then(async response => {
-        if (!response.ok) return;
-        const body = await response.json() as { statistics: TrainingStatistic[] };
-        const nextStatistics = body.statistics ?? [];
-        statisticsCache.current.set(selectedTeamId, nextStatistics);
-        if (activeTeamId.current === selectedTeamId) setStatistics(nextStatistics);
-      })
+      matchesSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=matches`, (body: { matches: Match[] }) => body.matches ?? [])
+        .then((result) => { if (result && activeTeamId.current === selectedTeamId) setMatches(result); }),
+      trainingSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=training`, (body: { trainings: Training[]; training_options: { id: string; label: string }[] }) => ({
+        trainings: body.trainings ?? [],
+        optionNames: Object.fromEntries((body.training_options ?? []).map(option => [option.id, option.label]))
+      })).then((result) => { if (result && activeTeamId.current === selectedTeamId) { setTrainings(result.trainings); setOptionNames(result.optionNames); } }),
+      statisticsSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=statistics`, (body: { statistics: TrainingStatistic[] }) => body.statistics ?? [])
+        .then((result) => { if (result && activeTeamId.current === selectedTeamId) setStatistics(result); })
     ]).then(() => undefined).finally(() => sectionRequests.current.delete(selectedTeamId));
     sectionRequests.current.set(selectedTeamId, request);
     return request;
