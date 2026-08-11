@@ -15,7 +15,7 @@ import { OfficialRbfaDownloadImporter } from "./OfficialRbfaDownloadImporter";
 import { PlayerGroupsManager } from "./PlayerGroupsManager";
 import { SeasonManager } from "./SeasonManager";
 
-type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean };
+type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean; is_personal?: boolean };
 type Team = {
   id: string;
   club_id: string;
@@ -96,6 +96,7 @@ export function ClubDashboard() {
   const teamNames = new Map(teams.map((team) => [team.id, team.name]));
   const myMembership = data?.memberships.find((item) => item.club_id === selectedClubId && item.profile_id === currentUserId);
   const readOnly = myMembership?.role === "club_admin_viewer";
+  const isPersonalClub = club?.is_personal === true;
   const fullAdmin = !!data?.currentAccess && ["club_admin", "club_admin_viewer", "platform_admin"].includes(data.currentAccess.role);
   const canManageTeams = fullAdmin || data?.currentAccess?.permissions.includes("teams.manage") === true;
   const moduleEnabled = (key: string) => data?.moduleEntitlements.find((item) => item.club_id === selectedClubId && item.module_key === key)?.enabled !== false;
@@ -305,7 +306,7 @@ export function ClubDashboard() {
         </section>
       </ModuleAccordion>}
 
-      {fullAdmin && moduleEnabled("matches") && <ModuleAccordion title="Wedstrijdtoegang" icon="/branding/games.png">
+      {fullAdmin && !isPersonalClub && moduleEnabled("matches") && <ModuleAccordion title="Wedstrijdtoegang" icon="/branding/games.png">
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Wedstrijden toewijzen</h2>
         <p className="mt-1 text-sm text-textMuted">Wijzig de ploeg van een wedstrijd en bepaal welke gebruikers toegang krijgen.</p>
@@ -316,7 +317,7 @@ export function ClubDashboard() {
       </section>
       </ModuleAccordion>}
 
-      {fullAdmin && <ModuleAccordion title="Personen & toegang" icon="/branding/clubadmin.png">
+      {fullAdmin && !isPersonalClub && <ModuleAccordion title="Personen & toegang" icon="/branding/clubadmin.png">
         <div className="space-y-6">
         <ClubPeopleManager clubId={selectedClubId}
           teams={teams.map((team) => ({ id: team.id, name: team.name }))}
