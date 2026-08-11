@@ -10,15 +10,15 @@ select has_function('public', 'rollback_club_people_backfill', array['uuid'], 's
 
 insert into public.clubs(id, name, normalized_name)
 values ('90000000-0000-0000-0000-000000000001', 'Backfill Test Club', 'backfill test club');
-insert into public.club_teams(id, club_id, name)
-values ('90000000-0000-0000-0000-000000000002',
-  '90000000-0000-0000-0000-000000000001', 'KMT B');
-insert into public.teams(id, name, club_team_id)
-values ('90000000-0000-0000-0000-000000000003', 'KMT B',
-  '90000000-0000-0000-0000-000000000002');
 insert into public.club_seasons(id, club_id, name, starts_on, ends_on, is_active)
 values ('90000000-0000-0000-0000-000000000004',
   '90000000-0000-0000-0000-000000000001', '2026-2027', '2026-07-01', '2027-06-30', true);
+insert into public.club_teams(id, club_id, season_id, name)
+values ('90000000-0000-0000-0000-000000000002',
+  '90000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000004', 'KMT B');
+insert into public.teams(id, name, club_team_id)
+values ('90000000-0000-0000-0000-000000000003', 'KMT B',
+  '90000000-0000-0000-0000-000000000002');
 
 insert into public.club_players(
   id, club_id, first_name, last_name, date_of_birth
