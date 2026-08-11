@@ -12,6 +12,59 @@ Dit document is de centrale verzamelplaats voor productideeën en werk dat bewus
 
 ## Nu
 
+### Dashboardstatus sneller verversen
+
+**Doel:** afgelopen activiteiten sneller in de juiste dashboardstatus tonen.
+
+Te behandelen:
+
+- De dashboardgegevens automatisch verversen wanneer een training of wedstrijd eindigt.
+- Een training van vandaag kort na de eindtijd van gepland of bezig naar afgerond verplaatsen, zonder dat de gebruiker de pagina handmatig hoeft te herladen.
+- Controleren dat de status ook correct bijgewerkt wordt wanneer het dashboard langere tijd openstaat of opnieuw focus krijgt.
+
+**Status:** kleine gebruiksverbetering; meenemen bij de eerstvolgende dashboardronde.
+
+### Thuis- en uitploeg visueel correct weergeven
+
+**Doel:** de juiste ploeg consequent aan de juiste zijde en wedstrijdgebeurtenis koppelen.
+
+Te behandelen:
+
+- Controleren dat thuis- en uitploeg nergens visueel omgewisseld worden, zoals momenteel bij Brakel en Torhout.
+- Bij ieder doelpunt de correcte ploegnaam, doelpuntenmaker en assist tonen.
+- De tussenstand en eindstand steeds in dezelfde ploegvolgorde weergeven als in de wedstrijdheader.
+- Zowel thuis- als uitwedstrijden en gebeurtenissen van de tegenstander testen.
+
+**Status:** visuele en functionele correctie; meenemen bij de eerstvolgende wedstrijdronde.
+
+### Speler toevoegen
+
+**Doel:** vanuit het teambeheer eenvoudig een nieuwe speler aan de juiste ploeg kunnen toevoegen.
+
+Te behandelen:
+
+- Een duidelijke actie **Speler toevoegen** voorzien bij de spelerslijst van een ploeg.
+- Minimaal naam en rugnummer kunnen invullen, met controle op ontbrekende of dubbele gegevens.
+- De speler meteen aan het juiste team en actieve seizoen koppelen.
+- De nieuwe speler direct beschikbaar maken in selecties, opstellingen en wedstrijdgebeurtenissen.
+
+**Status:** functionele uitbreiding; meenemen bij de eerstvolgende ronde van team- en spelersbeheer.
+
+### 360-videolink centraal bij de wedstrijd bewaren
+
+**Doel:** een toegevoegde 360-videolink op ieder toestel en voor iedere bevoegde gebruiker van dezelfde wedstrijd beschikbaar maken.
+
+Te behandelen:
+
+- De 360-link centraal aan de wedstrijd opslaan in plaats van alleen lokaal in de browser of op het toestel.
+- Dezelfde link automatisch gebruiken op alle relevante wedstrijdschermen en videoweergaven.
+- Zorgen dat de gebruiker de link na inloggen ook op een ander toestel terugziet.
+- Andere bevoegde gebruikers die de wedstrijd mogen bekijken eveneens toegang geven tot de gekoppelde video.
+- Bestaande wedstrijd- en teamrechten respecteren, zodat de link niet zichtbaar wordt voor onbevoegde gebruikers.
+- Wijzigingen of verwijderingen van de link overal meteen consequent verwerken.
+
+**Status:** functionele verbetering; meenemen bij de eerstvolgende ronde van wedstrijdvideo en gedeelde toegang.
+
 ### Migratie naar Sport Visual Systems
 
 **Doel:** alle product-, bedrijfs- en communicatie-uitingen gecontroleerd omzetten naar de definitieve merkstructuur van Sport Visual Systems.

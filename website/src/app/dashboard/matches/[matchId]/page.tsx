@@ -180,8 +180,9 @@ export default function MatchViewerPage() {
   const [drawingFrame, setDrawingFrame] = useState<{ image: string; time: number; videoId?: string; tagId: string | null; drawingId: string | null; key?: string; initialShapes?: WebDrawingShape[]; durationSeconds?: number } | null>(null);
   const [playingDrawing, setPlayingDrawing] = useState<TagDrawing | null>(null);
   const [pendingGoal, setPendingGoal] = useState<{ video: Video; label: string; localTime: number } | null>(null);
-  const [attachSource, setAttachSource] = useState<"file" | "external" | "veo">("file");
+  const [attachSource, setAttachSource] = useState<"file" | "external" | "360" | "veo">("file");
   const [attachRecordingId, setAttachRecordingId] = useState("");
+  const [attach360Url, setAttach360Url] = useState("");
   const [attachVeoUrl, setAttachVeoUrl] = useState("");
   const [attachCameras, setAttachCameras] = useState<number[]>([]);
   const [recordingConfig, setRecordingConfig] = useState<ExternalRecordingConfig | null>(null);
@@ -412,12 +413,11 @@ export default function MatchViewerPage() {
 
   async function loadMatch() {
     const { data: { user } } = await supabase.auth.getUser();
-    const { data, error: loadError } = await supabase.from("matches")
-      .select("*, match_videos(id, sequence_order, label, is_primary, videos(*))")
-      .eq("id", matchId).single();
-    if (loadError || !data) { setError(loadError?.message || t("match.notFound")); return; }
-    const loaded = data as unknown as MatchWithBlocks;
     if (!user) { router.replace("/dashboard/clips"); return; }
+    const response = await fetch(`/api/matches/${matchId}/viewer`, { cache: "no-store" });
+    const body = await response.json().catch(() => null) as { match?: MatchWithBlocks; error?: string } | null;
+    if (!response.ok || !body?.match) { setError(body?.error || t("match.notFound")); return; }
+    const loaded = body.match;
     const { data: profile } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
     setCanEditMatch(loaded.coach_id === user.id || profile?.account_role === "club_admin");
     setMatch(loaded);
@@ -640,6 +640,39 @@ export default function MatchViewerPage() {
       await loadMatch();
     } catch (attachError) {
       setError(messageFrom(attachError, t("match.veoResolveFailed")));
+    } finally {
+      setAttaching(false);
+    }
+  }
+
+  async function attach360Recording() {
+    if (!attach360Url.trim() || !currentUserId) return;
+    setAttaching(true);
+    setError("");
+    try {
+      const source = new URL(attach360Url.trim());
+      if (source.protocol !== "https:") throw new Error(t("match.360Invalid"));
+      const { data: video, error: videoError } = await supabase.from("videos").insert({
+        coach_id: currentUserId,
+        team_id: match?.team_a_id ?? null,
+        video_url: source.toString(),
+        video_key: `external-link/${crypto.randomUUID()}`,
+        processing_status: "ready",
+        title: t("match.360Video")
+      }).select("id").single();
+      if (videoError) throw videoError;
+      const { error: linkError } = await supabase.from("match_videos").insert({
+        match_id: matchId,
+        video_id: video.id,
+        sequence_order: 0,
+        is_primary: true,
+        label: t("match.360Video")
+      });
+      if (linkError) throw linkError;
+      setAttach360Url("");
+      await loadMatch();
+    } catch (attachError) {
+      setError(messageFrom(attachError, t("match.360Invalid")));
     } finally {
       setAttaching(false);
     }
@@ -1010,6 +1043,7 @@ export default function MatchViewerPage() {
                   <div className="mt-4 flex justify-center overflow-hidden rounded-lg border border-borderButton text-xs font-semibold">
                     {recordingConfig && <button type="button" onClick={() => setAttachSource("external")} className={`px-3 py-1.5 ${attachSource === "external" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceExternal")}</button>}
                     <button type="button" onClick={() => setAttachSource("file")} className={`px-3 py-1.5 ${attachSource === "file" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceFile")}</button>
+                    <button type="button" onClick={() => setAttachSource("360")} className={`px-3 py-1.5 ${attachSource === "360" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.source360")}</button>
                     <button type="button" onClick={() => setAttachSource("veo")} className={`px-3 py-1.5 ${attachSource === "veo" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>{t("match.sourceVeo")}</button>
                   </div>
                   {attachSource === "external" ? (
@@ -1031,6 +1065,14 @@ export default function MatchViewerPage() {
                   ) : attachSource === "file" ? (
                     <div className="mt-4">
                       <button type="button" disabled={attaching} onClick={() => void chooseLocalFilesToAttach()} className="w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
+                    </div>
+                  ) : attachSource === "360" ? (
+                    <div className="mt-4">
+                      <p className="text-xs text-textMuted">{t("match.360LinkHelp")}</p>
+                      <label className="mt-3 block text-sm text-textSecondary">{t("match.360Link")}
+                        <input type="url" value={attach360Url} onChange={(event) => setAttach360Url(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
+                      </label>
+                      <button type="button" disabled={attaching || !attach360Url.trim()} onClick={() => void attach360Recording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
                     </div>
                   ) : (
                     <div className="mt-4">

@@ -257,7 +257,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
             <p className="rounded-lg border border-borderSubtle bg-cardDeep p-3 text-sm text-textMuted">De volledige selectie staat compact in één venster. Je kunt ook een speler uit een andere ploeg of een losse naam toevoegen.</p>
             {drafts.length > 0 && minimumPlayers !== "" && drafts.filter(item => item.selected).length < Number(minimumPlayers) && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Voor {matchFormat || "deze spelvorm"} zijn minstens {minimumPlayers} spelers nodig. Momenteel zijn {drafts.filter(item => item.selected).length} spelers geselecteerd.</p>}
             {duplicateJerseyNumbers.length > 0 && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Dubbel rugnummer bij de geselecteerde spelers: {duplicateJerseyNumbers.join(", ")}.</p>}
-            <div className="hidden">
+            {canSelect && extraPlayers.some(player => !players.some(current => current.id === player.id)) && <div>
               <h3 className="text-sm font-bold text-textBright">Extra speler uit spelerslijst</h3>
               <div className="mt-2 flex flex-wrap gap-2">
                 <select value={extraPlayerId} onChange={event => setExtraPlayerId(event.target.value)} className={`${inputClass} min-w-60 flex-1`}>
@@ -267,7 +267,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
                 </select>
                 <button type="button" disabled={!extraPlayerId} onClick={addExtraPlayer} className="rounded-lg border border-accent px-3 py-2 text-sm font-bold text-accent disabled:opacity-40">Toevoegen</button>
               </div>
-            </div>
+            </div>}
             <div>
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-bold text-textBright">Speler op naam</h3>

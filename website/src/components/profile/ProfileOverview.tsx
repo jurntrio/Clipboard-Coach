@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type ProfileContext = {
   id: string;
@@ -55,6 +55,23 @@ function withoutDuplicateActivities(activities: ProfileActivity[]) {
   });
 }
 
+const ACTIVITY_DURATION_MS = {
+  training: 2 * 60 * 60 * 1000,
+  match: (2 * 60 + 15) * 60 * 1000
+} as const;
+
+function isActivityCompleted(activity: ProfileActivity, now: number | null) {
+  if (activity.status === "completed" || activity.status === "finished") return true;
+  if (!activity.date || now === null) return false;
+
+  const today = new Date(now).toLocaleDateString("sv-SE");
+  if (activity.date < today) return true;
+  if (activity.date > today || !activity.time) return false;
+
+  const startsAt = new Date(`${activity.date}T${activity.time}:00`).getTime();
+  return Number.isFinite(startsAt) && now >= startsAt + ACTIVITY_DURATION_MS[activity.kind];
+}
+
 export function ProfileOverview({ name, email, clubName, contexts, activities, quickLinks }: {
   name: string;
   email: string;
@@ -65,14 +82,20 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
 }) {
   const [activeContext, setActiveContext] = useState("all");
   const [expandedContext, setExpandedContext] = useState<string | null>(null);
-  const today = new Date().toISOString().slice(0, 10);
+  const [now, setNow] = useState<number | null>(null);
+  const today = now === null ? new Date().toISOString().slice(0, 10) : new Date(now).toLocaleDateString("sv-SE");
+  useEffect(() => {
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const uniqueActivities = useMemo(() => withoutDuplicateActivities(activities), [activities]);
   const filtered = useMemo(() => uniqueActivities.filter(activity =>
     activeContext === "all" || activity.contextIds.includes(activeContext)
   ), [uniqueActivities, activeContext]);
-  const upcoming = filtered.filter(item => !!item.date && item.date >= today && item.status !== "finished" && item.status !== "completed")
+  const upcoming = filtered.filter(item => !!item.date && item.date >= today && !isActivityCompleted(item, now))
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).slice(0, 6);
-  const recent = filtered.filter(item => item.status === "completed" || item.status === "finished" || (!!item.date && item.date < today))
+  const recent = filtered.filter(item => isActivityCompleted(item, now))
     .sort((a, b) => (b.sortAt ?? `${b.date}${b.time ?? ""}`).localeCompare(a.sortAt ?? `${a.date}${a.time ?? ""}`)).slice(0, 6);
   const contextNames = new Map(contexts.map(item => [item.id, item.subject]));
   const activeContextLabel = activeContext === "all" ? "Alles" : contexts.find(item => item.id === activeContext)?.label ?? "Alles";
@@ -101,7 +124,7 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
       </div>
       {contexts.length ? <div className="grid items-start gap-3 lg:grid-cols-3">
         {contexts.map(context => {
-          const next = uniqueActivities.filter(item => item.contextIds.includes(context.id) && !!item.date && item.date >= today && item.status !== "completed")
+          const next = uniqueActivities.filter(item => item.contextIds.includes(context.id) && !!item.date && item.date >= today && !isActivityCompleted(item, now))
             .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).slice(0, 3);
           const expanded = expandedContext === context.id;
           return <article key={context.id} className="self-start rounded-xl border border-border bg-card">
