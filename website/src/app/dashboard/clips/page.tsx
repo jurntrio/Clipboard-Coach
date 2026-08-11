@@ -234,12 +234,13 @@ function MatchSection({ title, matches, empty, allowTagging, canPrepare, optionN
     const expanded = expandedId === match.id; const matchClips = clipsByMatch.get(match.id) ?? [];
     const lineup = players.filter((player) => (match.player_ids ?? []).includes(player.id));
     const teamClips = matchClips.filter((clip) => clip.audience_type === "full_team");
-    const homeTeamName = match.is_home_match ? match.team_a_name : match.team_b_name;
-    const awayTeamName = match.is_home_match ? match.team_b_name : match.team_a_name;
-    const homeTeamLogo = match.is_home_match ? match.team_a_logo : match.team_b_logo;
-    const awayTeamLogo = match.is_home_match ? match.team_b_logo : match.team_a_logo;
-    const homeScore = match.is_home_match ? match.score_a : match.score_b;
-    const awayScore = match.is_home_match ? match.score_b : match.score_a;
+    // Keep the stored home-away order; is_home_match identifies the club side only.
+    const homeTeamName = match.team_a_name;
+    const awayTeamName = match.team_b_name;
+    const homeTeamLogo = match.team_a_logo;
+    const awayTeamLogo = match.team_b_logo;
+    const homeScore = match.score_a;
+    const awayScore = match.score_b;
     return <article key={match.id} className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex items-center gap-2 p-3">
         <button type="button" onClick={() => setExpandedId(expanded ? null : match.id)} className="flex min-w-0 flex-1 items-center gap-4 rounded-xl p-1 text-left hover:bg-cardHover">
