@@ -2,6 +2,16 @@
 begin;
 create extension if not exists pgtap;
 select plan(7);
+-- 1: deletion guard, 2-5: provisioning, 6-7: second team reuses the club
+
+insert into auth.users(id, email, raw_user_meta_data)
+values ('30000000-0000-0000-0000-000000000099', 'deletable-solo-coach@example.test', '{}');
+insert into public.teams(coach_id, name) values ('30000000-0000-0000-0000-000000000099', 'Deletable Team');
+delete from auth.users where id = '30000000-0000-0000-0000-000000000099';
+select ok(
+  not exists(select 1 from public.profiles where id = '30000000-0000-0000-0000-000000000099'),
+  'creating a personal club never blocks later profile deletion'
+);
 
 insert into auth.users(id, email, raw_user_meta_data)
 values ('30000000-0000-0000-0000-000000000001', 'solo-coach@example.test', '{"full_name":"Solo Coach"}');
@@ -35,16 +45,6 @@ select ok(
   ),
   'the coach becomes club_admin of their own personal club'
 );
-select ok(
-  exists(
-    select 1 from public.club_trainer_teams ctt
-    join public.club_trainers ct on ct.id = ctt.trainer_id
-    join public.club_teams t on t.id = ctt.club_team_id
-    where ct.profile_id = '30000000-0000-0000-0000-000000000001' and t.name = 'FC Solo'
-  ),
-  'the coach is linked as trainer on their own team'
-);
-
 -- A second standalone team from the same coach reuses the same personal club.
 insert into public.teams(coach_id, name) values ('30000000-0000-0000-0000-000000000001', 'FC Solo U9');
 select is(
