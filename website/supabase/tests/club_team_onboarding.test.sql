@@ -52,8 +52,8 @@ select throws_ok(
   '23505', null, 'duplicate registration number is blocked'
 );
 select throws_ok(
-  $$insert into public.club_teams(club_id,name,normalized_name) select id,'u13-ip','u13 ip' from public.clubs where rbfa_registration_number='TEST-991'$$,
-  '23505', null, 'duplicate normalized team name is blocked'
+  $$insert into public.club_teams(club_id,name,normalized_name) select id,'u13 ip','u13 ip' from public.clubs where rbfa_registration_number='TEST-991'$$,
+  '23505', null, 'duplicate team name in the same season is blocked'
 );
 
 select throws_ok(
