@@ -31,9 +31,11 @@ insert into public.teams (coach_id, name, club_name, club_team_id)
 select null, ct.name, c.name, ct.id
 from public.club_teams ct join public.clubs c on c.id = ct.club_id
 where c.name = 'Test Guardian Club';
-insert into public.club_seasons (club_id, name, starts_on, ends_on, is_active)
-select id, 'Current Season', (current_date - interval '2 months')::date, (current_date + interval '10 months')::date, true
-from public.clubs where name = 'Test Guardian Club';
+update public.club_seasons season
+set name = 'Current Season', starts_on = (current_date - interval '2 months')::date,
+  ends_on = (current_date + interval '10 months')::date, is_active = true, status = 'ACTIVE'
+from public.clubs club
+where season.club_id = club.id and club.name = 'Test Guardian Club' and season.is_active;
 insert into public.club_seasons (club_id, name, starts_on, ends_on, is_active)
 select id, 'Past Season', (current_date - interval '14 months')::date, (current_date - interval '2 months')::date, false
 from public.clubs where name = 'Test Guardian Club';
