@@ -7,10 +7,11 @@ import { GREEN_FIELD_SRC } from "@/components/training/constants";
 export type LineupPosition = { playerId: string; x: number; y: number; placed?: boolean; positionId?: string };
 export type LineupBlock = { id: string; startMinute: number; positions: LineupPosition[] };
 
-type Player = { id: string; first_name: string; last_name: string; jersey_number: number | null };
+type Player = { id: string; first_name: string; last_name: string; jersey_number: number | null; is_goalkeeper?: boolean };
 type PositionSlot = { id: string; short: string; label: string; x: number; y: number };
 
 const SHIRT_SRC = "/branding/Training/shirt-groen.png";
+const GOALKEEPER_SHIRT_SRC = "/branding/Training/shirt-rood.png";
 const X = [12, 31, 50, 69, 88];
 const POSITION_SLOTS: PositionSlot[] = [
   { id: "lw", short: "LB", label: "Linksbuiten", x: X[0], y: 14 },
@@ -120,7 +121,7 @@ export function MatchLineupEditor({ players, blocks, editable, onChange }: {
             const player = assignment ? players.find(item => item.id === assignment.playerId) : null;
             return <div key={slot.id} className="absolute z-10 -translate-x-1/2 -translate-y-1/2" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} title={slot.label}>
               <div className={`relative h-10 w-10 sm:h-12 sm:w-12 ${player ? "opacity-100" : "opacity-25"}`}>
-                <Image src={SHIRT_SRC} alt="" fill sizes="48px" className="object-contain" />
+                <Image src={player?.is_goalkeeper ? GOALKEEPER_SHIRT_SRC : SHIRT_SRC} alt="" fill sizes="48px" className="object-contain" />
                 <span className="absolute inset-0 flex items-center justify-center pt-1 text-[10px] font-black text-white drop-shadow">{player ? player.jersey_number ?? "" : slot.short}</span>
               </div>
               {player ? <button type="button" draggable={editable} disabled={!editable} onDragStart={event => { setDraggingPlayerId(player.id); event.dataTransfer.setData("text/player-id", player.id); }} onDragEnd={() => setDraggingPlayerId("")}
@@ -140,7 +141,7 @@ export function MatchLineupEditor({ players, blocks, editable, onChange }: {
             const slot = assignment ? slotFor(assignment) : null;
             return <button key={player.id} type="button" draggable={editable} disabled={!editable} onDragStart={event => { setDraggingPlayerId(player.id); event.dataTransfer.setData("text/player-id", player.id); }} onDragEnd={() => setDraggingPlayerId("")}
               className={`flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left ${assignment ? "border-accent/40 bg-accentDim" : "border-borderSubtle bg-card"} ${draggingPlayerId === player.id ? "opacity-50" : ""} disabled:cursor-default`}>
-              <span className="relative h-9 w-9 shrink-0"><Image src={SHIRT_SRC} alt="" fill sizes="36px" className="object-contain" /><span className="absolute inset-0 flex items-center justify-center pt-1 text-[10px] font-black text-white">{player.jersey_number ?? ""}</span></span>
+              <span className="relative h-9 w-9 shrink-0"><Image src={player.is_goalkeeper ? GOALKEEPER_SHIRT_SRC : SHIRT_SRC} alt="" fill sizes="36px" className="object-contain" /><span className="absolute inset-0 flex items-center justify-center pt-1 text-[10px] font-black text-white">{player.jersey_number ?? ""}</span></span>
               <span className="min-w-0"><strong className="block truncate text-sm text-textBright">{playerName(player)}</strong><small className="block truncate text-textMuted">{slot?.label ?? "Nog niet opgesteld"}</small></span>
             </button>;
           })}
