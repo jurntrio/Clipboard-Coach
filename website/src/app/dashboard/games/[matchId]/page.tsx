@@ -11,6 +11,7 @@ import { getClubContext } from "@/lib/auth/active-club";
 import { MatchCoreInfoEditor } from "@/components/matches/MatchCoreInfoEditor";
 
 type GuardianPlayer = { player_id: string; team_id: string | null };
+type PlayerFacingReview = { playerId?: unknown; playerReport?: unknown };
 
 function displayDate(value: string | null) {
   if (!value) return "Nog niet bepaald";
@@ -68,13 +69,13 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   const videoIds = (matchVideos ?? []).map(item => item.video_id);
   const [{ data: selectedPlayers }, { data: matchSelections }, { data: teamPlayers }, { data: guestPlayers }, { data: dossier }, { data: clips }, { data: completedByProfile }] = staffCanView ? await Promise.all([
     (canViewSelection || canViewReport) && match.player_ids?.length
-      ? admin.from("players").select("id, first_name, last_name, jersey_number").in("id", match.player_ids).order("jersey_number")
+      ? admin.from("players").select("id, first_name, last_name, jersey_number, is_goalkeeper").in("id", match.player_ids).order("jersey_number")
       : Promise.resolve({ data: [] }),
     canViewReport
       ? admin.from("match_player_selections").select("player_id, jersey_number").eq("match_id", match.id).eq("selected", true)
       : Promise.resolve({ data: [] }),
     canViewReport && match.team_a_id
-      ? admin.from("players").select("id, first_name, last_name, jersey_number").eq("team_id", match.team_a_id).eq("role", "player").order("jersey_number")
+      ? admin.from("players").select("id, first_name, last_name, jersey_number, is_goalkeeper").eq("team_id", match.team_a_id).eq("role", "player").order("jersey_number")
       : Promise.resolve({ data: [] }),
     admin.from("match_guest_players").select("id, first_name, last_name, jersey_number").eq("match_id", match.id).order("created_at"),
     admin.from("match_dossiers").select("*").eq("match_id", match.id).maybeSingle(),
@@ -86,10 +87,13 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       : Promise.resolve({ data: null })
   ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: null }, { data: [] }, { data: null }];
   const videoCount = videoIds.length;
-  const selectionPlayers = access.goalkeeperPlayerIds === null
-    ? [...(selectedPlayers ?? []), ...(guestPlayers ?? [])]
-    : (selectedPlayers ?? []).filter((player) => access.goalkeeperPlayerIds?.has(player.id));
   const selectionNumberByPlayer = new Map((matchSelections ?? []).map(selection => [selection.player_id, selection.jersey_number]));
+  const selectedPlayersWithMatchNumbers = (selectedPlayers ?? []).map(player => ({
+    ...player, jersey_number: selectionNumberByPlayer.get(player.id) ?? player.jersey_number
+  }));
+  const selectionPlayers = access.goalkeeperPlayerIds === null
+    ? [...selectedPlayersWithMatchNumbers, ...(guestPlayers ?? [])]
+    : selectedPlayersWithMatchNumbers.filter((player) => access.goalkeeperPlayerIds?.has(player.id));
   const reportPlayers = [
     ...((selectedPlayers?.length ? selectedPlayers : teamPlayers) ?? []).map(player => ({
       ...player,
@@ -106,9 +110,18 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   }));
   const optionNames = new Map((options ?? []).map((option) => [option.id, option.label]));
   const guardianPlayerIds = guardianPlayers.map(player => player.player_id);
-  const { data: guardianSelections } = !staffCanView && guardianPlayerIds.length
-    ? await admin.from("match_player_selections").select("player_id, selected").eq("match_id", match.id).in("player_id", guardianPlayerIds)
-    : { data: [] };
+  const [{ data: guardianSelections }, { data: guardianPlayerRows }, { data: guardianDossier }] = !staffCanView && guardianPlayerIds.length
+    ? await Promise.all([
+        admin.from("match_player_selections").select("player_id, selected").eq("match_id", match.id).in("player_id", guardianPlayerIds),
+        admin.from("players").select("id, first_name, last_name").in("id", guardianPlayerIds),
+        admin.from("match_dossiers").select("player_reviews").eq("match_id", match.id).maybeSingle()
+      ])
+    : [{ data: [] }, { data: [] }, { data: null }];
+  const guardianPlayerNames = new Map((guardianPlayerRows ?? []).map(player => [player.id, `${player.first_name} ${player.last_name}`.trim()]));
+  const guardianFeedback = ((guardianDossier?.player_reviews ?? []) as PlayerFacingReview[]).flatMap(review => {
+    if (typeof review.playerId !== "string" || !guardianPlayerIds.includes(review.playerId) || typeof review.playerReport !== "string" || !review.playerReport.trim()) return [];
+    return [{ playerId: review.playerId, report: review.playerReport.trim() }];
+  });
   const scoreKnown = match.score_a !== null && match.score_b !== null;
   const nowInBrussels = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Europe/Brussels", year: "numeric", month: "2-digit", day: "2-digit",
@@ -118,6 +131,10 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   const played = match.status === "finished"
     || (!!match.match_date && (match.match_date < todayInBrussels
       || (match.match_date === todayInBrussels && !!match.start_time && match.start_time.slice(0, 5) <= timeInBrussels)));
+  const homeTeamName = match.is_home_match ? match.team_a_name : match.team_b_name;
+  const awayTeamName = match.is_home_match ? match.team_b_name : match.team_a_name;
+  const homeScore = match.is_home_match ? match.score_a : match.score_b;
+  const awayScore = match.is_home_match ? match.score_b : match.score_a;
 
   return <main className="mx-auto w-full max-w-5xl space-y-5 p-4 sm:p-7">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -135,11 +152,11 @@ export default async function GameOverviewPage({ params, searchParams }: { param
         <span className="rounded-full bg-accentDim px-3 py-1 text-xs font-bold text-accent">{match.status === "finished" ? "Afgewerkt" : played ? "Niet afgewerkt" : "Gepland"}</span>
       </div>
       <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
-        <h1 className="text-xl font-black text-textBright sm:text-3xl">{match.team_a_name}</h1>
+        <h1 className="text-xl font-black text-textBright sm:text-3xl">{homeTeamName}</h1>
         <div className="min-w-20 rounded-xl border border-borderSubtle bg-cardDeep px-3 py-2 text-2xl font-black text-textBright">
-          {scoreKnown ? `${match.score_a} – ${match.score_b}` : "–"}
+          {scoreKnown ? `${homeScore} – ${awayScore}` : "–"}
         </div>
-        <h2 className="text-xl font-black text-textBright sm:text-3xl">{match.team_b_name}</h2>
+        <h2 className="text-xl font-black text-textBright sm:text-3xl">{awayTeamName}</h2>
       </div>
       <p className="mt-5 text-center text-sm text-textMuted">{displayDate(match.match_date)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p>
       {match.completed_at && <p className="mt-3 text-center text-xs font-semibold text-accent">
@@ -190,23 +207,32 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       scoutingEditable={editing && canManageScouting}
       showScouting={canViewScouting}
       played={played}
-      scoreA={match.score_a}
-      scoreB={match.score_b}
+      scoreA={homeScore}
+      scoreB={awayScore}
       ownTeamSide={match.is_home_match ? "home" : "away"}
-      homeTeamName={match.team_a_name}
-      awayTeamName={match.team_b_name}
+      homeTeamName={homeTeamName}
+      awayTeamName={awayTeamName}
       completed={match.status === "finished"}
       matchPeriodCount={match.match_period_count}
       matchPeriodMinutes={match.match_period_minutes}
       showSelection={canViewSelection}
     />}
 
-    {!staffCanView && <p className="rounded-xl border border-borderSubtle bg-cardDeep p-4 text-sm text-textMuted">
-      {guardianSelections?.length
-        ? guardianSelections.map(selection => <span key={selection.player_id} className="block font-semibold text-textPrimary">Jouw speler is {selection.selected ? "geselecteerd" : "niet geselecteerd"}.</span>)
-        : <span>De selectie voor jouw speler is nog niet bekend.</span>}
-      <span className="mt-2 block">Je ziet alleen de selectiestatus van je eigen kind. De volledige selectie en interne informatie zijn afgeschermd.</span>
-    </p>}
+    {!staffCanView && <section className="space-y-4 rounded-xl border border-borderSubtle bg-cardDeep p-4 text-sm text-textMuted">
+      <div>
+        {guardianSelections?.length
+          ? guardianSelections.map(selection => <span key={selection.player_id} className="block font-semibold text-textPrimary">{guardianPlayerNames.get(selection.player_id) || "Jouw speler"} is {selection.selected ? "geselecteerd" : "niet geselecteerd"}.</span>)
+          : <span>De selectie voor jouw speler is nog niet bekend.</span>}
+        <span className="mt-2 block">Je ziet alleen informatie van je eigen gekoppelde speler. De volledige selectie, punten en interne beoordelingen blijven afgeschermd.</span>
+      </div>
+      {guardianFeedback.length > 0 && <div className="border-t border-borderSubtle pt-4">
+        <h2 className="font-black text-textBright">Beoordeling van de wedstrijd</h2>
+        <div className="mt-3 space-y-3">{guardianFeedback.map(feedback => <article key={feedback.playerId} className="rounded-lg border border-accent/30 bg-card p-3">
+          <strong className="text-accent">{guardianPlayerNames.get(feedback.playerId) || "Jouw speler"}</strong>
+          <p className="mt-2 whitespace-pre-wrap text-textPrimary">{feedback.report}</p>
+        </article>)}</div>
+      </div>}
+    </section>}
   </main>;
 }
 

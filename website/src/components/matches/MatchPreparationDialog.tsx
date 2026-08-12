@@ -200,9 +200,11 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
 
   const placeIsOther = meetingPlaceOptionId === "custom";
   const selectedDrafts = drafts.filter(item => item.selected);
+  const validGuestPlayers = guestPlayers.filter(item => item.firstName.trim() || item.lastName.trim());
+  const selectedCount = selectedDrafts.length + validGuestPlayers.length;
   const selectedPlayerIds = new Set(selectedDrafts.map(item => item.playerId));
   const selectedKeepers = players.filter(player => selectedPlayerIds.has(player.id) && player.is_goalkeeper).length;
-  const selectedFieldPlayers = selectedDrafts.length - selectedKeepers;
+  const selectedFieldPlayers = selectedDrafts.length - selectedKeepers + validGuestPlayers.length;
   const duplicateJerseyNumbers = Array.from(new Set(selectedDrafts
     .map(item => item.jerseyNumber.trim()).filter(Boolean)
     .filter((number, index, numbers) => numbers.indexOf(number) !== index)));
@@ -251,11 +253,11 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
         </section>}
         {canViewSelection && <section className="rounded-xl border border-border bg-card">
           <button type="button" onClick={() => setSelectionOpen(open => !open)} className="flex w-full items-center justify-between p-4 text-left font-bold text-textBright">
-            <span>{t("matchPrep.selection")} <span className="font-normal text-textMuted">({selectedDrafts.length} geselecteerd · {selectedFieldPlayers} + {selectedKeepers} K)</span></span><span className={`text-accent transition ${selectionOpen ? "rotate-180" : ""}`}>▼</span>
+            <span>{t("matchPrep.selection")} <span className="font-normal text-textMuted">({selectedCount} geselecteerd · {selectedFieldPlayers} + {selectedKeepers} K)</span></span><span className={`text-accent transition ${selectionOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
           {selectionOpen && <div className="space-y-3 border-t border-borderSubtle p-4">
             <p className="rounded-lg border border-borderSubtle bg-cardDeep p-3 text-sm text-textMuted">De volledige selectie staat compact in één venster. Je kunt ook een speler uit een andere ploeg of een losse naam toevoegen.</p>
-            {drafts.length > 0 && minimumPlayers !== "" && drafts.filter(item => item.selected).length < Number(minimumPlayers) && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Voor {matchFormat || "deze spelvorm"} zijn minstens {minimumPlayers} spelers nodig. Momenteel zijn {drafts.filter(item => item.selected).length} spelers geselecteerd.</p>}
+            {(drafts.length > 0 || validGuestPlayers.length > 0) && minimumPlayers !== "" && selectedCount < Number(minimumPlayers) && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Voor {matchFormat || "deze spelvorm"} zijn minstens {minimumPlayers} spelers nodig. Momenteel zijn {selectedCount} spelers geselecteerd.</p>}
             {duplicateJerseyNumbers.length > 0 && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Dubbel rugnummer bij de geselecteerde spelers: {duplicateJerseyNumbers.join(", ")}.</p>}
             {canSelect && extraPlayers.some(player => !players.some(current => current.id === player.id)) && <div>
               <h3 className="text-sm font-bold text-textBright">Extra speler uit spelerslijst</h3>
@@ -292,7 +294,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
             </div>;
           })}</div>}
         </section>}
-        {canUseTags && <section className="rounded-xl border border-border bg-card p-4">
+        {canUseTags && loadedMatch?.status !== "finished" && <section className="rounded-xl border border-border bg-card p-4">
           <h2 className="font-bold text-textBright">Tags en taglink</h2>
           <p className="mt-1 text-xs text-textMuted">Bepaal de tagknoppen voor deze wedstrijd en maak de externe link.</p>
           <div className="mt-3 flex flex-wrap gap-2">{tagNames.map(tag => <span key={tag} className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accentDim px-3 py-1.5 text-sm text-accent">{tag}<button type="button" onClick={() => setTagNames(current => current.filter(item => item !== tag))}>×</button></span>)}</div>

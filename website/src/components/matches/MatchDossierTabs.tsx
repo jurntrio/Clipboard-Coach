@@ -21,9 +21,9 @@ export type MatchDossier = {
   player_reviews: PlayerReview[];
 };
 
-type PlayerReview = { playerId: string; rating: number | null; report: string };
+type PlayerReview = { playerId: string; rating: number | null; report: string; playerReport: string };
 
-type Player = { id: string; first_name: string; last_name: string; jersey_number: number | null };
+type Player = { id: string; first_name: string; last_name: string; jersey_number: number | null; is_goalkeeper?: boolean };
 type Clip = { id: string; name: string; render_status: string; created_at: string; shareToken: string | null };
 type GoalEvent = {
   id: string; team: "home" | "away"; scoreAfter: string; minute: number | null;
@@ -45,7 +45,9 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
   const expectedGoals = Array.from({ length: (scoreA ?? 0) + (scoreB ?? 0) }, (_, index) => ({ id: `goal-${index + 1}` }));
   const savedGoals = initialDossier?.goal_events ?? [];
   const normalizedGoals = expectedGoals.map((expected, index) => {
-    const saved = savedGoals[index] ? { ...savedGoals[index], id: expected.id } : newGoal(expected.id);
+    const saved = savedGoals[index]
+      ? { ...newGoal(expected.id), ...savedGoals[index], id: expected.id }
+      : newGoal(expected.id);
     if (!saved.scoreAfter && scoreB === 0) return { ...saved, scoreAfter: `${index + 1}-0`, team: "home" as const };
     if (!saved.scoreAfter && scoreA === 0) return { ...saved, scoreAfter: `0-${index + 1}`, team: "away" as const };
     return saved;
@@ -157,12 +159,14 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
       <p className="mb-4 rounded-lg border border-borderSubtle bg-cardDeep p-3 text-xs text-textMuted">Intern: nooit zichtbaar voor spelers of contactpersonen.</p>
       {players.length ? <div className="overflow-hidden rounded-xl border border-borderSubtle">
         {players.map(player => {
-          const review = draft.player_reviews.find(item => item.playerId === player.id) ?? { playerId: player.id, rating: null, report: "" };
+          const savedReview = draft.player_reviews.find(item => item.playerId === player.id);
+          const review: PlayerReview = { playerId: player.id, rating: savedReview?.rating ?? null, report: savedReview?.report ?? "", playerReport: savedReview?.playerReport ?? "" };
           const updateReview = (patch: Partial<PlayerReview>) => setDraft(current => ({ ...current, player_reviews: [...current.player_reviews.filter(item => item.playerId !== player.id), { ...review, ...patch }] }));
-          return <div key={player.id} className="grid gap-3 border-b border-borderSubtle bg-cardDeep p-3 last:border-b-0 md:grid-cols-[minmax(180px,1fr)_110px_2fr] md:items-center">
+          return <div key={player.id} className="grid gap-3 border-b border-borderSubtle bg-cardDeep p-3 last:border-b-0 md:grid-cols-[minmax(180px,1fr)_110px_2fr_2fr] md:items-center">
             <strong className="text-sm text-textBright">{player.jersey_number != null && <span className="mr-2 text-accent">{player.jersey_number}</span>}{player.first_name} {player.last_name}</strong>
             <label className="text-xs font-bold text-textSecondary">Punten / 10<input type="number" min={0} max={10} step={0.5} disabled={!editable} value={review.rating ?? ""} onChange={event => updateReview({ rating: event.target.value === "" ? null : Math.max(0, Math.min(10, Number(event.target.value))) })} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:opacity-70" /></label>
             <label className="text-xs font-bold text-textSecondary">Individueel verslag<textarea rows={2} disabled={!editable} value={review.report} onChange={event => updateReview({ report: event.target.value })} placeholder="Korte interne beoordeling…" className="mt-1 w-full resize-y rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary disabled:opacity-70" /></label>
+            <label className="text-xs font-bold text-textSecondary">Beoordeling voor speler<textarea rows={2} disabled={!editable} value={review.playerReport} onChange={event => updateReview({ playerReport: event.target.value })} placeholder="Feedback voor de speler…" className="mt-1 w-full resize-y rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary disabled:opacity-70" /></label>
           </div>;
         })}
       </div> : <Empty text="Nog geen spelers geselecteerd." />}
@@ -237,6 +241,7 @@ function GoalEditor({ goals, players, ownTeamSide, homeTeamName, awayTeamName, e
           {goal.minute !== null && <span className="text-sm text-textSecondary">{goal.minute}&apos;</span>}
           {scorer && <span className="text-sm text-textPrimary">Doelpunt: <strong>{scorer}</strong></span>}
           {assist && <span className="text-sm text-textSecondary">Assist: {assist}</span>}
+          {goal.description?.trim() && <p className="basis-full whitespace-pre-wrap text-sm text-textSecondary">{goal.description}</p>}
         </div>;
       })}</div>
     </div>;
@@ -284,6 +289,12 @@ function GoalEditor({ goals, players, ownTeamSide, homeTeamName, awayTeamName, e
                 players={players} editable={editable} allowNone
                 onChange={patch => update(goal.id, { assistType: patch.type as GoalEvent["assistType"], assistPlayerId: patch.playerId, assistName: patch.name })} />
             : <TextPerson label="Assist tegenstander" value={goal.assistName} editable={editable} onChange={assistName => update(goal.id, { assistType: assistName ? "custom" : "none", assistName })} />)}
+          <label className="text-xs font-bold text-textSecondary md:col-span-2">Extra info over het doelpunt
+            <textarea rows={2} value={goal.description ?? ""} disabled={!editable}
+              onChange={event => update(goal.id, { description: event.target.value })}
+              placeholder="Bijvoorbeeld: opbouw, voorzet, afwerking of andere context…"
+              className="mt-1 w-full resize-y rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary disabled:opacity-70" />
+          </label>
         </div>
       </article>;
     })}</div>

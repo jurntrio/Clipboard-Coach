@@ -44,7 +44,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const playerReviews = canEditDossier && Array.isArray(body.player_reviews) ? body.player_reviews.slice(0, 40).flatMap((review: any) => {
     if (typeof review?.playerId !== "string") return [];
     const rating = review.rating === null ? null : Number(review.rating);
-    return [{ playerId: review.playerId.slice(0, 100), rating: rating !== null && Number.isFinite(rating) ? Math.max(0, Math.min(10, rating)) : null, report: typeof review.report === "string" ? review.report.trim().slice(0, 2000) : "" }];
+    return [{ playerId: review.playerId.slice(0, 100), rating: rating !== null && Number.isFinite(rating) ? Math.max(0, Math.min(10, rating)) : null, report: typeof review.report === "string" ? review.report.trim().slice(0, 2000) : "", playerReport: typeof review.playerReport === "string" ? review.playerReport.trim().slice(0, 2000) : "" }];
   }) : [];
   const [{ data: guestPlayers }, { data: teamPlayers }] = canEditDossier ? await Promise.all([
     admin.from("match_guest_players").select("id").eq("match_id", match.id),
