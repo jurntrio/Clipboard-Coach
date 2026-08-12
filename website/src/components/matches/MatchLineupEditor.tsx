@@ -126,7 +126,7 @@ export function MatchLineupEditor({ players, blocks, editable, onChange }: {
               </div>
               {player ? <button type="button" draggable={editable} disabled={!editable} onDragStart={event => { setDraggingPlayerId(player.id); event.dataTransfer.setData("text/player-id", player.id); }} onDragEnd={() => setDraggingPlayerId("")}
                 onDoubleClick={() => editable && removePlayer(player.id)} className={`absolute inset-0 h-full w-full ${editable ? "cursor-grab active:cursor-grabbing" : "cursor-default"}`} aria-label={`${playerName(player)} op ${slot.label}`} /> : null}
-              <span className={`pointer-events-none absolute left-1/2 top-full z-20 mt-0.5 -translate-x-1/2 whitespace-nowrap rounded px-1 py-0.5 text-[8px] font-bold ${player ? "bg-black/75 text-white" : "bg-white/55 text-emerald-950"}`}>{player ? playerName(player) : slot.short}</span>
+              {player && <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-0.5 -translate-x-1/2 whitespace-nowrap rounded bg-black/75 px-1 py-0.5 text-[8px] font-bold text-white">{playerName(player)}</span>}
             </div>;
           })}
         </div>

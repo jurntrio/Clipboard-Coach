@@ -9,7 +9,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
-  const { data: match } = await admin.from("matches").select("id, coach_id, club_id, club_team_id").eq("id", params.id).maybeSingle();
+  const { data: match } = await admin.from("matches").select("id, coach_id, club_id, club_team_id, match_date, status").eq("id", params.id).maybeSingle();
   if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
   if (match.club_id) {
     const access = await getClubAccess(match.club_id, user);
@@ -17,6 +17,11 @@ export async function POST(_request: Request, { params }: { params: { id: string
       return NextResponse.json({ error: "Geen recht om voor deze wedstrijd een taglink te maken." }, { status: 403 });
     }
   } else if (match.coach_id !== user.id) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+
+  const today = new Date().toISOString().slice(0, 10);
+  if (match.status === "finished" || match.match_date && match.match_date < today) {
+    return NextResponse.json({ error: "Voor een afgelopen wedstrijd kan geen taglink meer worden gemaakt." }, { status: 409 });
+  }
 
   const { data: existing } = await admin
     .from("match_tag_links")

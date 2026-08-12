@@ -140,7 +140,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     <div className="flex flex-wrap items-center justify-between gap-3">
       <Link href="/dashboard" className="text-sm font-semibold text-accent hover:underline">← Terug naar dashboard</Link>
       <div className="flex flex-wrap gap-2">
-        {canCreateTagLink && match.status !== "finished" && <MatchTagLinkButton matchId={match.id} />}
+        {canCreateTagLink && !played && <MatchTagLinkButton matchId={match.id} />}
         {canEditAnything && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : "Wedstrijd bewerken"}</Link>}
         {canViewVideo && !!videoCount && <Link href={`/dashboard/matches/${match.id}`} className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page">Open videoviewer</Link>}
       </div>
@@ -149,7 +149,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     <header className="rounded-2xl border border-border bg-card p-5 sm:p-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Wedstrijd</p>
-        <span className="rounded-full bg-accentDim px-3 py-1 text-xs font-bold text-accent">{match.status === "finished" ? "Afgewerkt" : played ? "Niet afgewerkt" : "Gepland"}</span>
+        <span className="rounded-full bg-accentDim px-3 py-1 text-xs font-bold text-accent">{played ? "Afgewerkt" : "Gepland"}</span>
       </div>
       <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
         <h1 className="text-xl font-black text-textBright sm:text-3xl">{homeTeamName}</h1>

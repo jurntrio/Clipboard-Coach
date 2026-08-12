@@ -165,8 +165,12 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
           return <div key={player.id} className="grid gap-3 border-b border-borderSubtle bg-cardDeep p-3 last:border-b-0 md:grid-cols-[minmax(180px,1fr)_110px_2fr_2fr] md:items-center">
             <strong className="text-sm text-textBright">{player.jersey_number != null && <span className="mr-2 text-accent">{player.jersey_number}</span>}{player.first_name} {player.last_name}</strong>
             <label className="text-xs font-bold text-textSecondary">Punten / 10<input type="number" min={0} max={10} step={0.5} disabled={!editable} value={review.rating ?? ""} onChange={event => updateReview({ rating: event.target.value === "" ? null : Math.max(0, Math.min(10, Number(event.target.value))) })} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:opacity-70" /></label>
-            <label className="text-xs font-bold text-textSecondary">Individueel verslag<textarea rows={2} disabled={!editable} value={review.report} onChange={event => updateReview({ report: event.target.value })} placeholder="Korte interne beoordeling…" className="mt-1 w-full resize-y rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary disabled:opacity-70" /></label>
-            <label className="text-xs font-bold text-textSecondary">Beoordeling voor speler<textarea rows={2} disabled={!editable} value={review.playerReport} onChange={event => updateReview({ playerReport: event.target.value })} placeholder="Feedback voor de speler…" className="mt-1 w-full resize-y rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary disabled:opacity-70" /></label>
+            {editable
+              ? <label className="text-xs font-bold text-textSecondary">Individueel verslag<textarea rows={3} value={review.report} onChange={event => updateReview({ report: event.target.value })} placeholder="Korte interne beoordeling…" className="mt-1 w-full resize-y rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary" /></label>
+              : <ReviewText label="Individueel verslag" value={review.report} />}
+            {editable
+              ? <label className="text-xs font-bold text-textSecondary">Beoordeling voor speler<textarea rows={3} value={review.playerReport} onChange={event => updateReview({ playerReport: event.target.value })} placeholder="Feedback voor de speler…" className="mt-1 w-full resize-y rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary" /></label>
+              : <ReviewText label="Beoordeling voor speler" value={review.playerReport} />}
           </div>;
         })}
       </div> : <Empty text="Nog geen spelers geselecteerd." />}
@@ -199,6 +203,13 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
       </button>}
     </div>}
   </section>;
+}
+
+function ReviewText({ label, value }: { label: string; value: string }) {
+  return <div className="self-stretch text-xs font-bold text-textSecondary">
+    <span>{label}</span>
+    <p className="mt-1 whitespace-pre-wrap rounded-lg border border-borderSubtle bg-card px-3 py-2 text-sm font-normal leading-relaxed text-textPrimary">{value.trim() || "—"}</p>
+  </div>;
 }
 
 function newGoal(id: string): GoalEvent {
