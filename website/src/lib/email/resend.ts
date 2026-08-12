@@ -131,7 +131,7 @@ function notificationHtml(params: MailboxNotification) {
 }
 
 function actionButton(url: string, label: string) {
-  return `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:24px 0;"><tr><td style="border-radius:9px;background:#15983d;">
+  return `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:24px auto;"><tr><td style="border-radius:9px;background:#15983d;">
     <a href="${url}" style="display:inline-block;padding:13px 20px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;">${label}</a>
   </td></tr></table>`;
 }

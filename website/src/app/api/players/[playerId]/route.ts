@@ -66,5 +66,23 @@ export async function PATCH(request: Request, { params }: { params: { playerId: 
   };
   const { error } = await ctx.admin.from("players").update(update).eq("id", params.playerId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // A player can belong to multiple teams through one club-wide identity. The
+  // operational `players` rows are team-specific, so keep the goalkeeper flag
+  // aligned across every membership of that identity.
+  if (ctx.canManageGoalkeeper && typeof body.isGoalkeeper === "boolean" && ctx.player.membership_id) {
+    const { data: membership } = await ctx.admin.from("player_team_memberships")
+      .select("club_player_id").eq("id", ctx.player.membership_id).maybeSingle();
+    if (membership?.club_player_id) {
+      const { data: memberships } = await ctx.admin.from("player_team_memberships")
+        .select("id").eq("club_player_id", membership.club_player_id);
+      const membershipIds = (memberships ?? []).map((item) => item.id);
+      if (membershipIds.length) {
+        const { error: goalkeeperError } = await ctx.admin.from("players")
+          .update({ is_goalkeeper: body.isGoalkeeper }).in("membership_id", membershipIds);
+        if (goalkeeperError) return NextResponse.json({ error: goalkeeperError.message }, { status: 400 });
+      }
+    }
+  }
   return NextResponse.json({ ok: true });
 }

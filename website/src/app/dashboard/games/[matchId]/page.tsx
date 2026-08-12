@@ -12,6 +12,7 @@ import { MatchCoreInfoEditor } from "@/components/matches/MatchCoreInfoEditor";
 
 type GuardianPlayer = { player_id: string; team_id: string | null };
 type PlayerFacingReview = { playerId?: unknown; playerReport?: unknown };
+type ScoreGoal = { team?: "home" | "away"; scoreAfter?: string; minute?: number | null; scorerType?: string; scorerPlayerId?: string; scorerName?: string; assistType?: string; assistPlayerId?: string; assistName?: string };
 
 function displayDate(value: string | null) {
   if (!value) return "Nog niet bepaald";
@@ -159,6 +160,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
         <h2 className="text-xl font-black text-textBright sm:text-3xl">{awayTeamName}</h2>
       </div>
       <p className="mt-5 text-center text-sm text-textMuted">{displayDate(match.match_date)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p>
+      {canViewReport && dossier?.goal_events?.length > 0 && <ScoreTimeline goals={dossier.goal_events as ScoreGoal[]} players={reportPlayers} />}
       {match.completed_at && <p className="mt-3 text-center text-xs font-semibold text-accent">
         Wedstrijd afgewerkt door {completedByProfile?.full_name?.trim() || completedByProfile?.email?.split("@")[0] || "onbekend"} · {new Date(match.completed_at).toLocaleString("nl-BE")}
       </p>}
@@ -234,6 +236,24 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       </div>}
     </section>}
   </main>;
+}
+
+function ScoreTimeline({ goals, players }: { goals: ScoreGoal[]; players: Array<{ id: string; first_name: string; last_name: string }> }) {
+  const playerName = (id?: string) => { const player = players.find(item => item.id === id); return player ? `${player.first_name} ${player.last_name}`.trim() : ""; };
+  const person = (type?: string, playerId?: string, name?: string, assist = false) => type === "player" ? playerName(playerId) : type === "own_goal" ? (assist ? "Via tegenstander" : "Owngoal") : type === "custom" ? name?.trim() ?? "" : "";
+  let previous = { home: 0, away: 0 };
+  const rows = goals.flatMap((goal, index) => {
+    const score = goal.scoreAfter?.match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
+    if (!score) return [];
+    const current = { home: Number(score[1]), away: Number(score[2]) };
+    const side = current.home === previous.home + 1 && current.away === previous.away ? "home" : current.away === previous.away + 1 && current.home === previous.home ? "away" : goal.team;
+    previous = current;
+    if (!side) return [];
+    return [{ goal, index, side, score: `${current.home}–${current.away}`, scorer: person(goal.scorerType, goal.scorerPlayerId, goal.scorerName), assist: person(goal.assistType, goal.assistPlayerId, goal.assistName, true) }];
+  });
+  if (!rows.length) return null;
+  const detail = (row: typeof rows[number]) => <span className="text-sm text-textPrimary"><strong>{row.goal.minute !== null && row.goal.minute !== undefined ? `${row.goal.minute}' · ` : ""}{row.scorer || "Doelpunt"}</strong>{row.assist && <span className="text-textMuted"> ({row.assist})</span>}</span>;
+  return <section className="mx-auto mt-6 max-w-3xl border-t border-borderSubtle pt-5" aria-label="Scoreverloop"><h3 className="mb-3 text-center text-xs font-black uppercase tracking-[0.14em] text-textMuted">Scoreverloop</h3><div className="space-y-2">{rows.map(row => <div key={`${row.score}-${row.index}`} className="grid grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] items-center gap-2"><div className="flex min-w-0 items-center justify-end gap-2 text-right">{row.side === "home" && <>{detail(row)}<span aria-hidden="true" className="text-base">⚽</span></>}</div><strong className="rounded-lg bg-cardDeep px-2 py-1 text-center text-sm text-textBright">{row.score}</strong><div className="flex min-w-0 items-center gap-2 text-left">{row.side === "away" && <><span aria-hidden="true" className="text-base">⚽</span>{detail(row)}</>}</div></div>)}</div></section>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TrainingStatistics, type TrainingStatistic } from "@/components/training/TrainingStatistics";
 import { TeamContextPanel } from "@/components/teams/TeamContextPanel";
@@ -11,35 +12,38 @@ import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/messages";
 import type { Match, Player, Team } from "@/types/database";
 
-type Tab = "overview" | "staff" | "matches" | "training" | "evaluations";
-type TrainingView = "upcoming" | "past" | "statistics";
-type StaffMember = { id: string; full_name: string; role: string };
+type Tab = "overview" | "staff" | "matches" | "training" | "evaluations" | "statistics";
+type StaffMember = { id: string; user_id: string; full_name: string; role: string };
 type PlayerContact = { id: string; full_name: string; email: string | null; phone_number: string | null };
 type DetailedPlayer = Player & { contacts?: PlayerContact[]; can_manage?: boolean };
 type TeamDetail = Team & { players: DetailedPlayer[]; linked_staff?: StaffMember[] };
 type Training = { id: string; training_date: string; start_time: string; field_option_id: string | null; locker_room_option_id: string | null };
 type TrainingData = { trainings: Training[]; optionNames: Record<string, string> };
+type MatchStatistic = { playerId: string; playerName: string; appearances: number; goals: number; assists: number };
+type StatisticsData = { training: TrainingStatistic[]; matches: MatchStatistic[] };
 
 export default function TeamDetailPage() {
   const { teamId: initialTeamId } = useParams<{ teamId: string }>();
+  const searchParams = useSearchParams();
   const { t, locale } = useI18n();
   const [teamId, setTeamId] = useState(initialTeamId);
-  const [tab, setTab] = useState<Tab>("overview");
-  const [trainingView, setTrainingView] = useState<TrainingView>("upcoming");
+  const requestedTab = searchParams.get("tab");
+  const [tab, setTab] = useState<Tab>(isTab(requestedTab) ? requestedTab : "overview");
   const [team, setTeam] = useState<TeamDetail | null>(null);
   const [teamOptions, setTeamOptions] = useState<Team[]>([]);
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [trainings, setTrainings] = useState<Training[] | null>(null);
   const [optionNames, setOptionNames] = useState<Record<string, string>>({});
   const [statistics, setStatistics] = useState<TrainingStatistic[] | null>(null);
+  const [matchStatistics, setMatchStatistics] = useState<MatchStatistic[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingSection, setLoadingSection] = useState<"matches" | "training" | null>(null);
   const overview = useKeyedFetch<TeamDetail>();
+  const details = useKeyedFetch<TeamDetail>();
   const matchesSection = useKeyedFetch<Match[]>();
   const trainingSection = useKeyedFetch<TrainingData>();
-  const statisticsSection = useKeyedFetch<TrainingStatistic[]>();
+  const statisticsSection = useKeyedFetch<StatisticsData>();
   const activeTeamId = useRef(initialTeamId);
-  const overviewPrefetchStarted = useRef(false);
   const sectionRequests = useRef(new Map<string, Promise<void>>());
 
   useEffect(() => {
@@ -60,6 +64,17 @@ export default function TeamDetailPage() {
   }, [teamId]);
 
   useEffect(() => {
+    if (!team) return;
+    const timer = window.setTimeout(() => {
+      void details.fetchKeyed(teamId, `/api/teams/${teamId}?section=details`, (body: { team: TeamDetail }) => body.team).then(result => {
+        if (result && activeTeamId.current === teamId) setTeam(result);
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId, team?.id]);
+
+  useEffect(() => {
     void fetch("/api/teams?all=true", { cache: "no-store" }).then(async response => {
       if (!response.ok) return;
       const body = await response.json() as { teams?: Team[] };
@@ -68,26 +83,19 @@ export default function TeamDetailPage() {
   }, []);
 
   useEffect(() => {
-    if (overviewPrefetchStarted.current || teamOptions.length === 0) return;
-    overviewPrefetchStarted.current = true;
-    const teamsToPrefetch = teamOptions.filter(option => option.id !== initialTeamId).slice(0, 4);
-    void Promise.all(teamsToPrefetch.map(option => overview.fetchKeyed(option.id, `/api/teams/${option.id}`, (body: { team: TeamDetail }) => body.team)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialTeamId, teamOptions]);
-
-  useEffect(() => {
     if (tab === "matches" && matches === null) {
       setLoadingSection("matches");
       void preloadTeamSections(teamId).finally(() => {
         if (activeTeamId.current === teamId) setLoadingSection(null);
       });
     }
-    if (tab === "training" && trainings === null) {
+    if ((tab === "training" || tab === "statistics") && trainings === null) {
       setLoadingSection("training");
       void preloadTeamSections(teamId).finally(() => {
         if (activeTeamId.current === teamId) setLoadingSection(null);
       });
     }
+    if (tab === "statistics" && (matches === null || statistics === null)) void preloadTeamSections(teamId);
   }, [matches, tab, teamId, trainings]);
 
   const players = useMemo(() => (team?.players ?? []).filter((player) => player.role !== "staff").sort(sortPeople), [team]);
@@ -95,12 +103,15 @@ export default function TeamDetailPage() {
   const today = new Date().toISOString().slice(0, 10);
   const upcomingTrainings = useMemo(() => [...(trainings ?? [])].filter((item) => item.training_date >= today).sort(sortTrainingsAscending), [trainings, today]);
   const pastTrainings = useMemo(() => [...(trainings ?? [])].filter((item) => item.training_date < today).sort(sortTrainingsDescending), [trainings, today]);
+  const upcomingMatches = useMemo(() => [...(matches ?? [])].filter((item) => (item.match_date ?? "") >= today).sort(sortMatchesAscending), [matches, today]);
+  const pastMatches = useMemo(() => [...(matches ?? [])].filter((item) => (item.match_date ?? "") < today).sort(sortMatchesDescending), [matches, today]);
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: t("team.overview") },
     { id: "staff", label: t("team.staffTab") },
     { id: "matches", label: t("common.matches") },
     { id: "training", label: t("team.trainings") },
-    { id: "evaluations", label: t("team.evaluations") }
+    { id: "evaluations", label: t("team.evaluations") },
+    { id: "statistics", label: "Statistieken" }
   ];
 
   function openTeam(option: Team) {
@@ -116,11 +127,11 @@ export default function TeamDetailPage() {
     setMatches(cachedMatches);
     setTrainings(cachedTraining?.trainings ?? null);
     setOptionNames(cachedTraining?.optionNames ?? {});
-    setStatistics(cachedStatistics);
+    setStatistics(cachedStatistics?.training ?? null);
+    setMatchStatistics(cachedStatistics?.matches ?? null);
     setLoadingSection(null);
     setTab("overview");
     setTeamId(option.id);
-    void preloadTeamSections(option.id);
   }
 
   function selectClubTeam(clubTeamId: string | null) {
@@ -138,8 +149,8 @@ export default function TeamDetailPage() {
         trainings: body.trainings ?? [],
         optionNames: Object.fromEntries((body.training_options ?? []).map(option => [option.id, option.label]))
       })).then((result) => { if (result && activeTeamId.current === selectedTeamId) { setTrainings(result.trainings); setOptionNames(result.optionNames); } }),
-      statisticsSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=statistics`, (body: { statistics: TrainingStatistic[] }) => body.statistics ?? [])
-        .then((result) => { if (result && activeTeamId.current === selectedTeamId) setStatistics(result); })
+      statisticsSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=statistics`, (body: { statistics: TrainingStatistic[]; match_statistics: MatchStatistic[] }) => ({ training: body.statistics ?? [], matches: body.match_statistics ?? [] }))
+        .then((result) => { if (result && activeTeamId.current === selectedTeamId) { setStatistics(result.training); setMatchStatistics(result.matches); } })
     ]).then(() => undefined).finally(() => sectionRequests.current.delete(selectedTeamId));
     sectionRequests.current.set(selectedTeamId, request);
     return request;
@@ -163,23 +174,22 @@ export default function TeamDetailPage() {
 
     {tab === "overview" && <section><h2 className="mb-3 text-lg font-bold text-textBright">{t("team.players", { count: players.length })}</h2>{players.length ? <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full min-w-[1020px] table-fixed border-collapse text-left text-sm"><colgroup><col className="w-[15%]" /><col className="w-[10%]" /><col className="w-[13%]" /><col className="w-[13%]" /><col className="w-[13%]" /><col className="w-[20%]" /><col className="w-[16%]" /></colgroup><thead className="bg-accent text-[11px] uppercase tracking-wide text-page"><tr><th className="px-3 py-2">{t("team.lastName")}</th><th className="px-3 py-2">{t("team.firstName")}</th><th className="px-3 py-2 text-center">{t("team.birthDate")}</th><th className="px-3 py-2 text-center">{t("team.phoneContact1")}</th><th className="px-3 py-2 text-center">{t("team.phoneContact2")}</th><th className="px-3 py-2">{t("team.emailContact1")}</th><th className="px-3 py-2">{t("team.emailContact2")}</th></tr></thead><tbody className="divide-y divide-borderSubtle">{players.map((player) => { const [contact1, contact2] = contactsForPlayer(player); return <tr key={player.id} className="bg-card hover:bg-cardHover"><td className="px-3 py-2 font-semibold"><Link href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.last_name || "–"}</Link>{player.is_goalkeeper && <span className="ml-2 rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-300">{t("team.goalkeeper")}</span>}</td><td className="px-3 py-2"><Link href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.first_name || "–"}</Link></td><td className="whitespace-nowrap px-3 py-2 text-center text-textSecondary">{player.date_of_birth ? new Date(`${player.date_of_birth}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB") : "–"}</td><td title={contact1?.full_name} className="px-3 py-2 text-center text-textSecondary">{contact1?.phone_number || "–"}</td><td title={contact2?.full_name} className="px-3 py-2 text-center text-textSecondary">{contact2?.phone_number || "–"}</td><td title={contact1?.full_name} className="px-3 py-2 text-textSecondary">{contact1?.email || "–"}</td><td title={contact2?.full_name} className="px-3 py-2 text-textSecondary">{contact2?.email || "–"}</td></tr>; })}</tbody></table></div> : <Empty text={t("team.noPlayers")} />}</section>}
 
-    {tab === "staff" && <section><h2 className="mb-3 text-lg font-bold text-textBright">{t("team.staffTab")}</h2>{(team.linked_staff?.length || legacyStaff.length) ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{team.linked_staff?.map((member) => <StaffCard key={member.id} name={member.full_name} role={t(roleKey(member.role))} />)}{legacyStaff.map((member) => <StaffCard key={member.id} name={`${member.first_name} ${member.last_name}`.trim()} role={t("team.roleStaff")} />)}</div> : <Empty text={t("team.noStaff")} />}</section>}
+    {tab === "staff" && <section><h2 className="mb-3 text-lg font-bold text-textBright">{t("team.staffTab")}</h2>{(team.linked_staff?.length || legacyStaff.length) ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{team.linked_staff?.map((member) => <StaffCard key={member.id} href={`/dashboard/teams/staff/${member.user_id}`} name={member.full_name} role={t(roleKey(member.role))} />)}{legacyStaff.map((member) => <StaffCard key={member.id} name={`${member.first_name} ${member.last_name}`.trim()} role={t("team.roleStaff")} />)}</div> : <Empty text={t("team.noStaff")} />}</section>}
 
-    {tab === "matches" && <section><h2 className="mb-3 text-lg font-bold text-textBright">{t("team.matchesOf", { team: team.name })}</h2>{loadingSection === "matches" && <Loading text={t("team.loadingMatches")} />}{matches !== null && (matches.length ? <div className="space-y-3">{matches.map((match) => <div key={match.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4"><div><p className="font-bold text-textBright">{match.team_a_name} – {match.team_b_name}</p><p className="mt-1 text-sm text-textMuted">{formatDate(match.match_date, locale)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p></div>{match.score_a !== null && match.score_b !== null && <strong className="text-xl text-accent">{match.score_a} – {match.score_b}</strong>}</div>)}</div> : <Empty text={t("team.noMatches")} />)}</section>}
+    {tab === "matches" && <section><h2 className="mb-3 text-lg font-bold text-textBright">{t("team.matchesOf", { team: team.name })}</h2>{loadingSection === "matches" && <Loading text={t("team.loadingMatches")} />}{matches !== null && (matches.length ? <><nav className="mb-6 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label="Ga naar wedstrijdensectie"><a href="#komende-wedstrijden" className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Komende wedstrijden</a><a href="#afgelopen-wedstrijden" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Afgelopen wedstrijden</a></nav><MatchList id="komende-wedstrijden" title="Komende wedstrijden" matches={upcomingMatches} locale={locale} empty="Geen komende wedstrijden gepland." /><div className="mt-10"><MatchList id="afgelopen-wedstrijden" title="Afgelopen wedstrijden" matches={pastMatches} locale={locale} empty="Nog geen afgelopen wedstrijden in dit seizoen." /></div></> : <Empty text={t("team.noMatches")} />)}</section>}
 
     {tab === "training" && <section><h2 className="mb-3 text-lg font-bold text-textBright">{t("team.trainingsOf", { team: team.name })}</h2>
-      <nav className="mb-5 flex flex-wrap gap-6 border-b border-border" aria-label="Trainingen bekijken">
-        <button type="button" onClick={() => setTrainingView("upcoming")} className={`border-b-2 px-1 pb-3 text-sm font-bold ${trainingView === "upcoming" ? "border-accent text-textBright" : "border-transparent text-textMuted hover:text-textPrimary"}`}>Komende trainingen</button>
-        <button type="button" onClick={() => setTrainingView("past")} className={`border-b-2 px-1 pb-3 text-sm font-bold ${trainingView === "past" ? "border-accent text-textBright" : "border-transparent text-textMuted hover:text-textPrimary"}`}>Afgelopen trainingen</button>
-        <button type="button" onClick={() => setTrainingView("statistics")} className={`border-b-2 px-1 pb-3 text-sm font-bold ${trainingView === "statistics" ? "border-accent text-textBright" : "border-transparent text-textMuted hover:text-textPrimary"}`}>Statistieken</button>
-      </nav>
+      <nav className="mb-6 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label="Ga naar trainingensectie"><a href="#komende-trainingen" className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Komende trainingen</a><a href="#afgelopen-trainingen" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Afgelopen trainingen</a><Link href="/dashboard/training/new" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Losse training maken</Link><Link href="/dashboard/intradesk" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Open Intradesk</Link></nav>
       {loadingSection === "training" && <Loading text={t("team.loadingTrainings")} />}
-      {trainings !== null && trainingView === "upcoming" && <TrainingGroups title="" trainings={upcomingTrainings} locale={locale} optionNames={optionNames} t={t} empty={t("team.noUpcomingTrainings")} />}
-      {trainings !== null && trainingView === "past" && <TrainingGroups title="" trainings={pastTrainings} locale={locale} optionNames={optionNames} t={t} empty="Nog geen afgelopen trainingen." />}
-      {trainingView === "statistics" && (statistics ? <TrainingStatistics rows={statistics} /> : <Loading text="Statistieken laden…" />)}
+      {trainings !== null && <><div id="komende-trainingen" className="scroll-mt-6"><TrainingGroups title="Komende trainingen" trainings={upcomingTrainings} locale={locale} optionNames={optionNames} t={t} empty={t("team.noUpcomingTrainings")} /></div><div id="afgelopen-trainingen" className="mt-10 scroll-mt-6"><TrainingGroups title="Afgelopen trainingen" trainings={pastTrainings} locale={locale} optionNames={optionNames} t={t} empty="Nog geen afgelopen trainingen in dit seizoen." /></div></>}
     </section>}
 
     {tab === "evaluations" && <Empty text={t("team.evaluationsComingSoon")} />}
+    {tab === "statistics" && <section>
+      <nav className="mb-6 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label="Ga naar statistiekensectie"><a href="#wedstrijdstatistieken" className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Wedstrijdstatistieken</a><a href="#trainingsstatistieken" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Trainingsstatistieken</a></nav>
+      <div id="wedstrijdstatistieken" className="scroll-mt-6"><h2 className="mb-3 text-lg font-bold text-textBright">Wedstrijdstatistieken</h2>{matchStatistics === null ? <Loading text="Wedstrijdstatistieken laden…" /> : <MatchStatistics rows={matchStatistics} />}</div>
+      <div id="trainingsstatistieken" className="mt-10 scroll-mt-6"><h2 className="mb-3 text-lg font-bold text-textBright">Trainingsstatistieken</h2>{statistics ? <TrainingStatistics rows={statistics} /> : <Loading text="Trainingsstatistieken laden…" />}</div>
+    </section>}
   </div>;
 }
 
@@ -195,7 +205,9 @@ function TrainingGroups({ title, trainings, locale, optionNames, t, empty }: { t
   }, new Map<string, { key: string; monday: string; sunday: string; trainings: Training[] }>());
   return <section><h3 className="mb-3 text-base font-bold text-textBright">{title}</h3>{groups.size ? <div className="space-y-4">{[...groups.values()].map((week) => <div key={week.key} className="overflow-hidden rounded-xl border border-border bg-card"><h4 className="border-b border-borderSubtle bg-cardDeep px-4 py-2 text-sm font-bold capitalize text-textSecondary">{t("team.weekOf", { start: formatShortDate(week.monday, locale), end: formatShortDate(week.sunday, locale) })}</h4><div className="divide-y divide-borderSubtle">{week.trainings.map((training) => <Link key={training.id} href={`/dashboard/training/${training.id}`} className="grid items-center gap-2 px-4 py-2.5 hover:bg-cardHover sm:grid-cols-[minmax(190px,1fr)_minmax(210px,1fr)_auto]"><p className="truncate text-sm font-semibold capitalize text-textBright">{formatCompactDate(training.training_date, locale)} · {training.start_time.slice(0, 5)}</p><p className="truncate text-sm text-textMuted">{t("team.field")}: {optionNames[training.field_option_id ?? ""] ?? "–"} · {t("team.lockerRoom")}: {optionNames[training.locker_room_option_id ?? ""] ?? "–"}</p><span className="text-sm font-semibold text-accent sm:text-right">{t("team.openTraining")} ›</span></Link>)}</div></div>)}</div> : empty ? <Empty text={empty} /> : null}</section>;
 }
-function StaffCard({ name, role }: { name: string; role: string }) { return <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4"><span className="grid h-11 w-11 flex-none place-items-center rounded-full bg-avatar font-bold text-accent">{name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span><span><strong className="block text-textBright">{name}</strong><small className="text-textMuted">{role}</small></span></div>; }
+function StaffCard({ name, role, href }: { name: string; role: string; href?: string }) { const content = <><span className="grid h-11 w-11 flex-none place-items-center rounded-full bg-avatar font-bold text-accent">{name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span><span><strong className="block text-textBright">{name}</strong><small className="text-textMuted">{role}</small></span></>; return href ? <Link href={href} className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition hover:border-accent hover:bg-cardHover">{content}</Link> : <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">{content}</div>; }
+function MatchList({ id, title, matches, locale, empty }: { id: string; title: string; matches: Match[]; locale: string; empty: string }) { return <section id={id} className="scroll-mt-6"><h3 className="mb-3 text-base font-bold text-textBright">{title}</h3>{matches.length ? <div className="space-y-3">{matches.map(match => <Link key={match.id} href={`/dashboard/games/${match.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 transition hover:border-accent hover:bg-cardHover"><div><p className="font-bold text-textBright">{match.team_a_name} – {match.team_b_name}</p><p className="mt-1 text-sm text-textMuted">{formatDate(match.match_date, locale)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p></div>{match.score_a !== null && match.score_b !== null && <strong className="text-xl text-accent">{match.score_a} – {match.score_b}</strong>}</Link>)}</div> : <Empty text={empty} />}</section>; }
+function MatchStatistics({ rows }: { rows: MatchStatistic[] }) { return <div className="overflow-hidden rounded-xl border border-border bg-card"><div className="border-b border-borderSubtle bg-cardDeep px-4 py-3"><p className="text-sm text-textMuted">Gebaseerd op opgeslagen wedstrijdselecties en geregistreerde doelpunten en assists.</p></div><div className="overflow-x-auto"><table className="w-full min-w-[620px] text-center text-sm"><thead className="border-b border-borderSubtle text-xs uppercase text-textMuted"><tr><th className="px-4 py-3 text-left">Speler</th><th className="px-4 py-3">Gespeeld</th><th className="px-4 py-3">Goals</th><th className="px-4 py-3">Assists</th></tr></thead><tbody className="divide-y divide-borderSubtle">{rows.map(row => <tr key={row.playerId}><td className="px-4 py-3 text-left font-semibold"><Link href={`/dashboard/teams/players/${row.playerId}`} className="text-textBright underline decoration-accent/50 underline-offset-4 hover:text-accent">{row.playerName}</Link></td><td className="px-4 py-3 text-textPrimary">{row.appearances}</td><td className="px-4 py-3 font-semibold text-accent">{row.goals}</td><td className="px-4 py-3 font-semibold text-accent">{row.assists}</td></tr>)}</tbody></table></div>{!rows.length && <p className="p-5 text-sm text-textMuted">Nog geen spelers voor deze ploeg.</p>}</div>; }
 function sortPeople(a: Player, b: Player) { return `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`); }
 function contactsForPlayer(player: DetailedPlayer): PlayerContact[] {
   if (player.contacts?.length) return player.contacts;
@@ -206,8 +218,11 @@ function contactsForPlayer(player: DetailedPlayer): PlayerContact[] {
 }
 function sortTrainingsAscending(a: Training, b: Training) { return `${a.training_date} ${a.start_time}`.localeCompare(`${b.training_date} ${b.start_time}`); }
 function sortTrainingsDescending(a: Training, b: Training) { return `${b.training_date} ${b.start_time}`.localeCompare(`${a.training_date} ${a.start_time}`); }
+function sortMatchesAscending(a: Match, b: Match) { return `${a.match_date ?? ""} ${a.start_time ?? ""}`.localeCompare(`${b.match_date ?? ""} ${b.start_time ?? ""}`); }
+function sortMatchesDescending(a: Match, b: Match) { return sortMatchesAscending(b, a); }
 function formatDate(date: string | null, locale: string) { return date ? new Date(`${date}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "–"; }
 function formatCompactDate(date: string, locale: string) { return new Date(`${date}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB", { weekday: "short", day: "numeric", month: "short" }); }
 function formatShortDate(date: string, locale: string) { return new Date(`${date}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB", { day: "numeric", month: "short" }); }
 function weekBounds(dateValue: string) { const date = new Date(`${dateValue}T12:00:00`); const offset = (date.getDay() + 6) % 7; const monday = new Date(date); monday.setDate(date.getDate() - offset); const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6); return { key: monday.toISOString().slice(0, 10), monday: monday.toISOString().slice(0, 10), sunday: sunday.toISOString().slice(0, 10) }; }
 function roleKey(role: string): "team.roleTrainer" | "team.roleAssistant" | "team.roleManager" | "team.roleCoordinator" | "team.roleYouthManager" | "team.roleTechnicalDirector" | "team.roleStaff" { if (role === "coach") return "team.roleTrainer"; if (role === "assistant_coach") return "team.roleAssistant"; if (role === "team_manager") return "team.roleManager"; if (role === "youth_coordinator") return "team.roleCoordinator"; if (role === "head_youth_development") return "team.roleYouthManager"; if (role === "technical_director") return "team.roleTechnicalDirector"; return "team.roleStaff"; }
+function isTab(value: string | null): value is Tab { return ["overview", "staff", "matches", "training", "evaluations", "statistics"].includes(value ?? ""); }

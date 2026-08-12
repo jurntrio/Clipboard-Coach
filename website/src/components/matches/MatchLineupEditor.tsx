@@ -119,18 +119,18 @@ export function MatchLineupEditor({ players, blocks, editable, onChange }: {
           {POSITION_SLOTS.map(slot => {
             const assignment = positions.find(position => slotFor(position).id === slot.id);
             const player = assignment ? players.find(item => item.id === assignment.playerId) : null;
-            return <div key={slot.id} className="absolute z-10 -translate-x-1/2 -translate-y-1/2" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} title={slot.label}>
-              <div className={`relative h-10 w-10 sm:h-12 sm:w-12 ${player ? "opacity-100" : "opacity-25"}`}>
-                <Image src={player?.is_goalkeeper ? GOALKEEPER_SHIRT_SRC : SHIRT_SRC} alt="" fill sizes="48px" className="object-contain" />
-                <span className="absolute inset-0 flex items-center justify-center pt-1 text-[10px] font-black text-white drop-shadow">{player ? player.jersey_number ?? "" : slot.short}</span>
-              </div>
+            return <div key={slot.id} className="absolute z-10 -translate-x-1/2 -translate-y-1/2" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} title={player ? slot.label : undefined}>
+              {player && <div className="relative h-10 w-10 opacity-100 sm:h-12 sm:w-12">
+                <Image src={player.is_goalkeeper ? GOALKEEPER_SHIRT_SRC : SHIRT_SRC} alt="" fill sizes="48px" className="object-contain" />
+                <span className="absolute inset-0 flex items-center justify-center pt-1 text-[10px] font-black text-white drop-shadow">{player.jersey_number ?? ""}</span>
+              </div>}
               {player ? <button type="button" draggable={editable} disabled={!editable} onDragStart={event => { setDraggingPlayerId(player.id); event.dataTransfer.setData("text/player-id", player.id); }} onDragEnd={() => setDraggingPlayerId("")}
                 onDoubleClick={() => editable && removePlayer(player.id)} className={`absolute inset-0 h-full w-full ${editable ? "cursor-grab active:cursor-grabbing" : "cursor-default"}`} aria-label={`${playerName(player)} op ${slot.label}`} /> : null}
               {player && <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-0.5 -translate-x-1/2 whitespace-nowrap rounded bg-black/75 px-1 py-0.5 text-[8px] font-bold text-white">{playerName(player)}</span>}
             </div>;
           })}
         </div>
-        <p className="mt-2 text-xs text-textMuted">Sleep een speler uit de lijst naar een transparante positie. Dubbelklik op een geplaatste speler om hem van het veld te halen.</p>
+        <p className="mt-2 text-xs text-textMuted">Sleep een speler uit de lijst naar de gewenste plaats op het veld. Dubbelklik op een geplaatste speler om hem van het veld te halen.</p>
       </div>
 
       <aside className="rounded-xl border border-borderSubtle bg-cardDeep p-3 lg:sticky lg:top-24">

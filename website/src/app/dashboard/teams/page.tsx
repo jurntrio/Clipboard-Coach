@@ -6,7 +6,7 @@ import { canAccessTeam, getClubAccess } from "@/lib/auth/club-access";
 import { resolveDefaultTeamId } from "@/lib/auth/default-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export default async function TeamsPage() {
+export default async function TeamsPage({ searchParams }: { searchParams?: { tab?: string } }) {
   const context = await getClubContext();
   if (!context.user) redirect("/login");
   if (!context.activeClubId) redirect("/dashboard");
@@ -27,8 +27,9 @@ export default async function TeamsPage() {
     ?? await resolveDefaultTeamId(admin, context.activeClubId, context.user.id, accessibleIds)
     ?? accessibleIds[0];
   const { data: team } = await admin.from("teams").select("id").eq("club_team_id", selectedClubTeamId).maybeSingle();
-  if (team?.id) redirect(`/dashboard/teams/${team.id}`);
+  const tab = ["matches", "training", "statistics", "staff", "evaluations"].includes(searchParams?.tab ?? "") ? `?tab=${searchParams!.tab}` : "";
+  if (team?.id) redirect(`/dashboard/teams/${team.id}${tab}`);
 
   const { data: fallback } = await admin.from("teams").select("id").in("club_team_id", accessibleIds).limit(1).maybeSingle();
-  redirect(fallback?.id ? `/dashboard/teams/${fallback.id}` : "/dashboard");
+  redirect(fallback?.id ? `/dashboard/teams/${fallback.id}${tab}` : "/dashboard");
 }

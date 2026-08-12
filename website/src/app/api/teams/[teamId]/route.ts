@@ -11,11 +11,11 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
 
   const admin = createAdminClient();
   const { data: team } = await admin.from("teams")
-    .select("*, players(*), club_teams(id, club_id, trainers_can_edit_roster)")
+    .select("*, players(*), club_teams(id, club_id, season_id, trainers_can_edit_roster)")
     .eq("id", params.teamId).maybeSingle();
   if (!team) return NextResponse.json({ error: "Team niet gevonden." }, { status: 404 });
 
-  const clubTeam = team.club_teams as unknown as { id: string; club_id: string; trainers_can_edit_roster: boolean } | null;
+  const clubTeam = team.club_teams as unknown as { id: string; club_id: string; season_id: string | null; trainers_can_edit_roster: boolean } | null;
   let allowed = team.coach_id === user.id;
   let access: Awaited<ReturnType<typeof getClubAccess>> | null = null;
   let canEditRoster = allowed;
@@ -34,12 +34,25 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
 
   const section = new URL(request.url).searchParams.get("section");
   if (section === "matches") {
+    const clubMatchesQuery = clubTeam
+      ? admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match, player_ids")
+          .eq("club_id", clubTeam.club_id).or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id},club_team_id.eq.${clubTeam.id}`)
+      : null;
     const { data: matches } = clubTeam
-      ? await admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match")
-          .eq("club_id", clubTeam.club_id).or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id},club_team_id.eq.${clubTeam.id}`).order("match_date", { ascending: false })
-      : await admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match")
+      ? await (clubTeam.season_id ? clubMatchesQuery!.eq("season_id", clubTeam.season_id) : clubMatchesQuery!).order("match_date", { ascending: false })
+      : await admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match, player_ids")
           .or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id}`).order("match_date", { ascending: false });
-    return NextResponse.json({ matches: matches ?? [] });
+    const normalized = (value: string | null) => (value ?? "").toLocaleLowerCase("nl-BE")
+      .replace(/\([^)]*\)/g, "").replace(/\bu\d{1,2}\b/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+    const uniqueMatches = new Map<string, (typeof matches extends Array<infer T> | null ? T : never)>();
+    for (const match of matches ?? []) {
+      const opponent = match.team_a_id === team.id || normalized(match.team_a_name) === normalized(team.name)
+        ? match.team_b_name : match.team_a_name;
+      const key = `${match.match_date ?? ""}|${match.start_time?.slice(0, 5) ?? ""}|${normalized(opponent)}`;
+      const existing = uniqueMatches.get(key);
+      if (!existing || (!existing.club_team_id && match.club_team_id)) uniqueMatches.set(key, match);
+    }
+    return NextResponse.json({ matches: [...uniqueMatches.values()] });
   }
 
   if (section === "training") {
@@ -62,8 +75,8 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
     const { data: attendance } = sessionIds.length
       ? await admin.from("team_training_attendance").select("training_session_id, player_id, attendance_status").in("training_session_id", sessionIds)
       : { data: [] };
-    const statistics = ((team.players ?? []) as Array<{ id: string; first_name: string; last_name: string; role: string }>)
-      .filter(player => player.role === "player")
+    const roster = ((team.players ?? []) as Array<{ id: string; first_name: string; last_name: string; role: string }>).filter(player => player.role === "player");
+    const statistics = roster
       .map(player => ({
         playerId: player.id,
         playerName: `${player.first_name} ${player.last_name}`.trim(),
@@ -74,13 +87,58 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
         missedTrainings: (attendance ?? []).filter(row => row.player_id === player.id && row.attendance_status === "absent").length,
         injuredTrainings: (attendance ?? []).filter(row => row.player_id === player.id && row.attendance_status === "injured").length
       }));
-    return NextResponse.json({ statistics });
+    const playerIds = roster.map(player => player.id);
+    const [{ data: teamMatches }, { data: events }] = await Promise.all([
+      admin.from("matches").select("id, player_ids, match_dossiers(goal_events)").eq("club_team_id", clubTeam.id),
+      playerIds.length ? admin.from("player_stat_events").select("match_id, player_id, stat_type").in("player_id", playerIds) : Promise.resolve({ data: [] })
+    ]);
+    type DossierGoal = { scorerType?: string; scorerPlayerId?: string; assistType?: string; assistPlayerId?: string };
+    const dossierGoalsByMatch = new Map<string, DossierGoal[]>();
+    for (const match of teamMatches ?? []) {
+      const rawDossier = Array.isArray(match.match_dossiers) ? match.match_dossiers[0] : match.match_dossiers;
+      const goals = rawDossier && Array.isArray(rawDossier.goal_events) ? rawDossier.goal_events as DossierGoal[] : [];
+      dossierGoalsByMatch.set(match.id, goals);
+    }
+    const dossierOwnsStat = (matchId: string, statType: "goal" | "assist") => (dossierGoalsByMatch.get(matchId) ?? []).some(goal =>
+      statType === "goal" ? goal.scorerType === "player" && !!goal.scorerPlayerId : goal.assistType === "player" && !!goal.assistPlayerId);
+    const matchStatistics = roster.map(player => ({
+      playerId: player.id,
+      playerName: `${player.first_name} ${player.last_name}`.trim(),
+      appearances: (teamMatches ?? []).filter(match => (match.player_ids ?? []).includes(player.id)).length,
+      goals: [...dossierGoalsByMatch.values()].flat().filter(goal => goal.scorerType === "player" && goal.scorerPlayerId === player.id).length
+        + (events ?? []).filter(event => event.player_id === player.id && event.stat_type === "goal" && !dossierOwnsStat(event.match_id, "goal")).length,
+      assists: [...dossierGoalsByMatch.values()].flat().filter(goal => goal.assistType === "player" && goal.assistPlayerId === player.id).length
+        + (events ?? []).filter(event => event.player_id === player.id && event.stat_type === "assist" && !dossierOwnsStat(event.match_id, "assist")).length
+    }));
+    return NextResponse.json({ statistics, match_statistics: matchStatistics });
   }
 
   const allPlayers = (team.players ?? []) as Array<Record<string, unknown> & { id: string }>;
   const privatePlayers = access?.goalkeeperPlayerIds === null || !access
     ? allPlayers
     : allPlayers.filter((player) => canManagePlayer(access!, player.id));
+  const privatePlayerIds = new Set(privatePlayers.map(player => player.id));
+  const fastPlayers = allPlayers.map(player => privatePlayerIds.has(player.id) ? { ...player, contacts: [], can_manage: canEditRoster } : {
+    id: player.id,
+    team_id: player.team_id,
+    first_name: player.first_name,
+    last_name: player.last_name,
+    initials: player.initials,
+    position: player.position,
+    jersey_number: player.jersey_number,
+    role: player.role,
+    is_goalkeeper: player.is_goalkeeper,
+    email: null,
+    date_of_birth: null,
+    phone_numbers: [],
+    membership_id: null,
+    created_at: player.created_at,
+    contacts: [],
+    can_manage: false
+  });
+  if (section !== "details") {
+    return NextResponse.json({ team: { ...team, players: fastPlayers, linked_staff: [], details_loaded: false } });
+  }
   const [enrichedPrivate] = await addPlayerContacts(admin, [{ ...team, players: privatePlayers }]);
   const privateById = new Map(((enrichedPrivate.players ?? []) as Array<Record<string, unknown> & { id: string }>).map((player) => [player.id, player]));
   const visiblePlayers = allPlayers.map((player) => {

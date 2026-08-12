@@ -29,8 +29,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const iconRoot = "/branding/cbcs_black_icons";
   const navigation = [];
   if (access && hasClubPermission(access, "teams.view") && moduleOn("teams")) navigation.push({ href: "/dashboard/teams", label: "Teams en spelers", icon: `${iconRoot}/teams.png`, primary: true });
-  if (access && hasClubPermission(access, "games.view") && moduleOn("matches")) navigation.push({ href: "/dashboard/clips", label: "Wedstrijden", icon: `${iconRoot}/wedstrijden.png`, primary: true });
-  if (access && hasClubPermission(access, "training.view") && moduleOn("training")) navigation.push({ href: "/dashboard/training", label: "Trainingen", icon: `${iconRoot}/trainingen.png`, primary: true });
+  if (access && hasClubPermission(access, "games.view") && moduleOn("matches")) navigation.push({ href: "/dashboard/teams?tab=matches", label: "Wedstrijden", icon: `${iconRoot}/wedstrijden.png`, primary: true });
+  if (access && hasClubPermission(access, "training.view") && moduleOn("training")) navigation.push({ href: "/dashboard/teams?tab=training", label: "Trainingen", icon: `${iconRoot}/trainingen.png`, primary: true });
   if (access && hasClubPermission(access, "intradesk.view") && moduleOn("intradesk")) navigation.push({ href: "/dashboard/intradesk", label: "Intradesk", icon: `${iconRoot}/intradesk.png`, primary: true });
   if (access && hasClubPermission(access, "games.scouting.view") && moduleOn("matches")) navigation.push({ href: "/dashboard/scouting", label: "Scouting", icon: `${iconRoot}/scouting.png`, primary: true });
   if (access && (["club_admin", "club_admin_viewer", "platform_admin"].includes(access.role) || access.functionRole === "equipment_manager")) navigation.push({ href: "/dashboard/equipment", label: "Materiaal", icon: `${iconRoot}/materiaal.png`, primary: true });
