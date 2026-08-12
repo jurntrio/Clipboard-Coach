@@ -48,9 +48,8 @@ export async function GET(request: Request, { params }: { params: { playerId: st
     .select("id, profile_id, access_scope, valid_from, valid_until, revoked_at, created_at, profiles(email, full_name)")
     .order("created_at", { ascending: true });
   const inviteQuery = admin.from("player_invites")
-    .select("id, token, contact_label, contact_phone, contact_email, created_at, expires_at")
-    .is("used_at", null).gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: true });
+    .select("id, contact_label, contact_phone, contact_email, created_at, expires_at, sent_at, delivery_error, used_at, used_by")
+    .order("created_at", { ascending: false });
 
   const { data: guardians } = scope.clubPlayerId
     ? await guardianQuery.eq("club_player_id", scope.clubPlayerId)
@@ -59,7 +58,7 @@ export async function GET(request: Request, { params }: { params: { playerId: st
     ? await inviteQuery.eq("club_player_id", scope.clubPlayerId)
     : await inviteQuery.eq("player_id", scope.playerId);
 
-  return NextResponse.json({ guardians: guardians ?? [], pendingInvites: invites ?? [] });
+  return NextResponse.json({ guardians: guardians ?? [], invites: invites ?? [] });
 }
 
 export async function PATCH(request: Request, { params }: { params: { playerId: string } }) {

@@ -422,7 +422,7 @@ function createWindow() {
     height: 760,
     minWidth: 900,
     minHeight: 620,
-    icon: path.join(__dirname, "../assets/branding/logo.ico"),
+    icon: path.join(__dirname, "../assets/branding/svs-app.ico"),
     backgroundColor: "#f7f7f4",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

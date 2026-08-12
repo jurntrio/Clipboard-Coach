@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 
 type Player = { id: string; first_name: string; last_name: string };
 type Reason = { id: string; label: string };
@@ -60,7 +61,7 @@ export function TrainingAttendanceList({ sessionId, players, reasons, initial, e
     {!!players.length && <div className="mt-4 divide-y divide-borderSubtle overflow-hidden rounded-xl border border-borderSubtle bg-cardDeep">{players.map(player => {
       const row = rows[player.id];
       return <div key={player.id} className="grid gap-2 px-3 py-2.5 md:grid-cols-[1fr_150px_220px] md:items-center">
-        <strong className="text-sm text-textPrimary">{player.first_name} {player.last_name}</strong>
+        <Link href={`/dashboard/teams/players/${player.id}`} className="text-sm font-bold text-textPrimary underline decoration-accent/50 underline-offset-4 hover:text-accent">{player.first_name} {player.last_name}</Link>
         {editable ? <select disabled={busy === player.id} value={row.attendance_status} onChange={event => void save(player.id, { attendance_status: event.target.value as Attendance["attendance_status"], absence_reason_id: event.target.value === "absent" ? row.absence_reason_id : null })} className={inputClass}>
             <option value="present">Aanwezig</option><option value="absent">Afwezig</option>
           </select> : <strong className={row.attendance_status === "absent" ? "text-red-300" : "text-accent"}>{row.attendance_status === "absent" ? "Afwezig" : "Aanwezig"}</strong>}

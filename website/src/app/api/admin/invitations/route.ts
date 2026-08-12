@@ -4,6 +4,7 @@ import { isAdminEmail } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { createInviteToken, hashInviteToken } from "@/lib/invite-tokens";
+import { sendInvitationEmail } from "@/lib/email/resend";
 
 export async function POST(request: Request) {
   const supabase = createClient();
@@ -57,9 +58,16 @@ export async function POST(request: Request) {
     contact_phone: contactPhone || null,
     created_by: user.id,
     token_hash: hashInviteToken(token)
-  }).select("expires_at").single();
+  }).select("id, expires_at").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ token, expires_at: data.expires_at }, { status: 201 });
+  let delivery: { sent: boolean; error?: string } = { sent: false };
+  if (contactEmail) {
+    const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || new URL(request.url).origin;
+    const roleLabel = platformRole ? (body.accountRole === "platform_admin" ? "Platform Admin" : "Platform Admin Viewer") : (CLUB_FUNCTION_ROLES.find(([key]) => key === body.functionRole)?.[1] || customRoleName || body.functionRole);
+    delivery = await sendInvitationEmail({ to: contactEmail, recipientName: expectedName, title: `Uitnodiging voor ${roleLabel}`, intro: `Je bent uitgenodigd om de functie ${roleLabel} op te nemen in Sport Visual Systems.`, actionLabel: "Uitnodiging aanvaarden", actionUrl: `${origin}/club-invite/${token}`, expiresAt: data.expires_at });
+    await admin.from("club_registration_invites").update({ sent_at: delivery.sent ? new Date().toISOString() : null, delivery_error: delivery.error ?? null }).eq("id", data.id);
+  }
+  return NextResponse.json({ token, expires_at: data.expires_at, emailSent: delivery.sent, deliveryError: delivery.error }, { status: 201 });
 }
 
 function clean(value: unknown, max: number) {
