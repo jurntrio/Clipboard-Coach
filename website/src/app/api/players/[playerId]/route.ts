@@ -7,16 +7,19 @@ async function playerContext(playerId: string) {
   const context = await getClubContext();
   if (!context.user) return { response: NextResponse.json({ error: "Niet aangemeld." }, { status: 401 }) };
   const admin = createAdminClient();
-  const { data: player } = await admin.from("players").select("*, teams(id, coach_id, club_team_id)").eq("id", playerId).maybeSingle();
-  const team = player?.teams as unknown as { id: string; coach_id: string | null; club_team_id: string | null } | null;
+  const { data: player } = await admin.from("players").select("*, teams(id, name, coach_id, club_team_id)").eq("id", playerId).maybeSingle();
+  const team = player?.teams as unknown as { id: string; name: string; coach_id: string | null; club_team_id: string | null } | null;
   if (!player || !team) return { response: NextResponse.json({ error: "Speler niet gevonden." }, { status: 404 }) };
   if (!team.club_team_id) {
     const canEdit = context.isPlatformAdmin || team.coach_id === context.user.id;
+    if (!canEdit) return { response: NextResponse.json({ error: "Geen toegang tot deze speler." }, { status: 403 }) };
     return { admin, player, canEdit, canManageGoalkeeper: context.isPlatformAdmin, goalkeeperRestricted: false };
   }
   const { data: clubTeam } = await admin.from("club_teams").select("club_id, trainers_can_edit_roster").eq("id", team.club_team_id).maybeSingle();
   if (!clubTeam) return { response: NextResponse.json({ error: "Ploeg niet gevonden." }, { status: 404 }) };
   const access = await getClubAccess(clubTeam.club_id, context.user);
+  const canView = context.isPlatformAdmin || (canAccessTeam(access, team.club_team_id) && hasClubPermission(access, "teams.view") && canManagePlayer(access, player.id));
+  if (!canView) return { response: NextResponse.json({ error: "Geen toegang tot deze speler." }, { status: 403 }) };
   const privilegedRosterRole = ["youth_coordinator", "head_youth_development"].includes(access.functionRole ?? "");
   const canEdit = context.isPlatformAdmin || (canAccessTeam(access, team.club_team_id) && hasClubPermission(access, "teams.manage")
     && (["platform_admin", "club_admin"].includes(access.role) || privilegedRosterRole || clubTeam.trainers_can_edit_roster === true)
@@ -29,7 +32,7 @@ async function playerContext(playerId: string) {
 export async function GET(_request: Request, { params }: { params: { playerId: string } }) {
   const ctx = await playerContext(params.playerId);
   if ("response" in ctx) return ctx.response;
-  return NextResponse.json({ canEdit: ctx.canEdit, canManageGoalkeeper: ctx.canManageGoalkeeper });
+  return NextResponse.json({ player: ctx.player, canEdit: ctx.canEdit, canManageGoalkeeper: ctx.canManageGoalkeeper });
 }
 
 export async function PATCH(request: Request, { params }: { params: { playerId: string } }) {

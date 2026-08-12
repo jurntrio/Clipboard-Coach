@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CBCS iconen – stijlvoorbeeld</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --cbcs-page: #f4f7f1;
+      --cbcs-panel: #fbfcfa;
+      --cbcs-tile: #f3f7f0;
+      --cbcs-border: #b8ceb4;
+      --cbcs-green: #00e86b;
+      --cbcs-green-dark: #003d25;
+      --cbcs-green-hover: #007d43;
+      --cbcs-text: #173323;
+      --cbcs-muted: #66806d;
+      --cbcs-shadow: rgba(31, 76, 45, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 40px 24px;
+      color: var(--cbcs-text);
+      background:
+        radial-gradient(circle at 50% 0%, rgba(0, 172, 82, 0.08), transparent 34rem),
+        var(--cbcs-page);
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+    }
+
+    .cbcs-preview {
+      width: min(920px, 100%);
+      padding: 38px;
+      background: var(--cbcs-panel);
+      border: 1px solid #dce5d9;
+      border-radius: 22px;
+      box-shadow: 0 20px 55px rgba(30, 66, 40, 0.08);
+    }
+
+    .cbcs-heading {
+      margin-bottom: 34px;
+      text-align: center;
+    }
+
+    .cbcs-heading h1 {
+      margin: 0;
+      color: var(--cbcs-text);
+      font-size: clamp(1.5rem, 4vw, 2.25rem);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .cbcs-heading strong {
+      color: var(--cbcs-green-hover);
+    }
+
+    .cbcs-heading p {
+      margin: 8px 0 0;
+      color: var(--cbcs-muted);
+      font-size: 0.92rem;
+    }
+
+    .cbcs-section + .cbcs-section {
+      margin-top: 30px;
+    }
+
+    .cbcs-section h2 {
+      margin: 0 0 14px;
+      color: var(--cbcs-muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .cbcs-icons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+    }
+
+    .cbcs-icon-button {
+      position: relative;
+      width: 54px;
+      height: 54px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+      color: var(--cbcs-green);
+      background: var(--cbcs-tile);
+      border: 1px solid var(--cbcs-border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+    }
+
+    .cbcs-icon-button:hover,
+    .cbcs-icon-button:focus-visible {
+      z-index: 2;
+      background: #ffffff;
+      border-color: #6ca876;
+      box-shadow: 0 7px 20px var(--cbcs-shadow);
+      transform: translateY(-2px);
+    }
+
+    .cbcs-icon-button:focus-visible {
+      outline: 3px solid rgba(0, 125, 67, 0.22);
+      outline-offset: 3px;
+    }
+
+    .cbcs-icon-core {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      background: var(--cbcs-green-dark);
+      border: 1px solid #007547;
+      border-radius: 7px;
+      box-shadow: inset 0 0 0 1px rgba(0, 232, 107, 0.08);
+    }
+
+    .cbcs-icon-core svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .cbcs-icon-button.cbcs-check .cbcs-icon-core svg {
+      stroke-width: 2.7;
+      stroke-linecap: square;
+      stroke-linejoin: miter;
+    }
+
+    .cbcs-tooltip {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 10px);
+      width: max-content;
+      max-width: 180px;
+      padding: 7px 10px;
+      color: #ffffff;
+      background: var(--cbcs-green-dark);
+      border-radius: 7px;
+      box-shadow: 0 7px 18px rgba(0, 61, 37, 0.2);
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1.2;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 4px);
+      transition: opacity 130ms ease, transform 130ms ease;
+    }
+
+    .cbcs-tooltip::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      border: 5px solid transparent;
+      border-top-color: var(--cbcs-green-dark);
+      transform: translateX(-50%);
+    }
+
+    .cbcs-icon-button:hover .cbcs-tooltip,
+    .cbcs-icon-button:focus-visible .cbcs-tooltip {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    .cbcs-icon-button.danger {
+      color: #ff8787;
+    }
+
+    .cbcs-icon-button.danger .cbcs-icon-core {
+      background: #4a171b;
+      border-color: #8f3b41;
+    }
+
+    .cbcs-icon-button.danger .cbcs-tooltip {
+      background: #4a171b;
+    }
+
+    .cbcs-icon-button.danger .cbcs-tooltip::after {
+      border-top-color: #4a171b;
+    }
+
+    .cbcs-sprite {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+    }
+
+    @media (max-width: 560px) {
+      body {
+        padding: 20px 14px;
+      }
+
+      .cbcs-preview {
+        padding: 28px 22px;
+      }
+
+      .cbcs-icons {
+        gap: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg class="cbcs-sprite" aria-hidden="true">
+    <defs>
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></symbol>
+      <symbol id="i-match" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m12 7-3 2.2 1.15 3.5h3.7L15 9.2zM9 9.2 6.2 8M15 9.2 17.8 8M10.15 12.7 8 15.3M13.85 12.7 16 15.3M8 15.3l.6 3.3M16 15.3l-.6 3.3"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+      <symbol id="i-cone" viewBox="0 0 24 24"><path d="M11 3h2l5 16H6z"/><path d="M8.2 12h7.6M7 16h10"/><path d="M4 19h16l1 2H3z"/></symbol>
+      <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 9 4-2v10l-4-2z"/></symbol>
+      <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></symbol>
+      <symbol id="i-tracking" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 16 4-5 3 3 6-8"/></symbol>
+      <symbol id="i-medical" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="15" rx="2"/><path d="M9 6V3h6v3M12 10v7M8.5 13.5h7"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.97 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.52-1.03H3v-4h.08A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 10 3.08V3h4v.08a1.7 1.7 0 0 0 1.03 1.52 1.7 1.7 0 0 0 1.88-.34l.06-.06L19.8 7l-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15z"/></symbol>
+      <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.2 2c-1.3 1.2-2.3 1.6-2.3 3M12 18h.01"/></symbol>
+      <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12.5 5 5 11-11"/></symbol>
+      <symbol id="i-log-out" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/></symbol>
+      <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+      <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20 13 11 22l-9-9V4h9z"/><circle cx="7" cy="9" r="1.5"/></symbol>
+      <symbol id="i-draw" viewBox="0 0 24 24"><path d="m12 19 7-7 3 3-7 7-4 1zM18 13l-7-7 3-3 7 7"/><path d="M2 22h6"/></symbol>
+      <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="7" r="3"/><circle cx="6" cy="17" r="3"/><path d="m8.6 8.5 12.4 7M8.6 15.5 21 8.5"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></symbol>
+      <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h12l3 3v15H4V3z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7M14 10v7"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+      <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l3.5-.8L20 6.7 17.3 4 4.8 16.5z"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z"/><path d="M3 10h18"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 8a7 7 0 0 1 11.4-2L20 8M4 16l2.5 2a7 7 0 0 0 11.4-2"/></symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24"><path d="m9 7-5 5 5 5"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></symbol>
+      <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 7 5 5-5 5"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></symbol>
+      <symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+      <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="19" cy="12" r="1" fill="currentColor"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></symbol>
+    </defs>
+  </svg>
+
+  <main class="cbcs-preview">
+    <header class="cbcs-heading">
+      <h1>CLIPBOARD COACH <strong>STUDIO</strong></h1>
+      <p>Compacte navigatie-iconen — beweeg over een icoon voor de naam</p>
+    </header>
+
+    <section class="cbcs-section" aria-labelledby="main-title">
+      <h2 id="main-title">Hoofdfuncties</h2>
+      <div class="cbcs-icons">
+        <button class="cbcs-icon-button" aria-label="Home"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-home"/></svg></span><span class="cbcs-tooltip">Home</span></button>
+        <button class="cbcs-icon-button" aria-label="Matchen"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-match"/></svg></span><span class="cbcs-tooltip">Matchen</span></button>
+        <button class="cbcs-icon-button" aria-label="Teams"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-users"/></svg></span><span class="cbcs-tooltip">Teams</span></button>
+        <button class="cbcs-icon-button" aria-label="Spelers"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-user"/></svg></span><span class="cbcs-tooltip">Spelers</span></button>
+        <button class="cbcs-icon-button" aria-label="Training"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-cone"/></svg></span><span class="cbcs-tooltip">Training</span></button>
+        <button class="cbcs-icon-button" aria-label="Video Viewer"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-video"/></svg></span><span class="cbcs-tooltip">Video Viewer</span></button>
+        <button class="cbcs-icon-button" aria-label="Clips"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-film"/></svg></span><span class="cbcs-tooltip">Clips</span></button>
+        <button class="cbcs-icon-button" aria-label="Intradesk"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-tracking"/></svg></span><span class="cbcs-tooltip">Intradesk</span></button>
+        <button class="cbcs-icon-button" aria-label="Statistieken"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-chart"/></svg></span><span class="cbcs-tooltip">Statistieken</span></button>
+        <button class="cbcs-icon-button" aria-label="Medisch"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-medical"/></svg></span><span class="cbcs-tooltip">Medisch</span></button>
+        <button class="cbcs-icon-button" aria-label="Instellingen"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-settings"/></svg></span><span class="cbcs-tooltip">Instellingen</span></button>
+        <button class="cbcs-icon-button" aria-label="Help"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-help"/></svg></span><span class="cbcs-tooltip">Help</span></button>
+        <button class="cbcs-icon-button" aria-label="E-mail"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-mail"/></svg></span><span class="cbcs-tooltip">E-mail</span></button>
+      </div>
+    </section>
+
+    <section class="cbcs-section" aria-labelledby="actions-title">
+      <h2 id="actions-title">Acties en videoreview</h2>
+      <div class="cbcs-icons">
+        <button class="cbcs-icon-button" aria-label="Terug"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-back"/></svg></span><span class="cbcs-tooltip">Terug</span></button>
+        <button class="cbcs-icon-button cbcs-check" aria-label="Bevestigen"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-check"/></svg></span><span class="cbcs-tooltip">Bevestigen</span></button>
+        <button class="cbcs-icon-button" aria-label="Afspelen"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-play"/></svg></span><span class="cbcs-tooltip">Afspelen</span></button>
+        <button class="cbcs-icon-button" aria-label="Tag toevoegen"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-tag"/></svg></span><span class="cbcs-tooltip">Tag toevoegen</span></button>
+        <button class="cbcs-icon-button" aria-label="Tekenen"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-draw"/></svg></span><span class="cbcs-tooltip">Tekenen</span></button>
+        <button class="cbcs-icon-button" aria-label="Clip maken"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-scissors"/></svg></span><span class="cbcs-tooltip">Clip maken</span></button>
+        <button class="cbcs-icon-button" aria-label="Opslaan"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-save"/></svg></span><span class="cbcs-tooltip">Opslaan</span></button>
+        <button class="cbcs-icon-button danger" aria-label="Verwijderen"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-trash"/></svg></span><span class="cbcs-tooltip">Verwijderen</span></button>
+        <button class="cbcs-icon-button danger" aria-label="Afsluiten"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-log-out"/></svg></span><span class="cbcs-tooltip">Afsluiten</span></button>
+      </div>
+    </section>
+
+    <section class="cbcs-section" aria-labelledby="future-title">
+      <h2 id="future-title">Aanvullende navigatie</h2>
+      <div class="cbcs-icons">
+        <button class="cbcs-icon-button" aria-label="Menu"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-menu"/></svg></span><span class="cbcs-tooltip">Menu</span></button>
+        <button class="cbcs-icon-button" aria-label="Zoeken"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-search"/></svg></span><span class="cbcs-tooltip">Zoeken</span></button>
+        <button class="cbcs-icon-button" aria-label="Filteren"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-filter"/></svg></span><span class="cbcs-tooltip">Filteren</span></button>
+        <button class="cbcs-icon-button" aria-label="Nieuw toevoegen"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-plus"/></svg></span><span class="cbcs-tooltip">Nieuw toevoegen</span></button>
+        <button class="cbcs-icon-button" aria-label="Bewerken"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-edit"/></svg></span><span class="cbcs-tooltip">Bewerken</span></button>
+        <button class="cbcs-icon-button" aria-label="Dupliceren"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-copy"/></svg></span><span class="cbcs-tooltip">Dupliceren</span></button>
+        <button class="cbcs-icon-button" aria-label="Map openen"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-folder"/></svg></span><span class="cbcs-tooltip">Map openen</span></button>
+        <button class="cbcs-icon-button" aria-label="Vernieuwen"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-refresh"/></svg></span><span class="cbcs-tooltip">Vernieuwen</span></button>
+        <button class="cbcs-icon-button" aria-label="Ongedaan maken"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-undo"/></svg></span><span class="cbcs-tooltip">Ongedaan maken</span></button>
+        <button class="cbcs-icon-button" aria-label="Opnieuw uitvoeren"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-redo"/></svg></span><span class="cbcs-tooltip">Opnieuw uitvoeren</span></button>
+        <button class="cbcs-icon-button" aria-label="Volledig scherm"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-maximize"/></svg></span><span class="cbcs-tooltip">Volledig scherm</span></button>
+        <button class="cbcs-icon-button" aria-label="Meer opties"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-more"/></svg></span><span class="cbcs-tooltip">Meer opties</span></button>
+        <button class="cbcs-icon-button" aria-label="Informatie"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-info"/></svg></span><span class="cbcs-tooltip">Informatie</span></button>
+        <button class="cbcs-icon-button danger" aria-label="Sluiten"><span class="cbcs-icon-core"><svg aria-hidden="true"><use href="#i-close"/></svg></span><span class="cbcs-tooltip">Sluiten</span></button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

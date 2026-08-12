@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-// Comma-separated allowlist. Defaults to the project owner so admin access
-// works out of the box; override/extend via the ADMIN_EMAILS env var.
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "jurntrio@gmail.com")
+// Optional comma-separated emergency allowlist. There is deliberately no
+// default: normal accounts must get their role from the database.
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);

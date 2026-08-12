@@ -10,6 +10,7 @@ export function ClubInvitationCreator({ clubId, teams, readOnly, compact = false
   const [teamId, setTeamId] = useState("");
   const [playerId, setPlayerId] = useState("");
   const [expectedName, setExpectedName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [link, setLink] = useState("");
   const [status, setStatus] = useState("");
@@ -22,13 +23,13 @@ export function ClubInvitationCreator({ clubId, teams, readOnly, compact = false
     const response = await fetch(isGuardian ? `/api/players/${playerId}/invite` : "/api/club-invitations", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(isGuardian
-        ? { contactLabel: expectedName, contactPhone }
-        : { clubId, teamId, functionRole, expectedName })
+        ? { contactLabel: expectedName, contactEmail, contactPhone }
+        : { clubId, teamId, functionRole, expectedName, contactEmail })
     });
     const body = await response.json();
     if (!response.ok) return setStatus(body.error || "Uitnodiging kon niet worden gemaakt.");
     setLink(`${window.location.origin}/${isGuardian ? "join" : "club-invite"}/${body.token}`);
-    setStatus("Uitnodiging klaar. De link kan één keer worden gebruikt.");
+    setStatus(body.emailSent ? "Uitnodigingsmail verzonden." : contactEmail ? `Link aangemaakt, maar e-mail niet verzonden${body.deliveryError ? `: ${body.deliveryError}` : "."}` : "Uitnodiging klaar. De link kan één keer worden gebruikt.");
   }
 
   if (readOnly) return null;
@@ -39,6 +40,7 @@ export function ClubInvitationCreator({ clubId, teams, readOnly, compact = false
       <label className="text-sm text-textSecondary">Rol<select value={functionRole} onChange={(event) => { setFunctionRole(event.target.value); setTeamId(""); setPlayerId(""); }} className={inputClass}><option value="guardian">Verantwoordelijke van speler</option>{CLUB_FUNCTION_ROLES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
       <label className="text-sm text-textSecondary">{isGuardian ? "Naam/relatie (optioneel)" : "Verwachte volledige naam (optioneel)"}<input value={expectedName} onChange={(event) => setExpectedName(event.target.value)} placeholder={isGuardian ? "Bijvoorbeeld mama, papa of voogd" : "Bijvoorbeeld Bart De Loof"} className={inputClass} /></label>
       <label className="text-sm text-textSecondary">Ploeg<select required value={teamId} onChange={(event) => { setTeamId(event.target.value); setPlayerId(""); }} className={inputClass}><option value="">Kies een ploeg</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label>
+      <label className="text-sm text-textSecondary">E-mail (voor rechtstreekse verzending)<input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="naam@voorbeeld.be" className={inputClass} /></label>
       {isGuardian && <label className="text-sm text-textSecondary">Speler<select required value={playerId} disabled={!teamId} onChange={(event) => setPlayerId(event.target.value)} className={`${inputClass} disabled:opacity-50`}><option value="">Kies een speler</option>{players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}</select></label>}
       {isGuardian && <label className="text-sm text-textSecondary">Gsm-nummer (optioneel)<input type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+32…" className={inputClass} /></label>}
     </div>

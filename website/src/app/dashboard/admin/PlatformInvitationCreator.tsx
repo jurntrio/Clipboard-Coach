@@ -28,7 +28,7 @@ export function PlatformInvitationCreator({ clubs }: { clubs: Club[] }) {
     const response = await fetch(isGuardian ? `/api/players/${playerId}/invite` : "/api/admin/invitations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(isGuardian ? { contactLabel: expectedName, contactPhone } : {
+      body: JSON.stringify(isGuardian ? { contactLabel: expectedName, contactEmail, contactPhone } : {
         accountRole: isPlatformRole ? kind : "club_member",
         functionRole: isPlatformRole ? null : kind,
         clubId: isPlatformRole ? null : clubId,
@@ -40,7 +40,7 @@ export function PlatformInvitationCreator({ clubs }: { clubs: Club[] }) {
     setBusy(false);
     if (!response.ok) return setStatus(body.error || "Uitnodiging kon niet worden gemaakt.");
     setLink(`${window.location.origin}/${isGuardian ? "join" : "club-invite"}/${body.token}`);
-    setStatus("Uitnodiging klaar. De link kan één keer worden gebruikt.");
+    setStatus(body.emailSent ? "Uitnodigingsmail verzonden." : contactEmail ? `Link aangemaakt, maar e-mail niet verzonden${body.deliveryError ? `: ${body.deliveryError}` : "."}` : "Uitnodiging klaar. De link kan één keer worden gebruikt.");
   }
 
   return <section className="mt-8 rounded-xl border border-border bg-card p-5">
@@ -86,9 +86,9 @@ export function PlatformInvitationCreator({ clubs }: { clubs: Club[] }) {
         <input required value={customRoleName} onChange={(event) => setCustomRoleName(event.target.value)} placeholder="Bijvoorbeeld Materiaalverantwoordelijke U14" className={inputClass} />
       </label>}
       <div className="grid gap-3 md:grid-cols-2">
-        {!isGuardian && <label className="text-sm text-textSecondary">E-mail (optioneel)
+        <label className="text-sm text-textSecondary">E-mail (voor rechtstreekse verzending)
           <input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="naam@voorbeeld.be" className={inputClass} />
-        </label>}
+        </label>
         <label className="text-sm text-textSecondary">Gsm-nummer (optioneel)
           <input type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+32…" className={inputClass} />
         </label>

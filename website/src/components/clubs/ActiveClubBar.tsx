@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -15,7 +14,6 @@ export type DashboardNavItem = { href: string; label: string; icon: string; prim
 
 export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavItem[] }) {
   const { clubs, activeClub, activeClubId, isPlatformAdmin, changing, selectClub } = useActiveClub();
-  const router = useRouter();
   const pathname = usePathname();
   const [unreadMailboxCount, setUnreadMailboxCount] = useState(0);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
@@ -84,9 +82,15 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
     setActionsOpen(true);
   }
   async function signOut() {
-    await createClient().auth.signOut();
-    router.replace("/login");
-    router.refresh();
+    const supabase = createClient();
+    try {
+      await Promise.all([
+        supabase.auth.signOut({ scope: "local" }),
+        fetch("/api/auth/logout", { method: "POST", cache: "no-store" })
+      ]);
+    } finally {
+      window.location.assign("/login");
+    }
   }
   const actionClass = "grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-borderButton bg-button transition hover:border-accent hover:bg-cardHover sm:h-[52px] sm:w-[52px] sm:rounded-xl";
   const activeClass = "border-accent bg-accentDim";

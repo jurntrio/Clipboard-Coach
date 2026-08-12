@@ -205,6 +205,8 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
   const selectedPlayerIds = new Set(selectedDrafts.map(item => item.playerId));
   const selectedKeepers = players.filter(player => selectedPlayerIds.has(player.id) && player.is_goalkeeper).length;
   const selectedFieldPlayers = selectedDrafts.length - selectedKeepers + validGuestPlayers.length;
+  const today = new Date().toISOString().slice(0, 10);
+  const matchHasEnded = loadedMatch?.status === "finished" || !!loadedMatch?.match_date && loadedMatch.match_date < today;
   const duplicateJerseyNumbers = Array.from(new Set(selectedDrafts
     .map(item => item.jerseyNumber.trim()).filter(Boolean)
     .filter((number, index, numbers) => numbers.indexOf(number) !== index)));
@@ -294,7 +296,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
             </div>;
           })}</div>}
         </section>}
-        {canUseTags && loadedMatch?.status !== "finished" && <section className="rounded-xl border border-border bg-card p-4">
+        {canUseTags && !matchHasEnded && <section className="rounded-xl border border-border bg-card p-4">
           <h2 className="font-bold text-textBright">Tags en taglink</h2>
           <p className="mt-1 text-xs text-textMuted">Bepaal de tagknoppen voor deze wedstrijd en maak de externe link.</p>
           <div className="mt-3 flex flex-wrap gap-2">{tagNames.map(tag => <span key={tag} className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accentDim px-3 py-1.5 text-sm text-accent">{tag}<button type="button" onClick={() => setTagNames(current => current.filter(item => item !== tag))}>×</button></span>)}</div>

@@ -19,7 +19,7 @@ import { PlayerInjuries } from "@/components/teams/PlayerInjuries";
 
 type PlayerWithTeam = Player & { teams: { name: string; club_team_id: string | null } | null };
 type Guardian = { id: string; profile_id: string; access_scope: string; valid_from: string; valid_until: string | null; revoked_at: string | null; created_at: string; profiles: { email: string; full_name: string | null } | null };
-type PendingInvite = { id: string; token: string; contact_label: string | null; contact_phone: string | null; contact_email: string | null; created_at: string; expires_at: string };
+type PlayerInvite = { id: string; contact_label: string | null; contact_phone: string | null; contact_email: string | null; created_at: string; expires_at: string; sent_at: string | null; delivery_error: string | null; used_at: string | null; used_by: string | null };
 type ClubPlayerContact = { id: string; club_id: string; first_name: string; last_name: string; date_of_birth: string | null; address: string | null; postal_code: string | null; city: string | null; email: string | null; phone: string | null; national_registry_number: string | null; birth_place: string | null; photo_url: string | null };
 type TeamTraining = { id: string; club_team_id: string | null; player_group_id: string | null; training_date: string; start_time: string; field_option_id: string | null; locker_room_option_id: string | null; attendance_status: "unknown" | "present" | "absent"; can_edit_attendance: boolean; club_teams: { name: string } | null; player_groups: { name: string; icon: string | null } | null };
 type ExtraGroup = { id: string; name: string; icon: string | null; active: boolean };
@@ -77,7 +77,7 @@ export default function PlayerClipsPage() {
   const [invitePending, setInvitePending] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [guardians, setGuardians] = useState<Guardian[]>([]);
-  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [invites, setInvites] = useState<PlayerInvite[]>([]);
   const [guardiansError, setGuardiansError] = useState("");
   const [guardiansBusy, setGuardiansBusy] = useState("");
   const [contactDrafts, setContactDrafts] = useState<{ lastName: string; firstName: string; email: string; phone: string }[]>([{ lastName: "", firstName: "", email: "", phone: "" }]);
@@ -90,6 +90,8 @@ export default function PlayerClipsPage() {
   const [attendanceError, setAttendanceError] = useState("");
   const [clubPlayerContact, setClubPlayerContact] = useState<ClubPlayerContact | null>(null);
   const [canEditChildInfo, setCanEditChildInfo] = useState(false);
+  const [guardianDetailId, setGuardianDetailId] = useState<string | null>(null);
+  const [guardianDetailDraft, setGuardianDetailDraft] = useState({ address: "", postalCode: "", city: "", phone: "", notes: "" });
   const [childInfoDraft, setChildInfoDraft] = useState({ address: "", postalCode: "", city: "", email: "", phone: "", nationalRegistryNumber: "", birthPlace: "" });
   const [childInfoSaving, setChildInfoSaving] = useState(false);
   const [childInfoSaved, setChildInfoSaved] = useState(false);
@@ -112,10 +114,11 @@ export default function PlayerClipsPage() {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contactLabel: `${draft.firstName.trim()} ${draft.lastName.trim()}`.trim(), contactEmail: draft.email.trim(), contactPhone: draft.phone.trim() })
     });
-    const body = await response.json().catch(() => null) as { token?: string; error?: string } | null;
+    const body = await response.json().catch(() => null) as { token?: string; emailSent?: boolean; deliveryError?: string; error?: string } | null;
     setInvitePending(false);
     if (!response.ok || !body?.token) { setInviteError(body?.error || "De uitnodigingslink kon niet aangemaakt worden."); return; }
     setInviteLink(`${window.location.origin}/join/${body.token}`);
+    if (draft.email.trim() && !body.emailSent) setInviteError(`De link is aangemaakt, maar de e-mail kon niet worden verzonden${body.deliveryError ? `: ${body.deliveryError}` : "."}`);
     setContactDrafts((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : [{ lastName: "", firstName: "", email: "", phone: "" }]);
     await loadGuardians();
   }
@@ -130,6 +133,12 @@ export default function PlayerClipsPage() {
     if (!user) return;
     const { data: membershipRow } = await supabase.from("club_memberships").select("role").eq("club_id", clubPlayer.club_id).eq("profile_id", user.id).eq("status", "active").maybeSingle();
     const canEdit = membershipRow?.role === "club_admin";
+    const { data: guardian } = await supabase.from("player_guardians").select("id").eq("club_player_id", clubPlayer.id).eq("profile_id", user.id).is("revoked_at", null).maybeSingle();
+    if (guardian?.id) {
+      const { data: details } = await supabase.from("player_guardian_details").select("address, postal_code, city, phone, notes").eq("guardian_id", guardian.id).maybeSingle();
+      setGuardianDetailId(guardian.id);
+      setGuardianDetailDraft({ address: details?.address ?? "", postalCode: details?.postal_code ?? "", city: details?.city ?? "", phone: details?.phone ?? "", notes: details?.notes ?? "" });
+    } else setGuardianDetailId(null);
     const { data: sensitive } = canEdit
       ? await supabase.from("club_players").select("national_registry_number").eq("id", clubPlayer.id).maybeSingle()
       : { data: null };
@@ -183,8 +192,8 @@ export default function PlayerClipsPage() {
 
   async function loadGuardians() {
     const response = await fetch(`/api/players/${playerId}/guardians`);
-    const body = await response.json().catch(() => null) as { guardians?: Guardian[]; pendingInvites?: PendingInvite[] } | null;
-    if (response.ok && body) { setGuardians(body.guardians ?? []); setPendingInvites(body.pendingInvites ?? []); }
+    const body = await response.json().catch(() => null) as { guardians?: Guardian[]; invites?: PlayerInvite[] } | null;
+    if (response.ok && body) { setGuardians(body.guardians ?? []); setInvites(body.invites ?? []); }
   }
 
   async function revokeGuardian(id: string) {
@@ -209,8 +218,8 @@ export default function PlayerClipsPage() {
 
   async function loadPlayerAndClips() {
     setLoading(true);
-    const [playerResult, clipResult, statsResult] = await Promise.all([
-      supabase.from("players").select("*, teams(name, club_team_id)").eq("id", playerId).single(),
+    const [profileResponse, clipResult, statsResult] = await Promise.all([
+      fetch(`/api/players/${playerId}`, { cache: "no-store" }),
       supabase.from("clips").select(`
         id, name, created_at, team_id, audience_type, audience_player_ids, render_status, rendered_segments,
         videos(id, title, video_url, match_videos(match_id, matches(id, team_a_name, team_b_name, match_date, start_time, score_a, score_b))),
@@ -219,7 +228,8 @@ export default function PlayerClipsPage() {
       supabase.from("player_career_stats").select("goals, assists").eq("player_id", playerId).maybeSingle()
     ]);
 
-    const loadedPlayer = (playerResult.data as unknown as PlayerWithTeam | null) ?? null;
+    const profileBody = await profileResponse.json().catch(() => null) as { player?: PlayerWithTeam } | null;
+    const loadedPlayer = profileResponse.ok ? profileBody?.player ?? null : null;
     setPlayer(loadedPlayer);
     setStats({ goals: statsResult.data?.goals ?? 0, assists: statsResult.data?.assists ?? 0 });
     const allClips = (clipResult.data as unknown as PlayerClip[] | null) ?? [];
@@ -282,6 +292,22 @@ export default function PlayerClipsPage() {
     // Importers persist the intended display names. Re-deriving a side from
     // is_home_match can replace the opponent with the player's own team.
     return `${match.team_a_name} – ${match.team_b_name}`;
+  }
+
+  async function saveGuardianDetails() {
+    if (!guardianDetailId) return;
+    setChildInfoSaving(true); setChildInfoSaved(false);
+    const { error } = await supabase.from("player_guardian_details").upsert({
+      guardian_id: guardianDetailId,
+      address: guardianDetailDraft.address.trim() || null,
+      postal_code: guardianDetailDraft.postalCode.trim() || null,
+      city: guardianDetailDraft.city.trim() || null,
+      phone: guardianDetailDraft.phone.trim() || null,
+      notes: guardianDetailDraft.notes.trim() || null,
+      updated_at: new Date().toISOString()
+    });
+    setChildInfoSaving(false);
+    if (!error) setChildInfoSaved(true);
   }
 
   const todayStart = new Date();
@@ -437,7 +463,7 @@ export default function PlayerClipsPage() {
           </div>
 
           {guardiansError && <p className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-sm text-red-300">{guardiansError}</p>}
-          {!guardians.length && !pendingInvites.length && <p className="mt-3 text-sm text-textMuted">{t("guardianInvite.noneLinkedYet")}</p>}
+          {!guardians.length && !invites.length && <p className="mt-3 text-sm text-textMuted">{t("guardianInvite.noneLinkedYet")}</p>}
           {!!guardians.length && (
             <div className="mt-3 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-textMuted">{t("guardianInvite.linkedGuardians")}</p>
@@ -464,25 +490,29 @@ export default function PlayerClipsPage() {
               ))}
             </div>
           )}
-          {!!pendingInvites.length && (
+          {!!invites.length && (
             <div className="mt-3 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-textMuted">{t("guardianInvite.pendingInvites")}</p>
-              {pendingInvites.map((invite) => (
-                <div key={invite.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-borderSubtle px-3 py-2 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-textMuted">Uitnodigingen</p>
+              {invites.map((invite) => {
+                const expired = !invite.used_at && new Date(invite.expires_at).getTime() <= Date.now();
+                const status = invite.used_at ? "Aanvaard" : expired ? "Verlopen" : invite.sent_at ? "E-mail verzonden" : invite.delivery_error ? "Verzending mislukt" : "Link aangemaakt";
+                const statusClass = invite.used_at ? "bg-accentDim text-accent" : expired || invite.delivery_error ? "bg-red-500/15 text-red-300" : invite.sent_at ? "bg-blue-500/15 text-blue-300" : "bg-card text-textMuted";
+                const daysAgo = Math.max(0, Math.floor((Date.now() - new Date(invite.sent_at || invite.created_at).getTime()) / 86400000));
+                return <div key={invite.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${expired ? "border-red-500/40" : "border-borderSubtle"}`}>
                   <span className="text-textSecondary">
-                    {invite.contact_label && <span className="mr-2 font-semibold text-textPrimary">{invite.contact_label}{invite.contact_email ? ` · ${invite.contact_email}` : ""}{invite.contact_phone ? ` · ${invite.contact_phone}` : ""}</span>}
-                    {t("guardianInvite.createdOn", { date: new Date(invite.created_at).toLocaleDateString("nl-BE"), expiry: new Date(invite.expires_at).toLocaleDateString("nl-BE") })}
+                    <span aria-hidden="true" className={`mr-2 inline-grid h-7 w-7 place-items-center rounded-full ${statusClass}`}>✉</span>
+                    <span className="mr-2 font-semibold text-textPrimary">{invite.contact_label || invite.contact_email || "Contactpersoon"}{invite.contact_label && invite.contact_email ? ` · ${invite.contact_email}` : ""}</span>
+                    <span className={`mr-2 rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusClass}`}>{status}</span>
+                    <span className="text-xs">{invite.sent_at ? `Verstuurd op ${new Date(invite.sent_at).toLocaleDateString("nl-BE")} · ${daysAgo === 0 ? "vandaag" : `${daysAgo} dag${daysAgo === 1 ? "" : "en"} geleden`}` : `Aangemaakt op ${new Date(invite.created_at).toLocaleDateString("nl-BE")}`} · vervalt {new Date(invite.expires_at).toLocaleDateString("nl-BE")}</span>
+                    {invite.delivery_error && <span className="mt-1 block text-xs text-red-300">{invite.delivery_error}</span>}
                   </span>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/join/${invite.token}`)} className="rounded-lg border border-borderButton px-3 py-1.5 text-xs text-textPrimary">
-                      {t("guardianInvite.copyLink")}
-                    </button>
-                    <button type="button" disabled={guardiansBusy === invite.id} onClick={() => void cancelInvite(invite.id)} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:opacity-40">
+                    {!invite.used_at && <button type="button" disabled={guardiansBusy === invite.id} onClick={() => void cancelInvite(invite.id)} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:opacity-40">
                       {t("guardianInvite.cancel")}
-                    </button>
+                    </button>}
                   </div>
-                </div>
-              ))}
+                </div>;
+              })}
             </div>
           )}
         </section>
@@ -514,6 +544,21 @@ export default function PlayerClipsPage() {
               <div><p className="text-xs font-bold uppercase tracking-wide text-textMuted">{t("guardianInvite.childPhone")}</p><p className="mt-1 text-sm text-textPrimary">{clubPlayerContact.phone || "–"}</p></div>
             </div>
           )}
+        </section>
+      )}
+
+      {player && guardianDetailId && (
+        <section className="mb-8 rounded-xl border border-accent/30 bg-cardDeep p-4">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">Jouw contact- en adresgegevens voor deze speler</h2>
+          <p className="mt-1 text-xs text-textMuted">Deze gegevens horen bij jouw huishouden. Een tweede contactpersoon kan een ander adres invullen.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <input value={guardianDetailDraft.address} onChange={event => setGuardianDetailDraft(current => ({ ...current, address: event.target.value }))} placeholder="Straat en huisnummer" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary sm:col-span-2" />
+            <input value={guardianDetailDraft.postalCode} onChange={event => setGuardianDetailDraft(current => ({ ...current, postalCode: event.target.value }))} placeholder="Postcode" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+            <input value={guardianDetailDraft.city} onChange={event => setGuardianDetailDraft(current => ({ ...current, city: event.target.value }))} placeholder="Gemeente" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+            <input type="tel" value={guardianDetailDraft.phone} onChange={event => setGuardianDetailDraft(current => ({ ...current, phone: event.target.value }))} placeholder="Telefoonnummer" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary sm:col-span-2" />
+            <textarea value={guardianDetailDraft.notes} onChange={event => setGuardianDetailDraft(current => ({ ...current, notes: event.target.value }))} placeholder="Praktische informatie (optioneel)" className="min-h-20 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary sm:col-span-2" />
+            <div className="flex items-center gap-3 sm:col-span-2"><button type="button" disabled={childInfoSaving} onClick={() => void saveGuardianDetails()} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page disabled:opacity-50">{childInfoSaving ? "Opslaan…" : "Gegevens opslaan"}</button>{childInfoSaved && <span className="text-sm text-accent">Opgeslagen</span>}</div>
+          </div>
         </section>
       )}
 

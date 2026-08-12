@@ -16,7 +16,15 @@ export const metadata: Metadata = {
   },
   description: "Sportanalyse, teambeheer, videoreview en communicatie in één platform.",
   applicationName: "Sport Visual Systems",
-  icons: { icon: "/icon.png", apple: "/branding/svs-square-light.png" },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icons/svs-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icons/svs-192.png", type: "image/png", sizes: "192x192" }
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }]
+  },
+  manifest: "/manifest.webmanifest",
   openGraph: {
     title: "Sport Visual Systems",
     description: "Sportanalyse, teambeheer, videoreview en communicatie in één platform.",

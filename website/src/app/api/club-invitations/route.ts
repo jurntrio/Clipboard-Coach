@@ -4,6 +4,7 @@ import { getClubAccess } from "@/lib/auth/club-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { createInviteToken, hashInviteToken } from "@/lib/invite-tokens";
+import { sendInvitationEmail } from "@/lib/email/resend";
 
 export async function POST(request: Request) {
   const supabase = createClient();
@@ -23,14 +24,24 @@ export async function POST(request: Request) {
   const technicalRole = body.functionRole === "club_admin" ? "club_admin"
     : body.functionRole === "club_admin_viewer" ? "club_admin_viewer" : "trainer";
   const expectedName = typeof body.expectedName === "string" ? body.expectedName.trim().replace(/\s+/g, " ").slice(0, 120) : "";
+  const contactEmail = typeof body.contactEmail === "string" ? body.contactEmail.trim().toLowerCase().slice(0, 254) : "";
+  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) return NextResponse.json({ error: "Vul een geldig e-mailadres in." }, { status: 400 });
   const admin = createAdminClient();
-  const { data: team } = await admin.from("club_teams").select("id").eq("id", body.teamId).eq("club_id", body.clubId).maybeSingle();
+  const { data: team } = await admin.from("club_teams").select("id, name, clubs(name)").eq("id", body.teamId).eq("club_id", body.clubId).maybeSingle();
   if (!team) return NextResponse.json({ error: "De gekozen ploeg hoort niet bij deze club." }, { status: 400 });
   const token = createInviteToken();
   const { data, error } = await admin.from("club_registration_invites").insert({
     club_id: body.clubId, club_team_id: team.id, technical_role: technicalRole, function_role: body.functionRole,
-    expected_name: expectedName || null, created_by: user.id, token_hash: hashInviteToken(token)
-  }).select("expires_at").single();
+    expected_name: expectedName || null, contact_email: contactEmail || null, created_by: user.id, token_hash: hashInviteToken(token)
+  }).select("id, expires_at").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ token, expires_at: data.expires_at }, { status: 201 });
+  let delivery: { sent: boolean; error?: string } = { sent: false };
+  if (contactEmail) {
+    const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || new URL(request.url).origin;
+    const club = team.clubs as unknown as { name: string } | null;
+    const roleLabel = CLUB_FUNCTION_ROLES.find(([key]) => key === body.functionRole)?.[1] || body.functionRole;
+    delivery = await sendInvitationEmail({ to: contactEmail, recipientName: expectedName, title: `Uitnodiging voor ${roleLabel} bij ${club?.name || "de club"}`, intro: `Je bent uitgenodigd als ${roleLabel} bij ${club?.name || "de club"}, ploeg ${team.name}.`, actionLabel: "Uitnodiging aanvaarden", actionUrl: `${origin}/club-invite/${token}`, expiresAt: data.expires_at });
+    await admin.from("club_registration_invites").update({ sent_at: delivery.sent ? new Date().toISOString() : null, delivery_error: delivery.error ?? null }).eq("id", data.id);
+  }
+  return NextResponse.json({ token, expires_at: data.expires_at, emailSent: delivery.sent, deliveryError: delivery.error }, { status: 201 });
 }

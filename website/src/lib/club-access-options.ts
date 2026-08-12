@@ -85,15 +85,15 @@ export function defaultPermissionsForRole(role: string): ClubPermissionKey[] {
   if (role === "club_admin") return CLUB_PERMISSION_OPTIONS.map(([key]) => key);
   if (role === "club_admin_viewer") return ["teams.view", "video.view", "games.view", "games.view_counts", "training.view", "intradesk.view"];
   if (role === "trainer") {
-    return ["video.view", "games.view", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.view", "intradesk.view", "clips.share"];
+    return ["teams.view", "video.view", "games.view", "games.create", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.view", "training.manage", "intradesk.view", "injuries.view", "clips.share"];
   }
   if (role === "goalkeeper_coach") {
-    return ["training.view", "intradesk.view"];
+    return ["teams.view", "training.view", "intradesk.view"];
   }
-  if (role === "team_manager") return ["games.view", "games.selection.view", "training.view", "intradesk.view"];
-  if (role === "video_analyst") return ["video.view", "games.view", "games.view_counts", "games.tag", "intradesk.view", "clips.share"];
-  if (role === "scout") return ["games.view", "games.scouting.view", "games.scouting.manage"];
-  if (role === "communications") return ["games.view", "games.communication.manage", "clips.share"];
+  if (role === "team_manager") return ["teams.view", "games.view", "games.selection.view", "training.view", "intradesk.view"];
+  if (role === "video_analyst") return ["teams.view", "video.view", "games.view", "games.view_counts", "games.tag", "training.view", "intradesk.view", "clips.share"];
+  if (role === "scout") return ["teams.view", "games.view", "training.view", "intradesk.view", "games.scouting.view", "games.scouting.manage"];
+  if (role === "communications") return ["teams.view", "games.view", "training.view", "intradesk.view", "games.communication.manage", "clips.share"];
   if (role === "commercial_manager") return [
     "sponsors.view", "sponsors.manage", "sponsors.assets.manage",
     "sponsors.internal.view", "sponsors.internal.manage",
@@ -102,7 +102,7 @@ export function defaultPermissionsForRole(role: string): ClubPermissionKey[] {
   ];
   if (role === "sponsor_viewer") return ["sponsors.view", "sponsors.scopes.view", "sponsors.matches.view"];
   if (role === "doctor" || role === "physiotherapist") return ["teams.view", "injuries.view", "injuries.manage"];
-  if (["youth_coordinator", "head_youth_development", "technical_director"].includes(role)) return ["teams.view", "teams.view_all", "injuries.view", "injuries.manage"];
+  if (["youth_coordinator", "head_youth_development", "technical_director"].includes(role)) return ["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "training.manage", "intradesk.view", "injuries.view", "injuries.manage"];
   if (["trainer", "assistant_trainer", "team_manager"].includes(role)) return ["teams.view", "injuries.view"];
-  return ["intradesk.view"];
+  return ["teams.view", "games.view", "training.view", "intradesk.view"];
 }

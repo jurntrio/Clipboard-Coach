@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, canManagePlayer, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { createInviteToken, hashInviteToken } from "@/lib/invite-tokens";
+import { sendInvitationEmail } from "@/lib/email/resend";
 
 export async function POST(request: Request, { params }: { params: { playerId: string } }) {
   const supabase = createClient();
@@ -11,7 +12,7 @@ export async function POST(request: Request, { params }: { params: { playerId: s
   if (!user) return NextResponse.json({ error: "Niet aangemeld." }, { status: 401 });
 
   const admin = createAdminClient();
-  const { data: player } = await admin.from("players").select("id, first_name, team_id, membership_id").eq("id", params.playerId).maybeSingle();
+  const { data: player } = await admin.from("players").select("id, first_name, last_name, team_id, membership_id").eq("id", params.playerId).maybeSingle();
   if (!player) return NextResponse.json({ error: "Speler niet gevonden." }, { status: 404 });
   const { data: team } = await admin.from("teams").select("id, coach_id, club_team_id").eq("id", player.team_id).maybeSingle();
   if (!team) return NextResponse.json({ error: "Team niet gevonden." }, { status: 404 });
@@ -48,14 +49,29 @@ export async function POST(request: Request, { params }: { params: { playerId: s
   }
 
   const token = createInviteToken();
-  const { error } = await admin.from("player_invites")
+  const { data: invite, error } = await admin.from("player_invites")
     .insert({
       ...(clubPlayerId ? { club_player_id: clubPlayerId } : { player_id: player.id }),
       created_by: user.id, contact_label: contactLabel, contact_phone: contactPhone, contact_email: contactEmail,
       token_hash: hashInviteToken(token),
     })
-    .select("id").single();
+    .select("id, expires_at").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ token });
+  let emailSent = false;
+  let deliveryError: string | null = null;
+  if (contactEmail) {
+    const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || new URL(request.url).origin;
+    const delivery = await sendInvitationEmail({
+      to: contactEmail, recipientName: contactLabel,
+      title: `Uitnodiging als contactpersoon van ${`${player.first_name} ${player.last_name ?? ""}`.trim()}`,
+      intro: `Je bent uitgenodigd om contactpersoon te worden van ${`${player.first_name} ${player.last_name ?? ""}`.trim()} in Sport Visual Systems. Na aanvaarding kun je jouw contact- en adresgegevens voor deze speler aanvullen.`,
+      actionLabel: "Uitnodiging aanvaarden", actionUrl: `${origin}/join/${token}`, expiresAt: invite.expires_at
+    });
+    emailSent = delivery.sent;
+    deliveryError = delivery.error ?? null;
+    await admin.from("player_invites").update({ sent_at: emailSent ? new Date().toISOString() : null, delivery_error: deliveryError }).eq("id", invite.id);
+  }
+
+  return NextResponse.json({ token, emailSent, deliveryError });
 }
