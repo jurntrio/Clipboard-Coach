@@ -22,6 +22,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
   const [pendingMatchReports, setPendingMatchReports] = useState<{ id: string; match_date: string; start_time: string | null; title: string }[]>([]);
   const [pendingOfficialImportCount, setPendingOfficialImportCount] = useState(0);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
   const [canApproveRequests, setCanApproveRequests] = useState(false);
   const [canReviewClubNames, setCanReviewClubNames] = useState(false);
@@ -60,20 +61,24 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
   }, [activeClubId]);
   const actionsButtonRef = useRef<HTMLButtonElement>(null);
   const actionsPopupRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function closeMenus(event: PointerEvent) {
       const target = event.target as Node;
       if (actionsOpen && !actionsButtonRef.current?.contains(target) && !actionsPopupRef.current?.contains(target)) setActionsOpen(false);
+      if (moreOpen && !moreButtonRef.current?.contains(target) && !moreMenuRef.current?.contains(target)) setMoreOpen(false);
     }
-    function closeOnEscape(event: KeyboardEvent) { if (event.key === "Escape") setActionsOpen(false); }
+    function closeOnEscape(event: KeyboardEvent) { if (event.key === "Escape") { setActionsOpen(false); setMoreOpen(false); } }
     document.addEventListener("pointerdown", closeMenus);
     document.addEventListener("keydown", closeOnEscape);
     return () => { document.removeEventListener("pointerdown", closeMenus); document.removeEventListener("keydown", closeOnEscape); };
-  }, [actionsOpen]);
+  }, [actionsOpen, moreOpen]);
 
   useEffect(() => {
     setActionsOpen(false);
+    setMoreOpen(false);
   }, [pathname]);
   function toggleActions() {
     if (actionsOpen) return setActionsOpen(false);
@@ -94,6 +99,8 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
   }
   const actionClass = "grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-borderButton bg-button transition hover:border-accent hover:bg-cardHover sm:h-[52px] sm:w-[52px] sm:rounded-xl";
   const activeClass = "border-accent bg-accentDim";
+  const mobileOverflowHrefs = new Set(["/dashboard/intradesk", "/dashboard/videos"]);
+  const mobileMoreActive = pathname.startsWith("/dashboard/settings") || pathname.startsWith("/dashboard/help");
 
   return (
     <div className="sticky top-0 z-40 border-b border-border bg-card/95 px-1.5 py-1.5 backdrop-blur sm:px-5 sm:py-3">
@@ -138,7 +145,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
               <MenuIcon src="/branding/cbcs_black_icons/home.png" />
             </Link>
             {beforeMessages.map(item => (
-              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} relative ${pathname.startsWith(item.href) ? activeClass : ""}`}>
+              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} relative ${mobileOverflowHrefs.has(item.href) ? "hidden sm:grid" : ""} ${pathname.startsWith(item.href) ? activeClass : ""}`}>
                 <MenuIcon src={item.icon} />
                 {item.href === "/dashboard/club" && pendingOfficialImportCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-card bg-red-500 px-1 text-[10px] font-black leading-none text-white">{pendingOfficialImportCount > 99 ? "99+" : pendingOfficialImportCount}</span>}
               </Link>
@@ -181,14 +188,22 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
             </div>
             , document.body)}
             {afterMessages.map(item => (
-              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} relative ${pathname.startsWith(item.href) ? activeClass : ""}`}>
+              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} relative ${mobileOverflowHrefs.has(item.href) ? "hidden sm:grid" : ""} ${pathname.startsWith(item.href) ? activeClass : ""}`}>
                 <MenuIcon src={item.icon} />
                 {item.href === "/dashboard/club" && pendingOfficialImportCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-card bg-red-500 px-1 text-[10px] font-black leading-none text-white">{pendingOfficialImportCount > 99 ? "99+" : pendingOfficialImportCount}</span>}
               </Link>
             ))}
-            <Link href="/dashboard/settings" title="Instellingen" aria-label="Instellingen" className={`${actionClass} ${pathname.startsWith("/dashboard/settings") ? activeClass : ""}`}><MenuIcon src="/branding/cbcs_black_icons/instellingen.png" /></Link>
-            <Link href="/dashboard/help" title="Help" aria-label="Help" className={`${actionClass} ${pathname.startsWith("/dashboard/help") ? activeClass : ""}`}><MenuIcon src="/branding/cbcs_black_icons/help.png" /></Link>
-            <button type="button" title="Afmelden" aria-label="Afmelden" onClick={() => void signOut()} className={actionClass}><MenuIcon src="/branding/cbcs_black_icons/afmelden.png" /></button>
+            <Link href="/dashboard/settings" title="Instellingen" aria-label="Instellingen" className={`${actionClass} hidden sm:grid ${pathname.startsWith("/dashboard/settings") ? activeClass : ""}`}><MenuIcon src="/branding/cbcs_black_icons/instellingen.png" /></Link>
+            <Link href="/dashboard/help" title="Help" aria-label="Help" className={`${actionClass} hidden sm:grid ${pathname.startsWith("/dashboard/help") ? activeClass : ""}`}><MenuIcon src="/branding/cbcs_black_icons/help.png" /></Link>
+            <button type="button" title="Afmelden" aria-label="Afmelden" onClick={() => void signOut()} className={`${actionClass} hidden sm:grid`}><MenuIcon src="/branding/cbcs_black_icons/afmelden.png" /></button>
+            <div ref={moreMenuRef} className="relative sm:hidden">
+              <button ref={moreButtonRef} type="button" title="Meer" aria-label="Meer navigatie" aria-expanded={moreOpen} onClick={() => setMoreOpen(current => !current)} className={`${actionClass} text-lg font-black leading-none ${mobileMoreActive ? activeClass : ""}`}>...</button>
+              {moreOpen && <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-border bg-cardAlt py-1 shadow-2xl">
+                <Link href="/dashboard/settings" className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/cbcs_black_icons/instellingen.png" compact /><span>Instellingen</span></Link>
+                <Link href="/dashboard/help" className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/cbcs_black_icons/help.png" compact /><span>Help</span></Link>
+                <button type="button" onClick={() => void signOut()} className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/cbcs_black_icons/afmelden.png" compact /><span>Afmelden</span></button>
+              </div>}
+            </div>
           </nav>
         </div>
       </div>

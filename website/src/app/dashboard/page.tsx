@@ -189,7 +189,6 @@ export default async function DashboardHomePage() {
     clubName={clubContext.clubs.find(club => club.id === clubId)?.name ?? null}
     contexts={contexts}
     activities={activities}
-    quickLinks={[]}
   />;
 }
 
