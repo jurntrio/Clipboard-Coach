@@ -136,12 +136,10 @@ export default async function DashboardHomePage() {
       || (!!match.team_b_id && item.teamIds.includes(match.team_b_id))
     ).map(item => item.id);
     if (!contextIds.length) return [];
-    // team_a/team_b are already stored in home-away display order.
-    // is_home_match only indicates which side is the club's own team.
-    const homeTeamName = match.team_a_name;
-    const awayTeamName = match.team_b_name;
-    const homeScore = match.score_a;
-    const awayScore = match.score_b;
+    const homeTeamName = match.is_home_match ? match.team_a_name : match.team_b_name;
+    const awayTeamName = match.is_home_match ? match.team_b_name : match.team_a_name;
+    const homeScore = match.is_home_match ? match.score_a : match.score_b;
+    const awayScore = match.is_home_match ? match.score_b : match.score_a;
     return [{
       id: `match:${match.id}`,
       kind: "match" as const,

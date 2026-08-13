@@ -111,8 +111,8 @@ export function MatchLineupEditor({ players, blocks, editable, onChange }: {
 
     {editable && activeBlock && activeBlock.startMinute > 0 && <div className="flex justify-end"><button type="button" onClick={copyPreviousBlock} className="rounded-lg border border-accent px-3 py-2 text-sm font-bold text-accent">Selectie van vorig blok kopiëren</button></div>}
 
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(360px,620px)_minmax(230px,1fr)]">
-      <div className="w-full max-w-[620px]">
+    <div className={`grid items-start gap-5 ${editable ? "lg:grid-cols-[minmax(360px,620px)_minmax(230px,1fr)]" : "lg:grid-cols-[minmax(300px,430px)_minmax(230px,1fr)]"}`}>
+      <div className={`w-full ${editable ? "max-w-[620px]" : "max-w-[430px]"}`}>
         <div ref={pitchRef} className="relative aspect-[414/612] w-full overflow-hidden rounded-xl border border-white/20 bg-[#269c36] shadow-inner"
           onDragOver={event => { if (editable) event.preventDefault(); }} onDrop={event => { event.preventDefault(); assignPlayer(event.dataTransfer.getData("text/player-id"), event.clientX, event.clientY); }} aria-label="Voetbalveld met vaste posities">
           <Image src={GREEN_FIELD_SRC} alt="Voetbalveld" fill sizes="620px" className="pointer-events-none object-fill" priority={false} />
@@ -130,7 +130,7 @@ export function MatchLineupEditor({ players, blocks, editable, onChange }: {
             </div>;
           })}
         </div>
-        <p className="mt-2 text-xs text-textMuted">Sleep een speler uit de lijst naar de gewenste plaats op het veld. Dubbelklik op een geplaatste speler om hem van het veld te halen.</p>
+        {editable && <p className="mt-2 text-xs text-textMuted">Sleep een speler uit de lijst naar de gewenste plaats op het veld. Dubbelklik op een geplaatste speler om hem van het veld te halen.</p>}
       </div>
 
       <aside className="rounded-xl border border-borderSubtle bg-cardDeep p-3 lg:sticky lg:top-24">

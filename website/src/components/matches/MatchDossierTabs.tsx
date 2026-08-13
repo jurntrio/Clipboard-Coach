@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchLineupEditor, type LineupBlock, type LineupPosition } from "./MatchLineupEditor";
@@ -31,6 +32,9 @@ type GoalEvent = {
   assistType: "player" | "own_goal" | "custom" | "none"; assistPlayerId: string; assistName: string;
   description: string;
 };
+
+const PLAYER_SHIRT_SRC = "/branding/Training/shirt-groen.png";
+const GOALKEEPER_SHIRT_SRC = "/branding/Training/shirt-rood.png";
 
 const emptyDossier: MatchDossier = {
   lineup_notes: "", general_report: "", positives: "", improvements: "",
@@ -162,6 +166,19 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
           const savedReview = draft.player_reviews.find(item => item.playerId === player.id);
           const review: PlayerReview = { playerId: player.id, rating: savedReview?.rating ?? null, report: savedReview?.report ?? "", playerReport: savedReview?.playerReport ?? "" };
           const updateReview = (patch: Partial<PlayerReview>) => setDraft(current => ({ ...current, player_reviews: [...current.player_reviews.filter(item => item.playerId !== player.id), { ...review, ...patch }] }));
+          if (!editable) return <article key={player.id} className="border-b border-borderSubtle bg-cardDeep px-3 py-2.5 last:border-b-0">
+            <div className="grid items-center gap-3 sm:grid-cols-[240px_76px_minmax(0,1fr)]">
+              <Link href={`/dashboard/teams/players/${player.id}`} className="flex min-w-0 items-center gap-2 text-sm font-bold text-textBright underline decoration-accent/50 underline-offset-4 hover:text-accent">
+                <span className="relative h-10 w-10 shrink-0 rounded bg-accentDim"><Image src={player.is_goalkeeper ? GOALKEEPER_SHIRT_SRC : PLAYER_SHIRT_SRC} alt="" fill sizes="40px" className="object-contain" /><span className="absolute inset-0 flex items-center justify-center pt-1 text-[10px] font-black text-white">{player.jersey_number ?? ""}</span></span>
+                <span className="truncate">{player.first_name} {player.last_name}</span>
+              </Link>
+              {review.rating !== null && <div className="inline-flex w-[68px] items-baseline justify-center gap-1 rounded-full bg-accentDim px-2 py-1.5 text-accent" aria-label={`Beoordeling ${review.rating} op 10`}>
+                <strong className="text-base">{review.rating}</strong><span className="text-xs font-bold opacity-80">/10</span>
+              </div>}
+              {review.report.trim() && <p className={`whitespace-pre-wrap text-sm leading-relaxed text-textPrimary ${review.rating === null ? "sm:col-span-2" : ""}`}>{review.report}</p>}
+            </div>
+            {review.playerReport.trim() && <p className="mt-2 border-t border-borderSubtle pt-2 text-sm text-textSecondary"><span className="mr-2 text-xs font-bold uppercase tracking-wide text-textMuted">Voor speler</span>{review.playerReport}</p>}
+          </article>;
           return <div key={player.id} className="grid gap-3 border-b border-borderSubtle bg-cardDeep p-3 last:border-b-0 md:grid-cols-[minmax(180px,1fr)_110px_2fr_2fr] md:items-center">
             <Link href={`/dashboard/teams/players/${player.id}`} className="text-sm font-bold text-textBright underline decoration-accent/50 underline-offset-4 hover:text-accent">{player.jersey_number != null && <span className="mr-2 text-accent">{player.jersey_number}</span>}{player.first_name} {player.last_name}</Link>
             <label className="text-xs font-bold text-textSecondary">Punten

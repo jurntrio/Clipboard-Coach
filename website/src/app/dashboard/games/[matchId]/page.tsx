@@ -160,7 +160,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
         <h2 className="text-xl font-black text-textBright sm:text-3xl">{awayTeamName}</h2>
       </div>
       <p className="mt-5 text-center text-sm text-textMuted">{displayDate(match.match_date)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p>
-      {canViewReport && dossier?.goal_events?.length > 0 && <ScoreTimeline goals={dossier.goal_events as ScoreGoal[]} players={reportPlayers} />}
+      {canViewReport && dossier?.goal_events?.length > 0 && <ScoreTimeline goals={dossier.goal_events as ScoreGoal[]} players={reportPlayers} ownTeamSide={match.is_home_match ? "home" : "away"} />}
       {match.completed_at && <p className="mt-3 text-center text-xs font-semibold text-accent">
         Wedstrijd afgewerkt door {completedByProfile?.full_name?.trim() || completedByProfile?.email?.split("@")[0] || "onbekend"} · {new Date(match.completed_at).toLocaleString("nl-BE")}
       </p>}
@@ -238,7 +238,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   </main>;
 }
 
-function ScoreTimeline({ goals, players }: { goals: ScoreGoal[]; players: Array<{ id: string; first_name: string; last_name: string }> }) {
+function ScoreTimeline({ goals, players, ownTeamSide }: { goals: ScoreGoal[]; players: Array<{ id: string; first_name: string; last_name: string }>; ownTeamSide: "home" | "away" }) {
   const playerName = (id?: string) => { const player = players.find(item => item.id === id); return player ? `${player.first_name} ${player.last_name}`.trim() : ""; };
   const person = (type?: string, playerId?: string, name?: string, assist = false) => type === "player" ? playerName(playerId) : type === "own_goal" ? (assist ? "Via tegenstander" : "Owngoal") : type === "custom" ? name?.trim() ?? "" : "";
   let previous = { home: 0, away: 0 };
@@ -253,7 +253,16 @@ function ScoreTimeline({ goals, players }: { goals: ScoreGoal[]; players: Array<
   });
   if (!rows.length) return null;
   const detail = (row: typeof rows[number]) => <span className="text-sm text-textPrimary"><strong>{row.goal.minute !== null && row.goal.minute !== undefined ? `${row.goal.minute}' · ` : ""}{row.scorer || "Doelpunt"}</strong>{row.assist && <span className="text-textMuted"> ({row.assist})</span>}</span>;
-  return <section className="mx-auto mt-6 max-w-3xl border-t border-borderSubtle pt-5" aria-label="Scoreverloop"><h3 className="mb-3 text-center text-xs font-black uppercase tracking-[0.14em] text-textMuted">Scoreverloop</h3><div className="space-y-2">{rows.map(row => <div key={`${row.score}-${row.index}`} className="grid grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] items-center gap-2"><div className="flex min-w-0 items-center justify-end gap-2 text-right">{row.side === "home" && <>{detail(row)}<span aria-hidden="true" className="text-base">⚽</span></>}</div><strong className="rounded-lg bg-cardDeep px-2 py-1 text-center text-sm text-textBright">{row.score}</strong><div className="flex min-w-0 items-center gap-2 text-left">{row.side === "away" && <><span aria-hidden="true" className="text-base">⚽</span>{detail(row)}</>}</div></div>)}</div></section>;
+  const ball = (side: "home" | "away") => <FootballIcon className={side === ownTeamSide ? "text-green-600" : "text-red-600"} />;
+  return <section className="mx-auto mt-6 max-w-3xl border-t border-borderSubtle pt-5" aria-label="Scoreverloop"><h3 className="mb-3 text-center text-xs font-black uppercase tracking-[0.14em] text-textMuted">Scoreverloop</h3><div className="space-y-2">{rows.map(row => <div key={`${row.score}-${row.index}`} className="grid grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] items-center gap-2"><div className="flex min-w-0 items-center justify-end gap-2 text-right">{row.side === "home" && <>{detail(row)}{ball(row.side)}</>}</div><strong className="rounded-lg bg-cardDeep px-2 py-1 text-center text-sm text-textBright">{row.score}</strong><div className="flex min-w-0 items-center gap-2 text-left">{row.side === "away" && <>{ball(row.side)}{detail(row)}</>}</div></div>)}</div></section>;
+}
+
+function FootballIcon({ className }: { className: string }) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-5 w-5 shrink-0 ${className}`} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9.5" />
+    <path d="m12 7 3.2 2.3-1.2 3.8h-4l-1.2-3.8L12 7Z" />
+    <path d="m12 7-.8-4.4M15.2 9.3l4.3-1.5M14 13.1l2.7 3.7M10 13.1l-2.7 3.7M8.8 9.3 4.5 7.8M16.7 16.8l-.2 3.2M7.3 16.8l.2 3.2M4.5 7.8 2.7 11M19.5 7.8l1.8 3.2" />
+  </svg>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
