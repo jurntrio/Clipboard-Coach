@@ -27,8 +27,6 @@ export type ProfileActivity = {
   href: string;
 };
 
-export type ProfileQuickLink = { href: string; label: string; icon: string };
-
 function formatDate(value: string | null) {
   if (!value) return "Datum nog niet bepaald";
   return new Intl.DateTimeFormat("nl-BE", { weekday: "short", day: "numeric", month: "short" })
@@ -72,13 +70,12 @@ function isActivityCompleted(activity: ProfileActivity, now: number | null) {
   return Number.isFinite(startsAt) && now >= startsAt + ACTIVITY_DURATION_MS[activity.kind];
 }
 
-export function ProfileOverview({ name, email, clubName, contexts, activities, quickLinks }: {
+export function ProfileOverview({ name, email, clubName, contexts, activities }: {
   name: string;
   email: string;
   clubName: string | null;
   contexts: ProfileContext[];
   activities: ProfileActivity[];
-  quickLinks: ProfileQuickLink[];
 }) {
   const [activeContext, setActiveContext] = useState("all");
   const [expandedContext, setExpandedContext] = useState<string | null>(null);
@@ -147,37 +144,28 @@ export function ProfileOverview({ name, email, clubName, contexts, activities, q
       </div>}
     </section>
 
-    <section id="mijn-planning" className="scroll-mt-4 rounded-2xl border border-border bg-card p-5">
+    <section id="mijn-planning" className="min-w-0 scroll-mt-4 overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div><h2 className="text-xl font-bold text-textBright">Mijn planning</h2><p className="text-sm font-semibold text-textMuted">Planning: <span className="text-textPrimary">{activeContextLabel}</span></p></div>
       </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div><h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-textSecondary">Komend</h3>
+      <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-2">
+        <div className="min-w-0"><h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-textSecondary">Komend</h3>
           {upcoming.length ? <div className="space-y-2">{upcoming.map(item => <ActivityRow key={item.id} item={item} labels={contextNames} />)}</div>
             : <div className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Geen komende wedstrijden of trainingen.</div>}
         </div>
-        <div><h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-textSecondary">Recent afgerond</h3>
+        <div className="min-w-0"><h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-textSecondary">Recent afgerond</h3>
           {recent.length ? <div className="space-y-2">{recent.map(item => <ActivityRow key={item.id} item={item} labels={contextNames} />)}</div>
             : <div className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Nog geen afgeronde activiteiten.</div>}
         </div>
       </div>
     </section>
 
-    <section>
-      <h2 className="mb-3 text-lg font-bold text-textBright">Snel naar</h2>
-      {quickLinks.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {quickLinks.map(link => <Link key={link.href} href={link.href} title={link.label} className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-card p-4 text-center transition hover:border-accent hover:bg-cardHover">
-          <Image src={link.icon} alt="" width={64} height={64} className="h-16 w-16 object-contain" />
-          <span className="text-xs font-bold text-textPrimary">{link.label}</span>
-        </Link>)}
-      </div> : <div className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Er zijn nog geen modules aan je account toegewezen.</div>}
-    </section>
   </main>;
 }
 
 function ActivityRow({ item, labels, compact = false }: { item: ProfileActivity; labels: Map<string, string>; compact?: boolean }) {
   const subjects = item.contextIds.map(id => labels.get(id)).filter(Boolean).join(", ");
-  return <Link href={item.href} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-cardDeep p-3 transition hover:border-accent">
+  return <Link href={item.href} className="flex min-w-0 max-w-full items-center gap-3 overflow-hidden rounded-xl border border-borderSubtle bg-cardDeep p-3 transition hover:border-accent">
     <Image src={item.kind === "match" ? "/branding/games.png" : "/branding/training.png"} alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain" />
     <span className="min-w-0 flex-1">
       <strong className="block truncate text-sm text-textBright">{item.title}</strong>
