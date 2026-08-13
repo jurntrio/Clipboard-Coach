@@ -167,6 +167,9 @@ function ScreenCard({
   const header = screen.club_tv_blocks.find(
       (b) => b.block_type === "match_header" || b.block_type === "match",
     ),
+    ticker = screen.club_tv_blocks.find(
+      (b) => b.configuration?.persistentTicker === true,
+    ),
     link =
       typeof window !== "undefined"
         ? `${window.location.origin}/club-tv/${screen.public_token}`
@@ -221,9 +224,10 @@ function ScreenCard({
             canManage={canManage}
             act={act}
           />
+          <TickerEditor screen={screen} block={ticker} canManage={canManage} act={act} />
           <BlockRail
             screen={screen}
-            blocks={screen.club_tv_blocks.filter((b) => b !== header)}
+            blocks={screen.club_tv_blocks.filter((b) => b !== header && b !== ticker)}
             teams={teams}
             matches={matches}
             clubId={clubId}
@@ -234,6 +238,29 @@ function ScreenCard({
       )}
     </article>
   );
+}
+
+function TickerEditor({ screen, block, canManage, act }: {
+  screen: Screen; block?: Block; canManage: boolean; act: (x: any) => Promise<any>;
+}) {
+  const [enabled, setEnabled] = useState(block?.configuration?.enabled === true),
+    [text, setText] = useState(block?.configuration?.text ?? "");
+  async function save() {
+    const configuration = { persistentTicker: true, enabled, text: text.trim() };
+    await act(block
+      ? { action: "updateBlock", screenId: screen.id, blockId: block.id, configuration }
+      : { action: "addBlock", screenId: screen.id, blockType: "image", title: "Tekstbalk", displayOrder: 10000, configuration });
+  }
+  return <section className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div>
+      <h3 className="font-black text-textBright">Tekstbalk onderaan</h3>
+      <p className="text-xs text-textMuted">Blijft zichtbaar terwijl sponsors, foto&apos;s en andere blokken wisselen.</p>
+    </div><label className="text-sm text-textSecondary"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Tonen</label></div>
+    <label className="mt-4 block text-xs text-textMuted">Tekst
+      <input value={text} maxLength={240} onChange={(e) => setText(e.target.value)} placeholder="Welkom bij onze club · Volgende thuiswedstrijd zaterdag om 20.00 uur" className={`${field} mt-1 w-full`} />
+    </label>
+    {canManage && <button disabled={enabled && !text.trim()} onClick={() => void save()} className={`${primary} mt-4 disabled:opacity-50`}>Tekstbalk bewaren</button>}
+  </section>;
 }
 
 function MatchHeaderEditor({
@@ -388,6 +415,7 @@ function BlockRail({
     [before, setBefore] = useState(3),
     [after, setAfter] = useState(3),
     [duration, setDuration] = useState(8),
+    [itemsPerSlide, setItemsPerSlide] = useState(4),
     [image, setImage] = useState<File | null>(null),
     [imageTitle, setImageTitle] = useState(""),
     [existingImageUrl, setExistingImageUrl] = useState<string | undefined>(undefined),
@@ -401,6 +429,7 @@ function BlockRail({
     setBefore(3);
     setAfter(3);
     setDuration(8);
+    setItemsPerSlide(4);
     setImage(null);
     setImageTitle("");
     setExistingImageUrl(undefined);
@@ -416,6 +445,7 @@ function BlockRail({
     setBefore(c.hoursBefore ?? 3);
     setAfter(c.hoursAfter ?? 3);
     setDuration(c.durationSeconds ?? 8);
+    setItemsPerSlide(c.itemsPerSlide ?? 4);
     setImage(null);
     setImageTitle(b.title ?? "");
     setExistingImageUrl(c.imageUrl);
@@ -436,6 +466,7 @@ function BlockRail({
         hoursBefore: before,
         hoursAfter: after,
         durationSeconds: Math.max(2, Math.min(120, duration)),
+        itemsPerSlide: Math.max(1, Math.min(6, itemsPerSlide)),
         imageUrl,
       };
       if (editingId)
@@ -565,7 +596,12 @@ function BlockRail({
             </select>
           )}
           {type === "players" && (
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-4 space-y-4">
+              <label className="block max-w-xs text-xs text-textMuted">
+                Foto&apos;s per dia
+                <input type="number" min="1" max="6" value={itemsPerSlide} onChange={(e) => setItemsPerSlide(+e.target.value)} className={`${field} mt-1 w-full`} />
+              </label>
+              <div className="flex flex-wrap gap-3">
               {teams.map((t) => (
                 <label key={t.id} className="text-sm text-textSecondary">
                   <input
@@ -583,6 +619,7 @@ function BlockRail({
                   {t.club_seasons?.name ? ` · ${t.club_seasons.name}` : ""}
                 </label>
               ))}
+              </div>
             </div>
           )}
           {type === "image" && (

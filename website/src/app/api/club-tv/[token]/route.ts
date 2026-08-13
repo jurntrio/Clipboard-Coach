@@ -39,6 +39,7 @@ export async function GET(
     header = all.find((b: any) =>
       ["match_header", "match"].includes(b.block_type),
     ),
+    ticker = all.find((b: any) => b.configuration?.persistentTicker === true),
     defaultMatchId = header?.configuration?.matchId;
   const requestedMatchIds = Array.from(
     new Set(
@@ -160,7 +161,11 @@ export async function GET(
       screen: { ...screen, club_tv_blocks: undefined },
       header:
         header && visible.some((b: any) => b.id === header.id) ? header : null,
-      blocks: visible.filter((b: any) => b.id !== header?.id),
+      ticker:
+        ticker && ticker.configuration?.enabled === true && ticker.configuration?.text
+          ? ticker
+          : null,
+      blocks: visible.filter((b: any) => b.id !== header?.id && b.id !== ticker?.id),
       matches: Object.fromEntries(matchMap),
       sponsors: sponsors ?? [],
       teams: clubTvTeams,
