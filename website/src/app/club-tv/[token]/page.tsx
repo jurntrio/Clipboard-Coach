@@ -99,6 +99,11 @@ export default function ClubTvShow({
         >
           {slide?.node ?? <p className="text-4xl font-black">Welkom</p>}
         </section>
+        {data.ticker?.configuration?.text && (
+          <footer className="relative z-20 -mx-[3vw] -mb-[3vw] overflow-hidden border-t border-emerald-300/25 bg-black/75 px-[3vw] py-4 text-center text-2xl font-bold tracking-wide shadow-[0_-12px_35px_rgba(0,0,0,.3)]">
+            {data.ticker.configuration.text}
+          </footer>
+        )}
       </div>
     </main>
   );
@@ -211,9 +216,13 @@ function buildSlides(data: any) {
     }
     if (b.block_type === "players") {
       for (const team of data.teams ?? []) {
-        const players = team.players ?? [];
-        for (let offset = 0; offset < players.length; offset += 4) {
-          const group = players.slice(offset, offset + 4);
+        const players = team.players ?? [],
+          itemsPerSlide = Math.max(
+            1,
+            Math.min(6, Number(b.configuration.itemsPerSlide) || 4),
+          );
+        for (let offset = 0; offset < players.length; offset += itemsPerSlide) {
+          const group = players.slice(offset, offset + itemsPerSlide);
           out.push({
             key: `${b.id}-${team.id}-${offset}`,
             durationSeconds: b.configuration.durationSeconds,
@@ -222,7 +231,12 @@ function buildSlides(data: any) {
                 <p className="mb-5 text-2xl font-bold text-emerald-300">
                   {team.name}
                 </p>
-                <div className="grid w-full grid-cols-2 gap-5 md:grid-cols-4">
+                <div
+                  className="grid w-full gap-5"
+                  style={{
+                    gridTemplateColumns: `repeat(${Math.min(itemsPerSlide, 4)}, minmax(0, 1fr))`,
+                  }}
+                >
                   {group.map((player: any) => (
                     <PlayerCard key={player.id} player={player} />
                   ))}
@@ -277,7 +291,15 @@ function buildSlides(data: any) {
         ),
       });
   }
-  return out;
+  const queues = data.blocks
+    .map((block: any) =>
+      out.filter((slide) => String(slide.key).startsWith(`${block.id}-`) || slide.key === block.id),
+    )
+    .filter((queue: any[]) => queue.length);
+  const interleaved: any[] = [];
+  for (let index = 0; queues.some((queue: any[]) => index < queue.length); index += 1)
+    for (const queue of queues) if (queue[index]) interleaved.push(queue[index]);
+  return interleaved;
 }
 function sponsorSlide(b: any, s: any) {
   const url = s.alternate_logo_url || s.logo_url;
