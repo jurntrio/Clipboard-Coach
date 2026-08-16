@@ -36,6 +36,7 @@ function uploadOnce(uploadUrl: string, blob: Blob, contentType: string, onProgre
       }
     };
     request.onerror = () => reject(new RetryableUploadError("The connection to video storage was interrupted."));
+    request.onabort = () => reject(new RetryableUploadError("The upload to video storage was interrupted."));
     request.ontimeout = () => reject(new RetryableUploadError("The upload to video storage timed out."));
     request.send(blob);
   });
@@ -62,6 +63,7 @@ function uploadPartOnce(uploadUrl: string, blob: Blob, onProgress: (fraction: nu
       }
     };
     request.onerror = () => reject(new RetryableUploadError("The connection to video storage was interrupted."));
+    request.onabort = () => reject(new RetryableUploadError("The upload to video storage was interrupted."));
     request.ontimeout = () => reject(new RetryableUploadError("The upload to video storage timed out."));
     request.send(blob);
   });
@@ -73,47 +75,60 @@ async function multipartRequest(body: Record<string, unknown>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
-  if (!response.ok) throw await responseError(response, "Could not manage multipart clip upload");
+  if (!response.ok) {
+    const error = await responseError(response, "Could not manage multipart clip upload");
+    if (response.status === 408 || response.status === 429 || response.status >= 500) {
+      throw new RetryableUploadError(error.message);
+    }
+    throw error;
+  }
   return response.json() as Promise<Record<string, unknown>>;
 }
 
+async function preparePartUrl(key: string, uploadId: string, partNumber: number) {
+  const prepared = await multipartRequest({ action: "part-urls", key, uploadId, partNumbers: [partNumber] });
+  const item = Array.isArray(prepared.urls) ? prepared.urls[0] as { partNumber?: unknown; url?: unknown } | undefined : undefined;
+  if (item?.partNumber !== partNumber || typeof item.url !== "string") {
+    throw new Error("Video storage did not prepare the clip part.");
+  }
+  return item.url;
+}
+
 async function uploadMultipartBlob(blob: Blob, key: string, contentType: string, onProgress: (fraction: number) => void) {
-  const minimumPartSize = 8 * 1024 * 1024;
-  const partSize = Math.max(minimumPartSize, Math.ceil(blob.size / 100));
+  // Small parts recover much more reliably on unstable Wi-Fi. R2 requires all
+  // non-final parts to be at least 5 MiB; cap the total at 1,000 parts.
+  const minimumPartSize = 5 * 1024 * 1024;
+  const partSize = Math.max(minimumPartSize, Math.ceil(blob.size / 1000));
   const partCount = Math.ceil(blob.size / partSize);
   const created = await multipartRequest({ action: "create", key, contentType });
   const uploadId = created.uploadId;
   if (typeof uploadId !== "string") throw new Error("Video storage did not create a multipart upload.");
 
   try {
-    const urls: Array<{ partNumber: number; url: string }> = [];
     const partNumbers = Array.from({ length: partCount }, (_, index) => index + 1);
-    for (let offset = 0; offset < partNumbers.length; offset += 25) {
-      const prepared = await multipartRequest({ action: "part-urls", key, uploadId, partNumbers: partNumbers.slice(offset, offset + 25) });
-      if (!Array.isArray(prepared.urls)) throw new Error("Video storage did not prepare all clip parts.");
-      urls.push(...prepared.urls as Array<{ partNumber: number; url: string }>);
-    }
-    if (!Array.isArray(urls) || urls.length !== partCount) throw new Error("Video storage did not prepare all clip parts.");
     const completed: Array<{ ETag: string; PartNumber: number }> = [];
     let uploadedBytes = 0;
 
-    for (const item of urls.sort((a, b) => a.partNumber - b.partNumber)) {
-      const start = (item.partNumber - 1) * partSize;
+    for (const partNumber of partNumbers) {
+      const start = (partNumber - 1) * partSize;
       const part = blob.slice(start, Math.min(blob.size, start + partSize));
       let etag = "";
       let lastError: unknown;
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
+      for (let attempt = 1; attempt <= 5; attempt += 1) {
         try {
-          etag = await uploadPartOnce(item.url, part, (fraction) => onProgress((uploadedBytes + part.size * fraction) / blob.size));
+          // Renew the signed URL for every attempt. This avoids retrying an
+          // expired or edge-specific URL after a connection was interrupted.
+          const uploadUrl = await preparePartUrl(key, uploadId, partNumber);
+          etag = await uploadPartOnce(uploadUrl, part, (fraction) => onProgress((uploadedBytes + part.size * fraction) / blob.size));
           break;
         } catch (error) {
           lastError = error;
-          if (!isRetryable(error) || attempt === 3) throw error;
-          await wait(attempt === 1 ? 750 : 2000);
+          if (!isRetryable(error) || attempt === 5) throw error;
+          await wait([1000, 2500, 5000, 10000][attempt - 1]);
         }
       }
       if (!etag) throw lastError instanceof Error ? lastError : new Error("Clip part upload failed.");
-      completed.push({ ETag: etag, PartNumber: item.partNumber });
+      completed.push({ ETag: etag, PartNumber: partNumber });
       uploadedBytes += part.size;
       onProgress(uploadedBytes / blob.size);
     }
