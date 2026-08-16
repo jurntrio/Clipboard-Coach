@@ -10,6 +10,12 @@ function wait(milliseconds: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
+function isRetryable(error: unknown) {
+  return error instanceof RetryableUploadError
+    || error instanceof TypeError
+    || (error instanceof DOMException && ["NetworkError", "AbortError", "TimeoutError"].includes(error.name));
+}
+
 function uploadOnce(uploadUrl: string, blob: Blob, contentType: string, onProgress: (fraction: number) => void) {
   return new Promise<void>((resolve, reject) => {
     const request = new XMLHttpRequest();
@@ -44,19 +50,25 @@ export async function uploadBlobToR2(
   const attempts = 3;
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const response = await fetch("/api/videos/upload-url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, contentType })
-    });
-    if (!response.ok) throw await responseError(response, "Could not prepare clip upload");
-    const { uploadUrl, publicUrl } = await response.json() as { uploadUrl: string; publicUrl: string };
     try {
+      const response = await fetch("/api/videos/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, contentType })
+      });
+      if (!response.ok) {
+        const error = await responseError(response, "Could not prepare clip upload");
+        if (response.status === 408 || response.status === 429 || response.status >= 500) {
+          throw new RetryableUploadError(error.message);
+        }
+        throw error;
+      }
+      const { uploadUrl, publicUrl } = await response.json() as { uploadUrl: string; publicUrl: string };
       await uploadOnce(uploadUrl, blob, contentType, onProgress);
       return publicUrl;
     } catch (error) {
       lastError = error;
-      if (!(error instanceof RetryableUploadError) || attempt === attempts) break;
+      if (!isRetryable(error) || attempt === attempts) break;
       onProgress(0);
       await wait(attempt === 1 ? 750 : 2000);
     }
