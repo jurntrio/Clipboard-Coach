@@ -3,6 +3,7 @@ import {
   FormEvent,
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
+  WheelEvent as ReactWheelEvent,
   useEffect,
   useMemo,
   useRef,
@@ -693,6 +694,8 @@ function App() {
   const pendingDrawingIndexRef = useRef(0);
   const addTagInputRef = useRef<HTMLInputElement | null>(null);
   const [screen, setScreen] = useState<Screen>("home");
+  const [videoZoom, setVideoZoom] = useState(1);
+  const [videoZoomOrigin, setVideoZoomOrigin] = useState({ x: 50, y: 50 });
   const [trackingViewerVideoId, setTrackingViewerVideoId] = useState<string | null>(null);
   const [store, setStore] = useState<AppStore>(emptyStore);
   const [video, setVideo] = useState<VideoFile | null>(null);
@@ -4486,11 +4489,26 @@ function App() {
 
         <section className="videoPanel" aria-label="Video player">
           {video ? (
-            <div className="videoStage">
+            <div
+              className="videoStage"
+              onWheel={(event: ReactWheelEvent<HTMLDivElement>) => {
+                event.preventDefault();
+                const bounds = event.currentTarget.getBoundingClientRect();
+                setVideoZoomOrigin({
+                  x: ((event.clientX - bounds.left) / bounds.width) * 100,
+                  y: ((event.clientY - bounds.top) / bounds.height) * 100
+                });
+                setVideoZoom((current) => Math.min(4, Math.max(1, current + (event.deltaY < 0 ? 0.25 : -0.25))));
+              }}
+            >
               <video
                 key={`${video.url}:${currentVideoKey ?? video.path}`}
                 ref={videoRef}
                 className="videoPlayer"
+                style={{
+                  transform: `scale(${videoZoom})`,
+                  transformOrigin: `${videoZoomOrigin.x}% ${videoZoomOrigin.y}%`
+                }}
                 src={video.url}
                 crossOrigin="anonymous"
                 preload="metadata"
@@ -4500,6 +4518,8 @@ function App() {
                 }}
                 onLoadedMetadata={(event) => {
                   const nextDuration = event.currentTarget.duration || 0;
+                  setVideoZoom(1);
+                  setVideoZoomOrigin({ x: 50, y: 50 });
                   const pendingTime =
                     pendingSourceOpen && currentVideoKey === pendingSourceOpen.videoPath
                       ? Math.min(Math.max(pendingSourceOpen.time, 0), nextDuration || pendingSourceOpen.time)
@@ -4535,6 +4555,19 @@ function App() {
                 onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
                 controls={false}
               />
+              {videoZoom > 1 ? (
+                <button
+                  type="button"
+                  className="videoZoomReset"
+                  onClick={() => {
+                    setVideoZoom(1);
+                    setVideoZoomOrigin({ x: 50, y: 50 });
+                  }}
+                  title="Reset video zoom"
+                >
+                  {Math.round(videoZoom * 100)}% · Reset
+                </button>
+              ) : null}
               {activeTagNames.length > 0 ? (
                 <div className="activeTagWatermark" aria-live="polite">
                   <span>Active</span>
