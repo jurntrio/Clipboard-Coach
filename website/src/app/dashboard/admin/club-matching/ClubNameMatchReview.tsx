@@ -40,10 +40,14 @@ function ClubPicker({
           const nextQuery = event.target.value;
           const exactClub = clubs.find((club) =>
             `${club.naam} (${club.stamnummer})`.toLocaleLowerCase("nl-BE") === nextQuery.toLocaleLowerCase("nl-BE")
-            || String(club.stamnummer) === nextQuery.trim()
           );
           setQuery(nextQuery);
           onChange(exactClub?.id ?? "");
+        }}
+        onBlur={() => {
+          if (selectedClub) return;
+          const exactClub = clubs.find((club) => String(club.stamnummer) === query.trim());
+          if (exactClub) onChange(exactClub.id);
         }}
         onFocus={(event) => event.currentTarget.select()}
         placeholder="Zoek op clubnaam of stamnummer…"
