@@ -21,7 +21,8 @@ export function ClipPreviewModal({
   onClose,
   onShare,
   matchTitle,
-  audienceLabel
+  audienceLabel,
+  showSegmentList = true
 }: {
   clipName: string;
   videoUrl: string;
@@ -30,6 +31,7 @@ export function ClipPreviewModal({
   onShare?: () => void;
   matchTitle?: string;
   audienceLabel?: string;
+  showSegmentList?: boolean;
 }) {
   const { t } = useI18n();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -143,7 +145,7 @@ export function ClipPreviewModal({
           {activeDrawing && <div className="absolute inset-0 grid place-items-center bg-black"><img src={activeDrawing.url} alt="" className="h-full w-full object-contain" /></div>}
         </div>
 
-        <div className="mt-3 space-y-1">
+        {showSegmentList && <div className="mt-3 space-y-1">
           {segments.map((seg, index) => (
             <button
               key={seg.id}
@@ -157,7 +159,7 @@ export function ClipPreviewModal({
               <span className="ml-auto text-xs text-textMuted">{seg.playerNames?.length ? seg.playerNames.join(", ") : t("clip.noPlayer")}</span>
             </button>
           ))}
-        </div>
+        </div>}
       </div>
     </div>
   );

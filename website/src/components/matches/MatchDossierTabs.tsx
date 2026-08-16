@@ -6,6 +6,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchLineupEditor, type LineupBlock, type LineupPosition } from "./MatchLineupEditor";
 import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
+import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
+import { createClient } from "@/lib/supabase/client";
+import { buildPublicShareUrl } from "@/lib/share-url";
 
 export type MatchDossier = {
   lineup_notes: string;
@@ -68,6 +71,22 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
+  const [shareDialog, setShareDialog] = useState<{ clipName: string; shareUrl: string } | null>(null);
+
+  async function shareClip(clip: Clip) {
+    if (clip.shareToken) {
+      setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(clip.shareToken) });
+      return;
+    }
+    const supabase = createClient();
+    const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select("token").single();
+    if (error || !data) {
+      setNotice(error?.message || "Deellink kon niet worden aangemaakt.");
+      return;
+    }
+    clip.shareToken = data.token;
+    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token) });
+  }
 
   function playbackSegments(clip: Clip): ClipSegmentPlayback[] {
     if (clip.render_status === "ready" && clip.rendered_segments.length) return clip.rendered_segments.map(segment => ({
@@ -266,7 +285,8 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
       </div> : <Empty text="Nog geen clips voor deze wedstrijd. Bij een verplaatsing blijft dit vaak leeg." />}
     </ClosedPanel>}
 
-    {selectedClip && <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos?.video_url ?? ""} segments={playbackSegments(selectedClip)} onClose={() => setSelectedClip(null)} />}
+    {selectedClip && <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos?.video_url ?? ""} segments={playbackSegments(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} showSegmentList={false} />}
+    {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} onClose={() => setShareDialog(null)} />}
 
     {(editable || canComplete || scoutingEditable) && <div className="flex flex-wrap items-center justify-end gap-3 p-5">
       {notice && <p className="mr-auto text-sm text-accent">{notice}</p>}
