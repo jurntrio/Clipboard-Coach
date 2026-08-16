@@ -6,6 +6,7 @@ import { resolveDefaultTeamId } from "@/lib/auth/default-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { resolveClubLogoById } from "@/lib/belgian-clubs/resolve-club-logo";
+import { deleteObject } from "@/lib/r2/upload";
 
 export async function GET() {
   const context = await getClubContext();
@@ -32,6 +33,7 @@ export async function GET() {
   const canSeeViewCounts = hasClubPermission(access, "games.view_counts")
     && (context.isPlatformAdmin || effectiveRole === "club_admin" || configuredViewRoles.includes(effectiveRole));
   const canViewSelection = hasClubPermission(access, "games.selection.view");
+  const canViewClips = hasClubPermission(access, "video.view");
   const canPrepareMatches = hasClubPermission(access, "games.planning.manage") || hasClubPermission(access, "games.selection.manage")
     || hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.tag_link.create");
   const clubTeamIds = (clubTeams ?? []).map((team) => team.id).filter((id) => canAccessTeam(access, id));
@@ -68,11 +70,21 @@ export async function GET() {
     canViewSelection && teamIds.length
       ? admin.from("players").select("*").in("team_id", teamIds).neq("role", "staff").order("last_name")
       : Promise.resolve({ data: [] }),
-    videoIds.length
+    canViewClips && videoIds.length
       ? admin.from("clips").select(`id, coach_id, video_id, name, display_number, render_status, created_at, audience_type, audience_player_ids, rendered_segments, share_links(token${canSeeViewCounts ? ", view_count" : ""}), videos(title, video_url), clip_segments(id, sequence_order, video_id, render_status, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))`)
           .in("video_id", videoIds).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] })
   ]);
+
+  const failedClips = (clips ?? []).filter((clip) => clip.render_status === "failed");
+  await Promise.all(failedClips.map(async (clip) => {
+    const keys = ((clip.rendered_segments ?? []) as Array<{ key?: string }>).map(segment => segment.key).filter((key): key is string => !!key);
+    const removals = await Promise.allSettled(keys.map(key => deleteObject(key)));
+    for (const removal of removals) if (removal.status === "rejected") console.error("Could not remove failed clip object:", removal.reason);
+    const { error } = await admin.from("clips").delete().eq("id", clip.id);
+    if (error) console.error("Could not remove failed clip record:", error);
+  }));
+  const visibleClips = (clips ?? []).filter((clip) => clip.render_status !== "failed");
 
   const matchesWithLogos = await Promise.all(visibleMatches.map(async (match) => ({
     ...match,
@@ -91,7 +103,7 @@ export async function GET() {
     activeTeamId,
     teamOptions,
     players: authorizationPlayers(players ?? [], access.goalkeeperPlayerIds),
-    clips: clips ?? [],
+    clips: visibleClips,
     role: membership.role,
     isPlatformAdmin: context.isPlatformAdmin,
     canSeeViewCounts,

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MatchLineupEditor, type LineupBlock, type LineupPosition } from "./MatchLineupEditor";
+import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 
 export type MatchDossier = {
   lineup_notes: string;
@@ -25,7 +26,12 @@ export type MatchDossier = {
 type PlayerReview = { playerId: string; rating: number | null; report: string; playerReport: string };
 
 type Player = { id: string; first_name: string; last_name: string; jersey_number: number | null; is_goalkeeper?: boolean };
-type Clip = { id: string; name: string; render_status: string; created_at: string; shareToken: string | null };
+type Clip = {
+  id: string; name: string; render_status: string; created_at: string; shareToken: string | null;
+  rendered_segments: Array<{ id: string; url: string; name: string; color: string; duration: number; play_start?: number }>;
+  videos: { video_url: string } | null;
+  clip_segments: Array<{ id: string; sequence_order: number; videos: { video_url: string } | null; tags: { name: string; color: string; start_time: number; end_time: number } | null }>;
+};
 type GoalEvent = {
   id: string; team: "home" | "away"; scoreAfter: string; minute: number | null;
   scorerType: "" | "player" | "own_goal" | "custom"; scorerPlayerId: string; scorerName: string;
@@ -41,9 +47,9 @@ const emptyDossier: MatchDossier = {
   highlights: "", goals: "", cards: "", chances: "", scouting: "", goal_events: [], lineup_positions: [], lineup_blocks: [], player_reviews: []
 };
 
-export function MatchDossierTabs({ matchId, players, reportPlayers = players, clips, initialDossier, editable, canComplete = false, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, matchPeriodCount, matchPeriodMinutes, showSelection = true, showReport = false, showScouting = false }: {
+export function MatchDossierTabs({ matchId, players, reportPlayers = players, clips, initialDossier, editable, canComplete = false, scoutingEditable = false, played, scoreA, scoreB, ownTeamSide, homeTeamName, awayTeamName, completed, matchPeriodCount, matchPeriodMinutes, showSelection = true, showReport = false, showScouting = false, showClips = false }: {
   matchId: string; players: Player[]; reportPlayers?: Player[]; clips: Clip[]; initialDossier?: Partial<MatchDossier> | null; editable: boolean;
-  canComplete?: boolean; scoutingEditable?: boolean; played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean; matchPeriodCount?: number | null; matchPeriodMinutes?: number | null; showSelection?: boolean; showReport?: boolean; showScouting?: boolean;
+  canComplete?: boolean; scoutingEditable?: boolean; played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean; matchPeriodCount?: number | null; matchPeriodMinutes?: number | null; showSelection?: boolean; showReport?: boolean; showScouting?: boolean; showClips?: boolean;
 }) {
   const router = useRouter();
   const expectedGoals = Array.from({ length: (scoreA ?? 0) + (scoreB ?? 0) }, (_, index) => ({ id: `goal-${index + 1}` }));
@@ -61,6 +67,16 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
   const [draftScoreB, setDraftScoreB] = useState<number | null>(scoreB);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
+
+  function playbackSegments(clip: Clip): ClipSegmentPlayback[] {
+    if (clip.render_status === "ready" && clip.rendered_segments.length) return clip.rendered_segments.map(segment => ({
+      id: segment.id, name: segment.name, color: segment.color, start_time: segment.play_start ?? 0, end_time: segment.duration, url: segment.url
+    }));
+    return [...clip.clip_segments].sort((a, b) => a.sequence_order - b.sequence_order).filter(segment => !!segment.tags).map(segment => ({
+      id: segment.id, name: segment.tags!.name, color: segment.tags!.color, start_time: segment.tags!.start_time, end_time: segment.tags!.end_time, url: segment.videos?.video_url
+    }));
+  }
 
   function updateScore(side: "home" | "away", value: string) {
     const parsed = Number(value);
@@ -239,15 +255,18 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
       </label> : field("scouting", "Scouting", "Observaties over eigen spelers, tegenstander en aandachtspunten…")}
     </ClosedPanel>}
 
-    {(clips.length > 0 || editable) && <ClosedPanel title={`Clips (${clips.length})`} expanded={false}>
+    {showClips && clips.length > 0 && <ClosedPanel title={`Clips (${clips.length})`} expanded={false}>
       {clips.length ? <div className="grid gap-3 sm:grid-cols-2">
         {clips.map(clip => <article key={clip.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
           <strong className="block text-textBright">{clip.name}</strong>
           <span className="mt-1 block text-xs text-textMuted">{new Date(clip.created_at).toLocaleDateString("nl-BE")} · {clip.render_status}</span>
+          {clip.render_status === "ready" && <button type="button" onClick={() => setSelectedClip(clip)} className="mt-3 inline-flex rounded-lg bg-accent px-3 py-2 text-sm font-bold text-page">▶ Clip bekijken</button>}
           {clip.shareToken && <Link href={`/share/${clip.shareToken}`} className="mt-3 inline-flex text-sm font-bold text-accent">Clip openen</Link>}
         </article>)}
       </div> : <Empty text="Nog geen clips voor deze wedstrijd. Bij een verplaatsing blijft dit vaak leeg." />}
     </ClosedPanel>}
+
+    {selectedClip && <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos?.video_url ?? ""} segments={playbackSegments(selectedClip)} onClose={() => setSelectedClip(null)} />}
 
     {(editable || canComplete || scoutingEditable) && <div className="flex flex-wrap items-center justify-end gap-3 p-5">
       {notice && <p className="mr-auto text-sm text-accent">{notice}</p>}

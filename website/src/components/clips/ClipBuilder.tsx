@@ -225,6 +225,8 @@ export function ClipBuilder({
                     duration_seconds: Math.max(1, drawing.duration_seconds || 5)
                   }))
               });
+              const { error: checkpointError } = await supabase.from("clips").update({ rendered_segments: renderedSegments }).eq("id", clip.id);
+              if (checkpointError) throw checkpointError;
             } finally {
               await rendered.cleanup();
             }
@@ -250,7 +252,8 @@ export function ClipBuilder({
           setOpen(false);
         } catch (renderError) {
           const message = renderError instanceof Error ? renderError.message : t("clip.creationFailed");
-          await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", clip.id);
+          const cleanupResponse = await fetch(`/api/clips/${clip.id}`, { method: "DELETE" });
+          if (!cleanupResponse.ok) await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", clip.id);
           setErrorMessage(message);
           setStatus("");
         }
@@ -269,7 +272,8 @@ export function ClipBuilder({
           setOpen(false);
         } catch (renderError) {
           const message = renderError instanceof Error ? renderError.message : t("clip.creationFailed");
-          await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", clip.id);
+          const cleanupResponse = await fetch(`/api/clips/${clip.id}`, { method: "DELETE" });
+          if (!cleanupResponse.ok) await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", clip.id);
           setErrorMessage(message);
           setStatus("");
         }

@@ -9,6 +9,7 @@ import { MatchPreparationEditor } from "@/components/matches/MatchPreparationEdi
 import { MatchTagLinkButton } from "@/components/matches/MatchTagLinkButton";
 import { getClubContext } from "@/lib/auth/active-club";
 import { MatchCoreInfoEditor } from "@/components/matches/MatchCoreInfoEditor";
+import { deleteObject } from "@/lib/r2/upload";
 
 type GuardianPlayer = { player_id: string; team_id: string | null };
 type PlayerFacingReview = { playerId?: unknown; playerReport?: unknown };
@@ -81,7 +82,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     admin.from("match_guest_players").select("id, first_name, last_name, jersey_number").eq("match_id", match.id).order("created_at"),
     admin.from("match_dossiers").select("*").eq("match_id", match.id).maybeSingle(),
     videoIds.length
-      ? admin.from("clips").select("id, name, render_status, created_at, share_links(token)").in("video_id", videoIds).order("created_at", { ascending: false })
+      ? admin.from("clips").select("id, name, render_status, created_at, rendered_segments, videos(video_url), clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, color, start_time, end_time)), share_links(token)").in("video_id", videoIds).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     match.completed_by
       ? admin.from("profiles").select("full_name, email").eq("id", match.completed_by).maybeSingle()
@@ -102,12 +103,23 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     })),
     ...(guestPlayers ?? [])
   ];
-  const dossierClips = (clips ?? []).map((clip: any) => ({
+  const failedClips = (clips ?? []).filter((clip: any) => clip.render_status === "failed");
+  await Promise.all(failedClips.map(async (clip: any) => {
+    const keys = ((clip.rendered_segments ?? []) as Array<{ key?: string }>).map(segment => segment.key).filter((key): key is string => !!key);
+    const removals = await Promise.allSettled(keys.map(key => deleteObject(key)));
+    for (const removal of removals) if (removal.status === "rejected") console.error("Could not remove failed clip object:", removal.reason);
+    const { error: deleteError } = await admin.from("clips").delete().eq("id", clip.id);
+    if (deleteError) console.error("Could not remove failed clip record:", deleteError);
+  }));
+  const dossierClips = (clips ?? []).filter((clip: any) => clip.render_status !== "failed").map((clip: any) => ({
     id: clip.id,
     name: clip.name,
     render_status: clip.render_status,
     created_at: clip.created_at,
-    shareToken: clip.share_links?.[0]?.token ?? null
+    shareToken: clip.share_links?.[0]?.token ?? null,
+    rendered_segments: clip.rendered_segments ?? [],
+    videos: clip.videos ?? null,
+    clip_segments: clip.clip_segments ?? []
   }));
   const optionNames = new Map((options ?? []).map((option) => [option.id, option.label]));
   const guardianPlayerIds = guardianPlayers.map(player => player.player_id);
@@ -220,6 +232,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       matchPeriodCount={match.match_period_count}
       matchPeriodMinutes={match.match_period_minutes}
       showSelection={canViewSelection}
+      showClips={canViewVideo}
     />}
 
     {!staffCanView && <section className="space-y-4 rounded-xl border border-borderSubtle bg-cardDeep p-4 text-sm text-textMuted">
