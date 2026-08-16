@@ -1804,6 +1804,14 @@ select:focus {
   background: var(--bg-video);
 }
 
+.videoStage:has(.videoZoomReset) {
+  cursor: grab;
+}
+
+.videoStage[data-dragging="true"] {
+  cursor: grabbing;
+}
+
 .videoPlayer,
 .emptyVideo {
   width: 100%;
