@@ -86,8 +86,13 @@ async function uploadMultipartBlob(blob: Blob, key: string, contentType: string,
   if (typeof uploadId !== "string") throw new Error("Video storage did not create a multipart upload.");
 
   try {
-    const prepared = await multipartRequest({ action: "part-urls", key, uploadId, partNumbers: Array.from({ length: partCount }, (_, index) => index + 1) });
-    const urls = prepared.urls as Array<{ partNumber: number; url: string }> | undefined;
+    const urls: Array<{ partNumber: number; url: string }> = [];
+    const partNumbers = Array.from({ length: partCount }, (_, index) => index + 1);
+    for (let offset = 0; offset < partNumbers.length; offset += 25) {
+      const prepared = await multipartRequest({ action: "part-urls", key, uploadId, partNumbers: partNumbers.slice(offset, offset + 25) });
+      if (!Array.isArray(prepared.urls)) throw new Error("Video storage did not prepare all clip parts.");
+      urls.push(...prepared.urls as Array<{ partNumber: number; url: string }>);
+    }
     if (!Array.isArray(urls) || urls.length !== partCount) throw new Error("Video storage did not prepare all clip parts.");
     const completed: Array<{ ETag: string; PartNumber: number }> = [];
     let uploadedBytes = 0;
