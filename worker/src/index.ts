@@ -6,8 +6,7 @@ import { processClip } from "./processClip";
 import { processRemoteClip } from "./processRemoteClip";
 import { cleanupExpiredClips } from "./cleanupExpiredClips";
 import { startLockedJob } from "./jobLock";
-import { syncFoot24Calendars } from "./syncFoot24Calendars";
-import { syncVoetbalVlaanderenCalendars } from "./syncVoetbalVlaanderenCalendars";
+import { syncRbfaZipMatches } from "./syncRbfaZipMatches";
 
 const app = express();
 app.use(express.json({ limit: "32kb" }));
@@ -58,24 +57,22 @@ cleanupExpiredClips()
   .then((result) => console.log("[worker] startup clip retention cleanup complete:", result))
   .catch((error) => console.error("[worker] startup clip retention cleanup failed:", error));
 
-const calendarInterval = setInterval(() => {
-  syncFoot24Calendars()
-    .then((result) => console.log("[worker] Foot24 calendar sync complete:", result))
-    .catch((error) => console.error("[worker] Foot24 calendar sync failed:", error));
-}, 30 * 60 * 1000);
-calendarInterval.unref();
+let lastOfficialSyncDate = "";
+async function runNightlyOfficialSync() {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Brussels", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", hour12: false
+  }).formatToParts(new Date()).map(part => [part.type, part.value]));
+  const date = `${parts.year}-${parts.month}-${parts.day}`;
+  if (![2, 3].includes(Number(parts.hour)) || lastOfficialSyncDate === date) return;
+  lastOfficialSyncDate = date;
+  try {
+    console.log("[worker] RBFA ZIP sync complete:", await syncRbfaZipMatches());
+  } catch (error) {
+    console.error("[worker] RBFA ZIP sync failed:", error);
+  }
+}
 
-syncFoot24Calendars()
-  .then((result) => console.log("[worker] startup Foot24 calendar sync complete:", result))
-  .catch((error) => console.error("[worker] startup Foot24 calendar sync failed:", error));
-
-const officialCalendarInterval = setInterval(() => {
-  const brusselsHour = Number(new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Brussels", hour: "2-digit", hour12: false
-  }).format(new Date()));
-  if (brusselsHour !== 3) return;
-  syncVoetbalVlaanderenCalendars()
-    .then((result) => console.log("[worker] official calendar sync complete:", result))
-    .catch((error) => console.error("[worker] official calendar sync failed:", error));
-}, 60 * 60 * 1000);
+const officialCalendarInterval = setInterval(() => { void runNightlyOfficialSync(); }, 15 * 60 * 1000);
 officialCalendarInterval.unref();
+void runNightlyOfficialSync();

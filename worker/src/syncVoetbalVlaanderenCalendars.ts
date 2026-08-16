@@ -7,6 +7,7 @@ type OfficialGame = {
   startTime: string;
   homeTeam: { id: string; name: string };
   awayTeam: { id: string; name: string };
+  series?: { id: string; name: string } | null;
   outcome?: { status?: string | null; homeTeamGoals?: number | null; awayTeamGoals?: number | null } | null;
   state?: string | null;
 };
@@ -77,6 +78,8 @@ async function syncFeed(feed: Record<string, any>) {
       status: finished ? "finished" : "scheduled",
       score_a: ownIsHome ? game.outcome?.homeTeamGoals ?? null : game.outcome?.awayTeamGoals ?? null,
       score_b: ownIsHome ? game.outcome?.awayTeamGoals ?? null : game.outcome?.homeTeamGoals ?? null,
+      official_series_id: game.series?.id ?? null,
+      official_series_name: game.series?.name?.trim() || null,
       external_source: "voetbal_vlaanderen", external_match_id: externalMatchId
     };
     const result = existing

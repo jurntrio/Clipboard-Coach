@@ -159,7 +159,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
         </div>
         <h2 className="text-xl font-black text-textBright sm:text-3xl">{awayTeamName}</h2>
       </div>
-      <p className="mt-5 text-center text-sm text-textMuted">{displayDate(match.match_date)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p>
+      <p className="mt-5 text-center text-sm text-textMuted">{displayDate(match.match_date)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}{match.official_series_name ? ` · ${match.official_series_name}` : ""}</p>
       {canViewReport && dossier?.goal_events?.length > 0 && <ScoreTimeline goals={dossier.goal_events as ScoreGoal[]} players={reportPlayers} ownTeamSide={match.is_home_match ? "home" : "away"} />}
       {match.completed_at && <p className="mt-3 text-center text-xs font-semibold text-accent">
         Wedstrijd afgewerkt door {completedByProfile?.full_name?.trim() || completedByProfile?.email?.split("@")[0] || "onbekend"} · {new Date(match.completed_at).toLocaleString("nl-BE")}
@@ -185,7 +185,9 @@ export default async function GameOverviewPage({ params, searchParams }: { param
           {match.is_home_match && <Info label="Veld" value={optionNames.get(match.field_option_id) || "Niet ingesteld"} />}
           {match.is_home_match && <Info label="Kleedkamer" value={optionNames.get(match.locker_room_option_id) || "Niet ingesteld"} />}
           {match.is_home_match && <Info label="Kleedkamer bezoekers" value={optionNames.get(match.visitor_locker_room_option_id) || "Niet ingesteld"} />}
-          <Info label="Scheidsrechter" value={optionNames.get(match.referee_option_id) || "Aangeduid door KBVB"} />
+          <Info label="Scheidsrechter" value={match.official_referee_name || optionNames.get(match.referee_option_id) || "Aangeduid door KBVB"} />
+          {match.official_assistant_referee_1_name && <Info label="Assistent-scheidsrechter 1" value={match.official_assistant_referee_1_name} />}
+          {match.official_assistant_referee_2_name && <Info label="Assistent-scheidsrechter 2" value={match.official_assistant_referee_2_name} />}
         </dl>}
         {match.show_public_location && match.public_location && <Info label="Locatie" value={match.public_location} />}
       </PublicMatchInfoEditor>

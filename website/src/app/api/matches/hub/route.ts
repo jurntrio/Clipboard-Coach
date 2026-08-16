@@ -57,7 +57,8 @@ export async function GET() {
       : Promise.resolve({ data: [] })
   ]);
 
-  const visibleMatches = (matches ?? []).filter((match) => canAccessTeam(access, match.club_team_id))
+  const officialDownloadMatches = (matches ?? []).filter(match => !["foot24", "voetbal_vlaanderen"].includes(match.external_source ?? ""));
+  const visibleMatches = officialDownloadMatches.filter((match) => canAccessTeam(access, match.club_team_id))
     .map(match => canViewSelection ? match : { ...match, player_ids: [] });
   const teamIds = (teams ?? []).map((team) => team.id);
   const videoIds = Array.from(new Set(visibleMatches.flatMap((match) =>

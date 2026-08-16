@@ -18,6 +18,9 @@ export type RbfaClubFixture = {
   scoreAway: number | null;
   status: "scheduled" | "finished";
   sourceFile: "results" | "designations";
+  referee: string | null;
+  assistantReferee1: string | null;
+  assistantReferee2: string | null;
 };
 
 function splitSemicolonLine(line: string) {
@@ -80,6 +83,7 @@ export async function downloadRbfaClubFixtures(clubName: string, registrationNum
   const registration = String(registrationNumber).padStart(5, "0");
   const fixtures: Omit<RbfaClubFixture, "key">[] = [];
   const resultIdentities = new Set<string>();
+  const resultFixturesByIdentity = new Map<string, Omit<RbfaClubFixture, "key">>();
 
   for (const row of parseRows(resultsCsv)) {
     const home = row.REGNUMBERHOME === registration;
@@ -91,12 +95,14 @@ export async function downloadRbfaClubFixtures(clubName: string, registrationNum
     resultIdentities.add(identity);
     const scoreHome = numberOrNull(row.RH);
     const scoreAway = numberOrNull(row.RA);
-    fixtures.push({
+    const fixture: Omit<RbfaClubFixture, "key"> = {
       division: row.DIV, date, time: row.HOUR, homeTeam: row.HOME, awayTeam: row.AWAY,
       ownIsHome: home, scoreHome, scoreAway,
       status: scoreHome !== null && scoreAway !== null ? "finished" : "scheduled",
-      sourceFile: "results"
-    });
+      sourceFile: "results", referee: null, assistantReferee1: null, assistantReferee2: null
+    };
+    fixtures.push(fixture);
+    resultFixturesByIdentity.set(identity, fixture);
   }
 
   for (const row of parseRows(designationsCsv)) {
@@ -106,10 +112,19 @@ export async function downloadRbfaClubFixtures(clubName: string, registrationNum
     const date = dateToIso(row.DATE);
     if (!date || !row.HOME || !row.AWAY) continue;
     const identity = `${date}|${row.HOUR}|${normalizeRbfaFixtureName(row.HOME)}|${normalizeRbfaFixtureName(row.AWAY)}`;
-    if (resultIdentities.has(identity)) continue;
+    const resultFixture = resultFixturesByIdentity.get(identity);
+    if (resultFixture) {
+      resultFixture.referee = row.REFEREE || null;
+      resultFixture.assistantReferee1 = row["ASSISTANT-REFEREE1"] || null;
+      resultFixture.assistantReferee2 = row["ASSISTANT-REFEREE2"] || null;
+      continue;
+    }
     fixtures.push({
       division: row.DIV, date, time: row.HOUR, homeTeam: row.HOME, awayTeam: row.AWAY,
-      ownIsHome: home, scoreHome: null, scoreAway: null, status: "scheduled", sourceFile: "designations"
+      ownIsHome: home, scoreHome: null, scoreAway: null, status: "scheduled", sourceFile: "designations",
+      referee: row.REFEREE || null,
+      assistantReferee1: row["ASSISTANT-REFEREE1"] || null,
+      assistantReferee2: row["ASSISTANT-REFEREE2"] || null
     });
   }
 

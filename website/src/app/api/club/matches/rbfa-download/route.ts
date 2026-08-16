@@ -3,7 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { isAdminEmail } from "@/lib/auth/admin";
-import { downloadRbfaClubFixtures, filterUnlinkedRbfaFixtures } from "@/lib/rbfa-club-downloads";
+import { downloadRbfaClubFixtures, filterUnlinkedRbfaFixtures, type RbfaClubFixture } from "@/lib/rbfa-club-downloads";
+import { normalizeRbfaDivisionCode } from "@/lib/rbfa-team-suggestions";
 import { resolveBelgianClubByName, resolveBelgianClubForClub } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
 async function context(clubId: string) {
@@ -11,13 +12,15 @@ async function context(clubId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Niet aangemeld." }, { status: 401 }) };
   const admin = createAdminClient();
-  const [{ data: club }, { data: membership }] = await Promise.all([
+  const [{ data: club }, { data: membership }, { data: season }] = await Promise.all([
     admin.from("clubs").select("id, name, rbfa_registration_number").eq("id", clubId).maybeSingle(),
-    admin.from("club_memberships").select("role").eq("club_id", clubId).eq("profile_id", user.id).eq("status", "active").maybeSingle()
+    admin.from("club_memberships").select("role").eq("club_id", clubId).eq("profile_id", user.id).eq("status", "active").maybeSingle(),
+    admin.from("club_seasons").select("id").eq("club_id", clubId).eq("status", "ACTIVE").maybeSingle()
   ]);
   if (!club) return { error: NextResponse.json({ error: "Club niet gevonden." }, { status: 404 }) };
+  if (!season) return { error: NextResponse.json({ error: "De club heeft geen actief seizoen." }, { status: 400 }) };
   if (!isAdminEmail(user.email) && membership?.role !== "club_admin") {
-    return { error: NextResponse.json({ error: "Alleen een clubadmin kan de officiële clubdownload verwerken." }, { status: 403 }) };
+    return { error: NextResponse.json({ error: "Alleen een clubadmin kan officiële reeksen koppelen." }, { status: 403 }) };
   }
   const access = await getClubAccess(club.id, user);
   const platformAdmin = isAdminEmail(user.email);
@@ -27,7 +30,7 @@ async function context(clubId: string) {
   if (!club.rbfa_registration_number) {
     return { error: NextResponse.json({ error: "Vul eerst het stamnummer van de club in." }, { status: 400 }) };
   }
-  return { admin, club, user, access, platformAdmin };
+  return { admin, club, season, user, access, platformAdmin };
 }
 
 export async function GET(request: Request) {
@@ -35,68 +38,82 @@ export async function GET(request: Request) {
   const ctx = await context(clubId);
   if (ctx.error) return ctx.error;
   const fixtures = await downloadRbfaClubFixtures(ctx.club.name, ctx.club.rbfa_registration_number);
-  const { data: matches, error } = await ctx.admin.from("matches")
-    .select("club_team_id, match_date, start_time, team_b_name").eq("club_id", ctx.club.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ fixtures: filterUnlinkedRbfaFixtures(fixtures, matches ?? []), downloadedAt: new Date().toISOString() });
+  const [{ data: matches, error }, { data: assignments, error: assignmentError }] = await Promise.all([
+    ctx.admin.from("matches").select("club_team_id, match_date, start_time, team_b_name").eq("club_id", ctx.club.id).eq("season_id", ctx.season.id),
+    ctx.admin.from("club_official_series_assignments").select("division_code, club_team_id").eq("club_id", ctx.club.id).eq("season_id", ctx.season.id)
+  ]);
+  if (error || assignmentError) return NextResponse.json({ error: error?.message ?? assignmentError?.message }, { status: 500 });
+  const unlinked = filterUnlinkedRbfaFixtures(fixtures, matches ?? []);
+  const assignedByCode = new Map((assignments ?? []).map(item => [item.division_code, item.club_team_id]));
+  const grouped = new Map<string, { divisionCode: string; fixtureCount: number; unlinkedCount: number; assignedTeamId: string | null }>();
+  for (const fixture of fixtures) {
+    const divisionCode = normalizeRbfaDivisionCode(fixture.division) || "ZONDER REEKS";
+    const current = grouped.get(divisionCode) ?? { divisionCode, fixtureCount: 0, unlinkedCount: 0, assignedTeamId: assignedByCode.get(divisionCode) ?? null };
+    current.fixtureCount += 1;
+    grouped.set(divisionCode, current);
+  }
+  for (const fixture of unlinked) {
+    const divisionCode = normalizeRbfaDivisionCode(fixture.division) || "ZONDER REEKS";
+    const current = grouped.get(divisionCode);
+    if (current) current.unlinkedCount += 1;
+  }
+  return NextResponse.json({ series: [...grouped.values()].sort((a, b) => a.divisionCode.localeCompare(b.divisionCode, "nl")), downloadedAt: new Date().toISOString() });
+}
+
+type ImportContext = { user: { id: string }; club: { id: string }; season: { id: string } };
+type ImportTeam = { id: string; name: string; sponsor_source: string | null; teams: { id: string } | { id: string }[] };
+
+async function matchPayload(ctx: ImportContext, fixture: RbfaClubFixture, team: ImportTeam, ownClubId: string | null, opponentClubIds: Map<string, string | null>) {
+  const operationalTeam = Array.isArray(team.teams) ? team.teams[0] : team.teams;
+  const opponent = fixture.ownIsHome ? fixture.awayTeam : fixture.homeTeam;
+  if (!opponentClubIds.has(opponent)) opponentClubIds.set(opponent, await resolveBelgianClubByName(opponent));
+  return {
+    coach_id: ctx.user.id, club_id: ctx.club.id, season_id: ctx.season.id,
+    club_team_id: team.id, team_a_id: operationalTeam.id, team_a_name: team.name,
+    team_a_belgian_club_id: ownClubId, team_b_id: null, team_b_name: opponent,
+    team_b_belgian_club_id: opponentClubIds.get(opponent), is_home_match: fixture.ownIsHome,
+    match_date: fixture.date, start_time: fixture.time, status: fixture.status,
+    score_a: fixture.ownIsHome ? fixture.scoreHome : fixture.scoreAway,
+    score_b: fixture.ownIsHome ? fixture.scoreAway : fixture.scoreHome,
+    official_series_name: fixture.division || null,
+    external_source: "voetbal_vlaanderen_download", external_match_id: `${ctx.club.id}:${fixture.key}`,
+    sponsor_source: team.sponsor_source ?? "none", official_referee_name: fixture.referee,
+    official_assistant_referee_1_name: fixture.assistantReferee1,
+    official_assistant_referee_2_name: fixture.assistantReferee2,
+    official_officials_synced_at: new Date().toISOString()
+  };
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as {
-    clubId?: string;
-    assignments?: Array<{ fixtureKey: string; teamId: string }>;
-  } | null;
-  if (!body?.clubId || !Array.isArray(body.assignments) || body.assignments.length > 500) {
-    return NextResponse.json({ error: "Ongeldige importselectie." }, { status: 400 });
-  }
+  const body = await request.json().catch(() => null) as { clubId?: string; divisionCode?: string; teamId?: string } | null;
+  if (!body?.clubId || !body.teamId || !body.divisionCode) return NextResponse.json({ error: "Ongeldige reekskoppeling." }, { status: 400 });
   const ctx = await context(body.clubId);
   if (ctx.error) return ctx.error;
-  const fixtures = await downloadRbfaClubFixtures(ctx.club.name, ctx.club.rbfa_registration_number);
-  const fixturesByKey = new Map(fixtures.map(fixture => [fixture.key, fixture]));
-  const { data: teams, error: teamError } = await ctx.admin.from("club_teams")
-    .select("id, name, sponsor_source, teams(id)").eq("club_id", ctx.club.id).eq("status", "active");
-  if (teamError) return NextResponse.json({ error: teamError.message }, { status: 500 });
-  const teamsById = new Map((teams ?? []).map(team => [team.id, team]));
+  const divisionCode = normalizeRbfaDivisionCode(body.divisionCode);
+  const { data: team, error: teamError } = await ctx.admin.from("club_teams")
+    .select("id, name, sponsor_source, season_id, teams(id)").eq("id", body.teamId).eq("club_id", ctx.club.id).eq("season_id", ctx.season.id).eq("status", "active").maybeSingle();
+  if (teamError || !team || (!ctx.platformAdmin && !canAccessTeam(ctx.access, team.id))) return NextResponse.json({ error: teamError?.message ?? "Ploeg niet gevonden." }, { status: 400 });
+  const operationalTeam = Array.isArray(team.teams) ? team.teams[0] : team.teams;
+  if (!operationalTeam?.id) return NextResponse.json({ error: "De gekozen clubploeg heeft geen operationele ploeg." }, { status: 400 });
+
+  const { error: mappingError } = await ctx.admin.from("club_official_series_assignments").upsert({
+    club_id: ctx.club.id, season_id: ctx.season.id, division_code: divisionCode,
+    club_team_id: team.id, approved_by: ctx.user.id, approved_at: new Date().toISOString(), updated_at: new Date().toISOString()
+  }, { onConflict: "club_id,season_id,division_code" });
+  if (mappingError) return NextResponse.json({ error: mappingError.message }, { status: 500 });
+
+  const fixtures = (await downloadRbfaClubFixtures(ctx.club.name, ctx.club.rbfa_registration_number))
+    .filter(fixture => (normalizeRbfaDivisionCode(fixture.division) || "ZONDER REEKS") === divisionCode);
+  if (!fixtures.length) return NextResponse.json({ error: "Deze reeks komt niet meer voor in de officiële download." }, { status: 409 });
+  const ownClubId = await resolveBelgianClubForClub(ctx.club.id);
+  const opponentClubIds = new Map<string, string | null>();
   let imported = 0;
   let updated = 0;
-
-  for (const assignment of body.assignments) {
-    const fixture = fixturesByKey.get(assignment.fixtureKey);
-    const team = teamsById.get(assignment.teamId);
-    if (!fixture || !team || (!ctx.platformAdmin && !canAccessTeam(ctx.access, team.id))) continue;
-    const operationalTeam = Array.isArray(team.teams) ? team.teams[0] : team.teams;
-    if (!operationalTeam?.id) continue;
-    const opponent = fixture.ownIsHome ? fixture.awayTeam : fixture.homeTeam;
-    const [ownClubId, opponentClubId] = await Promise.all([
-      resolveBelgianClubForClub(ctx.club.id),
-      resolveBelgianClubByName(opponent)
-    ]);
-    const externalMatchId = `${ctx.club.id}:${fixture.key}`;
-    const payload = {
-      coach_id: ctx.user.id,
-      club_id: ctx.club.id,
-      club_team_id: team.id,
-      team_a_id: operationalTeam.id,
-      team_a_name: team.name,
-      team_a_belgian_club_id: ownClubId,
-      team_b_id: null,
-      team_b_name: opponent,
-      team_b_belgian_club_id: opponentClubId,
-      is_home_match: fixture.ownIsHome,
-      match_date: fixture.date,
-      start_time: fixture.time,
-      status: fixture.status,
-      score_a: fixture.ownIsHome ? fixture.scoreHome : fixture.scoreAway,
-      score_b: fixture.ownIsHome ? fixture.scoreAway : fixture.scoreHome,
-      external_source: "voetbal_vlaanderen_download",
-      external_match_id: externalMatchId,
-      sponsor_source: team.sponsor_source ?? "none"
-    };
+  for (const fixture of fixtures) {
+    const payload = await matchPayload(ctx, fixture, team as ImportTeam, ownClubId, opponentClubIds);
     const { data: existing } = await ctx.admin.from("matches").select("id")
-      .eq("external_source", "voetbal_vlaanderen_download").eq("external_match_id", externalMatchId).maybeSingle();
-    const result = existing
-      ? await ctx.admin.from("matches").update(payload).eq("id", existing.id)
-      : await ctx.admin.from("matches").insert(payload);
+      .eq("external_source", "voetbal_vlaanderen_download").eq("external_match_id", payload.external_match_id).maybeSingle();
+    const result = existing ? await ctx.admin.from("matches").update(payload).eq("id", existing.id) : await ctx.admin.from("matches").insert(payload);
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
     if (existing) updated += 1; else imported += 1;
   }

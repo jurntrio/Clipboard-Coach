@@ -308,6 +308,8 @@ export type Match = {
   club_team_id: string | null;
   external_source: string | null;
   external_match_id: string | null;
+  official_series_id: string | null;
+  official_series_name: string | null;
     is_home_match: boolean;
     completed_by: string | null;
     completed_at: string | null;
@@ -319,6 +321,10 @@ export type Match = {
   locker_room_option_id: string | null;
   visitor_locker_room_option_id: string | null;
   referee_option_id: string | null;
+  official_referee_name?: string | null;
+  official_assistant_referee_1_name?: string | null;
+  official_assistant_referee_2_name?: string | null;
+  official_officials_synced_at?: string | null;
   meeting_place_option_id: string | null;
   meeting_place_custom: string | null;
   match_format: "5v5" | "8v8" | "11v11" | null;

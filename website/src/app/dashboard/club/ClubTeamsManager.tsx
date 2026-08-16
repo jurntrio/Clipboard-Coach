@@ -202,11 +202,6 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
   const [periodMinutes, setPeriodMinutes] = useState((team.match_period_minutes ?? ageDefaults?.periodMinutes ?? "").toString());
   const [minimumPlayers, setMinimumPlayers] = useState((team.match_minimum_players ?? ageDefaults?.minimumPlayers ?? "").toString());
   const [coachMenuOpen, setCoachMenuOpen] = useState(false);
-  const [calendarUrl, setCalendarUrl] = useState("");
-  const [calendarEnabled, setCalendarEnabled] = useState(false);
-  const [calendarConfigured, setCalendarConfigured] = useState(false);
-  const [calendarStatus, setCalendarStatus] = useState("");
-  const [calendarLastSync, setCalendarLastSync] = useState<string | null>(null);
   const [players, setPlayers] = useState<PlayerRow[]>(() => storedRows(team));
   const [baseline, setBaseline] = useState<StoredPlayer[]>(() => team.teams?.[0]?.players?.filter((player) => player.role === "player") ?? []);
   const [rosterStatus, setRosterStatus] = useState("");
@@ -244,17 +239,6 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
     }, 300);
     return () => clearTimeout(handle);
   }, [searchTerm, clubId, supabase]);
-
-  useEffect(() => {
-    void fetch(`/api/club/teams/${team.id}/calendar`).then(async (response) => {
-      if (!response.ok) return;
-      const result = await response.json();
-      setCalendarConfigured(result.configured === true);
-      setCalendarEnabled(result.enabled === true);
-      setCalendarStatus(result.last_sync_message ?? "");
-      setCalendarLastSync(result.last_synced_at ?? null);
-    });
-  }, [team.id]);
 
   function updatePlayer(index: number, field: keyof PlayerRow, value: string) {
     setPlayers((current) => current.map((player, row) => row === index ? { ...player, [field]: value } : player));
@@ -323,30 +307,6 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
     setAssignStatus(t("clubTeams.addedToTeam", { name: `${result.first_name} ${result.last_name}` }));
     setSearchTerm("");
     setSearchResults([]);
-    await onChanged();
-  }
-
-  async function saveCalendar(syncAfter = false) {
-    setCalendarStatus(t("common.saving"));
-    const response = await fetch(`/api/club/teams/${team.id}/calendar`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: calendarUrl, enabled: calendarEnabled })
-    });
-    const result = await response.json();
-    if (!response.ok) { setCalendarStatus(result.error || t("clubTeams.calendarSaveFailed")); return; }
-    setCalendarConfigured(true);
-    setCalendarUrl("");
-    setCalendarStatus(t("clubTeams.calendarSaved"));
-    if (syncAfter) await syncCalendar();
-  }
-
-  async function syncCalendar() {
-    setCalendarStatus(t("clubTeams.calendarChecking"));
-    const response = await fetch(`/api/club/teams/${team.id}/calendar`, { method: "POST" });
-    const result = await response.json();
-    if (!response.ok) { setCalendarStatus(result.error || t("clubTeams.calendarSyncFailed")); return; }
-    setCalendarStatus(result.unchanged ? t("clubTeams.calendarNoChanges") : t("clubTeams.calendarSyncResult", { imported: result.imported, updated: result.updated }));
-    setCalendarLastSync(new Date().toISOString());
     await onChanged();
   }
 
@@ -424,28 +384,6 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
       })}</div>}
       </div>
     </div>
-    {!readOnly && <div className="rounded-xl border border-borderSubtle p-4">
-      <h4 className="font-semibold text-textPrimary">{t("clubTeams.automaticMatches")}</h4>
-      <p className="mt-1 text-xs text-textMuted">{t("clubTeams.automaticMatchesHelp")}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <input type="url" value={calendarUrl} onChange={(event) => setCalendarUrl(event.target.value)}
-          placeholder={calendarConfigured ? t("clubTeams.calendarConfigured") : "https://www.voetbalvlaanderen.be/club/.../ploeg/.../kalender"}
-          className={`${inputClass} min-w-64 flex-1`} />
-        <button type="button" onClick={() => void saveCalendar(true)} disabled={!calendarUrl && !calendarConfigured}
-          className="rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-accent disabled:opacity-50">{t("clubTeams.testAndSync")}</button>
-      </div>
-      <label className="mt-3 flex items-center gap-2 text-sm text-textSecondary">
-        <input type="checkbox" checked={calendarEnabled} onChange={(event) => setCalendarEnabled(event.target.checked)} className="accent-accent" />
-        {t("clubTeams.enableAutomaticSync")}
-      </label>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => void saveCalendar(false)} disabled={!calendarUrl && !calendarConfigured}
-          className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page disabled:opacity-50">{t("common.save")}</button>
-        {calendarConfigured && <button type="button" onClick={() => void syncCalendar()} className="rounded-lg border border-borderButton px-3 py-2 text-sm text-textPrimary">{t("clubTeams.syncNow")}</button>}
-        {calendarLastSync && <span className="text-xs text-textMuted">{t("clubTeams.lastSync", { date: new Date(calendarLastSync).toLocaleString("nl-BE") })}</span>}
-      </div>
-      {calendarStatus && <p className="mt-2 text-sm text-accent">{calendarStatus}</p>}
-    </div>}
     {!readOnly && <div className="rounded-xl border border-borderSubtle p-4">
       <h4 className="font-semibold text-textPrimary">{t("clubTeams.addExistingHeading")}</h4>
       <p className="text-xs text-textMuted">{t("clubTeams.addExistingHelp")}</p>
