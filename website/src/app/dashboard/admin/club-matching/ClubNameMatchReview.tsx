@@ -1,11 +1,63 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { confirmClubNameMatch } from "./actions";
 
 type UnresolvedRow = { name: string; count: number; variants: string[] };
 type Club = { id: string; stamnummer: number; naam: string };
+
+function ClubPicker({
+  clubs,
+  disabled,
+  value,
+  onChange,
+}: {
+  clubs: Club[];
+  disabled?: boolean;
+  value: string;
+  onChange: (clubId: string) => void;
+}) {
+  const listId = useId();
+  const selectedClub = clubs.find((club) => club.id === value);
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLocaleLowerCase("nl-BE");
+  const matches = normalizedQuery
+    ? clubs.filter((club) =>
+        club.naam.toLocaleLowerCase("nl-BE").includes(normalizedQuery)
+        || String(club.stamnummer).includes(normalizedQuery)
+      )
+    : clubs;
+
+  return (
+    <div className="relative w-full max-w-xs">
+      <input
+        type="search"
+        list={listId}
+        disabled={disabled}
+        value={selectedClub ? `${selectedClub.naam} (${selectedClub.stamnummer})` : query}
+        onChange={(event) => {
+          const nextQuery = event.target.value;
+          const exactClub = clubs.find((club) =>
+            `${club.naam} (${club.stamnummer})`.toLocaleLowerCase("nl-BE") === nextQuery.toLocaleLowerCase("nl-BE")
+            || String(club.stamnummer) === nextQuery.trim()
+          );
+          setQuery(nextQuery);
+          onChange(exactClub?.id ?? "");
+        }}
+        onFocus={(event) => event.currentTarget.select()}
+        placeholder="Zoek op clubnaam of stamnummer…"
+        aria-label="Zoek club op naam of stamnummer"
+        className="w-full rounded-lg border border-border bg-input px-2 py-1.5 text-sm text-textPrimary"
+      />
+      <datalist id={listId}>
+        {matches.map((club) => (
+          <option key={club.id} value={`${club.naam} (${club.stamnummer})`} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
 
 export function ClubNameMatchReview({ rows, clubs, readOnly }: { rows: UnresolvedRow[]; clubs: Club[]; readOnly?: boolean }) {
   const router = useRouter();
@@ -55,17 +107,12 @@ export function ClubNameMatchReview({ rows, clubs, readOnly }: { rows: Unresolve
                 </td>
                 <td className="px-4 py-2 text-right text-textSecondary">{row.count}</td>
                 <td className="px-4 py-2">
-                  <select
+                  <ClubPicker
+                    clubs={clubs}
                     disabled={readOnly}
                     value={selection[row.name] ?? ""}
-                    onChange={(event) => setSelection((prev) => ({ ...prev, [row.name]: event.target.value }))}
-                    className="w-full max-w-xs rounded-lg border border-border bg-input px-2 py-1.5 text-sm text-textPrimary"
-                  >
-                    <option value="">Kies een club…</option>
-                    {clubs.map((club) => (
-                      <option key={club.id} value={club.id}>{club.naam} ({club.stamnummer})</option>
-                    ))}
-                  </select>
+                    onChange={(clubId) => setSelection((prev) => ({ ...prev, [row.name]: clubId }))}
+                  />
                 </td>
                 {!readOnly && (
                   <td className="px-4 py-2 text-right">
