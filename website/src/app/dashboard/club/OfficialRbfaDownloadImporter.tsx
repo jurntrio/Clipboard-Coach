@@ -4,12 +4,16 @@ import { useState } from "react";
 import { suggestRbfaTeamId, type RbfaSuggestionTeam } from "@/lib/rbfa-team-suggestions";
 
 type Series = { divisionCode: string; fixtureCount: number; unlinkedCount: number; assignedTeamId: string | null };
+type Fixture = { key: string; divisionCode: string; date: string; time: string; homeTeam: string; awayTeam: string; ownIsHome: boolean; linked: boolean; assignedTeamId: string | null };
 
 export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImported }: {
   clubId: string; teams: RbfaSuggestionTeam[]; readOnly: boolean; onImported: () => Promise<void>;
 }) {
   const [series, setSeries] = useState<Series[]>([]);
+  const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [selections, setSelections] = useState<Record<string, string>>({});
+  const [fixtureSelections, setFixtureSelections] = useState<Record<string, string>>({});
+  const [checkedFixtures, setCheckedFixtures] = useState<Record<string, boolean>>({});
   const [checkedSeries, setCheckedSeries] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -24,7 +28,11 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
       const nextSeries = body.series as Series[];
       const nextSelections = Object.fromEntries(nextSeries.map(item => [item.divisionCode, item.assignedTeamId || suggestRbfaTeamId(item.divisionCode, teams)]));
       setSeries(nextSeries);
+      const nextFixtures = body.fixtures as Fixture[];
+      setFixtures(nextFixtures);
       setSelections(nextSelections);
+      setFixtureSelections(Object.fromEntries(nextFixtures.map(item => [item.key, item.assignedTeamId || suggestRbfaTeamId(item.divisionCode, teams)])));
+      setCheckedFixtures({});
       setCheckedSeries(Object.fromEntries(nextSeries.map(item => {
         const selected = nextSelections[item.divisionCode];
         return [item.divisionCode, !!selected && (!item.assignedTeamId || item.assignedTeamId !== selected || item.unlinkedCount > 0)];
@@ -33,6 +41,31 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
       setMessage(`${nextSeries.length} officiële reeksen gevonden.${pending ? ` ${pending} wachten op bevestiging.` : " Alle reeksen zijn definitief gekoppeld."}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "De officiële downloads konden niet gelezen worden.");
+    } finally { setBusy(""); }
+  }
+
+  async function confirmSelectedFixtures() {
+    const selectedFixtures = fixtures.filter(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key]);
+    if (!selectedFixtures.length) return;
+    setBusy("fixtures"); setError(""); setMessage("");
+    let imported = 0; let updated = 0;
+    try {
+      for (const item of selectedFixtures) {
+        const response = await fetch("/api/club/matches/rbfa-download", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clubId, fixtureKey: item.key, teamId: fixtureSelections[item.key] })
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || `De wedstrijd van ${item.date} kon niet worden geïmporteerd.`);
+        imported += body.imported ?? 0; updated += body.updated ?? 0;
+        setFixtures(current => current.map(row => row.key === item.key ? { ...row, linked: true } : row));
+        setCheckedFixtures(current => ({ ...current, [item.key]: false }));
+      }
+      setMessage(`${selectedFixtures.length} wedstrijd(en) verwerkt. ${imported} toegevoegd, ${updated} bijgewerkt.`);
+      await onImported();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "De geselecteerde wedstrijden konden niet worden geïmporteerd.");
+      await onImported();
     } finally { setBusy(""); }
   }
 
@@ -104,5 +137,24 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
       <p className="text-sm text-textMuted">{series.filter(item => checkedSeries[item.divisionCode] && !!selections[item.divisionCode] && (!item.assignedTeamId || selections[item.divisionCode] !== item.assignedTeamId || item.unlinkedCount > 0)).length} aangevinkt</p>
       <button type="button" disabled={readOnly || !!busy || !series.some(item => checkedSeries[item.divisionCode] && !!selections[item.divisionCode] && (!item.assignedTeamId || selections[item.divisionCode] !== item.assignedTeamId || item.unlinkedCount > 0))} onClick={() => void confirmSelectedSeries()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:opacity-50">{busy === "selected" ? "Aangevinkte wedstrijden goedkeuren…" : "Keur alle aangevinkte wedstrijden goed"}</button>
     </div>}
+    {!!fixtures.length && <details className="mt-4 rounded-lg border border-border bg-card" open>
+      <summary className="cursor-pointer px-4 py-3 font-semibold text-textPrimary">Wedstrijd per wedstrijd koppelen</summary>
+      <p className="px-4 pb-3 text-sm text-textMuted">Kies voor iedere nog niet geïmporteerde wedstrijd afzonderlijk de juiste SVS-ploeg. Reeds geïmporteerde wedstrijden blijven zichtbaar maar kunnen niet dubbel worden toegevoegd.</p>
+      <div className="overflow-auto border-t border-border"><table className="w-full min-w-[900px] text-left text-sm">
+        <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="p-3">Datum</th><th className="p-3">Wedstrijd</th><th className="p-3">Reeks</th><th className="p-3">SVS-ploeg</th><th className="p-3">Status</th><th className="p-3 text-center">Importeren</th></tr></thead>
+        <tbody className="divide-y divide-borderSubtle">{fixtures.map(item => {
+          const selected = fixtureSelections[item.key] ?? "";
+          return <tr key={item.key} className={item.linked ? "opacity-60" : ""}>
+            <td className="whitespace-nowrap p-3 text-textSecondary">{new Intl.DateTimeFormat("nl-BE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${item.date}T12:00:00`))}<div className="text-xs text-textMuted">{item.time}</div></td>
+            <td className="p-3 text-textPrimary"><strong>{item.homeTeam}</strong><span className="mx-2 text-textMuted">–</span><strong>{item.awayTeam}</strong><div className="mt-0.5 text-xs text-textMuted">{item.ownIsHome ? "Thuiswedstrijd" : "Uitwedstrijd"}</div></td>
+            <td className="p-3 text-textSecondary">{item.divisionCode}</td>
+            <td className="p-3"><select value={selected} disabled={readOnly || !!busy || item.linked} onChange={event => { const teamId = event.target.value; setFixtureSelections(current => ({ ...current, [item.key]: teamId })); setCheckedFixtures(current => ({ ...current, [item.key]: !!teamId })); }} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:opacity-50"><option value="">Kies ploeg…</option>{teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}</select></td>
+            <td className="p-3">{item.linked ? <span className="text-emerald-300">Reeds geïmporteerd</span> : <span className="text-amber-300">Nog te importeren</span>}</td>
+            <td className="p-3 text-center"><input type="checkbox" aria-label={`Importeer wedstrijd ${item.homeTeam} tegen ${item.awayTeam}`} checked={checkedFixtures[item.key] ?? false} disabled={readOnly || !!busy || item.linked || !selected} onChange={event => setCheckedFixtures(current => ({ ...current, [item.key]: event.target.checked }))} className="h-5 w-5 accent-accent disabled:opacity-40" /></td>
+          </tr>;
+        })}</tbody>
+      </table></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-3"><p className="text-sm text-textMuted">{fixtures.filter(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key]).length} wedstrijd(en) aangevinkt</p><button type="button" disabled={readOnly || !!busy || !fixtures.some(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key])} onClick={() => void confirmSelectedFixtures()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:opacity-50">{busy === "fixtures" ? "Wedstrijden importeren…" : "Importeer aangevinkte wedstrijden"}</button></div>
+    </details>}
   </div>;
 }

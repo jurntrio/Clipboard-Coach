@@ -44,6 +44,7 @@ export async function GET(request: Request) {
   ]);
   if (error || assignmentError) return NextResponse.json({ error: error?.message ?? assignmentError?.message }, { status: 500 });
   const unlinked = filterUnlinkedRbfaFixtures(fixtures, matches ?? []);
+  const unlinkedKeys = new Set(unlinked.map(fixture => fixture.key));
   const assignedByCode = new Map((assignments ?? []).map(item => [item.division_code, item.club_team_id]));
   const grouped = new Map<string, { divisionCode: string; fixtureCount: number; unlinkedCount: number; assignedTeamId: string | null }>();
   for (const fixture of fixtures) {
@@ -57,7 +58,16 @@ export async function GET(request: Request) {
     const current = grouped.get(divisionCode);
     if (current) current.unlinkedCount += 1;
   }
-  return NextResponse.json({ series: [...grouped.values()].sort((a, b) => a.divisionCode.localeCompare(b.divisionCode, "nl")), downloadedAt: new Date().toISOString() });
+  return NextResponse.json({
+    series: [...grouped.values()].sort((a, b) => a.divisionCode.localeCompare(b.divisionCode, "nl")),
+    fixtures: fixtures.map(fixture => ({
+      key: fixture.key, divisionCode: normalizeRbfaDivisionCode(fixture.division) || "ZONDER REEKS",
+      date: fixture.date, time: fixture.time, homeTeam: fixture.homeTeam, awayTeam: fixture.awayTeam,
+      ownIsHome: fixture.ownIsHome, linked: !unlinkedKeys.has(fixture.key),
+      assignedTeamId: assignedByCode.get(normalizeRbfaDivisionCode(fixture.division) || "ZONDER REEKS") ?? null
+    })).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)),
+    downloadedAt: new Date().toISOString()
+  });
 }
 
 type ImportContext = { user: { id: string }; club: { id: string }; season: { id: string } };
@@ -85,25 +95,28 @@ async function matchPayload(ctx: ImportContext, fixture: RbfaClubFixture, team: 
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as { clubId?: string; divisionCode?: string; teamId?: string } | null;
-  if (!body?.clubId || !body.teamId || !body.divisionCode) return NextResponse.json({ error: "Ongeldige reekskoppeling." }, { status: 400 });
+  const body = await request.json().catch(() => null) as { clubId?: string; divisionCode?: string; fixtureKey?: string; teamId?: string } | null;
+  if (!body?.clubId || !body.teamId || (!body.divisionCode && !body.fixtureKey)) return NextResponse.json({ error: "Ongeldige wedstrijd- of reekskoppeling." }, { status: 400 });
   const ctx = await context(body.clubId);
   if (ctx.error) return ctx.error;
-  const divisionCode = normalizeRbfaDivisionCode(body.divisionCode);
+  const divisionCode = normalizeRbfaDivisionCode(body.divisionCode ?? "");
   const { data: team, error: teamError } = await ctx.admin.from("club_teams")
     .select("id, name, sponsor_source, season_id, teams(id)").eq("id", body.teamId).eq("club_id", ctx.club.id).eq("season_id", ctx.season.id).eq("status", "active").maybeSingle();
   if (teamError || !team || (!ctx.platformAdmin && !canAccessTeam(ctx.access, team.id))) return NextResponse.json({ error: teamError?.message ?? "Ploeg niet gevonden." }, { status: 400 });
   const operationalTeam = Array.isArray(team.teams) ? team.teams[0] : team.teams;
   if (!operationalTeam?.id) return NextResponse.json({ error: "De gekozen clubploeg heeft geen operationele ploeg." }, { status: 400 });
 
-  const { error: mappingError } = await ctx.admin.from("club_official_series_assignments").upsert({
-    club_id: ctx.club.id, season_id: ctx.season.id, division_code: divisionCode,
-    club_team_id: team.id, approved_by: ctx.user.id, approved_at: new Date().toISOString(), updated_at: new Date().toISOString()
-  }, { onConflict: "club_id,season_id,division_code" });
-  if (mappingError) return NextResponse.json({ error: mappingError.message }, { status: 500 });
+  if (!body.fixtureKey) {
+    const { error: mappingError } = await ctx.admin.from("club_official_series_assignments").upsert({
+      club_id: ctx.club.id, season_id: ctx.season.id, division_code: divisionCode,
+      club_team_id: team.id, approved_by: ctx.user.id, approved_at: new Date().toISOString(), updated_at: new Date().toISOString()
+    }, { onConflict: "club_id,season_id,division_code" });
+    if (mappingError) return NextResponse.json({ error: mappingError.message }, { status: 500 });
+  }
 
-  const fixtures = (await downloadRbfaClubFixtures(ctx.club.name, ctx.club.rbfa_registration_number))
-    .filter(fixture => (normalizeRbfaDivisionCode(fixture.division) || "ZONDER REEKS") === divisionCode);
+  const fixtures = (await downloadRbfaClubFixtures(ctx.club.name, ctx.club.rbfa_registration_number)).filter(fixture =>
+    body.fixtureKey ? fixture.key === body.fixtureKey : (normalizeRbfaDivisionCode(fixture.division) || "ZONDER REEKS") === divisionCode
+  );
   if (!fixtures.length) return NextResponse.json({ error: "Deze reeks komt niet meer voor in de officiële download." }, { status: 409 });
   const ownClubId = await resolveBelgianClubForClub(ctx.club.id);
   const opponentClubIds = new Map<string, string | null>();

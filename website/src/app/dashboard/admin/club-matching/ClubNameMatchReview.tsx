@@ -2,10 +2,11 @@
 
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
-import { confirmClubNameMatch } from "./actions";
+import { changeClubNameMatch, confirmClubNameMatch } from "./actions";
 
 type UnresolvedRow = { name: string; count: number; variants: string[] };
 type Club = { id: string; stamnummer: number; naam: string };
+type ExistingMapping = { name: string; belgianClubId: string; matchCount: number };
 
 function ClubPicker({
   clubs,
@@ -63,11 +64,12 @@ function ClubPicker({
   );
 }
 
-export function ClubNameMatchReview({ rows, clubs, readOnly }: { rows: UnresolvedRow[]; clubs: Club[]; readOnly?: boolean }) {
+export function ClubNameMatchReview({ rows, clubs, existingMappings, readOnly }: { rows: UnresolvedRow[]; clubs: Club[]; existingMappings: ExistingMapping[]; readOnly?: boolean }) {
   const router = useRouter();
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [busyName, setBusyName] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [mappingSearch, setMappingSearch] = useState("");
 
   async function confirm(name: string) {
     const belgianClubId = selection[name];
@@ -83,6 +85,19 @@ export function ClubNameMatchReview({ rows, clubs, readOnly }: { rows: Unresolve
     } finally {
       setBusyName(null);
     }
+  }
+
+  async function changeMapping(name: string, belgianClubId: string | null) {
+    if (!belgianClubId && !window.confirm(`Koppeling voor “${name}” verwijderen? De betrokken wedstrijden krijgen tijdelijk geen clublogo.`)) return;
+    setError(""); setBusyName(name);
+    try {
+      const result = await changeClubNameMatch(name, belgianClubId);
+      window.dispatchEvent(new Event("dashboard-badges:refresh"));
+      router.refresh();
+      if (result.updated) window.alert(`${result.updated} wedstrijd(en) zijn bijgewerkt.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Koppeling kon niet worden gewijzigd.");
+    } finally { setBusyName(null); }
   }
 
   return (
@@ -141,6 +156,26 @@ export function ClubNameMatchReview({ rows, clubs, readOnly }: { rows: Unresolve
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="pt-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div><h2 className="text-lg font-semibold text-textPrimary">Bestaande koppelingen</h2><p className="text-sm text-textMuted">Wijzig een foutieve club of maak de koppeling los om ze opnieuw te beoordelen.</p></div>
+          <input type="search" value={mappingSearch} onChange={event => setMappingSearch(event.target.value)} placeholder="Zoek naam of stamnummer…" className="w-full max-w-xs rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
+        </div>
+        <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
+          <table className="w-full min-w-[720px] text-sm"><thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="px-4 py-3 text-left">Naam op wedstrijden</th><th className="px-4 py-3 text-right">Wedstrijden</th><th className="px-4 py-3 text-left">Gekoppelde club</th>{!readOnly && <th className="px-4 py-3 text-right">Actie</th>}</tr></thead>
+            <tbody>{existingMappings.filter(mapping => {
+              const club = clubs.find(item => item.id === mapping.belgianClubId);
+              const needle = mappingSearch.trim().toLocaleLowerCase("nl-BE");
+              return !needle || mapping.name.toLocaleLowerCase("nl-BE").includes(needle) || club?.naam.toLocaleLowerCase("nl-BE").includes(needle) || String(club?.stamnummer ?? "").includes(needle);
+            }).map(mapping => <tr key={mapping.name} className="border-t border-borderSubtle">
+              <td className="px-4 py-2 text-textPrimary">{mapping.name}</td><td className="px-4 py-2 text-right text-textSecondary">{mapping.matchCount}</td>
+              <td className="px-4 py-2"><ClubPicker clubs={clubs} disabled={readOnly || busyName === mapping.name} value={mapping.belgianClubId} onChange={clubId => { if (clubId && clubId !== mapping.belgianClubId) void changeMapping(mapping.name, clubId); }} /></td>
+              {!readOnly && <td className="px-4 py-2 text-right"><button type="button" disabled={busyName === mapping.name} onClick={() => void changeMapping(mapping.name, null)} className="rounded-lg border border-red-400/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:opacity-50">{busyName === mapping.name ? "Bezig…" : "Loskoppelen"}</button></td>}
+            </tr>)}</tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

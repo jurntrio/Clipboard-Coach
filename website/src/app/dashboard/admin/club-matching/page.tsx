@@ -20,14 +20,15 @@ export default async function ClubMatchingAdminPage() {
   const { isFullAdmin } = await requireAdminOrViewer();
   const admin = createAdminClient();
 
-  const [teamARows, teamBRows, clubRows] = await Promise.all([
+  const [teamARows, teamBRows, clubRows, aliasRows] = await Promise.all([
     fetchAll<{ team_a_name: string | null; team_a_belgian_club_id: string | null }>(
       admin, "matches", "team_a_name, team_a_belgian_club_id"
     ),
     fetchAll<{ team_b_name: string | null; team_b_belgian_club_id: string | null }>(
       admin, "matches", "team_b_name, team_b_belgian_club_id"
     ),
-    fetchAll<{ id: string; stamnummer: number; naam: string }>(admin, "belgian_clubs", "id, stamnummer, naam")
+    fetchAll<{ id: string; stamnummer: number; naam: string }>(admin, "belgian_clubs", "id, stamnummer, naam"),
+    fetchAll<{ alias: string; belgian_club_id: string }>(admin, "club_name_aliases", "alias, belgian_club_id")
   ]);
 
   // Grouped by normalized name, not literal text: "KSV. Oostkamp" and
@@ -58,6 +59,13 @@ export default async function ClubMatchingAdminPage() {
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "nl-BE"));
 
   const clubs = [...clubRows].sort((a, b) => a.naam.localeCompare(b.naam, "nl-BE"));
+  const matchNames = [...teamARows.map(row => row.team_a_name), ...teamBRows.map(row => row.team_b_name)]
+    .filter((name): name is string => !!name);
+  const existingMappings = aliasRows.map(row => ({
+    name: row.alias,
+    belgianClubId: row.belgian_club_id,
+    matchCount: matchNames.filter(name => normalizeClubName(name) === normalizeClubName(row.alias)).length
+  })).sort((a, b) => a.name.localeCompare(b.name, "nl-BE"));
 
   return (
     <div className="mx-auto max-w-5xl p-8">
@@ -67,7 +75,7 @@ export default async function ClubMatchingAdminPage() {
         artworkSrc="/branding/admin.png"
         backHref="/dashboard/admin"
       />
-      <ClubNameMatchReview rows={unresolved} clubs={clubs} readOnly={!isFullAdmin} />
+      <ClubNameMatchReview rows={unresolved} clubs={clubs} existingMappings={existingMappings} readOnly={!isFullAdmin} />
     </div>
   );
 }

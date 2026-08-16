@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { invalidateBelgianClubNameIndex, resolveBelgianClubByName } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
+import { normalizeClubName } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
 async function backfillStillUnresolvedMatches(admin: ReturnType<typeof createAdminClient>) {
   for (const [nameColumn, clubIdColumn] of [
@@ -41,4 +42,47 @@ export async function confirmClubNameMatch(name: string, belgianClubId: string) 
   await backfillStillUnresolvedMatches(admin);
 
   revalidatePath("/dashboard/admin/club-matching");
+}
+
+export async function changeClubNameMatch(name: string, belgianClubId: string | null) {
+  await requireAdmin();
+  const trimmed = name.trim();
+  const normalized = normalizeClubName(trimmed);
+  if (!trimmed || !normalized) throw new Error("Clubnaam is verplicht.");
+
+  const admin = createAdminClient();
+  const [{ data: aliases, error: aliasReadError }, { data: matches, error: matchReadError }] = await Promise.all([
+    admin.from("club_name_aliases").select("alias"),
+    admin.from("matches").select("id, team_a_name, team_b_name")
+  ]);
+  if (aliasReadError || matchReadError) throw new Error(aliasReadError?.message ?? matchReadError?.message);
+
+  const matchingAliases = (aliases ?? []).filter(row => normalizeClubName(row.alias) === normalized).map(row => row.alias);
+  if (belgianClubId) {
+    const { error } = await admin.from("club_name_aliases")
+      .upsert({ alias: trimmed, belgian_club_id: belgianClubId }, { onConflict: "alias" });
+    if (error) throw new Error(error.message);
+    for (const alias of matchingAliases.filter(alias => alias !== trimmed)) {
+      const { error: updateError } = await admin.from("club_name_aliases").update({ belgian_club_id: belgianClubId }).eq("alias", alias);
+      if (updateError) throw new Error(updateError.message);
+    }
+  } else if (matchingAliases.length) {
+    const { error } = await admin.from("club_name_aliases").delete().in("alias", matchingAliases);
+    if (error) throw new Error(error.message);
+  }
+
+  let updated = 0;
+  for (const match of matches ?? []) {
+    const changes: Record<string, string | null> = {};
+    if (normalizeClubName(match.team_a_name) === normalized) changes.team_a_belgian_club_id = belgianClubId;
+    if (normalizeClubName(match.team_b_name) === normalized) changes.team_b_belgian_club_id = belgianClubId;
+    if (!Object.keys(changes).length) continue;
+    const { error } = await admin.from("matches").update(changes).eq("id", match.id);
+    if (error) throw new Error(error.message);
+    updated += 1;
+  }
+
+  invalidateBelgianClubNameIndex();
+  revalidatePath("/dashboard/admin/club-matching");
+  return { updated };
 }
