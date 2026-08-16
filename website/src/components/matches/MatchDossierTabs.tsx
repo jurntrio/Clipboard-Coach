@@ -57,8 +57,23 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
     return saved;
   });
   const [draft, setDraft] = useState<MatchDossier>({ ...emptyDossier, ...(initialDossier ?? {}), goal_events: normalizedGoals });
+  const [draftScoreA, setDraftScoreA] = useState<number | null>(scoreA);
+  const [draftScoreB, setDraftScoreB] = useState<number | null>(scoreB);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+
+  function updateScore(side: "home" | "away", value: string) {
+    const parsed = Number(value);
+    const nextValue = value === "" || !Number.isFinite(parsed) ? null : Math.max(0, Math.min(30, parsed));
+    if (side === "home") setDraftScoreA(nextValue);
+    else setDraftScoreB(nextValue);
+    const total = (side === "home" ? nextValue ?? 0 : draftScoreA ?? 0)
+      + (side === "away" ? nextValue ?? 0 : draftScoreB ?? 0);
+    setDraft(current => ({
+      ...current,
+      goal_events: Array.from({ length: total }, (_, index) => current.goal_events[index] ?? newGoal(`goal-${index + 1}`))
+    }));
+  }
 
   function field(key: Exclude<keyof MatchDossier, "goal_events" | "lineup_positions" | "lineup_blocks" | "player_reviews">, label: string, placeholder: string) {
     if (!editable && !draft[key].trim()) return null;
@@ -74,7 +89,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
   }
 
   function goalValidationError() {
-    if (!played || scoreA == null || scoreB == null) return "";
+    if (!played || draftScoreA == null || draftScoreB == null) return "";
     let previousA = 0;
     let previousB = 0;
     for (let index = 0; index < draft.goal_events.length; index += 1) {
@@ -85,7 +100,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
       previousA = next.a;
       previousB = next.b;
     }
-    return previousA === scoreA && previousB === scoreB ? "" : `De laatste stand moet ${scoreA}-${scoreB} zijn.`;
+    return previousA === draftScoreA && previousB === draftScoreB ? "" : `De laatste stand moet ${draftScoreA}-${draftScoreB} zijn.`;
   }
 
   async function save(complete = false) {
@@ -102,7 +117,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
     setSaving(true);
     setNotice("");
     const response = await fetch(`/api/matches/${matchId}/dossier`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft)
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, score_home: draftScoreA, score_away: draftScoreB })
     });
     const body = await response.json().catch(() => null) as { error?: string } | null;
     if (!response.ok) { setSaving(false); return setNotice(body?.error || "Bewaren is mislukt."); }
@@ -151,6 +166,17 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
         {field("improvements", "Werkpunten", "Wat moet beter?")}
         {field("highlights", "Hoogtepunten", "Belangrijke momenten…")}
         <div className="md:col-span-2">
+          {editable && <div className="mb-4 rounded-xl border border-borderSubtle bg-cardDeep p-4">
+            <h4 className="text-xs font-black uppercase tracking-wide text-textMuted">Eindstand</h4>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-bold text-textSecondary">{homeTeamName}
+                <input type="number" min={0} max={30} value={draftScoreA ?? ""} onChange={event => updateScore("home", event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
+              </label>
+              <label className="text-xs font-bold text-textSecondary">{awayTeamName}
+                <input type="number" min={0} max={30} value={draftScoreB ?? ""} onChange={event => updateScore("away", event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
+              </label>
+            </div>
+          </div>}
           <GoalEditor goals={draft.goal_events} players={reportPlayers} ownTeamSide={ownTeamSide} homeTeamName={homeTeamName}
             awayTeamName={awayTeamName} editable={editable} onChange={goal_events => setDraft(current => ({ ...current, goal_events }))} />
         </div>

@@ -37,6 +37,7 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
   const { laneByTag, laneCount } = arrangeInLanes(clipTags);
   const bandHeight = Math.max(32, 5 + laneCount * 27);
   const [hoverRatio, setHoverRatio] = useState<number | null>(null);
+  const playheadPercent = Math.min(100, Math.max(0, (currentTime / safeDuration) * 100));
 
   function ratioFromEvent(event: React.MouseEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -54,6 +55,7 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
         <span>{formatTime(duration)}</span>
       </div>
       <div className="relative h-6" aria-label={t("timeline.periodMarkers")}>
+        <div className="pointer-events-none absolute inset-y-0 z-20 w-0.5 -translate-x-1/2 bg-accent shadow-[0_0_0_1px_rgba(0,0,0,0.35)]" style={{ left: `${playheadPercent}%` }} />
         {markers.map((tag) => {
           const endMarker = tag.name.trim().toLowerCase() === "end";
           return (
@@ -71,8 +73,11 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
         onMouseLeave={() => setHoverRatio(null)}
         aria-label={t("timeline.match")}
       >
-        <div className="absolute inset-y-0 left-0 bg-accent/20" style={{ width: `${Math.min(100, Math.max(0, (currentTime / safeDuration) * 100))}%` }} />
-        <div className="absolute top-0 h-full w-0.5 bg-white" style={{ left: `${Math.min(100, Math.max(0, (currentTime / safeDuration) * 100))}%` }} />
+        <div className="absolute inset-y-0 left-0 bg-accent/20" style={{ width: `${playheadPercent}%` }} />
+        <div className="pointer-events-none absolute inset-y-[-5px] z-30 w-0.5 -translate-x-1/2 bg-accent shadow-[0_0_0_1px_rgba(0,0,0,0.45)]" style={{ left: `${playheadPercent}%` }}>
+          <span className="absolute left-1/2 top-[-4px] h-3 w-3 -translate-x-1/2 rounded-full border-2 border-page bg-accent shadow" />
+          <span className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-accent px-1.5 py-0.5 text-[10px] font-black text-page shadow">{formatTime(currentTime)}</span>
+        </div>
         {hoverRatio !== null && (
           <>
             <div className="pointer-events-none absolute top-0 h-full w-px bg-white/50" style={{ left: `${hoverRatio * 100}%` }} />
@@ -85,6 +90,7 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
 
       <div className="max-h-32 overflow-y-auto rounded-md border border-borderSubtle bg-cardDeep" aria-label={t("tag.bands")}>
         <div className="relative min-w-full" style={{ height: bandHeight }}>
+          <div className="pointer-events-none absolute inset-y-0 z-20 w-0.5 -translate-x-1/2 bg-accent shadow-[0_0_0_1px_rgba(0,0,0,0.35)]" style={{ left: `${playheadPercent}%` }} />
           {clipTags.map((tag) => (
             <button
               type="button"

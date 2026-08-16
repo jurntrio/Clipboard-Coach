@@ -13,7 +13,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const admin = createAdminClient();
-  const { data: match } = await admin.from("matches").select("id, club_id, club_team_id, team_a_id, player_ids").eq("id", params.id).maybeSingle();
+  const { data: match } = await admin.from("matches").select("id, club_id, club_team_id, team_a_id, player_ids, is_home_match, score_a, score_b").eq("id", params.id).maybeSingle();
   if (!match?.club_id) return NextResponse.json({ error: "Wedstrijd niet gevonden." }, { status: 404 });
   const access = await getClubAccess(match.club_id, user);
   const canEditDossier = hasClubPermission(access, "games.report.manage");
@@ -23,6 +23,14 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Ongeldige gegevens." }, { status: 400 });
+  const currentHomeScore = match.is_home_match ? match.score_a : match.score_b;
+  const currentAwayScore = match.is_home_match ? match.score_b : match.score_a;
+  const homeScore = body.score_home === undefined ? currentHomeScore : body.score_home === null ? null : Number(body.score_home);
+  const awayScore = body.score_away === undefined ? currentAwayScore : body.score_away === null ? null : Number(body.score_away);
+  if (canEditDossier && (!((homeScore === null || (Number.isInteger(homeScore) && homeScore >= 0 && homeScore <= 30))
+    && (awayScore === null || (Number.isInteger(awayScore) && awayScore >= 0 && awayScore <= 30))))) {
+    return NextResponse.json({ error: "Vul een geldige eindstand in." }, { status: 400 });
+  }
   const payload = canEditDossier ? Object.fromEntries(fields.map(field => [
     field, typeof body[field] === "string" ? body[field].trim().slice(0, 10000) : ""
   ])) : {};
@@ -92,6 +100,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     updated_by: user.id, updated_at: new Date().toISOString()
   }, { onConflict: "match_id" });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (canEditDossier) {
+    const { error: scoreError } = await admin.from("matches").update(match.is_home_match
+      ? { score_a: homeScore, score_b: awayScore }
+      : { score_a: awayScore, score_b: homeScore }
+    ).eq("id", match.id);
+    if (scoreError) return NextResponse.json({ error: scoreError.message }, { status: 400 });
+  }
   return NextResponse.json({ ok: true });
 }
 

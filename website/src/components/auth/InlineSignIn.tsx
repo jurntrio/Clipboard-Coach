@@ -33,7 +33,7 @@ export function InlineSignIn() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
+    <form onSubmit={handleSubmit} className="relative flex flex-nowrap items-center gap-2">
       <input
         type="email"
         placeholder={t("auth.inlineEmail")}
@@ -57,8 +57,8 @@ export function InlineSignIn() {
       >
         {loading ? t("auth.signingIn") : t("auth.signIn")}
       </button>
-      <Link href="/forgot-password" className="text-xs text-accent hover:underline">{t("auth.forgotPassword")}</Link>
-      {error && <p className="w-full text-red-400 text-xs">{error}</p>}
+      <Link href="/forgot-password" className="whitespace-nowrap text-xs text-accent hover:underline">{t("auth.forgotPassword")}</Link>
+      {error && <p className="absolute right-0 top-full mt-1 max-w-full text-right text-xs text-red-400">{error}</p>}
     </form>
   );
 }
