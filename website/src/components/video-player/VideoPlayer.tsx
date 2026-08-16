@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useRef, useState, type WheelEvent } from "react";
+import { forwardRef, useEffect, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 import { useHlsSource } from "./useHlsSource";
 import { useI18n } from "@/i18n/client";
 
@@ -18,11 +18,16 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const [zoom, setZoom] = useState(1);
     const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 });
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const dragStartRef = useRef({ pointerX: 0, pointerY: 0, panX: 0, panY: 0 });
     useHlsSource(videoRef, src);
 
     useEffect(() => {
       setZoom(1);
       setZoomOrigin({ x: 50, y: 50 });
+      setPan({ x: 0, y: 0 });
+      setIsDragging(false);
     }, [src]);
 
     if (!src) {
@@ -36,11 +41,45 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
         x: ((event.clientX - bounds.left) / bounds.width) * 100,
         y: ((event.clientY - bounds.top) / bounds.height) * 100
       });
-      setZoom((current) => Math.min(4, Math.max(1, current + (event.deltaY < 0 ? 0.25 : -0.25))));
+      setZoom((current) => {
+        const next = Math.min(4, Math.max(1, current + (event.deltaY < 0 ? 0.25 : -0.25)));
+        if (next === 1) setPan({ x: 0, y: 0 });
+        return next;
+      });
+    }
+
+    function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
+      if (zoom <= 1 || event.button !== 0) return;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      dragStartRef.current = { pointerX: event.clientX, pointerY: event.clientY, panX: pan.x, panY: pan.y };
+      setIsDragging(true);
+    }
+
+    function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
+      if (!isDragging) return;
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const limitX = (bounds.width * (zoom - 1)) / 2;
+      const limitY = (bounds.height * (zoom - 1)) / 2;
+      setPan({
+        x: Math.min(limitX, Math.max(-limitX, dragStartRef.current.panX + event.clientX - dragStartRef.current.pointerX)),
+        y: Math.min(limitY, Math.max(-limitY, dragStartRef.current.panY + event.clientY - dragStartRef.current.pointerY))
+      });
+    }
+
+    function stopDragging(event: PointerEvent<HTMLDivElement>) {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      setIsDragging(false);
     }
 
     return (
-      <div className="relative min-h-0 w-full flex-1 overflow-hidden bg-black" onWheel={handleWheel}>
+      <div
+        className={`relative min-h-0 w-full flex-1 overflow-hidden bg-black ${zoom > 1 ? (isDragging ? "cursor-grabbing" : "cursor-grab") : ""}`}
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={stopDragging}
+        onPointerCancel={stopDragging}
+      >
         <video
           ref={(node) => {
             videoRef.current = node;
@@ -50,7 +89,7 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           playsInline
           crossOrigin="anonymous"
           className="h-full min-h-0 w-full bg-black object-contain transition-transform duration-100 ease-out"
-          style={{ transform: `scale(${zoom})`, transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%` }}
+          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%` }}
           onTimeUpdate={(event) => onTimeUpdate?.(event.currentTarget.currentTime)}
           onDurationChange={(event) => onDurationChange?.(event.currentTarget.duration)}
           onEnded={onEnded}
@@ -61,9 +100,11 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           <button
             type="button"
             className="absolute bottom-3 right-3 z-20 rounded-lg border border-white/40 bg-black/80 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur"
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={() => {
               setZoom(1);
               setZoomOrigin({ x: 50, y: 50 });
+              setPan({ x: 0, y: 0 });
             }}
             title="Zoom herstellen"
           >
