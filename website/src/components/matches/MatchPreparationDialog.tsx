@@ -14,6 +14,18 @@ type SelectionCommunication = { canSend: boolean; selectedRecipients: number; no
 
 const inputClass = "w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary";
 
+function matchHasStarted(match: Match) {
+  if (match.status === "finished") return true;
+  if (!match.match_date) return false;
+  const nowInBrussels = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Brussels", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false
+  }).format(new Date());
+  const [todayInBrussels, timeInBrussels] = nowInBrussels.split(" ");
+  return match.match_date < todayInBrussels
+    || (match.match_date === todayInBrussels && !!match.start_time && match.start_time.slice(0, 5) <= timeInBrussels);
+}
+
 export function MatchPreparationDialog({ match, onClose, onSaved, embedded = false }: { match: Match; onClose: () => void; onSaved: () => Promise<void>; embedded?: boolean }) {
   const { t } = useI18n();
   const [loadedMatch, setLoadedMatch] = useState<Match | null>(null);
@@ -58,6 +70,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
   const [includeNotSelectedAttention, setIncludeNotSelectedAttention] = useState(true);
   const [sending, setSending] = useState(false);
   const sendKeyRef = useRef("");
+  const matchPlayed = matchHasStarted(loadedMatch ?? match);
 
   async function loadCommunication() {
     const response = await fetch(`/api/matches/${match.id}/selection-send`, { cache: "no-store" });
@@ -304,7 +317,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
           <button type="button" onClick={async () => { const response = await fetch(`/api/matches/${match.id}/tag-link`, { method: "POST" }); const body = await response.json(); if (!response.ok || !body.token) return setNotice(body.error || "Taglink kon niet worden gemaakt."); await navigator.clipboard.writeText(`${window.location.origin}/tag/${body.token}`); setNotice("Taglink gekopieerd."); }} className="mt-3 rounded-lg bg-accent px-4 py-2 font-bold text-page">Taglink genereren en kopiëren</button>
         </section>}
         {notice && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">{notice}</p>}
-        <div className="flex flex-wrap justify-end gap-2">{!embedded && <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-4 py-2 text-textPrimary">{t("common.cancel")}</button>}{canSelect && <button type="button" disabled={busy} onClick={() => void prepareSelectionSend()} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent disabled:opacity-50">{communication?.latest ? "Huidige selectie opnieuw verwittigen" : "Verwittig huidige selectie"}</button>}{(canPlan || canSelect || canUseTags) && <button type="button" disabled={busy} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{t("common.save")}</button>}</div>
+        <div className="flex flex-wrap justify-end gap-2">{!embedded && <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-4 py-2 text-textPrimary">{t("common.cancel")}</button>}{canSelect && !matchPlayed && <button type="button" disabled={busy} onClick={() => void prepareSelectionSend()} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent disabled:opacity-50">{communication?.latest ? "Huidige selectie opnieuw verwittigen" : "Verwittig huidige selectie"}</button>}{(canPlan || canSelect || canUseTags) && <button type="button" disabled={busy} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{t("common.save")}</button>}</div>
       </div>}
     </div>
     {sendOpen && communication && <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-3"><section role="dialog" aria-modal="true" aria-label="Selectie versturen" className="w-full max-w-xl rounded-2xl border border-border bg-cardAlt p-5 shadow-2xl">
