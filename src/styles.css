@@ -1802,6 +1802,8 @@ select:focus {
   height: 100%;
   min-height: 0;
   background: var(--bg-video);
+  touch-action: none;
+  user-select: none;
 }
 
 .videoStage:has(.videoZoomReset) {
@@ -1810,6 +1812,10 @@ select:focus {
 
 .videoStage[data-dragging="true"] {
   cursor: grabbing;
+}
+
+.videoStage[data-dragging="true"] .videoPlayer {
+  transition: none;
 }
 
 .videoPlayer,
