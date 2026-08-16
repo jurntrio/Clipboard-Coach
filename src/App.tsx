@@ -690,6 +690,8 @@ function App() {
   const clipPreviewRef = useRef<HTMLVideoElement | null>(null);
   const clipPreviewFullscreenRef = useRef<HTMLDivElement | null>(null);
   const videoDragStartRef = useRef({ pointerX: 0, pointerY: 0, panX: 0, panY: 0 });
+  const videoPanRef = useRef({ x: 0, y: 0 });
+  const videoDragFrameRef = useRef<number | null>(null);
   const segmentEndHandledRef = useRef(false);
   const drawingTriggerHandledRef = useRef(false);
   const pendingDrawingIndexRef = useRef(0);
@@ -4496,6 +4498,7 @@ function App() {
               className="videoStage"
               onWheel={(event: ReactWheelEvent<HTMLDivElement>) => {
                 event.preventDefault();
+                if ((event.deltaY < 0 && videoZoom >= 4) || (event.deltaY >= 0 && videoZoom <= 1)) return;
                 const bounds = event.currentTarget.getBoundingClientRect();
                 setVideoZoomOrigin({
                   x: ((event.clientX - bounds.left) / bounds.width) * 100,
@@ -4503,7 +4506,10 @@ function App() {
                 });
                 setVideoZoom((current) => {
                   const next = Math.min(4, Math.max(1, current + (event.deltaY < 0 ? 0.25 : -0.25)));
-                  if (next === 1) setVideoPan({ x: 0, y: 0 });
+                  if (next === 1) {
+                    videoPanRef.current = { x: 0, y: 0 };
+                    setVideoPan({ x: 0, y: 0 });
+                  }
                   return next;
                 });
               }}
@@ -4513,8 +4519,8 @@ function App() {
                 videoDragStartRef.current = {
                   pointerX: event.clientX,
                   pointerY: event.clientY,
-                  panX: videoPan.x,
-                  panY: videoPan.y
+                  panX: videoPanRef.current.x,
+                  panY: videoPanRef.current.y
                 };
                 setIsVideoDragging(true);
               }}
@@ -4523,13 +4529,22 @@ function App() {
                 const bounds = event.currentTarget.getBoundingClientRect();
                 const limitX = (bounds.width * (videoZoom - 1)) / 2;
                 const limitY = (bounds.height * (videoZoom - 1)) / 2;
-                setVideoPan({
+                videoPanRef.current = {
                   x: Math.min(limitX, Math.max(-limitX, videoDragStartRef.current.panX + event.clientX - videoDragStartRef.current.pointerX)),
                   y: Math.min(limitY, Math.max(-limitY, videoDragStartRef.current.panY + event.clientY - videoDragStartRef.current.pointerY))
-                });
+                };
+                if (videoDragFrameRef.current === null) {
+                  videoDragFrameRef.current = requestAnimationFrame(() => {
+                    videoDragFrameRef.current = null;
+                    if (videoRef.current) {
+                      videoRef.current.style.transform = `translate(${videoPanRef.current.x}px, ${videoPanRef.current.y}px) scale(${videoZoom})`;
+                    }
+                  });
+                }
               }}
               onPointerUp={(event) => {
                 if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+                setVideoPan(videoPanRef.current);
                 setIsVideoDragging(false);
               }}
               onPointerCancel={() => setIsVideoDragging(false)}
@@ -4539,6 +4554,7 @@ function App() {
                 key={`${video.url}:${currentVideoKey ?? video.path}`}
                 ref={videoRef}
                 className="videoPlayer"
+                draggable={false}
                 style={{
                   transform: `translate(${videoPan.x}px, ${videoPan.y}px) scale(${videoZoom})`,
                   transformOrigin: `${videoZoomOrigin.x}% ${videoZoomOrigin.y}%`
@@ -4554,6 +4570,7 @@ function App() {
                   const nextDuration = event.currentTarget.duration || 0;
                   setVideoZoom(1);
                   setVideoZoomOrigin({ x: 50, y: 50 });
+                  videoPanRef.current = { x: 0, y: 0 };
                   setVideoPan({ x: 0, y: 0 });
                   setIsVideoDragging(false);
                   const pendingTime =
@@ -4599,6 +4616,7 @@ function App() {
                   onClick={() => {
                     setVideoZoom(1);
                     setVideoZoomOrigin({ x: 50, y: 50 });
+                    videoPanRef.current = { x: 0, y: 0 };
                     setVideoPan({ x: 0, y: 0 });
                   }}
                   title="Reset video zoom"
