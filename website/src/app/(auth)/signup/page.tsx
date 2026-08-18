@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -20,65 +20,15 @@ export default function SignupPage() {
   const [submitted, setSubmitted] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
-  const [clubMode, setClubMode] = useState<"existing" | "new">("existing");
-  const [clubSearch, setClubSearch] = useState("");
-  const [clubs, setClubs] = useState<{ id: string; name: string; registration_number: string | null; similarity_score: number }[]>([]);
-  const [clubId, setClubId] = useState("");
   const [clubName, setClubName] = useState("");
-  const [registrationNumber, setRegistrationNumber] = useState("");
-  const [teams, setTeams] = useState<{ id: string; name: string; age_category: string | null; level_or_competition: string | null }[]>([]);
-  const [requestKind, setRequestKind] = useState<"staff" | "contact" | "none">("staff");
-  const [teamMode, setTeamMode] = useState<"none" | "existing" | "new">("none");
-  const [teamId, setTeamId] = useState("");
   const [teamName, setTeamName] = useState("");
   const [ageCategory, setAgeCategory] = useState("");
-  const [levelOrCompetition, setLevelOrCompetition] = useState("");
-  const [teamRole, setTeamRole] = useState("");
-  const [customRoleName, setCustomRoleName] = useState("");
-  const [playerFirstName, setPlayerFirstName] = useState("");
-  const [playerLastName, setPlayerLastName] = useState("");
-  const [playerDateOfBirth, setPlayerDateOfBirth] = useState("");
-  const [directoryLoading, setDirectoryLoading] = useState(false);
-  const [directoryError, setDirectoryError] = useState("");
-  const [similarAcknowledged, setSimilarAcknowledged] = useState(false);
   const supabase = createClient();
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      setDirectoryLoading(true); setDirectoryError("");
-      try {
-        const response = await fetch(`/api/club-directory?search=${encodeURIComponent(clubMode === "new" ? clubName : clubSearch)}`, { signal: controller.signal });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error);
-        setClubs(body.clubs ?? []);
-      } catch (reason) {
-        if ((reason as Error).name !== "AbortError") setDirectoryError((reason as Error).message);
-      } finally { setDirectoryLoading(false); }
-    }, 250);
-    return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [clubMode, clubSearch, clubName]);
-
-  useEffect(() => {
-    if (!clubId) { setTeams([]); return; }
-    const controller = new AbortController();
-    setDirectoryLoading(true); setDirectoryError("");
-    fetch(`/api/club-directory?clubId=${encodeURIComponent(clubId)}`, { signal: controller.signal })
-        .then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body.error); setTeams(body.teams ?? []); })
-      .catch((reason) => { if (reason.name !== "AbortError") setDirectoryError(reason.message); })
-      .finally(() => setDirectoryLoading(false));
-    return () => controller.abort();
-  }, [clubId]);
 
   async function handleSignup(event: React.FormEvent) {
     event.preventDefault();
     if (!legalAccepted) { setError(t("auth.legalRequired")); return; }
-    if (requestKind !== "none" && clubMode === "existing" && !clubId) { setError(t("onboarding.clubRequired")); return; }
-    if (requestKind !== "none" && clubMode === "new" && (!clubName.trim() || !teamName.trim())) { setError(t("onboarding.newRequired")); return; }
-    if (requestKind === "staff" && teamRole === "custom" && !customRoleName.trim()) { setError("Vul de andere functie in."); return; }
-    if (requestKind === "contact" && (!playerFirstName.trim() || !playerLastName.trim() || !playerDateOfBirth)) { setError("Vul de naam en geboortedatum van de speler in."); return; }
-    const similar = clubMode === "new" ? clubs.find((club) => club.similarity_score >= 0.72) : undefined;
-    if (similar && !similarAcknowledged) { setError(t("onboarding.similarConfirm")); return; }
+    if (!clubName.trim() || !teamName.trim()) { setError("Vul je club en ploeg in."); return; }
     setLoading(true);
     setError("");
 
@@ -89,20 +39,12 @@ export default function SignupPage() {
         full_name: fullName, legal_accepted: true, legal_accepted_at: new Date().toISOString(),
         terms_version: TERMS_VERSION, privacy_version: PRIVACY_VERSION, legal_statement_version: LEGAL_STATEMENT_VERSION, legal_locale: locale,
         club_onboarding: {
-          request_kind: requestKind,
-          club_mode: clubMode, club_id: clubMode === "existing" ? clubId : undefined,
-          club_name: clubMode === "new" ? clubName.trim() : undefined,
-          registration_number: clubMode === "new" ? registrationNumber.trim() : undefined,
-          team_mode: clubMode === "new" ? "new" : teamMode === "new" && !teamName.trim() ? "none" : teamMode,
-          team_id: clubMode === "existing" && teamMode === "existing" ? teamId : undefined,
-          team_name: teamMode === "new" || clubMode === "new" ? teamName.trim() : undefined,
-          age_category: ageCategory.trim(), level_or_competition: levelOrCompetition.trim(),
-          team_role: teamRole || undefined, function_role: teamRole || undefined,
-          custom_role_name: teamRole === "custom" ? customRoleName.trim() : undefined,
-          player_first_name: requestKind === "contact" ? playerFirstName.trim() : undefined,
-          player_last_name: requestKind === "contact" ? playerLastName.trim() : undefined,
-          player_date_of_birth: requestKind === "contact" ? playerDateOfBirth : undefined,
-          similar_club_acknowledged: similarAcknowledged
+          request_kind: "personal_trainer",
+          club_mode: "personal",
+          club_name: clubName.trim(),
+          team_mode: "new",
+          team_name: teamName.trim(),
+          age_category: ageCategory.trim()
         }
       } }
     });
@@ -158,44 +100,24 @@ export default function SignupPage() {
                     required
                   />
                 </div>
-                <fieldset className="space-y-3 rounded-xl border border-border bg-cardDeep p-4">
-                  <legend className="px-2 font-display text-lg uppercase text-textBright">Hoe wil je Sport Visual Systems gebruiken?</legend>
-                  <div className="grid gap-2 sm:grid-cols-3">{([['staff','Staflid'],['contact','Contactpersoon'],['none','Nog geen functie']] as const).map(([value,label]) => <button key={value} type="button" onClick={() => { setRequestKind(value); if (value !== 'staff') setTeamMode('none'); }} className={`rounded-lg border p-3 text-left text-sm ${requestKind === value ? "border-accent bg-accentDim text-textPrimary" : "border-borderButton text-textSecondary"}`}>{label}</button>)}</div>
-                  <p className="text-xs text-textMuted">Je keuze geeft nog geen toegang. Een clubbeheerder keurt de koppeling en rechten goed.</p>
-                </fieldset>
-                {requestKind !== "none" && <fieldset className="space-y-4 rounded-xl border border-border bg-cardDeep p-4">
-                  <legend className="px-2 font-display text-lg uppercase text-textBright">{t("onboarding.title")}</legend>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <button type="button" onClick={() => { setClubMode("existing"); setSimilarAcknowledged(false); }} className={`rounded-lg border p-3 text-left text-sm ${clubMode === "existing" ? "border-accent bg-accentDim text-textPrimary" : "border-borderButton text-textSecondary"}`}>{t("onboarding.existingClub")}</button>
-                    {requestKind === "staff" && <button type="button" onClick={() => { setClubMode("new"); setClubId(""); setTeamMode("new"); }} className={`rounded-lg border p-3 text-left text-sm ${clubMode === "new" ? "border-accent bg-accentDim text-textPrimary" : "border-borderButton text-textSecondary"}`}>{t("onboarding.newClub")}</button>}
+                <fieldset className="space-y-4 rounded-xl border border-border bg-cardDeep p-4">
+                  <legend className="px-2 font-display text-lg uppercase text-textBright">Mijn ploeg</legend>
+                  <p className="text-sm leading-6 text-textMuted">
+                    Vul de club en ploeg in waarvoor je werkt. Dit is alleen jouw persoonlijke werkruimte en koppelt je niet aan een officiële clubomgeving.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm text-textSecondary">Clubnaam
+                      <input required value={clubName} onChange={(event) => setClubName(event.target.value)} placeholder="Bijvoorbeeld Olympic Ledegem" className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" />
+                    </label>
+                    <label className="text-sm text-textSecondary">Ploegnaam
+                      <input required value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder="Bijvoorbeeld U17" className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" />
+                    </label>
                   </div>
-                  {clubMode === "existing" ? <>
-                    <label className="block text-sm text-textSecondary">{t("onboarding.searchClub")}<input value={clubSearch} onChange={(e) => setClubSearch(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" /></label>
-                    <div className="max-h-44 space-y-2 overflow-y-auto">
-                      {clubs.map((club) => <button key={club.id} type="button" onClick={() => { setClubId(club.id); setTeamId(""); setTeamMode("none"); }} className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${clubId === club.id ? "border-accent bg-accentDim" : "border-borderButton bg-card"}`}><span className="font-semibold text-textPrimary">{club.name}</span>{club.registration_number && <span className="ml-2 text-textMuted">· {t("onboarding.registrationNumber")} {club.registration_number}</span>}</button>)}
-                      {!directoryLoading && !clubs.length && <p className="text-sm text-textMuted">{t("onboarding.noClubs")}</p>}
-                    </div>
-                  </> : <>
-                    <label className="block text-sm text-textSecondary">{t("onboarding.officialClubName")}<input required value={clubName} onChange={(e) => { setClubName(e.target.value); setSimilarAcknowledged(false); }} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" /></label>
-                    <label className="block text-sm text-textSecondary">{t("onboarding.registrationOptional")}<input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" /></label>
-                    {clubName.trim() && clubs.some((club) => club.similarity_score >= 0.72) && <label className="block rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200"><span className="block font-semibold">{t("onboarding.similarWarning")}</span><span className="block py-1">{clubs.find((club) => club.similarity_score >= 0.72)?.name}</span><span className="flex items-start gap-2"><input type="checkbox" checked={similarAcknowledged} onChange={(e) => setSimilarAcknowledged(e.target.checked)} />{t("onboarding.similarAcknowledge")}</span></label>}
-                  </>}
-                  {requestKind === "staff" && clubMode === "existing" && clubId && <>
-                    <h3 className="font-semibold text-textPrimary">{t("onboarding.chooseTeam")}</h3>
-                    <button type="button" onClick={() => { setTeamMode("none"); setTeamId(""); }} className={`w-full rounded-lg border p-3 text-left text-sm ${teamMode === "none" ? "border-accent bg-accentDim" : "border-borderButton"}`}>Nog geen team kiezen</button>
-                    <div className="grid gap-2 sm:grid-cols-2">{teams.map((team) => <button key={team.id} type="button" onClick={() => { setTeamMode("existing"); setTeamId(team.id); }} className={`rounded-lg border p-3 text-left ${teamMode === "existing" && teamId === team.id ? "border-accent bg-accentDim" : "border-borderButton"}`}><span className="block text-sm font-semibold text-textPrimary">{team.name}</span><span className="text-xs text-textMuted">{[team.age_category, team.level_or_competition].filter(Boolean).join(" · ")}</span></button>)}</div>
-                    <button type="button" onClick={() => { setTeamMode("new"); setTeamId(""); }} className={`w-full rounded-lg border p-3 text-left text-sm ${teamMode === "new" ? "border-accent bg-accentDim" : "border-borderButton"}`}>{t("onboarding.teamMissing")}</button>
-                  </>}
-                  {requestKind === "staff" && (clubMode === "new" || (clubMode === "existing" && teamMode === "new")) && <div className="grid gap-3 sm:grid-cols-3">
-                    <label className="text-sm text-textSecondary">{t("onboarding.teamName")} <span className="text-textMuted">(optioneel)</span><input required={clubMode === "new"} value={teamName} onChange={(e) => setTeamName(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" /></label>
-                    <label className="text-sm text-textSecondary">{t("onboarding.ageOptional")}<input value={ageCategory} onChange={(e) => setAgeCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" /></label>
-                    <label className="text-sm text-textSecondary">{t("onboarding.levelOptional")}<input value={levelOrCompetition} onChange={(e) => setLevelOrCompetition(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" /></label>
-                  </div>}
-                  {requestKind === "staff" && <><label className="block text-sm text-textSecondary">Gewenste functie (optioneel)<select value={teamRole} onChange={(e) => setTeamRole(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2"><option value="">Nog geen functie kiezen</option><option value="trainer">Trainer</option><option value="assistant_trainer">Assistent-trainer</option><option value="team_manager">Teammanager</option><option value="doctor">Dokter</option><option value="physiotherapist">Kinesist</option><option value="video_analyst">Videoanalist</option><option value="youth_coordinator">Jeugdcoördinator</option><option value="scout">Scout</option><option value="custom">Andere functie</option></select></label>{teamRole === "custom" && <label className="block text-sm text-textSecondary">Welke functie?<input required value={customRoleName} onChange={event => setCustomRoleName(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" /></label>}</>}
-                  {requestKind === "contact" && <div className="grid gap-3 sm:grid-cols-3"><label className="text-sm text-textSecondary">Voornaam speler<input required value={playerFirstName} onChange={event => setPlayerFirstName(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" /></label><label className="text-sm text-textSecondary">Achternaam speler<input required value={playerLastName} onChange={event => setPlayerLastName(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" /></label><label className="text-sm text-textSecondary">Geboortedatum speler<input required type="date" value={playerDateOfBirth} onChange={event => setPlayerDateOfBirth(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" /></label><p className="text-xs text-textMuted sm:col-span-3">De clubbeheerder controleert deze gegevens en koppelt je account handmatig aan de juiste speler.</p></div>}
-                  {directoryLoading && <p className="text-sm text-textMuted">{t("common.loading")}</p>}
-                  {directoryError && <p className="text-sm text-amber-300">{directoryError} {t("onboarding.retryHint")}</p>}
-                </fieldset>}
+                  <label className="block text-sm text-textSecondary">Leeftijdscategorie <span className="text-textMuted">(optioneel)</span>
+                    <input value={ageCategory} onChange={(event) => setAgeCategory(event.target.value)} placeholder="Bijvoorbeeld U17" className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2" />
+                  </label>
+                  <p className="text-xs leading-5 text-textMuted">Andere trainers mogen dezelfde club- en ploegnaam gebruiken; accounts en inhoud blijven volledig gescheiden. Een officiële clubkoppeling kan later alleen op uitnodiging gebeuren.</p>
+                </fieldset>
                 <div>
                   <label className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.email")}</label>
                   <input
