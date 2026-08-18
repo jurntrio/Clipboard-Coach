@@ -14,8 +14,8 @@ export default function HomePage() {
   const features = [
     { icon: "/branding/video-viewer.png", title: t("common.videoViewer"), body: t("home.videoBody") },
     { icon: "/branding/teams.png", title: t("common.teams"), body: t("home.teamsBody") },
-    { icon: "/branding/clips.png", title: t("common.clips"), body: t("home.clipsBody") },
-    { icon: "/branding/settings.png", title: t("common.settings"), body: t("home.settingsBody") }
+    { icon: "/branding/training.png", title: t("home.trainingFeatureTitle"), body: t("home.trainingFeatureBody") },
+    { icon: "/branding/intradesk.png", title: t("home.intradeskFeatureTitle"), body: t("home.intradeskFeatureBody") }
   ];
   const productStories = [
     {
@@ -23,21 +23,28 @@ export default function HomePage() {
       title: t("home.mediaTitle"),
       body: t("home.mediaBody"),
       points: [t("home.mediaPoint1"), t("home.mediaPoint2"), t("home.mediaPoint3")],
-      preview: <MediaPreview />
+      preview: <TrainingPreview />
     },
     {
       eyebrow: t("home.screensEyebrow"),
       title: t("home.screensTitle"),
       body: t("home.screensBody"),
       points: [t("home.screensPoint1"), t("home.screensPoint2"), t("home.screensPoint3")],
-      preview: <InfoScreenPreview />
+      preview: <VideoPreview />
     },
     {
       eyebrow: t("home.drawingEyebrow"),
       title: t("home.drawingTitle"),
       body: t("home.drawingBody"),
       points: [t("home.drawingPoint1"), t("home.drawingPoint2"), t("home.drawingPoint3")],
-      preview: <DrawingPreview />
+      preview: <IntradeskPreview />
+    },
+    {
+      eyebrow: t("home.statisticsEyebrow"),
+      title: t("home.statisticsTitle"),
+      body: t("home.statisticsBody"),
+      points: [t("home.statisticsPoint1"), t("home.statisticsPoint2"), t("home.statisticsPoint3")],
+      preview: <StatisticsPreview />
     }
   ];
   return (
@@ -87,6 +94,9 @@ export default function HomePage() {
             <Link href="/login" className="px-6 py-3 rounded-xl border border-borderButton text-textPrimary font-bold hover:border-accent">
               {t("home.signIn")}
             </Link>
+          </div>
+          <div className="relative mt-12 sm:mt-16">
+            <HeroProductPreview />
           </div>
         </section>
 
@@ -163,28 +173,56 @@ function PreviewShell({ label, children }: { label: string; children: ReactNode 
   </div>;
 }
 
-function MediaPreview() {
-  return <PreviewShell label="Media studio"><div className="grid grid-cols-[1.35fr_.65fr] gap-3 p-4">
-    <div className="relative aspect-video overflow-hidden rounded-lg bg-gradient-to-br from-green-950 via-green-700 to-lime-400 p-4"><div className="absolute inset-x-4 bottom-4"><span className="rounded bg-black/70 px-2 py-1 text-[10px] font-bold uppercase text-white">Matchday</span><p className="mt-2 text-xl font-black uppercase leading-none text-white">Klaar voor<br />de aftrap</p></div></div>
-    <div className="space-y-2"><div className="rounded-lg border border-white/10 bg-white/5 p-3"><span className="text-[9px] uppercase text-white/40">Berichten</span><strong className="mt-1 block text-lg text-white">12</strong></div><div className="rounded-lg border border-accent/30 bg-accent/10 p-3"><span className="text-[9px] uppercase text-accent">Publicatie</span><strong className="mt-1 block text-xs text-white">Klaar</strong></div></div>
-  </div></PreviewShell>;
+function HeroProductPreview() {
+  return <div className="mx-auto max-w-4xl rotate-[.25deg] rounded-2xl border border-white/10 bg-[#0b100c] p-2 shadow-[0_35px_90px_rgba(0,0,0,.45)] sm:p-3">
+    <div className="grid min-h-[280px] grid-cols-[52px_1fr] overflow-hidden rounded-xl border border-white/10 bg-[#111712] text-left sm:grid-cols-[150px_1fr]">
+      <aside className="border-r border-white/10 bg-black/20 p-2 sm:p-4"><SvsBrand format="square" width={36} height={36} className="mb-6 h-9 w-9 rounded" /><div className="space-y-2">{["Home", "Wedstrijden", "Training", "Intradesk", "Statistieken"].map((item, i) => <div key={item} className={`flex items-center gap-2 rounded-lg px-2 py-2 text-[10px] ${i === 2 ? "bg-accent text-black" : "text-white/50"}`}><span className="h-2 w-2 shrink-0 rounded-sm border border-current" /><span className="hidden sm:inline">{item}</span></div>)}</div></aside>
+      <div className="p-4 sm:p-6"><div className="flex items-end justify-between"><div><span className="text-[9px] uppercase tracking-[.24em] text-accent">Teamomgeving</span><h2 className="mt-1 text-lg font-black uppercase text-white sm:text-2xl">Alles voor je volgende training</h2></div><span className="hidden rounded-lg bg-accent px-3 py-2 text-[10px] font-bold text-black sm:block">+ Nieuwe training</span></div><div className="mt-5 grid gap-3 sm:grid-cols-[1.35fr_.65fr]"><TrainingPitch compact /><div className="grid grid-cols-2 gap-2 sm:grid-cols-1"><MiniMetric label="Aanwezig" value="17/19" /><MiniMetric label="Oefeningen" value="6" /><MiniMetric label="Duur" value="90 min" /></div></div></div>
+    </div>
+  </div>;
 }
 
-function InfoScreenPreview() {
-  return <PreviewShell label="Club TV"><div className="aspect-video bg-gradient-to-br from-[#111a12] to-[#21361d] p-5">
-    <div className="flex items-center justify-between"><span className="text-xs font-black uppercase tracking-widest text-white">Club TV</span><span className="rounded-full bg-accent px-2 py-1 text-[9px] font-bold text-black">LIVE</span></div>
-    <div className="mt-5 grid grid-cols-3 gap-2 text-center"><div className="rounded-lg bg-white/5 p-3"><span className="text-[9px] text-white/50">THUIS</span><strong className="mt-1 block text-white">U13 A</strong></div><div className="grid place-items-center text-2xl font-black text-accent">2–1</div><div className="rounded-lg bg-white/5 p-3"><span className="text-[9px] text-white/50">UIT</span><strong className="mt-1 block text-white">KSV</strong></div></div>
-    <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3 text-[10px] text-white/60"><span>Volgende: U15 · 18:30</span><span>Veld 1</span></div>
-  </div></PreviewShell>;
+function TrainingPreview() {
+  return <ProductScreenshot
+    src="/branding/landing-training-drawing.png"
+    alt="SVS trainingstekentool met een uitgewerkte warming-up op het voetbalveld"
+    width={1872}
+    height={1239}
+  />;
 }
 
-function DrawingPreview() {
-  return <PreviewShell label="Analyse"><div className="p-3"><div className="mb-3 flex gap-2"><span className="rounded bg-accent px-2 py-1 text-[9px] font-bold text-black">Pijl</span><span className="rounded bg-white/10 px-2 py-1 text-[9px] text-white/60">Cirkel</span><span className="rounded bg-white/10 px-2 py-1 text-[9px] text-white/60">Tekst</span></div>
-    <svg viewBox="0 0 480 270" role="img" aria-label="Voetbalanalyse met looplijnen" className="w-full rounded-lg bg-[#245f30]">
-      <g fill="none" stroke="rgba(255,255,255,.55)" strokeWidth="2"><rect x="8" y="8" width="464" height="254" rx="3" /><path d="M240 8v254" /><circle cx="240" cy="135" r="42" /><path d="M8 67h62v136H8M472 67h-62v136h62" /></g>
-      <g fill="#71d52b" stroke="#10200d" strokeWidth="3"><circle cx="126" cy="82" r="10" /><circle cx="166" cy="188" r="10" /><circle cx="300" cy="98" r="10" /></g>
-      <g fill="none" stroke="#f8f41b" strokeLinecap="round" strokeWidth="7"><path d="M137 84c54 5 78 26 111 50" /><path d="m236 119 14 16-20 5" /></g>
-      <circle cx="301" cy="98" r="25" fill="none" stroke="#ff4f4f" strokeWidth="6" />
-    </svg>
-  </div></PreviewShell>;
+function VideoPreview() {
+  return <ProductScreenshot
+    src="/branding/landing-video-viewer.png"
+    alt="SVS video viewer met wedstrijdbeeld, tijdlijn, cliptags en tagoverzicht"
+    width={2559}
+    height={1167}
+  />;
+}
+
+function IntradeskPreview() {
+  return <PreviewShell label="Intradesk · Oefenbibliotheek"><div className="p-4"><div className="mb-3 flex items-center justify-between"><strong className="text-xs uppercase text-white">Mijn oefeningen</strong><span className="rounded bg-accent px-2 py-1 text-[9px] font-bold text-black">+ Toevoegen</span></div><div className="grid grid-cols-3 gap-2">{[["Positiespel", "8 min"], ["Omschakeling", "12 min"], ["Afwerken", "10 min"]].map(([name, duration], i) => <div key={name} className="overflow-hidden rounded-lg border border-white/10 bg-white/5"><div className={`relative aspect-[4/3] ${i === 1 ? "bg-[#245f30]" : "bg-[#1b4d28]"}`}><span className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/40" /><span className="absolute left-2 top-2 h-2 w-2 rounded-full bg-accent" /></div><div className="p-2"><strong className="block text-[9px] text-white">{name}</strong><span className="text-[8px] text-white/40">{duration}</span></div></div>)}</div><div className="mt-3 flex gap-2 text-[8px] text-white/50"><span className="rounded-full bg-white/10 px-2 py-1">U13–U15</span><span className="rounded-full bg-white/10 px-2 py-1">Balbezit</span><span className="rounded-full bg-white/10 px-2 py-1">Favorieten</span></div></div></PreviewShell>;
+}
+
+function StatisticsPreview() {
+  return <ProductScreenshot
+    src="/branding/landing-training-statistics.png"
+    alt="SVS trainingsstatistieken met aanwezigheden per speler"
+    width={1556}
+    height={1016}
+  />;
+}
+
+function ProductScreenshot({ src, alt, width, height }: { src: string; alt: string; width: number; height: number }) {
+  return <div className="overflow-hidden rounded-xl border border-borderButton bg-white shadow-2xl shadow-black/30">
+    <Image src={src} alt={alt} width={width} height={height} sizes="(min-width: 1024px) 448px, 90vw" className="h-auto w-full" />
+  </div>;
+}
+
+function TrainingPitch({ compact = false }: { compact?: boolean }) {
+  return <div className={`relative overflow-hidden rounded-lg border border-white/10 bg-[#245f30] ${compact ? "min-h-40" : "aspect-[4/3]"}`}><div className="absolute inset-3 border border-white/40"><span className="absolute left-1/2 top-0 h-full border-l border-white/40" /><span className="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/40" /></div>{[[25, 28], [42, 67], [67, 36], [78, 72], [55, 48]].map(([left, top], i) => <span key={i} className={`absolute h-3 w-3 rounded-full border-2 border-black ${i > 2 ? "bg-amber-300" : "bg-accent"}`} style={{ left: `${left}%`, top: `${top}%` }} />)}<svg viewBox="0 0 100 70" className="absolute inset-0 h-full w-full"><path d="M28 31 Q43 37 54 47" fill="none" stroke="#f8f41b" strokeWidth="2" strokeDasharray="3 2" /><path d="m51 43 4 4-6 1" fill="none" stroke="#f8f41b" strokeWidth="2" /></svg></div>;
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-lg border border-white/10 bg-white/5 p-3"><span className="block text-[8px] uppercase tracking-wider text-white/40">{label}</span><strong className="mt-1 block text-sm text-white">{value}</strong></div>;
 }
