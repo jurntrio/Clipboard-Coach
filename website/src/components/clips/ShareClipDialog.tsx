@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/client";
 import { SvsBrand } from "@/components/branding/SvsBrand";
 
-export function ShareClipDialog({ clipName, shareUrl, onClose }: { clipName: string; shareUrl: string; onClose: () => void }) {
+export function ShareClipDialog({ clipName, shareUrl, tvUrl, onClose }: { clipName: string; shareUrl: string; tvUrl?: string; onClose: () => void }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [canNativeShare, setCanNativeShare] = useState(false);
@@ -20,6 +20,13 @@ export function ShareClipDialog({ clipName, shareUrl, onClose }: { clipName: str
 
   async function copyLink() {
     await navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2200);
+  }
+
+  async function copyTvLink() {
+    if (!tvUrl) return;
+    await navigator.clipboard.writeText(tvUrl);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2200);
   }
@@ -59,6 +66,19 @@ export function ShareClipDialog({ clipName, shareUrl, onClose }: { clipName: str
               {copied ? t("share.copied") : t("share.copyLink")}
             </button>
           </div>
+
+          {tvUrl && (
+            <div className="mt-4 rounded-xl border border-accent/40 bg-accentDim p-4">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">Korte link voor tv</p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <span className="min-w-0 flex-1 font-mono text-lg font-black text-textBright">{tvUrl.replace(/^https?:\/\//, "")}</span>
+                <button type="button" onClick={() => void copyTvLink()} className="rounded-lg border border-accent bg-cardDeep px-3 py-2 text-sm font-bold text-accent hover:bg-cardHover">
+                  {copied ? t("share.copied") : t("share.copy")}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-textSecondary">Typ deze korte link rechtstreeks in op de televisie. Hoofdletters of kleine letters maken niet uit.</p>
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {canNativeShare && <button type="button" disabled={!reviewed} onClick={() => void nativeShare()} className="col-span-2 flex items-center justify-center gap-2 rounded-xl border border-accent bg-accentDim px-4 py-3 font-semibold text-accent hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-3"><span aria-hidden="true">↗</span> {t("share.phone")}</button>}
