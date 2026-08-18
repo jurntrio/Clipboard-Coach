@@ -8,7 +8,7 @@ import { MatchLineupEditor, type LineupBlock, type LineupPosition } from "./Matc
 import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
 import { createClient } from "@/lib/supabase/client";
-import { buildPublicShareUrl } from "@/lib/share-url";
+import { buildPublicShareUrl, buildTvShareUrl } from "@/lib/share-url";
 
 export type MatchDossier = {
   lineup_notes: string;
@@ -30,7 +30,7 @@ type PlayerReview = { playerId: string; rating: number | null; report: string; p
 
 type Player = { id: string; first_name: string; last_name: string; jersey_number: number | null; is_goalkeeper?: boolean };
 type Clip = {
-  id: string; name: string; render_status: string; created_at: string; shareToken: string | null;
+  id: string; name: string; render_status: string; created_at: string; shareToken: string | null; shareCode: string | null;
   rendered_segments: Array<{ id: string; url: string; name: string; color: string; duration: number; play_start?: number }>;
   videos: { video_url: string } | null;
   clip_segments: Array<{ id: string; sequence_order: number; videos: { video_url: string } | null; tags: { name: string; color: string; start_time: number; end_time: number } | null }>;
@@ -71,21 +71,22 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
-  const [shareDialog, setShareDialog] = useState<{ clipName: string; shareUrl: string } | null>(null);
+  const [shareDialog, setShareDialog] = useState<{ clipName: string; shareUrl: string; tvUrl?: string } | null>(null);
 
   async function shareClip(clip: Clip) {
     if (clip.shareToken) {
-      setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(clip.shareToken) });
+      setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(clip.shareToken), tvUrl: clip.shareCode ? buildTvShareUrl(clip.shareCode) : undefined });
       return;
     }
     const supabase = createClient();
-    const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select("token").single();
+    const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select("token, short_code").single();
     if (error || !data) {
       setNotice(error?.message || "Deellink kon niet worden aangemaakt.");
       return;
     }
     clip.shareToken = data.token;
-    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token) });
+    clip.shareCode = data.short_code;
+    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token), tvUrl: buildTvShareUrl(data.short_code) });
   }
 
   function playbackSegments(clip: Clip): ClipSegmentPlayback[] {
@@ -286,7 +287,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
     </ClosedPanel>}
 
     {selectedClip && <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos?.video_url ?? ""} segments={playbackSegments(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} showSegmentList={false} />}
-    {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} onClose={() => setShareDialog(null)} />}
+    {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} tvUrl={shareDialog.tvUrl} onClose={() => setShareDialog(null)} />}
 
     {(editable || canComplete || scoutingEditable) && <div className="flex flex-wrap items-center justify-end gap-3 p-5">
       {notice && <p className="mr-auto text-sm text-accent">{notice}</p>}

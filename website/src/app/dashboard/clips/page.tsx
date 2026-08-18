@@ -8,7 +8,7 @@ import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/C
 import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
 import { PlayerClipsShareDialog } from "@/components/clips/PlayerClipsShareDialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { buildPublicShareUrl } from "@/lib/share-url";
+import { buildPublicShareUrl, buildTvShareUrl } from "@/lib/share-url";
 import { useI18n } from "@/i18n/client";
 import type { Match, Player, StandardTag, Team } from "@/types/database";
 import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
@@ -20,7 +20,7 @@ type HubMatch = Match & { match_videos: { video_id: string }[]; team_a_logo: Clu
 type HubClip = {
   id: string; coach_id: string; video_id: string; name: string; display_number: number | null; render_status: string; created_at: string; audience_type: "full_team" | "selected_players" | "specific_players";
   audience_player_ids: string[];
-  share_links: Array<{ token: string; view_count?: number }>;
+  share_links: Array<{ token: string; short_code: string; view_count?: number }>;
   rendered_segments: Array<{ id: string; url: string; name: string; color: string; duration: number; play_start?: number; mobile_compatible?: boolean }>;
   videos: { title: string | null; video_url: string } | null;
   clip_segments: Array<{ id: string; sequence_order: number; video_id: string | null; render_status: "pending" | "rendering" | "ready" | "failed"; videos: { video_url: string } | null; tags: { id: string; name: string; color: string; start_time: number; end_time: number; player_ids: string[] } | null }>;
@@ -40,7 +40,7 @@ export default function MatchesHubPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedClip, setSelectedClip] = useState<HubClip | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [shareDialog, setShareDialog] = useState<{ clipName: string; shareUrl: string } | null>(null);
+  const [shareDialog, setShareDialog] = useState<{ clipName: string; shareUrl: string; tvUrl?: string } | null>(null);
   const [notice, setNotice] = useState("");
   const [coachName, setCoachName] = useState(() => t("matchHub.defaultCoachName"));
   const [playerShare, setPlayerShare] = useState<{ playerName: string; title: string; text: string } | null>(null);
@@ -137,7 +137,7 @@ export default function MatchesHubPage() {
   async function shareClip(clip: HubClip) {
     const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select().single();
     if (error || !data) { setNotice(error?.message || t("share.createFailed")); return; }
-    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token) });
+    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token), tvUrl: buildTvShareUrl(data.short_code) });
   }
 
   async function confirmDeleteClip() {
@@ -176,10 +176,10 @@ export default function MatchesHubPage() {
     for (const clip of uniqueClips) {
       let token = clip.share_links?.[0]?.token;
       if (!token) {
-        const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select("token").single();
+        const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select("token, short_code").single();
         if (error || !data) { setSharingPlayerId(""); setNotice(error?.message || t("share.createFailed")); return; }
         token = data.token;
-        setClips((current) => current.map((item) => item.id === clip.id ? { ...item, share_links: [{ token: data.token }] } : item));
+        setClips((current) => current.map((item) => item.id === clip.id ? { ...item, share_links: [{ token: data.token, short_code: data.short_code }] } : item));
       }
       links.push({ clip, token });
     }
@@ -216,7 +216,7 @@ export default function MatchesHubPage() {
 
       {createOpen && <MatchEditor match={null} teams={teams} allPlayers={players} standardTags={standardTags} onClose={() => setCreateOpen(false)} onSaved={async () => { setCreateOpen(false); await load(); }} />}
       {selectedClip && <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos?.video_url ?? ""} segments={playbackSegments(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} />}
-      {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} onClose={() => setShareDialog(null)} />}
+      {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} tvUrl={shareDialog.tvUrl} onClose={() => setShareDialog(null)} />}
       {playerShare && <PlayerClipsShareDialog {...playerShare} onClose={() => setPlayerShare(null)} />}
       {preparationMatch && <MatchPreparationDialog match={preparationMatch} onClose={() => setPreparationMatch(null)} onSaved={load} />}
       <ConfirmDialog open={!!deleteClipTarget} title={t("matchHub.deleteClipTitle")} message={t("matchHub.confirmDeleteClip", { name: deleteClipTarget?.name ?? "" })} busy={deletingClip} onCancel={() => setDeleteClipTarget(null)} onConfirm={() => void confirmDeleteClip()} />

@@ -82,7 +82,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     admin.from("match_guest_players").select("id, first_name, last_name, jersey_number").eq("match_id", match.id).order("created_at"),
     admin.from("match_dossiers").select("*").eq("match_id", match.id).maybeSingle(),
     videoIds.length
-      ? admin.from("clips").select("id, name, render_status, created_at, rendered_segments, videos(video_url), clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, color, start_time, end_time)), share_links(token)").in("video_id", videoIds).order("created_at", { ascending: false })
+      ? admin.from("clips").select("id, name, render_status, created_at, rendered_segments, videos(video_url), clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, color, start_time, end_time)), share_links(token, short_code)").in("video_id", videoIds).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     match.completed_by
       ? admin.from("profiles").select("full_name, email").eq("id", match.completed_by).maybeSingle()
@@ -117,6 +117,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     render_status: clip.render_status,
     created_at: clip.created_at,
     shareToken: clip.share_links?.[0]?.token ?? null,
+    shareCode: clip.share_links?.[0]?.short_code ?? null,
     rendered_segments: clip.rendered_segments ?? [],
     videos: clip.videos ?? null,
     clip_segments: clip.clip_segments ?? []

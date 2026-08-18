@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { buildPublicShareUrl } from "@/lib/share-url";
+import { buildPublicShareUrl, buildTvShareUrl } from "@/lib/share-url";
 import { getPlayerDisplayName } from "@/lib/utils";
 import type { Player } from "@/types/database";
 import { ClipCard } from "@/components/clips/ClipCard";
@@ -70,7 +70,7 @@ export default function PlayerClipsPage() {
   const [selectedClip, setSelectedClip] = useState<PlayerClip | null>(null);
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [shareDialog, setShareDialog] = useState<{ clipName: string; shareUrl: string } | null>(null);
+  const [shareDialog, setShareDialog] = useState<{ clipName: string; shareUrl: string; tvUrl?: string } | null>(null);
   const [shareError, setShareError] = useState("");
   const [inviteLink, setInviteLink] = useState("");
   const [inviteError, setInviteError] = useState("");
@@ -395,7 +395,7 @@ export default function PlayerClipsPage() {
       setShareError(error?.message || t("share.createFailed"));
       return;
     }
-    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token) });
+    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token), tvUrl: buildTvShareUrl(data.short_code) });
   }
 
   return (
@@ -726,7 +726,7 @@ export default function PlayerClipsPage() {
         <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos.video_url} segments={segmentsFor(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} />
       )}
       {shareError && <p className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{shareError}</p>}
-      {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} onClose={() => setShareDialog(null)} />}
+      {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} tvUrl={shareDialog.tvUrl} onClose={() => setShareDialog(null)} />}
       {editing && player && <EditPlayerModal player={player} onClose={() => setEditing(false)} onSaved={() => void loadPlayerAndClips()} />}
     </div>
   );
