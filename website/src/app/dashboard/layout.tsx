@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { getClubModuleConfiguration } from "@/lib/auth/club-module";
 import type { ClubModuleKey } from "@/lib/club-modules";
+import { TrainerOnboarding } from "@/components/onboarding/TrainerOnboarding";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const clubContext = await getClubContext();
@@ -17,14 +18,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const admin = createAdminClient();
 
   const clubId = clubContext.activeClubId;
-  const [access, modules, { data: profile }, { data: guardianRows }] = await Promise.all([
+  const [access, modules, { data: profile }, { data: guardianRows }, { data: activeClub }] = await Promise.all([
     clubId ? getClubAccess(clubId, user) : Promise.resolve(null),
     clubId
       ? getClubModuleConfiguration(clubId)
       : Promise.resolve({ configured: false, enabled: new Set() }),
-    admin.from("profiles").select("account_role").eq("id", user.id).maybeSingle(),
-    supabase.rpc("guardian_dashboard_players")
+    admin.from("profiles").select("account_role, trainer_onboarding_completed_at").eq("id", user.id).maybeSingle(),
+    supabase.rpc("guardian_dashboard_players"),
+    clubId ? admin.from("clubs").select("is_personal").eq("id", clubId).maybeSingle() : Promise.resolve({ data: null })
   ]);
+  const { data: onboardingTeam } = activeClub?.is_personal && !profile?.trainer_onboarding_completed_at && clubId
+    ? await admin.from("club_teams").select("id, name").eq("club_id", clubId).eq("status", "active").order("created_at").limit(1).maybeSingle()
+    : { data: null };
   const moduleOn = (key: ClubModuleKey) => !clubId || clubContext.isPlatformAdmin || !modules.configured || modules.enabled.has(key);
   const iconRoot = "/branding/cbcs_black_icons";
   const navigation = [];
@@ -52,6 +57,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <ActiveClubProvider clubs={clubContext.clubs} initialClubId={clubContext.activeClubId} isPlatformAdmin={clubContext.isPlatformAdmin}>
       <div className="flex min-h-screen flex-col bg-page">
+        {onboardingTeam && <TrainerOnboarding teamId={onboardingTeam.id} teamName={onboardingTeam.name} />}
         <ActiveClubBar navigation={navigation} />
         <main className="flex-1">{showPendingNotice ? <PendingClubAccessNotice pendingClubs={clubContext.pendingClubs} /> : children}</main>
         <footer className="mt-auto border-t border-border px-5 py-6"><LegalLinks /></footer>
