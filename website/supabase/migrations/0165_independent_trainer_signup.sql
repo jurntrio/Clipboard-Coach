@@ -3,6 +3,7 @@
 -- not create a request against an official club.
 
 drop index if exists public.clubs_normalized_name_unique;
+alter table public.clubs drop constraint if exists clubs_name_key;
 create unique index clubs_normalized_name_unique
   on public.clubs (normalized_name)
   where not is_personal;
@@ -24,7 +25,7 @@ declare
   personal_season_id uuid;
   personal_club_team_id uuid;
 begin
-  if onboarding->>'request_kind' <> 'personal_trainer' then
+  if onboarding->>'request_kind' is distinct from 'personal_trainer' then
     perform public.complete_official_club_team_onboarding(
       target_user_id, user_email, user_full_name, onboarding
     );
