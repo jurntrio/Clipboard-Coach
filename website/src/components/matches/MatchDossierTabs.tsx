@@ -9,7 +9,7 @@ import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/C
 import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
 import { createClient } from "@/lib/supabase/client";
 import { buildPublicShareUrl, buildTvShareUrl } from "@/lib/share-url";
-import { zipSync } from "fflate";
+import { mergeMp4Segments } from "@/lib/media/local-clips";
 
 export type MatchDossier = {
   lineup_notes: string;
@@ -108,22 +108,13 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
     setNotice("");
     try {
       const safeName = clip.name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").trim() || "clip";
-      const files = await Promise.all(clip.rendered_segments.map(async (segment, index) => {
+      const segmentBlobs = await Promise.all(clip.rendered_segments.map(async (segment, index) => {
         const response = await fetch(segment.url);
         if (!response.ok) throw new Error(`Segment ${index + 1} kon niet worden gedownload.`);
-        const bytes = new Uint8Array(await response.arrayBuffer());
-        const segmentName = clip.rendered_segments.length === 1
-          ? `${safeName}.mp4`
-          : `${String(index + 1).padStart(2, "0")} - ${segment.name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-") || "segment"}.mp4`;
-        return { segmentName, bytes };
+        return response.blob();
       }));
-
-      if (files.length === 1) {
-        downloadBlob(new Blob([files[0].bytes], { type: "video/mp4" }), files[0].segmentName);
-      } else {
-        const archive = zipSync(Object.fromEntries(files.map((file) => [file.segmentName, file.bytes])));
-        downloadBlob(new Blob([archive], { type: "application/zip" }), `${safeName}.zip`);
-      }
+      const completeClip = await mergeMp4Segments(segmentBlobs);
+      downloadBlob(completeClip, `${safeName}.mp4`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "De clip kon niet worden gedownload.");
     } finally {

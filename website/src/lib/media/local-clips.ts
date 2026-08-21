@@ -1,6 +1,7 @@
 import {
   ALL_FORMATS,
   BlobSource,
+  BufferTarget,
   EncodedAudioPacketSource,
   EncodedPacketSink,
   EncodedVideoPacketSource,
@@ -34,6 +35,78 @@ export const defaultLocalMediaMessages: LocalMediaMessages = {
 
 function createInput(file: File) {
   return new Input({ formats: ALL_FORMATS, source: new BlobSource(file) });
+}
+
+export async function mergeMp4Segments(blobs: Blob[]): Promise<Blob> {
+  if (!blobs.length) throw new Error("Deze clip bevat geen downloadbare videosegmenten.");
+  if (blobs.length === 1) return new Blob([blobs[0]], { type: "video/mp4" });
+
+  const inputs = blobs.map((blob) => new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) }));
+  const target = new BufferTarget();
+
+  try {
+    const firstVideoTrack = await inputs[0].getPrimaryVideoTrack();
+    if (!firstVideoTrack) throw new Error("Het eerste clipsegment bevat geen videobeeld.");
+    const firstAudioTrack = await inputs[0].getPrimaryAudioTrack();
+    const videoCodec = await firstVideoTrack.getCodec();
+    const audioCodec = await firstAudioTrack?.getCodec() ?? null;
+    if (videoCodec !== "avc" && videoCodec !== "hevc") throw new Error("Dit videoformaat kan niet tot één MP4 worden samengevoegd.");
+    if (audioCodec && audioCodec !== "aac") throw new Error("Dit audioformaat kan niet tot één MP4 worden samengevoegd.");
+
+    const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target });
+    const videoSource = new EncodedVideoPacketSource(videoCodec);
+    const audioSource = audioCodec ? new EncodedAudioPacketSource(audioCodec) : null;
+    output.addVideoTrack(videoSource, { rotation: await firstVideoTrack.getRotation() });
+    if (audioSource) output.addAudioTrack(audioSource);
+    await output.start();
+
+    let timelineOffset = 0;
+    let firstVideoPacket = true;
+    let firstAudioPacket = true;
+
+    for (const input of inputs) {
+      const videoTrack = await input.getPrimaryVideoTrack();
+      if (!videoTrack || await videoTrack.getCodec() !== videoCodec) throw new Error("De clipsegmenten gebruiken niet hetzelfde videoformaat.");
+      const audioTrack = await input.getPrimaryAudioTrack();
+      if ((await audioTrack?.getCodec() ?? null) !== audioCodec) throw new Error("De clipsegmenten gebruiken niet hetzelfde audioformaat.");
+
+      const videoSink = new EncodedPacketSink(videoTrack);
+      const audioSink = audioTrack ? new EncodedPacketSink(audioTrack) : null;
+      const videoFirst = await videoSink.getFirstPacket();
+      const audioFirst = await audioSink?.getFirstPacket() ?? null;
+      if (!videoFirst) continue;
+      const timestampBase = Math.min(videoFirst.timestamp, audioFirst?.timestamp ?? videoFirst.timestamp);
+      const videoDecoderConfig = firstVideoPacket ? await videoTrack.getDecoderConfig() : null;
+      const audioDecoderConfig = firstAudioPacket ? await audioTrack?.getDecoderConfig() ?? null : null;
+      let segmentEnd = 0;
+
+      for await (const packet of videoSink.packets(videoFirst)) {
+        const timestamp = timelineOffset + packet.timestamp - timestampBase;
+        await videoSource.add(packet.clone({ timestamp }), firstVideoPacket && videoDecoderConfig ? { decoderConfig: videoDecoderConfig } : undefined);
+        firstVideoPacket = false;
+        segmentEnd = Math.max(segmentEnd, timestamp - timelineOffset + packet.duration);
+      }
+
+      if (audioSource && audioTrack && audioSink && audioFirst) {
+        for await (const packet of audioSink.packets(audioFirst)) {
+          const timestamp = timelineOffset + packet.timestamp - timestampBase;
+          await audioSource.add(packet.clone({ timestamp }), firstAudioPacket && audioDecoderConfig ? { decoderConfig: audioDecoderConfig } : undefined);
+          firstAudioPacket = false;
+          segmentEnd = Math.max(segmentEnd, timestamp - timelineOffset + packet.duration);
+        }
+      }
+
+      timelineOffset += segmentEnd;
+    }
+
+    videoSource.close();
+    audioSource?.close();
+    await output.finalize();
+    if (!target.buffer) throw new Error("Het volledige clipbestand kon niet worden opgebouwd.");
+    return new Blob([target.buffer], { type: "video/mp4" });
+  } finally {
+    inputs.forEach((input) => input.dispose());
+  }
 }
 
 export async function inspectLocalVideo(file: File, messages = defaultLocalMediaMessages): Promise<LocalVideoInfo> {
