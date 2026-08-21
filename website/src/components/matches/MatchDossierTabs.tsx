@@ -9,6 +9,7 @@ import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/C
 import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
 import { createClient } from "@/lib/supabase/client";
 import { buildPublicShareUrl, buildTvShareUrl } from "@/lib/share-url";
+import { zipSync } from "fflate";
 
 export type MatchDossier = {
   lineup_notes: string;
@@ -72,6 +73,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
   const [notice, setNotice] = useState("");
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [shareDialog, setShareDialog] = useState<{ clipName: string; shareUrl: string; tvUrl?: string } | null>(null);
+  const [downloadingClipId, setDownloadingClipId] = useState<string | null>(null);
 
   async function shareClip(clip: Clip) {
     if (clip.shareToken) {
@@ -87,6 +89,46 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
     clip.shareToken = data.token;
     clip.shareCode = data.short_code;
     setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token), tvUrl: buildTvShareUrl(data.short_code) });
+  }
+
+  function downloadBlob(blob: Blob, fileName: string) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  }
+
+  async function downloadClip(clip: Clip) {
+    if (!clip.rendered_segments.length || downloadingClipId) return;
+    setDownloadingClipId(clip.id);
+    setNotice("");
+    try {
+      const safeName = clip.name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").trim() || "clip";
+      const files = await Promise.all(clip.rendered_segments.map(async (segment, index) => {
+        const response = await fetch(segment.url);
+        if (!response.ok) throw new Error(`Segment ${index + 1} kon niet worden gedownload.`);
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        const segmentName = clip.rendered_segments.length === 1
+          ? `${safeName}.mp4`
+          : `${String(index + 1).padStart(2, "0")} - ${segment.name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-") || "segment"}.mp4`;
+        return { segmentName, bytes };
+      }));
+
+      if (files.length === 1) {
+        downloadBlob(new Blob([files[0].bytes], { type: "video/mp4" }), files[0].segmentName);
+      } else {
+        const archive = zipSync(Object.fromEntries(files.map((file) => [file.segmentName, file.bytes])));
+        downloadBlob(new Blob([archive], { type: "application/zip" }), `${safeName}.zip`);
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "De clip kon niet worden gedownload.");
+    } finally {
+      setDownloadingClipId(null);
+    }
   }
 
   function playbackSegments(clip: Clip): ClipSegmentPlayback[] {
@@ -280,8 +322,12 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
         {clips.map(clip => <article key={clip.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
           <strong className="block text-textBright">{clip.name}</strong>
           <span className="mt-1 block text-xs text-textMuted">{new Date(clip.created_at).toLocaleDateString("nl-BE")} · {clip.render_status}</span>
-          {clip.render_status === "ready" && <button type="button" onClick={() => setSelectedClip(clip)} className="mt-3 inline-flex rounded-lg bg-accent px-3 py-2 text-sm font-bold text-page">▶ Clip bekijken</button>}
-          {clip.shareToken && <Link href={`/share/${clip.shareToken}`} className="mt-3 inline-flex text-sm font-bold text-accent">Clip openen</Link>}
+          {clip.render_status === "ready" && <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button type="button" onClick={() => setSelectedClip(clip)} className="inline-flex rounded-lg bg-accent px-3 py-2 text-sm font-bold text-page">▶ Clip bekijken</button>
+            <button type="button" onClick={() => void shareClip(clip)} className="inline-flex rounded-lg border border-accent px-3 py-2 text-sm font-bold text-accent">Delen</button>
+            <button type="button" disabled={!clip.rendered_segments.length || downloadingClipId === clip.id} onClick={() => void downloadClip(clip)} className="inline-flex rounded-lg border border-borderButton px-3 py-2 text-sm font-bold text-textPrimary disabled:cursor-wait disabled:opacity-50">{downloadingClipId === clip.id ? "Downloaden…" : "Downloaden"}</button>
+            {clip.shareToken && <Link href={`/share/${clip.shareToken}`} className="inline-flex text-sm font-bold text-accent">Clip openen</Link>}
+          </div>}
         </article>)}
       </div> : <Empty text="Nog geen clips voor deze wedstrijd. Bij een verplaatsing blijft dit vaak leeg." />}
     </ClosedPanel>}
