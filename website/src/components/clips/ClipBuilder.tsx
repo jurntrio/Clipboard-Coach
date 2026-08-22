@@ -175,19 +175,19 @@ export function ClipBuilder({
         sequence_order: index
       }));
 
-      const { error: segmentError } = await supabase.from("clip_segments").insert(segments);
+      const { data: createdSegments, error: segmentError } = await supabase.from("clip_segments").insert(segments).select("id, sequence_order");
       if (segmentError) {
         setErrorMessage(segmentError.message);
-      } else if (localFile) {
+      } else {
         try {
           const renderedSegments = [];
           for (let index = 0; index < expandedSegments.length; index += 1) {
-            const { tag, videoId } = expandedSegments[index];
+            const { tag, videoId: sourceVideoId } = expandedSegments[index];
+            const sourceFile = localFilesByVideoId?.[sourceVideoId] ?? (sourceVideoId === videoId && localVideo ? localFile : null);
+            if (!sourceFile) continue;
             const baseProgress = index / expandedSegments.length;
             const unit = 1 / expandedSegments.length;
             setStatus(t("clip.makingSegment", { current: index + 1, total: expandedSegments.length }));
-            const sourceFile = localFilesByVideoId?.[videoId] ?? localFile;
-            if (!sourceFile) throw new Error(t("clip.reconnectSegment", { current: index + 1 }));
             const rendered = await remuxLocalSegment(sourceFile, tag.start_time, tag.end_time, (value) => {
               setProgress(baseProgress + unit * value * 0.55);
             }, localMediaMessages(t));
@@ -198,7 +198,7 @@ export function ClipBuilder({
               const url = await uploadBlobToR2(rendered.file, key, "video/mp4", (value) => {
                 setProgress(baseProgress + unit * (0.55 + value * 0.45));
               });
-              renderedSegments.push({
+              const renderedSegment = {
                 id: crypto.randomUUID(),
                 url,
                 key,
@@ -212,7 +212,7 @@ export function ClipBuilder({
                 drawing_time_base: "clip",
                 drawings: (tag.drawings ?? [])
                   .filter((drawing) =>
-                    (drawing.video_id ?? tag.video_id) === videoId
+                    (drawing.video_id ?? tag.video_id) === sourceVideoId
                     && drawing.video_time >= tag.start_time
                     && drawing.video_time <= tag.end_time
                   )
@@ -224,18 +224,27 @@ export function ClipBuilder({
                     at_seconds: Math.max(0, drawing.video_time - tag.start_time),
                     duration_seconds: Math.max(1, drawing.duration_seconds || 5)
                   }))
-              });
-              const { error: checkpointError } = await supabase.from("clips").update({ rendered_segments: renderedSegments }).eq("id", clip.id);
+              };
+              renderedSegments.push(renderedSegment);
+              const createdSegment = createdSegments?.find((segment) => segment.sequence_order === index);
+              if (!createdSegment) throw new Error(t("clip.creationFailed"));
+              const { error: checkpointError } = await supabase.from("clip_segments").update({
+                render_status: "pending",
+                rendered_segment: { ...renderedSegment, clip_segment_id: createdSegment.id, sequence_order: index },
+                render_error: null,
+                render_completed_at: null
+              }).eq("id", createdSegment.id);
               if (checkpointError) throw checkpointError;
             } finally {
               await rendered.cleanup();
             }
           }
 
-          const { error: updateError } = await supabase
-            .from("clips")
-            .update({ rendered_segments: renderedSegments, render_status: "rendering", render_error: null })
-            .eq("id", clip.id);
+          const { error: updateError } = await supabase.from("clips").update({
+            rendered_segments: renderedSegments,
+            render_status: "rendering",
+            render_error: null
+          }).eq("id", clip.id);
           if (updateError) throw updateError;
           const processResponse = await fetch(`/api/clips/${clip.id}/process`, { method: "POST" });
           if (!processResponse.ok) {
@@ -244,26 +253,6 @@ export function ClipBuilder({
           }
           setProgress(1);
           setStatus(t("clip.uploadedPreparing"));
-          setClipName("");
-          setAudiencePlayerIds([]);
-          setAudienceType("full_team");
-          setCameraSelectionByTag({});
-          onClipCreated();
-          setOpen(false);
-        } catch (renderError) {
-          const message = renderError instanceof Error ? renderError.message : t("clip.creationFailed");
-          const cleanupResponse = await fetch(`/api/clips/${clip.id}`, { method: "DELETE" });
-          if (!cleanupResponse.ok) await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", clip.id);
-          setErrorMessage(message);
-          setStatus("");
-        }
-      } else {
-        try {
-          const processResponse = await fetch(`/api/clips/${clip.id}/process`, { method: "POST" });
-          if (!processResponse.ok) {
-            const body = await processResponse.json().catch(() => null) as { error?: string } | null;
-            throw new Error(body?.error || t("clip.conversionFailed"));
-          }
           setClipName("");
           setAudiencePlayerIds([]);
           setAudienceType("full_team");
@@ -422,7 +411,7 @@ export function ClipBuilder({
 
             </div>
 
-            {saving && localFile && (
+            {saving && localVideo && (
               <div className="mt-4" role="status" aria-live="polite"><div className="mb-1 flex justify-between text-xs text-textSecondary"><span>{status}</span><span>{Math.round(progress * 100)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-button"><div className="h-full bg-accent transition-[width]" style={{ width: `${progress * 100}%` }} /></div><p className="mt-2 text-xs text-textMuted">{t("clip.keepOpen")}</p></div>
             )}
             {errorMessage && <p className="mt-3 text-sm text-red-300">{errorMessage}</p>}

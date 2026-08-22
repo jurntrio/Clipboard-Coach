@@ -5,7 +5,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { randomUUID } from "node:crypto";
 import { buildMobileMp4WithDrawings, probeDurationSeconds } from "./hlsPipeline";
-import { downloadToFile, uploadFile } from "./r2";
+import { deleteObject, downloadToFile, uploadFile } from "./r2";
 import { supabase } from "./supabase";
 import { createRemoteRangeProxy, type RemoteRangeProxy } from "./remoteRangeProxy";
 
@@ -25,7 +25,11 @@ type RemoteSegmentRow = {
   video_id: string | null;
   sequence_order: number;
   render_status: "pending" | "rendering" | "ready" | "failed";
-  rendered_segment: RenderedRemoteSegment | null;
+  rendered_segment: (RenderedRemoteSegment & {
+    key: string;
+    play_start?: number;
+    duration?: number;
+  }) | null;
   render_attempts: number;
   videos: { id: string; video_url: string } | null;
   tags: {
@@ -118,8 +122,9 @@ export async function processRemoteClip(clipId: string) {
       }).eq("id", segment.id);
       if (startError) throw startError;
       const tag = segment.tags!;
+      const uploadedLocalKey = segment.rendered_segment?.key;
       const sourceUrl = segment.videos?.video_url ?? tag.videos?.video_url;
-      if (!sourceUrl) throw new Error(`Segment ${index} has no source video`);
+      if (!uploadedLocalKey && !sourceUrl) throw new Error(`Segment ${index} has no source video`);
 
       const outputPath = path.join(workDir, `${index}-mobile.mp4`);
       const segmentWorkDir = path.join(workDir, `${index}-parts`);
@@ -135,19 +140,30 @@ export async function processRemoteClip(clipId: string) {
         drawingInputs.push({ imagePath, atSeconds: drawing.video_time - tag.start_time, durationSeconds: drawing.duration_seconds });
       }
 
-      let usedRangeExtraction = false;
-      if (!fallbackSourcesByUrl.has(sourceUrl)) {
-        try {
-          const proxyInput = await rangeSource(sourceUrl);
-          await buildMobileMp4WithDrawings(proxyInput, outputPath, drawingInputs, segmentWorkDir, tag.start_time, tag.end_time - tag.start_time);
-          usedRangeExtraction = true;
-        } catch (rangeError) {
-          console.warn(`[worker] range extraction unavailable for clip ${clipId} segment ${segment.id}; using full-download fallback`);
+      if (uploadedLocalKey) {
+        const localInputPath = path.join(workDir, `${index}-uploaded-local.mp4`);
+        await downloadToFile(uploadedLocalKey, localInputPath);
+        const playStart = Math.max(0, Number(segment.rendered_segment?.play_start) || 0);
+        const storedDuration = Number(segment.rendered_segment?.duration);
+        const playDuration = Number.isFinite(storedDuration) && storedDuration > playStart
+          ? storedDuration - playStart
+          : undefined;
+        await buildMobileMp4WithDrawings(localInputPath, outputPath, drawingInputs, segmentWorkDir, playStart, playDuration);
+      } else {
+        let usedRangeExtraction = false;
+        if (!fallbackSourcesByUrl.has(sourceUrl!)) {
+          try {
+            const proxyInput = await rangeSource(sourceUrl!);
+            await buildMobileMp4WithDrawings(proxyInput, outputPath, drawingInputs, segmentWorkDir, tag.start_time, tag.end_time - tag.start_time);
+            usedRangeExtraction = true;
+          } catch (rangeError) {
+            console.warn(`[worker] range extraction unavailable for clip ${clipId} segment ${segment.id}; using full-download fallback`);
+          }
         }
-      }
-      if (!usedRangeExtraction) {
-        const localSource = await fallbackSource(sourceUrl, index);
-        await buildMobileMp4WithDrawings(localSource, outputPath, drawingInputs, segmentWorkDir, tag.start_time, tag.end_time - tag.start_time);
+        if (!usedRangeExtraction) {
+          const localSource = await fallbackSource(sourceUrl!, index);
+          await buildMobileMp4WithDrawings(localSource, outputPath, drawingInputs, segmentWorkDir, tag.start_time, tag.end_time - tag.start_time);
+        }
       }
 
       const key = `clips/${clip.coach_id}/${clipId}/${index}-${randomUUID()}-mobile.mp4`;
@@ -179,6 +195,7 @@ export async function processRemoteClip(clipId: string) {
         render_completed_at: new Date().toISOString()
       }).eq("id", segment.id);
       if (persistError) throw persistError;
+      if (uploadedLocalKey && uploadedLocalKey !== key) await deleteObject(uploadedLocalKey).catch(() => undefined);
       rendered.push(renderedSegment);
       activeSegmentId = null;
     }

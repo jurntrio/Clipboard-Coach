@@ -13,9 +13,10 @@ export async function POST(_request: Request, { params }: { params: { id: string
   const workerSecret = process.env.WORKER_SHARED_SECRET;
   if (!workerUrl || !workerSecret) return NextResponse.json({ error: "Video worker is not configured" }, { status: 503 });
 
-  // Segments already uploaded to R2 (browser-remuxed local videos) go through the "local" optimize
-  // pass; clips sourced from a remote URL have no pre-uploaded segments and are cut server-side.
-  const mode = Array.isArray(clip.rendered_segments) && clip.rendered_segments.length ? "local" : "remote";
+  // The remote pipeline is segment-aware: it preserves local segments that the browser already
+  // uploaded and renders only the remaining remote camera segments. This also supports clips that
+  // deliberately mix 360SI cameras and the coach's own local footage.
+  const mode = "remote";
   const response = await fetch(`${workerUrl}/process-clip`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${workerSecret}` },
