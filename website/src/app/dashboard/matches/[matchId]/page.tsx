@@ -621,6 +621,27 @@ export default function MatchViewerPage() {
     setAttachCameras((current) => current.includes(cameraNumber) ? current.filter((n) => n !== cameraNumber) : [...current, cameraNumber]);
   }
 
+  async function createMatchVideoSource(source: {
+    video_url: string;
+    video_key: string;
+    title: string;
+    camera_number?: number | null;
+    file_size?: number | null;
+    duration?: number | null;
+    sequence_order: number;
+    is_primary: boolean;
+    label: string;
+  }): Promise<Video> {
+    const response = await fetch(`/api/matches/${matchId}/videos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(source)
+    });
+    const body = await response.json().catch(() => null) as { video?: Video; error?: string } | null;
+    if (!response.ok || !body?.video) throw new Error(body?.error || t("match.createFailed"));
+    return body.video;
+  }
+
   async function attachExternalRecording() {
     const trimmedRecordingId = attachRecordingId.trim();
     if (!recordingConfig || !trimmedRecordingId || !attachCameras.length || !currentUserId) return;
@@ -630,24 +651,15 @@ export default function MatchViewerPage() {
       const cameras = [...attachCameras].sort((a, b) => a - b);
       for (let index = 0; index < cameras.length; index += 1) {
         const cameraNumber = cameras[index];
-        const { data: video, error: videoError } = await supabase.from("videos").insert({
-          coach_id: currentUserId,
-          team_id: match?.team_a_id ?? null,
+        await createMatchVideoSource({
           video_url: externalRecordingUrl(recordingConfig, trimmedRecordingId, cameraNumber),
           video_key: `external/${trimmedRecordingId}/ch${cameraNumber}`,
           camera_number: cameraNumber,
-          processing_status: "ready",
-          title: t("match.cameraLabel", { number: cameraNumber })
-        }).select("id").single();
-        if (videoError) throw videoError;
-        const { error: linkError } = await supabase.from("match_videos").insert({
-          match_id: matchId,
-          video_id: video.id,
+          title: t("match.cameraLabel", { number: cameraNumber }),
           sequence_order: 0,
           is_primary: !blocks.length && index === 0,
           label: t("match.cameraLabel", { number: cameraNumber })
         });
-        if (linkError) throw linkError;
       }
       setAttachRecordingId("");
       setAttachCameras([]);
@@ -665,23 +677,14 @@ export default function MatchViewerPage() {
     setError("");
     try {
       const veo = await resolveVeoLink(attachVeoUrl);
-      const { data: video, error: videoError } = await supabase.from("videos").insert({
-        coach_id: currentUserId,
-        team_id: match?.team_a_id ?? null,
+      await createMatchVideoSource({
         video_url: veo.sourceUrl,
         video_key: `veo/${veo.matchSlug}/standard`,
-        processing_status: "ready",
-        title: t("match.veoFollowCam")
-      }).select("id").single();
-      if (videoError) throw videoError;
-      const { error: linkError } = await supabase.from("match_videos").insert({
-        match_id: matchId,
-        video_id: video.id,
+        title: t("match.veoFollowCam"),
         sequence_order: 0,
-        is_primary: true,
+        is_primary: !blocks.length,
         label: t("match.veoFollowCam")
       });
-      if (linkError) throw linkError;
       setAttachVeoUrl("");
       await loadMatch();
     } catch (attachError) {
@@ -698,23 +701,14 @@ export default function MatchViewerPage() {
     try {
       const source = new URL(attach360Url.trim());
       if (source.protocol !== "https:") throw new Error(t("match.360Invalid"));
-      const { data: video, error: videoError } = await supabase.from("videos").insert({
-        coach_id: currentUserId,
-        team_id: match?.team_a_id ?? null,
+      await createMatchVideoSource({
         video_url: source.toString(),
         video_key: `external-link/${crypto.randomUUID()}`,
-        processing_status: "ready",
-        title: t("match.360Video")
-      }).select("id").single();
-      if (videoError) throw videoError;
-      const { error: linkError } = await supabase.from("match_videos").insert({
-        match_id: matchId,
-        video_id: video.id,
+        title: t("match.360Video"),
         sequence_order: 0,
         is_primary: !blocks.length,
         label: t("match.360Video")
       });
-      if (linkError) throw linkError;
       setAttach360Url("");
       await loadMatch();
     } catch (attachError) {
@@ -732,27 +726,17 @@ export default function MatchViewerPage() {
       for (let index = 0; index < selections.length; index += 1) {
         const selection = selections[index];
         const [info, fingerprint] = await Promise.all([inspectLocalVideo(selection.file, localMediaMessages(t)), localVideoFingerprint(selection.file)]);
-        const { data: video, error: videoError } = await supabase.from("videos").insert({
-          coach_id: currentUserId,
-          team_id: match?.team_a_id ?? null,
+        const video = await createMatchVideoSource({
           video_url: `local://${fingerprint}`,
           video_key: `local/${fingerprint}`,
           file_size: selection.file.size,
           duration: Math.round(info.duration),
-          processing_status: "ready",
-          title: selection.file.name.replace(/\.[^/.]+$/, "")
-        }).select("id").single();
-        if (videoError) throw videoError;
-        await rememberLocalVideo(video.id, selection.file, selection.handle);
-        const existingSources = blocks.length > 0;
-        const { error: linkError } = await supabase.from("match_videos").insert({
-          match_id: matchId,
-          video_id: video.id,
-          sequence_order: existingSources ? 0 : index,
-          is_primary: existingSources ? false : true,
+          title: selection.file.name.replace(/\.[^/.]+$/, ""),
+          sequence_order: blocks.length > 0 ? 0 : index,
+          is_primary: blocks.length > 0 ? false : true,
           label: `Video ${index + 1}`
         });
-        if (linkError) throw linkError;
+        await rememberLocalVideo(video.id, selection.file, selection.handle);
       }
       await loadMatch();
     } catch (attachError) {
@@ -1119,7 +1103,7 @@ export default function MatchViewerPage() {
         <main className="match-viewer-main min-h-0 min-w-0 flex-1 flex flex-col p-4 gap-3">
           {!videos.length ? (
             <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center">
-              {match?.coach_id === currentUserId ? (
+              {canManageSources ? (
                 <div className="w-full max-w-md text-left">
                   <h2 className="text-textBright text-lg font-semibold text-center">{t("match.attachVideos")}</h2>
                   <p className="text-textMuted text-sm mt-2 text-center">{t("match.attachVideosHelp")}</p>

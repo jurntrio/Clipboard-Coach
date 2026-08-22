@@ -27,9 +27,8 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     videoIds.length ? admin.from("tags").select("*").in("video_id", videoIds) : Promise.resolve({ data: [] }),
     admin.from("live_match_tags").select("*").eq("match_id", match.id).order("occurred_at")
   ]);
-  // Source creation still uses the owner's row-level insert policies. Admins can
-  // inspect all sources and tags, without being shown controls that would fail.
-  const canManageSources = !access.readOnly && match.coach_id === user.id;
+  const canManageSources = !access.readOnly
+    && (match.coach_id === user.id || access.role === "club_admin" || access.role === "platform_admin");
 
   return NextResponse.json({ match, tags: tags ?? [], liveTags: liveTags ?? [], canManageSources });
 }
