@@ -23,12 +23,13 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   const videoIds = (match.match_videos ?? [])
     .map((block: { videos: { id: string } | null }) => block.videos?.id)
     .filter((id: string | undefined): id is string => typeof id === "string");
-  const [{ data: tags }, { data: liveTags }] = await Promise.all([
+  const [{ data: tags }, { data: liveTags }, { data: club }] = await Promise.all([
     videoIds.length ? admin.from("tags").select("*").in("video_id", videoIds) : Promise.resolve({ data: [] }),
-    admin.from("live_match_tags").select("*").eq("match_id", match.id).order("occurred_at")
+    admin.from("live_match_tags").select("*").eq("match_id", match.id).order("occurred_at"),
+    admin.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", match.club_id).maybeSingle()
   ]);
   const canManageSources = !access.readOnly
     && (match.coach_id === user.id || access.role === "club_admin" || access.role === "platform_admin");
 
-  return NextResponse.json({ match, tags: tags ?? [], liveTags: liveTags ?? [], canManageSources });
+  return NextResponse.json({ match, tags: tags ?? [], liveTags: liveTags ?? [], canManageSources, recordingConfig: club ?? null });
 }

@@ -461,17 +461,14 @@ export default function MatchViewerPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.replace("/dashboard/clips"); return; }
     const response = await fetch(`/api/matches/${matchId}/viewer`, { cache: "no-store" });
-    const body = await response.json().catch(() => null) as { match?: MatchWithBlocks; tags?: Tag[]; liveTags?: LiveMatchTag[]; canManageSources?: boolean; error?: string } | null;
+    const body = await response.json().catch(() => null) as { match?: MatchWithBlocks; tags?: Tag[]; liveTags?: LiveMatchTag[]; canManageSources?: boolean; recordingConfig?: { external_recording_url_template: string | null; external_recording_camera_count: number | null } | null; error?: string } | null;
     if (!response.ok || !body?.match) { setError(body?.error || t("match.notFound")); return; }
     const loaded = body.match;
     const { data: profile } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
     setCanEditMatch(loaded.coach_id === user.id || profile?.account_role === "club_admin");
     setCanManageSources(body.canManageSources === true);
     setMatch(loaded);
-    const { data: club } = loaded.club_id
-      ? await supabase.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", loaded.club_id).maybeSingle()
-      : { data: null };
-    setRecordingConfig(externalRecordingConfig(club));
+    setRecordingConfig(externalRecordingConfig(body.recordingConfig));
     setLiveTags(body.liveTags ?? []);
     const loadedVideos = loaded.match_videos.map((block) => block.videos).filter((video): video is Video => !!video);
     if (loadedVideos.length) {
