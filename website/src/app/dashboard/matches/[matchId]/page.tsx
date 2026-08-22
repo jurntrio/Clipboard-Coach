@@ -916,7 +916,7 @@ export default function MatchViewerPage() {
   }
 
   useEffect(() => {
-    if (!match || match.coach_id !== currentUserId || !videos.length) return;
+    if (!match || !canManageSources || !currentUserId || !videos.length) return;
     const pending = liveTags.filter((liveTag) => !liveTag.tag_id && !materializingLiveTagIdsRef.current.has(liveTag.id));
     if (!pending.length) return;
     void materializeLiveTags(pending);
@@ -943,26 +943,14 @@ export default function MatchViewerPage() {
         const startTime = Math.max(0, localTime + startOffset);
         const endTime = Math.min(maxDuration, Math.max(startTime, localTime + endOffset));
         const playerIds = liveTag.player_ids?.length ? liveTag.player_ids : targetVideo.active_player_ids;
-        const { data: createdTag, error: tagError } = await supabase.from("tags").insert({
-          video_id: targetVideo.id,
-          name: liveTag.tag_name,
-          occurred_at_seconds: localTime,
-          start_time: startTime,
-          end_time: endTime,
-          color: getTagColor(liveTag.tag_name),
-          player_ids: playerIds
-        }).select().single();
-        if (tagError || !createdTag) { setError(messageFrom(tagError, "Could not create tag from live tag.")); continue; }
-        // Claim atomically: only succeeds if nobody else (another reload, a race) has already
-        // linked this live tag. If we lose the race, delete the duplicate tag we just made
-        // instead of leaving it orphaned in the tagged-clips list.
-        const { data: claimedRows, error: linkError } = await supabase.from("live_match_tags")
-          .update({ tag_id: createdTag.id })
-          .eq("id", liveTag.id)
-          .is("tag_id", null)
-          .select("id");
-        if (linkError) { setError(messageFrom(linkError, "Could not link live tag to its new tag.")); continue; }
-        if (!claimedRows?.length) { await supabase.from("tags").delete().eq("id", createdTag.id); continue; }
+        const response = await fetch(`/api/matches/${matchId}/live-tags/materialize`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ liveTagId: liveTag.id, videoId: targetVideo.id, occurredAtSeconds: localTime, startTime, endTime, color: getTagColor(liveTag.tag_name), playerIds })
+        });
+        const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
+        const createdTag = body?.tag;
+        if (!response.ok || !createdTag) { setError(body?.error || "Could not create tag from live tag."); continue; }
         setTags((current) => [...current, createdTag].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
         setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, tag_id: createdTag.id } : item));
       } finally {
