@@ -156,6 +156,8 @@ export default function MatchViewerPage() {
   const router = useRouter();
   const supabase = createClient();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const viewerRef = useRef<HTMLDivElement | null>(null);
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectInputRef = useRef<HTMLInputElement | null>(null);
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
   const reconnectVideoRef = useRef<Video | null>(null);
@@ -177,6 +179,9 @@ export default function MatchViewerPage() {
   const [error, setError] = useState("");
   const [supportsPersistentFileAccess, setSupportsPersistentFileAccess] = useState<boolean | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [focusChromeVisible, setFocusChromeVisible] = useState(true);
+  const [focusPanel, setFocusPanel] = useState<"left" | "right" | null>(null);
   const [drawingFrame, setDrawingFrame] = useState<{ image: string; time: number; videoId?: string; tagId: string | null; drawingId: string | null; key?: string; initialShapes?: WebDrawingShape[]; durationSeconds?: number } | null>(null);
   const [playingDrawing, setPlayingDrawing] = useState<TagDrawing | null>(null);
   const [pendingGoal, setPendingGoal] = useState<{ video: Video; label: string; localTime: number } | null>(null);
@@ -194,6 +199,44 @@ export default function MatchViewerPage() {
   const materializingLiveTagIdsRef = useRef(new Set<string>());
 
   useEffect(() => () => { if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current); }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const active = document.fullscreenElement === viewerRef.current;
+      setIsFocusMode(active);
+      setFocusChromeVisible(true);
+      setFocusPanel(null);
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+      focusTimerRef.current = active ? setTimeout(() => setFocusChromeVisible(false), 3000) : null;
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    };
+  }, []);
+
+  function revealFocusControls(clientX: number) {
+    if (!isFocusMode) return;
+    setFocusChromeVisible(true);
+    const edge = Math.min(72, window.innerWidth * 0.08);
+    const panelWidth = Math.min(384, window.innerWidth * 0.38);
+    setFocusPanel((current) => {
+      if (clientX <= edge || (current === "left" && clientX <= panelWidth)) return "left";
+      if (clientX >= window.innerWidth - edge || (current === "right" && clientX >= window.innerWidth - panelWidth)) return "right";
+      return null;
+    });
+    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    focusTimerRef.current = setTimeout(() => {
+      setFocusChromeVisible(false);
+      setFocusPanel(null);
+    }, 3000);
+  }
+
+  async function toggleFocusMode() {
+    if (document.fullscreenElement === viewerRef.current) await document.exitFullscreen();
+    else await viewerRef.current?.requestFullscreen();
+  }
 
   function handleViewerTimeUpdate(localTime: number) {
     const offset = offsets.map.get(currentVideo?.id ?? "") ?? 0;
@@ -288,6 +331,8 @@ export default function MatchViewerPage() {
   const [currentUserId, setCurrentUserId] = useState("");
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [canEditMatch, setCanEditMatch] = useState(false);
+  const [canManageSources, setCanManageSources] = useState(false);
+  const [removingVideoId, setRemovingVideoId] = useState<string | null>(null);
   const [replacing, setReplacing] = useState(false);
   const [confirmDeleteMatch, setConfirmDeleteMatch] = useState(false);
   const [deletingMatch, setDeletingMatch] = useState(false);
@@ -415,27 +460,27 @@ export default function MatchViewerPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.replace("/dashboard/clips"); return; }
     const response = await fetch(`/api/matches/${matchId}/viewer`, { cache: "no-store" });
-    const body = await response.json().catch(() => null) as { match?: MatchWithBlocks; error?: string } | null;
+    const body = await response.json().catch(() => null) as { match?: MatchWithBlocks; tags?: Tag[]; liveTags?: LiveMatchTag[]; canManageSources?: boolean; error?: string } | null;
     if (!response.ok || !body?.match) { setError(body?.error || t("match.notFound")); return; }
     const loaded = body.match;
     const { data: profile } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
     setCanEditMatch(loaded.coach_id === user.id || profile?.account_role === "club_admin");
+    setCanManageSources(body.canManageSources === true);
     setMatch(loaded);
     const { data: club } = loaded.club_id
       ? await supabase.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", loaded.club_id).maybeSingle()
       : { data: null };
     setRecordingConfig(externalRecordingConfig(club));
-    const { data: liveTagData } = await supabase.from("live_match_tags").select("*").eq("match_id", matchId).order("occurred_at");
-    setLiveTags(liveTagData ?? []);
+    setLiveTags(body.liveTags ?? []);
     const loadedVideos = loaded.match_videos.map((block) => block.videos).filter((video): video is Video => !!video);
     if (loadedVideos.length) {
-      const [{ data: tagData }, remembered] = await Promise.all([
-        supabase.from("tags").select("*").in("video_id", loadedVideos.map((video) => video.id)),
-        Promise.all(loadedVideos.map(async (video) => [video.id, await getRememberedLocalVideo(video.id)] as const))
-      ]);
+      const remembered = await Promise.all(loadedVideos.map(async (video) => [video.id, await getRememberedLocalVideo(video.id)] as const));
       const freshOffsets = computeVideoOffsets(loaded.match_videos);
-      setTags((tagData ?? []).sort((a, b) => (freshOffsets.get(a.video_id) ?? 0) + a.start_time - ((freshOffsets.get(b.video_id) ?? 0) + b.start_time)));
+      setTags((body.tags ?? []).sort((a, b) => (freshOffsets.get(a.video_id) ?? 0) + a.start_time - ((freshOffsets.get(b.video_id) ?? 0) + b.start_time)));
       setFiles(Object.fromEntries(remembered.filter((entry): entry is readonly [string, File] => !!entry[1])));
+    } else {
+      setTags([]);
+      setFiles({});
     }
   }
 
@@ -665,7 +710,7 @@ export default function MatchViewerPage() {
         match_id: matchId,
         video_id: video.id,
         sequence_order: 0,
-        is_primary: true,
+        is_primary: !blocks.length,
         label: t("match.360Video")
       });
       if (linkError) throw linkError;
@@ -698,10 +743,12 @@ export default function MatchViewerPage() {
         }).select("id").single();
         if (videoError) throw videoError;
         await rememberLocalVideo(video.id, selection.file, selection.handle);
+        const existingSources = blocks.length > 0;
         const { error: linkError } = await supabase.from("match_videos").insert({
           match_id: matchId,
           video_id: video.id,
-          sequence_order: index,
+          sequence_order: existingSources ? 0 : index,
+          is_primary: existingSources ? false : true,
           label: `Video ${index + 1}`
         });
         if (linkError) throw linkError;
@@ -812,6 +859,18 @@ export default function MatchViewerPage() {
     const { error: deleteError } = await supabase.from("live_match_tags").delete().eq("id", liveTag.id);
     if (deleteError) { setError(deleteError.message); return; }
     setLiveTags((current) => current.filter((item) => item.id !== liveTag.id));
+  }
+
+  async function removeVideoSource(video: Video) {
+    if (!window.confirm(t("match.removeVideoConfirm", { name: video.title || t("video.match") }))) return;
+    setRemovingVideoId(video.id);
+    setError("");
+    const response = await fetch(`/api/matches/${matchId}/videos/${video.id}`, { method: "DELETE" });
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    setRemovingVideoId(null);
+    if (!response.ok) { setError(body?.error || t("match.removeVideoFailed")); return; }
+    setCurrentIndex(0);
+    await loadMatch();
   }
 
   function deleteDisplayedTag(tagId: string) {
@@ -1005,14 +1064,29 @@ export default function MatchViewerPage() {
   }
 
   return (
-    <div className="sticky top-0 flex h-[calc(100dvh-5rem)] min-h-0 flex-col overflow-hidden bg-page">
+    <div
+      ref={viewerRef}
+      onMouseMove={(event) => revealFocusControls(event.clientX)}
+      className={`match-viewer-shell flex h-[calc(100dvh-5rem)] min-h-0 flex-col overflow-hidden bg-page${isFocusMode ? " match-viewer-focus" : ""}${focusChromeVisible ? " match-viewer-chrome-visible" : ""}${focusPanel ? ` match-viewer-panel-${focusPanel}` : ""}`}
+    >
       <input ref={reconnectInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void handleFallbackSelection(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
       <input ref={replaceInputRef} type="file" multiple={videos.length > 1} accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void replaceSelectedVideos(Array.from(event.target.files ?? []).map((file) => ({ file, handle: null }))); event.target.value = ""; }} />
       <input ref={attachInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void attachLocalFiles(Array.from(event.target.files ?? []).map((file) => ({ file, handle: null }))); event.target.value = ""; }} />
       <div className="flex flex-1 min-h-0">
-        <aside className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
+        <aside className="match-viewer-left w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
           <span className="font-mono text-sm font-semibold text-textPrimary" aria-label={t("match.currentPosition")}>{formatClock(combinedTime)}</span>
           {match && <MatchDetailsCard match={match} videoCount={blocks.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} onReplaceVideos={match.coach_id === currentUserId && videos.every((video) => isLocalVideoUrl(video.video_url)) ? () => void chooseReplacementVideos() : undefined} onDeleteMatch={match.coach_id === currentUserId || isPlatformAdmin ? () => setConfirmDeleteMatch(true) : undefined} replacing={replacing} editable={false} />}
+          {canManageSources && blocks.length > 0 && <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
+            <summary className="cursor-pointer text-sm font-semibold text-textBright">{t("match.manageSources")}</summary>
+            <div className="mt-3 space-y-2">
+              {blocks.map((block) => block.videos && <div key={block.id} className="flex items-center gap-2 rounded-lg border border-border bg-cardAlt px-2 py-1.5 text-xs">
+                <span className="min-w-0 flex-1 truncate text-textPrimary">{block.label || block.videos.title}</span>
+                <button type="button" disabled={removingVideoId === block.videos.id} onClick={() => void removeVideoSource(block.videos!)} className="text-red-300 hover:text-red-200 disabled:opacity-50">{t("common.remove")}</button>
+              </div>)}
+              <button type="button" disabled={attaching} onClick={() => void chooseLocalFilesToAttach()} className="w-full rounded-lg bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary">+ {t("match.sourceFile")}</button>
+              <div className="flex gap-2"><input type="url" value={attach360Url} onChange={(event) => setAttach360Url(event.target.value)} placeholder="https://360si..." className="min-w-0 flex-1 rounded-lg border border-border bg-input px-2 py-1.5 text-xs text-textPrimary" /><button type="button" disabled={attaching || !attach360Url.trim()} onClick={() => void attach360Recording()} className="rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:opacity-50">+ 360SI</button></div>
+            </div>
+          </details>}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
           <div><h3 className="mb-2 text-sm font-semibold text-textBright">{t("video.periodMarkers")}</h3><div className="space-y-2">{markerTags.map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div></div>
           {displayTags.some((tag) => isPeriodMarker(tag.name)) && (
@@ -1033,7 +1107,7 @@ export default function MatchViewerPage() {
           <button type="button" onClick={drawDownloadOnly} className="mt-auto w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page">{t("tag.draw")}</button>
         </aside>
 
-        <main className="min-h-0 min-w-0 flex-1 flex flex-col p-4 gap-3">
+        <main className="match-viewer-main min-h-0 min-w-0 flex-1 flex flex-col p-4 gap-3">
           {!videos.length ? (
             <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center">
               {match?.coach_id === currentUserId ? (
@@ -1086,7 +1160,8 @@ export default function MatchViewerPage() {
                 </div>
               ) : <p className="text-textMuted">{t("video.noVideo")}</p>}
             </div>
-          ) : currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">{t("match.reconnect", { number: currentIndex + 1 })}</h2><p className="text-textMuted text-sm mt-2">{t("match.reconnectHelp")}</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">{t("match.browserReconnect")}</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("match.reconnectAll")}</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">{t("match.onlyVideo", { number: currentIndex + 1 })}</button></div></div></div> : <div className="relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={playNext} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={displayTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /></div>}
+          ) : currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">{t("match.reconnect", { number: currentIndex + 1 })}</h2><p className="text-textMuted text-sm mt-2">{t("match.reconnectHelp")}</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">{t("match.browserReconnect")}</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("match.reconnectAll")}</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">{t("match.onlyVideo", { number: currentIndex + 1 })}</button></div></div></div> : <div className="match-viewer-stage relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={playNext} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={displayTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /><button type="button" onClick={() => void toggleFocusMode()} className="match-viewer-focus-button absolute left-3 top-3 z-20 rounded-lg border border-white/30 bg-black/70 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/85" aria-label={isFocusMode ? "Volledig scherm sluiten" : "Volledig scherm openen"}>{isFocusMode ? "⤢ Sluiten" : "⛶ Volledig scherm"}</button></div>}
+          <div className="match-viewer-bottom-chrome contents">
           <div className="flex min-h-12 overflow-hidden rounded-lg border border-border bg-cardDeep" aria-label={t("match.videoSequence")}>
             {videos.map((video, index) => (
               <button
@@ -1115,17 +1190,18 @@ export default function MatchViewerPage() {
                     onClick={() => switchCamera(cameraNumber)}
                     className={`flex-shrink-0 rounded-lg border px-3 py-1 text-xs font-semibold ${active ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary hover:bg-cardHover"}`}
                   >
-                    {cameraNumber ?? "?"}
+                    {block.label || (cameraNumber ? t("match.cameraLabel", { number: cameraNumber }) : t("match.videoNumber", { number: 1 }))}
                   </button>
                 );
               })}
             </div>
           )}
           <Timeline duration={offsets.total} currentTime={combinedTime} tags={displayTags} onSeek={seekTo} />
+          </div>
           {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
         </main>
 
-        <aside className="w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
+        <aside className="match-viewer-right w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
           <section className="min-h-0">
             <div className="mb-2 flex items-start justify-between gap-3">
               <h3 className="font-semibold text-textBright">{t("tag.tagsTitle")}</h3>

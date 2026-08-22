@@ -118,3 +118,95 @@ table { max-width: 100%; }
   }
   .training-print-page:last-child { break-after: auto; }
 }
+/* Match viewer focus mode: edge panels and controls overlay the video without resizing it. */
+.match-viewer-shell:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+}
+
+.match-viewer-focus {
+  position: relative;
+  cursor: none;
+}
+
+.match-viewer-focus .match-viewer-main {
+  height: 100%;
+  padding: 0;
+}
+
+.match-viewer-focus .match-viewer-stage {
+  border-radius: 0;
+}
+
+.match-viewer-focus .match-viewer-left,
+.match-viewer-focus .match-viewer-right {
+  position: absolute;
+  inset-block: 0;
+  z-index: 40;
+  width: min(24rem, 38vw);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 180ms ease, opacity 180ms ease;
+  box-shadow: 0 0 2rem rgb(0 0 0 / 55%);
+}
+
+.match-viewer-focus .match-viewer-left {
+  left: 0;
+  transform: translateX(-102%);
+}
+
+.match-viewer-focus .match-viewer-right {
+  right: 0;
+  transform: translateX(102%);
+}
+
+.match-viewer-focus.match-viewer-panel-left .match-viewer-left,
+.match-viewer-focus.match-viewer-panel-right .match-viewer-right {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.match-viewer-focus .match-viewer-bottom-chrome {
+  display: flex;
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 30;
+  flex-direction: column;
+  gap: .75rem;
+  padding: .75rem;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: .75rem;
+  background: rgb(12 18 14 / 90%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(100% + 2rem));
+  transition: transform 180ms ease, opacity 180ms ease;
+  backdrop-filter: blur(10px);
+}
+
+.match-viewer-focus.match-viewer-chrome-visible .match-viewer-bottom-chrome {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.match-viewer-focus .match-viewer-focus-button {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.match-viewer-focus.match-viewer-chrome-visible .match-viewer-focus-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.match-viewer-focus.match-viewer-chrome-visible,
+.match-viewer-focus.match-viewer-panel-left,
+.match-viewer-focus.match-viewer-panel-right {
+  cursor: default;
+}

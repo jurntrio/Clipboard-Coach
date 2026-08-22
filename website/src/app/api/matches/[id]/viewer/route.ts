@@ -20,5 +20,16 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     return NextResponse.json({ error: "Geen toegang tot de wedstrijdbeelden." }, { status: 403 });
   }
 
-  return NextResponse.json({ match });
+  const videoIds = (match.match_videos ?? [])
+    .map((block: { videos: { id: string } | null }) => block.videos?.id)
+    .filter((id: string | undefined): id is string => typeof id === "string");
+  const [{ data: tags }, { data: liveTags }] = await Promise.all([
+    videoIds.length ? admin.from("tags").select("*").in("video_id", videoIds) : Promise.resolve({ data: [] }),
+    admin.from("live_match_tags").select("*").eq("match_id", match.id).order("occurred_at")
+  ]);
+  // Source creation still uses the owner's row-level insert policies. Admins can
+  // inspect all sources and tags, without being shown controls that would fail.
+  const canManageSources = !access.readOnly && match.coach_id === user.id;
+
+  return NextResponse.json({ match, tags: tags ?? [], liveTags: liveTags ?? [], canManageSources });
 }
