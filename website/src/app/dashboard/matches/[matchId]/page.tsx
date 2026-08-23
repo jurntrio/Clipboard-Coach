@@ -809,7 +809,20 @@ export default function MatchViewerPage() {
       return;
     }
     if (!marker) {
-      await persistProfiledTag(currentVideo, label, localTime);
+      const response = await fetch(`/api/matches/${matchId}/tags`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoId: currentVideo.id,
+          name: label,
+          occurredAtSeconds: localTime,
+          playerIds: match?.player_ids?.length ? match.player_ids : currentVideo.active_player_ids
+        })
+      });
+      const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
+      if (!response.ok || !body?.tag) { setError(body?.error || "Tag kon niet worden opgeslagen."); return; }
+      setTags((current) => [...current.filter((tag) => tag.id !== body.tag!.id), body.tag!]
+        .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
       return;
     }
     const { data, error: tagError } = await supabase.from("tags").insert({
@@ -843,8 +856,16 @@ export default function MatchViewerPage() {
   }
 
   async function renameTag(tagId: string, name: string) {
-    const { error: updateError } = await supabase.from("tags").update({ name, color: getTagColor(name) }).eq("id", tagId);
-    if (!updateError) setTags((current) => current.map((tag) => tag.id === tagId ? { ...tag, name, color: getTagColor(name) } : tag));
+    const response = await fetch(`/api/matches/${matchId}/tags`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tagId, name }),
+      keepalive: true
+    });
+    const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
+    if (!response.ok || !body?.tag) { setError(body?.error || "Tag kon niet worden hernoemd."); return; }
+    setTags((current) => current.map((tag) => tag.id === tagId ? body.tag! : tag));
+    setLiveTags((current) => current.map((liveTag) => liveTag.tag_id === tagId ? { ...liveTag, tag_name: body.tag!.name } : liveTag));
   }
 
   async function deleteTag(tagId: string) {

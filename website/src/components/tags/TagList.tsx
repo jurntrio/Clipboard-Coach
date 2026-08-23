@@ -42,15 +42,18 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
   const [endDraft, setEndDraft] = useState(formatTime(tag.end_time));
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(tag.name);
+  const [savingName, setSavingName] = useState(false);
 
   useEffect(() => setStartDraft(formatTime(tag.start_time)), [tag.start_time]);
   useEffect(() => setEndDraft(formatTime(tag.end_time)), [tag.end_time]);
   useEffect(() => setNameDraft(tag.name), [tag.name]);
 
-  function saveName() {
+  async function saveName() {
     const name = nameDraft.trim();
     if (!name || !onRename) { setNameDraft(tag.name); setEditingName(false); return; }
-    void onRename(tag.id, name);
+    setSavingName(true);
+    await onRename(tag.id, name);
+    setSavingName(false);
     setEditingName(false);
   }
 
@@ -80,7 +83,7 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
           <input type="checkbox" aria-label={t("tag.selectForClip", { name: tag.name })} checked={selected} onChange={() => onToggleSelect(tag.id)} />
         )}
         <span className={`h-2.5 w-2.5 flex-shrink-0 ${marker ? "rotate-45 rounded-sm" : "rounded-full"}`} style={{ backgroundColor: tag.color }} />
-        {editingName ? <input autoFocus value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} onBlur={saveName} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { setNameDraft(tag.name); setEditingName(false); } }} className="min-w-0 flex-1 rounded border border-accent bg-input px-2 py-1 text-sm text-textPrimary outline-none" /> : <button onClick={() => onSeek(tag.start_time)} className="min-w-0 flex-1 truncate text-left text-sm font-medium text-textPrimary">{tag.name}</button>}
+        {editingName ? <input autoFocus disabled={savingName} value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} onBlur={() => void saveName()} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape" && !savingName) { setNameDraft(tag.name); setEditingName(false); } }} className="min-w-0 flex-1 rounded border border-accent bg-input px-2 py-1 text-sm text-textPrimary outline-none disabled:opacity-60" /> : <button onClick={() => onSeek(tag.start_time)} className="min-w-0 flex-1 truncate text-left text-sm font-medium text-textPrimary">{tag.name}</button>}
         {meta?.onCalibrate && <button type="button" onClick={meta.onCalibrate} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="px-1 text-xs text-textMuted hover:text-accent">🎯</button>}
         {!marker && onRename && <button type="button" onClick={() => setEditingName(true)} className="px-1 text-xs text-textMuted hover:text-accent">{t("common.edit")}</button>}
         <button onClick={() => onDelete(tag.id)} className="px-1 text-sm text-textMuted hover:text-red-400" aria-label={t("tag.deleteNamed", { name: tag.name })}>&times;</button>
