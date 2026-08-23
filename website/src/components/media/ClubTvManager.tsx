@@ -1,5 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
+import Image from "next/image";
 
 type Screen = {
   id: string;
@@ -21,6 +22,28 @@ type Match = {
   team_b_name: string;
   match_date: string;
   start_time: string | null;
+};
+type TickerSettings = {
+  text: string;
+  textColor: string;
+  backgroundMode: "color" | "none";
+  backgroundColor: string;
+  fontSize: "small" | "normal" | "large";
+  fontFamily: "sans" | "rounded" | "serif" | "mono";
+  alignment: "left" | "center" | "right";
+  displayMode: "fixed" | "ticker";
+  separator: "bullet" | "bar" | "space";
+};
+const defaultTickerSettings: TickerSettings = {
+  text: "",
+  textColor: "#ffffff",
+  backgroundMode: "color",
+  backgroundColor: "#000000",
+  fontSize: "normal",
+  fontFamily: "sans",
+  alignment: "center",
+  displayMode: "ticker",
+  separator: "bullet",
 };
 const blockOptions = [
   ["main_sponsors", "Hoofdsponsors", "Toon alle actieve hoofdsponsors."],
@@ -167,7 +190,7 @@ function ScreenCard({
   const header = screen.club_tv_blocks.find(
       (b) => b.block_type === "match_header" || b.block_type === "match",
     ),
-    ticker = screen.club_tv_blocks.find(
+    tickers = screen.club_tv_blocks.filter(
       (b) => b.configuration?.persistentTicker === true,
     ),
     link =
@@ -224,10 +247,10 @@ function ScreenCard({
             canManage={canManage}
             act={act}
           />
-          <TickerEditor screen={screen} block={ticker} canManage={canManage} act={act} />
+          <TickerEditor screen={screen} blocks={tickers} canManage={canManage} act={act} />
           <BlockRail
             screen={screen}
-            blocks={screen.club_tv_blocks.filter((b) => b !== header && b !== ticker)}
+            blocks={screen.club_tv_blocks.filter((b) => b !== header && !tickers.includes(b))}
             teams={teams}
             matches={matches}
             clubId={clubId}
@@ -240,27 +263,128 @@ function ScreenCard({
   );
 }
 
-function TickerEditor({ screen, block, canManage, act }: {
-  screen: Screen; block?: Block; canManage: boolean; act: (x: any) => Promise<any>;
+function TickerEditor({ screen, blocks, canManage, act }: {
+  screen: Screen; blocks: Block[]; canManage: boolean; act: (x: any) => Promise<any>;
 }) {
-  const [enabled, setEnabled] = useState(block?.configuration?.enabled === true),
-    [text, setText] = useState(block?.configuration?.text ?? "");
-  async function save() {
-    const configuration = { persistentTicker: true, enabled, text: text.trim() };
-    await act(block
-      ? { action: "updateBlock", screenId: screen.id, blockId: block.id, configuration }
-      : { action: "addBlock", screenId: screen.id, blockType: "image", title: "Tekstbalk", displayOrder: 10000, configuration });
+  const [draft, setDraft] = useState<TickerSettings>(defaultTickerSettings);
+  const orderedBlocks = [...blocks].sort((a, b) => a.display_order - b.display_order);
+  async function add() {
+    const trimmed = draft.text.trim();
+    if (!trimmed) return;
+    await act({
+      action: "addBlock",
+      screenId: screen.id,
+      blockType: "image",
+      title: "Tekstbalk",
+      displayOrder: 10000 + blocks.length,
+      configuration: { persistentTicker: true, enabled: true, ...draft, text: trimmed },
+    });
+    setDraft(defaultTickerSettings);
+  }
+  async function move(block: Block, direction: -1 | 1) {
+    const index = orderedBlocks.findIndex((item) => item.id === block.id),
+      other = orderedBlocks[index + direction];
+    if (!other) return;
+    await Promise.all([
+      act({ action: "updateBlock", screenId: screen.id, blockId: block.id, displayOrder: other.display_order }),
+      act({ action: "updateBlock", screenId: screen.id, blockId: other.id, displayOrder: block.display_order }),
+    ]);
   }
   return <section className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div>
-      <h3 className="font-black text-textBright">Tekstbalk onderaan</h3>
-      <p className="text-xs text-textMuted">Blijft zichtbaar terwijl sponsors, foto&apos;s en andere blokken wisselen.</p>
-    </div><label className="text-sm text-textSecondary"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Tonen</label></div>
-    <label className="mt-4 block text-xs text-textMuted">Tekst
-      <input value={text} maxLength={240} onChange={(e) => setText(e.target.value)} placeholder="Welkom bij onze club · Volgende thuiswedstrijd zaterdag om 20.00 uur" className={`${field} mt-1 w-full`} />
-    </label>
-    {canManage && <button disabled={enabled && !text.trim()} onClick={() => void save()} className={`${primary} mt-4 disabled:opacity-50`}>Tekstbalk bewaren</button>}
+    <div>
+      <h3 className="font-black text-textBright">Tekstbalken onderaan</h3>
+      <p className="text-xs text-textMuted">De teksten verschijnen na elkaar, met ruimte ertussen, terwijl de inhoudsblokken wisselen.</p>
+    </div>
+    {!!blocks.length && <div className="mt-4 space-y-2">
+      {orderedBlocks.map((block, index) => (
+        <TickerBlockEditor
+          key={block.id}
+          block={block}
+          canManage={canManage}
+          first={index === 0}
+          last={index === orderedBlocks.length - 1}
+          onMove={(direction) => void move(block, direction)}
+          onSave={(configuration) => void act({ action: "updateBlock", screenId: screen.id, blockId: block.id, configuration })}
+          onRemove={() => void act({ action: "removeBlock", screenId: screen.id, blockId: block.id })}
+        />
+      ))}
+    </div>}
+    {canManage && <div className="mt-4 rounded-lg border border-dashed border-borderButton p-3">
+      <h4 className="text-sm font-bold text-textBright">Nieuwe tekstbalk</h4>
+      <TickerFields value={draft} onChange={setDraft} />
+      <button disabled={!draft.text.trim()} onClick={() => void add()} className={`${primary} mt-4 disabled:opacity-50`}>Tekstbalk toevoegen</button>
+    </div>}
   </section>;
+}
+
+function TickerBlockEditor({ block, canManage, first, last, onMove, onSave, onRemove }: {
+  block: Block;
+  canManage: boolean;
+  first: boolean;
+  last: boolean;
+  onMove: (direction: -1 | 1) => void;
+  onSave: (configuration: Record<string, unknown>) => void;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false),
+    [settings, setSettings] = useState<TickerSettings>(() => tickerSettings(block.configuration));
+  return <article className="rounded-lg border border-borderSubtle bg-card p-3">
+    <div className="flex items-center gap-2">
+      <span className="min-w-0 flex-1 break-words text-sm text-textPrimary">{settings.text}</span>
+      {canManage && <>
+        <button disabled={first} onClick={() => onMove(-1)} title="Naar links" aria-label="Tekstbalk naar links" className="rounded border border-borderButton px-2 py-1 text-sm text-textSecondary disabled:opacity-30">←</button>
+        <button disabled={last} onClick={() => onMove(1)} title="Naar rechts" aria-label="Tekstbalk naar rechts" className="rounded border border-borderButton px-2 py-1 text-sm text-textSecondary disabled:opacity-30">→</button>
+        <button onClick={() => setOpen((value) => !value)} className="text-xs font-bold text-accent">{open ? "Sluiten" : "Instellen"}</button>
+        <button onClick={onRemove} className="text-xs font-bold text-red-300">Verwijderen</button>
+      </>}
+    </div>
+    {open && <div className="mt-3 border-t border-borderSubtle pt-3">
+      <TickerFields value={settings} onChange={setSettings} />
+      <button disabled={!settings.text.trim()} onClick={() => {
+        const saved = { ...block.configuration, persistentTicker: true, enabled: true, ...settings, text: settings.text.trim() };
+        setSettings({ ...settings, text: settings.text.trim() });
+        onSave(saved);
+        setOpen(false);
+      }} className={`${primary} mt-4 disabled:opacity-50`}>Wijzigingen bewaren</button>
+    </div>}
+  </article>;
+}
+
+function TickerFields({ value, onChange }: { value: TickerSettings; onChange: (value: TickerSettings) => void }) {
+  const set = <K extends keyof TickerSettings>(key: K, next: TickerSettings[K]) => onChange({ ...value, [key]: next });
+  return <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <label className="text-xs text-textMuted sm:col-span-2 lg:col-span-3">Tekst
+      <input value={value.text} maxLength={240} onChange={(e) => set("text", e.target.value)} placeholder="Welkom bij onze club" className={`${field} mt-1 w-full`} />
+    </label>
+    <label className="text-xs text-textMuted">Tekstkleur
+      <span className="mt-1 flex gap-2"><input type="color" value={value.textColor} onChange={(e) => set("textColor", e.target.value)} className="h-10 w-12 rounded border border-borderButton bg-card p-1" /><input value={value.textColor} onChange={(e) => set("textColor", e.target.value)} className={`${field} min-w-0 flex-1`} /></span>
+    </label>
+    <label className="text-xs text-textMuted">Achtergrond
+      <select value={value.backgroundMode} onChange={(e) => set("backgroundMode", e.target.value as TickerSettings["backgroundMode"])} className={`${field} mt-1 w-full`}><option value="color">Kleur</option><option value="none">Geen achtergrond</option></select>
+    </label>
+    {value.backgroundMode === "color" && <label className="text-xs text-textMuted">Achtergrondkleur
+      <span className="mt-1 flex gap-2"><input type="color" value={value.backgroundColor} onChange={(e) => set("backgroundColor", e.target.value)} className="h-10 w-12 rounded border border-borderButton bg-card p-1" /><input value={value.backgroundColor} onChange={(e) => set("backgroundColor", e.target.value)} className={`${field} min-w-0 flex-1`} /></span>
+    </label>}
+    <label className="text-xs text-textMuted">Lettergrootte
+      <select value={value.fontSize} onChange={(e) => set("fontSize", e.target.value as TickerSettings["fontSize"])} className={`${field} mt-1 w-full`}><option value="small">Klein</option><option value="normal">Normaal</option><option value="large">Groot</option></select>
+    </label>
+    <label className="text-xs text-textMuted">Lettertype
+      <select value={value.fontFamily} onChange={(e) => set("fontFamily", e.target.value as TickerSettings["fontFamily"])} className={`${field} mt-1 w-full`}><option value="sans">Modern</option><option value="rounded">Rond</option><option value="serif">Klassiek</option><option value="mono">Monospace</option></select>
+    </label>
+    <label className="text-xs text-textMuted">Uitlijning vaste tekst
+      <select value={value.alignment} onChange={(e) => set("alignment", e.target.value as TickerSettings["alignment"])} className={`${field} mt-1 w-full`}><option value="left">Links</option><option value="center">Midden</option><option value="right">Rechts</option></select>
+    </label>
+    <label className="text-xs text-textMuted">Weergave
+      <select value={value.displayMode} onChange={(e) => set("displayMode", e.target.value as TickerSettings["displayMode"])} className={`${field} mt-1 w-full`}><option value="fixed">Vaste tekst</option><option value="ticker">Bewegen bij te lange tekst</option></select>
+    </label>
+    <label className="text-xs text-textMuted">Scheidingsteken
+      <select value={value.separator} onChange={(e) => set("separator", e.target.value as TickerSettings["separator"])} className={`${field} mt-1 w-full`}><option value="bullet">• Punt</option><option value="bar">| Streep</option><option value="space">Extra ruimte</option></select>
+    </label>
+  </div>;
+}
+
+function tickerSettings(configuration: Record<string, any>): TickerSettings {
+  return { ...defaultTickerSettings, ...configuration, text: String(configuration?.text ?? "") };
 }
 
 function MatchHeaderEditor({
@@ -285,7 +409,8 @@ function MatchHeaderEditor({
     [score, setScore] = useState(c.showScore !== false),
     [lineup, setLineup] = useState(c.showLineup !== false),
     [sponsors, setSponsors] = useState(c.showMatchSponsors !== false),
-    [donors, setDonors] = useState(c.showBallDonors !== false);
+    [donors, setDonors] = useState(c.showBallDonors !== false),
+    [position, setPosition] = useState(c.position ?? "top");
   async function save() {
     const configuration = {
       matchId,
@@ -297,6 +422,7 @@ function MatchHeaderEditor({
       showLineup: lineup,
       showMatchSponsors: sponsors,
       showBallDonors: donors,
+      position,
     };
     if (block)
       await act({
@@ -366,6 +492,14 @@ function MatchHeaderEditor({
               </label>
             ))}
           </div>
+          <label className="mt-4 block max-w-xs text-xs text-textMuted">
+            Positie op het scherm
+            <select value={position} onChange={(e) => setPosition(e.target.value)} className={`${field} mt-1 w-full`}>
+              <option value="top">Boven</option>
+              <option value="middle">Midden</option>
+              <option value="bottom">Onder</option>
+            </select>
+          </label>
           <TimeWindow
             timed={timed}
             setTimed={setTimed}
@@ -419,7 +553,17 @@ function BlockRail({
     [image, setImage] = useState<File | null>(null),
     [imageTitle, setImageTitle] = useState(""),
     [existingImageUrl, setExistingImageUrl] = useState<string | undefined>(undefined),
+    [imagePreviewUrl, setImagePreviewUrl] = useState<string | undefined>(undefined),
     [uploading, setUploading] = useState(false);
+  useEffect(() => {
+    if (!image) {
+      setImagePreviewUrl(undefined);
+      return;
+    }
+    const url = URL.createObjectURL(image);
+    setImagePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [image]);
   function startAdd() {
     setEditingId(null);
     setType("main_sponsors");
@@ -646,6 +790,19 @@ function BlockRail({
                 <div className="sm:col-span-2 rounded-lg border border-borderSubtle p-3 text-sm text-textSecondary">
                   <strong className="text-textBright">Geselecteerd:</strong>{" "}
                   {image.name} · {(image.size / 1024 / 1024).toFixed(1)} MB
+                </div>
+              )}
+              {(imagePreviewUrl || existingImageUrl) && (
+                <div className="sm:col-span-2">
+                  <p className="mb-2 text-xs text-textMuted">Voorbeeld</p>
+                  <Image
+                    src={(imagePreviewUrl || existingImageUrl)!}
+                    alt={imageTitle || "Voorbeeld van de afbeelding"}
+                    width={208}
+                    height={128}
+                    unoptimized
+                    className="h-32 w-52 rounded-lg border border-borderSubtle bg-card object-contain"
+                  />
                 </div>
               )}
               {!image && existingImageUrl && (

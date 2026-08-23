@@ -39,7 +39,7 @@ export async function GET(
     header = all.find((b: any) =>
       ["match_header", "match"].includes(b.block_type),
     ),
-    ticker = all.find((b: any) => b.configuration?.persistentTicker === true),
+    tickers = all.filter((b: any) => b.configuration?.persistentTicker === true),
     defaultMatchId = header?.configuration?.matchId;
   const requestedMatchIds = Array.from(
     new Set(
@@ -161,11 +161,16 @@ export async function GET(
       screen: { ...screen, club_tv_blocks: undefined },
       header:
         header && visible.some((b: any) => b.id === header.id) ? header : null,
-      ticker:
-        ticker && ticker.configuration?.enabled === true && ticker.configuration?.text
-          ? ticker
-          : null,
-      blocks: visible.filter((b: any) => b.id !== header?.id && b.id !== ticker?.id),
+      tickers: tickers.filter(
+        (ticker: any) => ticker.configuration?.enabled === true && ticker.configuration?.text,
+      ),
+      // Keep the original field available for older screen clients.
+      ticker: tickers.find(
+        (ticker: any) => ticker.configuration?.enabled === true && ticker.configuration?.text,
+      ) ?? null,
+      blocks: visible.filter(
+        (b: any) => b.id !== header?.id && !tickers.some((ticker: any) => ticker.id === b.id),
+      ),
       matches: Object.fromEntries(matchMap),
       sponsors: sponsors ?? [],
       teams: clubTvTeams,

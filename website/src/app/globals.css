@@ -229,3 +229,18 @@ table { max-width: 100%; }
 .tagTimeSaveArea.saving::before { animation: tag-save-fill 1.5s ease-out forwards; }
 .tagTimeSaveArea.saved::before { transform: scaleX(1); background: rgba(34, 197, 94, .24); }
 .tagTimeSaveArea.error::before { transform: scaleX(1); background: rgba(239, 68, 68, .16); }
+@keyframes club-tv-ticker-scroll {
+  from { transform: translateX(100vw); }
+  to { transform: translateX(-100%); }
+}
+
+.club-tv-ticker-moving {
+  animation: club-tv-ticker-scroll var(--ticker-duration, 24s) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .club-tv-ticker-moving {
+    animation: none;
+    transform: none;
+  }
+}

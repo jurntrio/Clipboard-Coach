@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ClubLogoImage } from "@/components/clubs/ClubLogoImage";
 
 export default function ClubTvShow({
@@ -62,6 +62,15 @@ export default function ClubTvShow({
   const headerMatch = data.header
     ? data.matches?.[data.header.configuration.matchId]
     : null;
+  const matchPosition = data.header?.configuration?.position ?? "top";
+  const matchHeader = headerMatch ? (
+    <MatchHeader
+      match={headerMatch}
+      config={data.header.configuration}
+      now={now}
+      showClock={data.screen.show_clock}
+    />
+  ) : null;
   return (
     <main className="relative flex min-h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#174936,#06110d_68%)] p-[3vw] text-white">
       {data.screen.clubs?.logo_url && (
@@ -85,28 +94,89 @@ export default function ClubTvShow({
             </time>
           </header>
         )}
-        {headerMatch && (
-          <MatchHeader
-            match={headerMatch}
-            config={data.header.configuration}
-            now={now}
-            showClock={data.screen.show_clock}
-          />
-        )}
+        {matchPosition === "top" && matchHeader}
         <section
           key={slide?.key}
           className={`m-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col items-center justify-center py-6 text-center club-tv-${data.screen.transition_effect}`}
         >
+          {matchPosition === "middle" && matchHeader}
           {slide?.node ?? <p className="text-4xl font-black">Welkom</p>}
         </section>
-        {data.ticker?.configuration?.text && (
-          <footer className="relative z-20 -mx-[3vw] -mb-[3vw] overflow-hidden border-t border-emerald-300/25 bg-black/75 px-[3vw] py-4 text-center text-2xl font-bold tracking-wide shadow-[0_-12px_35px_rgba(0,0,0,.3)]">
-            {data.ticker.configuration.text}
-          </footer>
-        )}
+        {matchPosition === "bottom" && matchHeader}
+        {!!data.tickers?.length && <TickerFooter tickers={data.tickers} />}
       </div>
     </main>
   );
+}
+
+function TickerFooter({ tickers }: { tickers: any[] }) {
+  const viewportRef = useRef<HTMLElement>(null),
+    trackRef = useRef<HTMLDivElement>(null),
+    [overflowing, setOverflowing] = useState(false);
+  useEffect(() => {
+    const measure = () => setOverflowing(
+      (trackRef.current?.scrollWidth ?? 0) > (viewportRef.current?.clientWidth ?? 0),
+    );
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (viewportRef.current) observer.observe(viewportRef.current);
+    if (trackRef.current) observer.observe(trackRef.current);
+    return () => observer.disconnect();
+  }, [tickers]);
+  const first = tickerConfig(tickers[0]?.configuration),
+    shouldMove = overflowing && tickers.some((ticker) => tickerConfig(ticker.configuration).displayMode === "ticker"),
+    alignment = first.alignment === "left" ? "flex-start" : first.alignment === "right" ? "flex-end" : "center",
+    duration = Math.max(16, tickers.reduce((total, ticker) => total + String(ticker.configuration?.text ?? "").length, 0) * 0.18);
+  return <footer
+    ref={viewportRef}
+    className="relative z-20 -mx-[3vw] -mb-[3vw] overflow-hidden border-t border-emerald-300/25 shadow-[0_-12px_35px_rgba(0,0,0,.3)]"
+    style={{ background: first.backgroundMode === "none" ? "transparent" : first.backgroundColor }}
+  >
+    <div
+      ref={trackRef}
+      className={`club-tv-ticker-track flex w-max min-w-full items-stretch whitespace-nowrap ${shouldMove ? "club-tv-ticker-moving" : ""}`}
+      style={{ justifyContent: shouldMove ? "flex-start" : alignment, "--ticker-duration": `${duration}s` } as CSSProperties}
+    >
+      {tickers.map((ticker, index) => {
+        const config = tickerConfig(ticker.configuration),
+          separator = config.separator === "bar" ? "|" : config.separator === "space" ? "" : "•";
+        return <span key={ticker.id} className="flex items-center">
+          <span style={tickerTextStyle(config)} className="px-[3vw] py-4 font-bold tracking-wide">{config.text}</span>
+          {index < tickers.length - 1 && <span aria-hidden="true" className={config.separator === "space" ? "w-12" : "px-2 text-white/60"}>{separator}</span>}
+        </span>;
+      })}
+    </div>
+  </footer>;
+}
+
+function tickerConfig(value: any) {
+  return {
+    text: String(value?.text ?? ""),
+    textColor: value?.textColor ?? "#ffffff",
+    backgroundMode: value?.backgroundMode === "none" ? "none" : "color",
+    backgroundColor: value?.backgroundColor ?? "#000000",
+    fontSize: ["small", "large"].includes(value?.fontSize) ? value.fontSize : "normal",
+    fontFamily: ["rounded", "serif", "mono"].includes(value?.fontFamily) ? value.fontFamily : "sans",
+    alignment: ["left", "right"].includes(value?.alignment) ? value.alignment : "center",
+    displayMode: value?.displayMode === "fixed" ? "fixed" : "ticker",
+    separator: ["bar", "space"].includes(value?.separator) ? value.separator : "bullet",
+  };
+}
+
+function tickerTextStyle(config: ReturnType<typeof tickerConfig>): CSSProperties {
+  const sizes = { small: "1.125rem", normal: "1.5rem", large: "2rem" },
+    families = {
+      sans: "ui-sans-serif, system-ui, sans-serif",
+      rounded: "ui-rounded, 'Arial Rounded MT Bold', system-ui, sans-serif",
+      serif: "Georgia, 'Times New Roman', serif",
+      mono: "ui-monospace, SFMono-Regular, Consolas, monospace",
+    };
+  return {
+    color: config.textColor,
+    background: config.backgroundMode === "none" ? "transparent" : config.backgroundColor,
+    fontSize: sizes[config.fontSize as keyof typeof sizes],
+    fontFamily: families[config.fontFamily as keyof typeof families],
+  };
 }
 
 function MatchHeader({
