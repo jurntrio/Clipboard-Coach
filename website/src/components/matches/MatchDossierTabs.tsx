@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { MatchLineupEditor, type LineupBlock, type LineupPosition } from "./MatchLineupEditor";
 import { ClipPreviewModal, type ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { ShareClipDialog } from "@/components/clips/ShareClipDialog";
-import { createClient } from "@/lib/supabase/client";
 import { buildPublicShareUrl, buildTvShareUrl } from "@/lib/share-url";
 import { mergeMp4Segments } from "@/lib/media/local-clips";
 
@@ -80,15 +79,17 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
       setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(clip.shareToken), tvUrl: clip.shareCode ? buildTvShareUrl(clip.shareCode) : undefined });
       return;
     }
-    const supabase = createClient();
-    const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select("token, short_code").single();
-    if (error || !data) {
-      setNotice(error?.message || "Deellink kon niet worden aangemaakt.");
+    setNotice("");
+    const response = await fetch(`/api/clips/${clip.id}`, { method: "POST" });
+    const body = await response.json().catch(() => null) as { shareLink?: { token: string; short_code: string }; error?: string } | null;
+    if (!response.ok || !body?.shareLink) {
+      setNotice(body?.error || "Deellink kon niet worden aangemaakt.");
+      setSelectedClip(null);
       return;
     }
-    clip.shareToken = data.token;
-    clip.shareCode = data.short_code;
-    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token), tvUrl: buildTvShareUrl(data.short_code) });
+    clip.shareToken = body.shareLink.token;
+    clip.shareCode = body.shareLink.short_code;
+    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(body.shareLink.token), tvUrl: buildTvShareUrl(body.shareLink.short_code) });
   }
 
   function downloadBlob(blob: Blob, fileName: string) {
@@ -309,6 +310,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
     </ClosedPanel>}
 
     {showClips && clips.length > 0 && <ClosedPanel title={`Clips (${clips.length})`} expanded={false}>
+      {notice && <p className="mb-3 rounded-lg border border-accent/30 bg-accentDim px-3 py-2 text-sm font-semibold text-textPrimary">{notice}</p>}
       {clips.length ? <div className="grid gap-3 sm:grid-cols-2">
         {clips.map(clip => <article key={clip.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4">
           <strong className="block text-textBright">{clip.name}</strong>
