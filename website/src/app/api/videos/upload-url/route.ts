@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/auth/admin";
+import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { getUploadUrl, getPublicUrl } from "@/lib/r2/upload";
 
 export async function POST(request: Request) {
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
 
     const clubLogoMatch = typeof key === "string" ? key.match(/^clubs\/([0-9a-f-]{36})\/logo-[a-zA-Z0-9.-]+$/) : null;
     const clubSponsorMatch = typeof key === "string" ? key.match(/^clubs\/([0-9a-f-]{36})\/sponsors\/[a-zA-Z0-9.-]+$/) : null;
+    const clubTvMatch = typeof key === "string" ? key.match(/^clubs\/([0-9a-f-]{36})\/club-tv\/[a-zA-Z0-9.-]+$/) : null;
     let clubLogoAllowed = false;
     const brandingClubId = clubLogoMatch?.[1] ?? clubSponsorMatch?.[1];
     if (brandingClubId && ["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
@@ -26,6 +28,11 @@ export async function POST(request: Request) {
       const { data: membership } = await admin.from("club_memberships").select("role, status")
         .eq("club_id", brandingClubId).eq("profile_id", user.id).maybeSingle();
       clubLogoAllowed = isAdminEmail(user.email) || (membership?.role === "club_admin" && membership.status === "active");
+    }
+    let clubTvAllowed = false;
+    if (clubTvMatch && ["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
+      const access = await getClubAccess(clubTvMatch[1], user);
+      clubTvAllowed = hasClubPermission(access, "sponsors.manage");
     }
 
     // Large logos in the Belgian club reference list are managed exclusively
@@ -45,7 +52,7 @@ export async function POST(request: Request) {
 
     if (
       typeof key !== "string" ||
-      !(key.startsWith(`videos/${user.id}/`) || key.startsWith(`clips/${user.id}/`) || key.startsWith(`drawings/${user.id}/`) || clubLogoAllowed || belgianClubLogoAllowed) ||
+      !(key.startsWith(`videos/${user.id}/`) || key.startsWith(`clips/${user.id}/`) || key.startsWith(`drawings/${user.id}/`) || clubLogoAllowed || clubTvAllowed || belgianClubLogoAllowed) ||
       typeof contentType !== "string" ||
       !contentType
     ) {

@@ -554,6 +554,7 @@ function BlockRail({
     [imageTitle, setImageTitle] = useState(""),
     [existingImageUrl, setExistingImageUrl] = useState<string | undefined>(undefined),
     [imagePreviewUrl, setImagePreviewUrl] = useState<string | undefined>(undefined),
+    [blockError, setBlockError] = useState(""),
     [uploading, setUploading] = useState(false);
   useEffect(() => {
     if (!image) {
@@ -565,6 +566,7 @@ function BlockRail({
     return () => URL.revokeObjectURL(url);
   }, [image]);
   function startAdd() {
+    setBlockError("");
     setEditingId(null);
     setType("main_sponsors");
     setMatchId("");
@@ -580,6 +582,7 @@ function BlockRail({
     setAdding(true);
   }
   function startEdit(b: Block) {
+    setBlockError("");
     const c = b.configuration ?? {};
     setEditingId(b.id);
     setType(b.block_type);
@@ -597,6 +600,7 @@ function BlockRail({
   }
   async function save() {
     setUploading(true);
+    setBlockError("");
     try {
       let imageUrl = existingImageUrl;
       if (type === "image") {
@@ -613,16 +617,15 @@ function BlockRail({
         itemsPerSlide: Math.max(1, Math.min(6, itemsPerSlide)),
         imageUrl,
       };
-      if (editingId)
-        await act({
+      const result = editingId
+        ? await act({
           action: "updateBlock",
           screenId: screen.id,
           blockId: editingId,
           title: imageTitle,
           configuration,
-        });
-      else
-        await act({
+        })
+        : await act({
           action: "addBlock",
           screenId: screen.id,
           blockType: type,
@@ -630,10 +633,16 @@ function BlockRail({
           displayOrder: blocks.length,
           configuration,
         });
+      if (!result) {
+        setBlockError("De wijziging kon niet worden bewaard. Controleer de melding onderaan en probeer opnieuw.");
+        return;
+      }
       setAdding(false);
       setEditingId(null);
       setImage(null);
       setImageTitle("");
+    } catch (reason) {
+      setBlockError(reason instanceof Error ? reason.message : "Het inhoudsblok kon niet worden bewaard.");
     } finally {
       setUploading(false);
     }
@@ -850,6 +859,7 @@ function BlockRail({
               Annuleren
             </button>
           </div>
+          {blockError && <p className="mt-3 text-sm text-red-300">{blockError}</p>}
         </div>
       )}
     </section>
