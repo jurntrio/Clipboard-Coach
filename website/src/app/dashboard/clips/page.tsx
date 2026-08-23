@@ -135,9 +135,19 @@ export default function MatchesHubPage() {
   }
 
   async function shareClip(clip: HubClip) {
+    const existing = clip.share_links?.find((link) => !!link.token && !!link.short_code);
+    if (existing) {
+      setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(existing.token), tvUrl: buildTvShareUrl(existing.short_code) });
+      return;
+    }
     const response = await fetch(`/api/clips/${clip.id}`, { method: "POST" });
     const body = await response.json().catch(() => null) as { shareLink?: { token: string; short_code: string }; error?: string } | null;
-    if (!response.ok || !body?.shareLink) { setNotice(body?.error || t("share.createFailed")); return; }
+    if (!response.ok || !body?.shareLink) {
+      setSelectedClip(null);
+      setNotice(body?.error || t("share.createFailed"));
+      return;
+    }
+    setClips((current) => current.map((item) => item.id === clip.id ? { ...item, share_links: [body.shareLink!, ...(item.share_links ?? [])] } : item));
     setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(body.shareLink.token), tvUrl: buildTvShareUrl(body.shareLink.short_code) });
   }
 

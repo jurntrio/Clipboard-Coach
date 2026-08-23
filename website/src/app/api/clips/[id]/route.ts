@@ -31,10 +31,16 @@ export async function POST(_request: Request, { params }: { params: { id: string
       }
     }
   }
-  if (!allowed) return NextResponse.json({ error: "Geen recht om deze clip te delen." }, { status: 403 });
+  if (!allowed) {
+    console.error("Clip share forbidden", { clipId: clip.id, userId: user.id, coachId: clip.coach_id, videoId: clip.video_id });
+    return NextResponse.json({ error: "Geen recht om deze clip te delen." }, { status: 403 });
+  }
 
   const { data: shareLink, error } = await admin.from("share_links").insert({ clip_id: clip.id }).select("token, short_code").single();
-  if (error || !shareLink) return NextResponse.json({ error: error?.message || "Deellink kon niet worden gemaakt." }, { status: 500 });
+  if (error || !shareLink) {
+    console.error("Clip share link creation failed", { clipId: clip.id, userId: user.id, error: error?.message });
+    return NextResponse.json({ error: error?.message || "Deellink kon niet worden gemaakt." }, { status: 500 });
+  }
   return NextResponse.json({ shareLink }, { status: 201 });
 }
 

@@ -80,14 +80,14 @@ export function ShareClipDialog({ clipName, shareUrl, tvUrl, onClose }: { clipNa
             </div>
           )}
 
+          <label className="mt-5 flex items-start gap-3 rounded-xl border border-accent/40 bg-accentDim p-3 text-xs font-semibold leading-5 text-textPrimary"><input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} className="mt-1" /><span>{t("share.review")}</span></label>
+
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {canNativeShare && <button type="button" disabled={!reviewed} onClick={() => void nativeShare()} className="col-span-2 flex items-center justify-center gap-2 rounded-xl border border-accent bg-accentDim px-4 py-3 font-semibold text-accent hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-3"><span aria-hidden="true">↗</span> {t("share.phone")}</button>}
             {reviewed ? <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover"><span className="grid h-6 w-6 place-items-center rounded-full bg-[#25D366] font-bold text-black" aria-hidden="true">W</span> WhatsApp</a> : <span className="flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textMuted opacity-50">WhatsApp</span>}
             {reviewed ? <a href={emailUrl} className="flex items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover"><span className="text-lg text-accent" aria-hidden="true">✉</span> {t("share.email")}</a> : <span className="flex cursor-not-allowed items-center justify-center rounded-xl border border-borderButton bg-button px-3 py-3 text-sm text-textMuted opacity-50">{t("share.email")}</span>}
             <button type="button" disabled={!reviewed} onClick={() => void copyLink()} className="col-span-2 flex items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1"><span className="text-accent" aria-hidden="true">⧉</span> {copied ? t("share.copied") : t("share.copy")}</button>
           </div>
-
-          <label className="mt-5 flex items-start gap-3 rounded-xl border border-border bg-cardDeep p-3 text-xs leading-5 text-textSecondary"><input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} className="mt-1" /><span>{t("share.review")}</span></label>
 
           <div className="mt-5 flex items-center gap-2 border-t border-border pt-4 text-xs text-textMuted">
             <span className="text-accent" aria-hidden="true">●</span>
