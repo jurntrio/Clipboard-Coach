@@ -29,7 +29,7 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
   onSeek: (time: number) => void;
   onDelete: (tagId: string) => void;
   onUpdate?: (tagId: string, startTime: number, endTime: number) => void | Promise<void>;
-  onRename?: (tagId: string, name: string) => void | Promise<void>;
+  onRename?: (tagId: string, name: string) => boolean | void | Promise<boolean | void>;
   onDraw?: (tag: Tag) => void;
   currentTime?: number;
   onDrawingDurationChange?: (tag: Tag, drawingId: string, durationSeconds: number) => void | Promise<void>;
@@ -52,9 +52,9 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
     const name = nameDraft.trim();
     if (!name || !onRename) { setNameDraft(tag.name); setEditingName(false); return; }
     setSavingName(true);
-    await onRename(tag.id, name);
+    const saved = await onRename(tag.id, name);
     setSavingName(false);
-    setEditingName(false);
+    if (saved !== false) setEditingName(false);
   }
 
   function saveTimes() {
@@ -119,7 +119,7 @@ export function TagList({ tags, tagMetaById, selectedTagIds, onToggleSelect, onS
   onSeek: (time: number) => void;
   onDelete: (tagId: string) => void;
   onUpdate?: (tagId: string, startTime: number, endTime: number) => void | Promise<void>;
-  onRename?: (tagId: string, name: string) => void | Promise<void>;
+  onRename?: (tagId: string, name: string) => boolean | void | Promise<boolean | void>;
   onDraw?: (tag: Tag) => void;
   currentTime?: number;
   onDrawingDurationChange?: (tag: Tag, drawingId: string, durationSeconds: number) => void | Promise<void>;

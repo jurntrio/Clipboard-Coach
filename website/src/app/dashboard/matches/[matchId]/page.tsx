@@ -856,16 +856,23 @@ export default function MatchViewerPage() {
   }
 
   async function renameTag(tagId: string, name: string) {
-    const response = await fetch(`/api/matches/${matchId}/tags`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tagId, name }),
-      keepalive: true
-    });
-    const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
-    if (!response.ok || !body?.tag) { setError(body?.error || "Tag kon niet worden hernoemd."); return; }
-    setTags((current) => current.map((tag) => tag.id === tagId ? body.tag! : tag));
-    setLiveTags((current) => current.map((liveTag) => liveTag.tag_id === tagId ? { ...liveTag, tag_name: body.tag!.name } : liveTag));
+    try {
+      const response = await fetch(`/api/matches/${matchId}/tags`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tagId, name }),
+        keepalive: true
+      });
+      const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
+      if (!response.ok || !body?.tag) { setError(body?.error || `Tag kon niet worden hernoemd (${response.status}).`); return false; }
+      setTags((current) => current.map((tag) => tag.id === tagId ? body.tag! : tag));
+      setLiveTags((current) => current.map((liveTag) => liveTag.tag_id === tagId ? { ...liveTag, tag_name: body.tag!.name } : liveTag));
+      setError("");
+      return true;
+    } catch {
+      setError("De verbinding viel weg tijdens het hernoemen. De wijziging is niet opgeslagen.");
+      return false;
+    }
   }
 
   async function deleteTag(tagId: string) {

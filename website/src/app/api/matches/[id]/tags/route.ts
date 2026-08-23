@@ -68,7 +68,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (!link) return NextResponse.json({ error: "Tag hoort niet bij deze wedstrijd." }, { status: 403 });
   const color = getTagColor(name);
   const { data: updated, error } = await auth.admin.from("tags").update({ name, color }).eq("id", tag.id).select("*").single();
-  if (error || !updated) return NextResponse.json({ error: error?.message || "Tag kon niet worden hernoemd." }, { status: 500 });
-  await auth.admin.from("live_match_tags").update({ tag_name: name }).eq("match_id", auth.match.id).eq("tag_id", tag.id);
+  if (error || !updated) {
+    console.error("Match tag rename failed", { matchId: auth.match.id, tagId: tag.id, userId: auth.user.id, error: error?.message });
+    return NextResponse.json({ error: error?.message || "Tag kon niet worden hernoemd." }, { status: 500 });
+  }
+  const { error: liveTagError } = await auth.admin.from("live_match_tags").update({ tag_name: name }).eq("match_id", auth.match.id).eq("tag_id", tag.id);
+  if (liveTagError) console.error("Linked live tag rename failed", { matchId: auth.match.id, tagId: tag.id, error: liveTagError.message });
   return NextResponse.json({ tag: updated });
 }
