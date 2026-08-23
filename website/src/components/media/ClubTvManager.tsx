@@ -637,6 +637,15 @@ function BlockRail({
         setBlockError("De wijziging kon niet worden bewaard. Controleer de melding onderaan en probeer opnieuw.");
         return;
       }
+      if (editingId) {
+        const savedConfiguration = result.block?.configuration;
+        if (
+          !savedConfiguration ||
+          Number(savedConfiguration.durationSeconds) !== configuration.durationSeconds ||
+          (type === "image" && savedConfiguration.imageUrl !== configuration.imageUrl)
+        )
+          throw new Error("De server kon de nieuwe afbeelding of weergaveduur niet bevestigen. Probeer opnieuw.");
+      }
       setAdding(false);
       setEditingId(null);
       setImage(null);

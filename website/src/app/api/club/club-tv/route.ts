@@ -169,14 +169,21 @@ export async function POST(request: Request) {
       updates.title = body.title.trim() || null;
     if (Number.isFinite(Number(body.displayOrder)))
       updates.display_order = Number(body.displayOrder);
-    const { error } = await admin
+    const { data: updatedBlock, error } = await admin
       .from("club_tv_blocks")
       .update(updates)
       .eq("id", body.blockId)
-      .eq("screen_id", screen.id);
+      .eq("screen_id", screen.id)
+      .select("id,title,display_order,configuration")
+      .maybeSingle();
+    if (!error && !updatedBlock)
+      return NextResponse.json(
+        { error: "Inhoudsblok niet gevonden of niet bijgewerkt." },
+        { status: 404 },
+      );
     return error
       ? NextResponse.json({ error: error.message }, { status: 400 })
-      : NextResponse.json({ ok: true });
+      : NextResponse.json({ ok: true, block: updatedBlock });
   }
   if (body.action === "removeBlock") {
     const { data: screen } = await admin
