@@ -19,6 +19,12 @@ export async function GET() {
       { status: 403 },
     );
   const admin = createAdminClient();
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Brussels",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
   const [{ data: screens, error }, { data: matches }, { data: teams }] =
     await Promise.all([
       admin
@@ -32,7 +38,9 @@ export async function GET() {
           "id,team_a_name,team_b_name,match_date,start_time,status,score_a,score_b",
         )
         .eq("club_id", ctx.clubId)
-        .order("match_date", { ascending: false })
+        .gte("match_date", today)
+        .order("match_date", { ascending: true })
+        .order("start_time", { ascending: true })
         .limit(100),
       admin
         .from("club_teams")
