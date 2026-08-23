@@ -384,14 +384,31 @@ export default function MatchViewerPage() {
   const currentVideo = activeCameraBlock?.videos ?? videos[currentIndex] ?? null;
   const currentFile = currentVideo ? files[currentVideo.id] : null;
   const localFilesReady = allVideos.filter((video) => isLocalVideoUrl(video.video_url)).every((video) => !!files[video.id]);
-  const displayTags = useMemo(() => tags.map((tag) => {
-    const offset = offsets.map.get(tag.video_id) ?? 0;
-    return { ...tag, start_time: tag.start_time + offset, end_time: tag.end_time + offset };
-  }).sort((a, b) =>
-    a.start_time - b.start_time ||
-    a.end_time - b.end_time ||
-    a.created_at.localeCompare(b.created_at)
-  ), [offsets, tags]);
+  const displayTags = useMemo(() => {
+    const liveTagByTagId = new Map(liveTags.filter((item) => item.tag_id).map((item) => [item.tag_id as string, item]));
+    const seenLiveMoments = new Set<string>();
+    return tags.map((tag) => {
+      const offset = offsets.map.get(tag.video_id) ?? 0;
+      return { ...tag, start_time: tag.start_time + offset, end_time: tag.end_time + offset };
+    }).sort((a, b) =>
+      a.start_time - b.start_time ||
+      a.end_time - b.end_time ||
+      a.created_at.localeCompare(b.created_at)
+    ).filter((tag) => {
+      const liveTag = liveTagByTagId.get(tag.id);
+      if (!liveTag) return true;
+      const key = [
+        tag.video_id,
+        tag.name.trim().toLocaleLowerCase(),
+        Math.floor(tag.start_time),
+        Math.floor(tag.end_time),
+        (liveTag.tagger_name?.trim() ?? "").toLocaleLowerCase()
+      ].join("::");
+      if (seenLiveMoments.has(key)) return false;
+      seenLiveMoments.add(key);
+      return true;
+    });
+  }, [liveTags, offsets, tags]);
   const sortedLiveTags = useMemo(() => {
     const displayedTagById = new Map(displayTags.map((tag) => [tag.id, tag]));
     return [...liveTags].sort((a, b) => {
@@ -951,7 +968,8 @@ export default function MatchViewerPage() {
         const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
         const createdTag = body?.tag;
         if (!response.ok || !createdTag) { setError(body?.error || "Could not create tag from live tag."); continue; }
-        setTags((current) => [...current, createdTag].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+        setTags((current) => [...current.filter((tag) => tag.id !== createdTag.id), createdTag]
+          .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
         setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, tag_id: createdTag.id } : item));
       } finally {
         materializingLiveTagIdsRef.current.delete(liveTag.id);

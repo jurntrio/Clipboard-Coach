@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getTagEventKind } from "@/lib/tag-events";
@@ -23,6 +23,8 @@ export default function LiveTagPage() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
+  const savingRef = useRef(false);
+  const pendingEventRef = useRef<{ signature: string; id: string } | null>(null);
 
   useEffect(() => {
     void fetch(`/api/live-tag/${token}`).then(async (response) => {
@@ -55,19 +57,39 @@ export default function LiveTagPage() {
   }
 
   async function addTag(tagName: string, playerIdsOverride?: string[]) {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true); setMessage("");
-    const response = await fetch(`/api/live-tag/${token}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tagName, playerIds: playerIdsOverride ?? selectedPlayerIds, taggerName })
-    });
-    setSaving(false);
-    if (!response.ok) {
-      const result = await response.json().catch(() => null) as { error?: string } | null;
-      setMessage(result?.error || "De tag kon niet worden opgeslagen.");
-      return;
+    const selectedIds = playerIdsOverride ?? selectedPlayerIds;
+    const signature = `${tagName.trim().toLocaleLowerCase()}::${[...selectedIds].sort().join(",")}`;
+    const clientEventId = pendingEventRef.current?.signature === signature
+      ? pendingEventRef.current.id
+      : crypto.randomUUID();
+    pendingEventRef.current = { signature, id: clientEventId };
+    try {
+      const response = await fetch(`/api/live-tag/${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tagName,
+          playerIds: selectedIds,
+          taggerName,
+          clientEventId
+        })
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null) as { error?: string } | null;
+        setMessage(result?.error || "De tag kon niet worden opgeslagen.");
+        return;
+      }
+      pendingEventRef.current = null;
+      setMessage(`${tagName} opgeslagen om ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
+    } catch {
+      setMessage("De verbinding viel weg. Tik opnieuw om hetzelfde moment veilig opnieuw te verzenden.");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-    setMessage(`${tagName} opgeslagen om ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
   }
 
   function handleTagPress(name: string) {

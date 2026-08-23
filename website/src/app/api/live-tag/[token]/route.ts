@@ -42,7 +42,7 @@ export async function GET(_request: Request, { params }: { params: { token: stri
 export async function POST(request: Request, { params }: { params: { token: string } }) {
   const { supabase, link } = await loadLink(params.token);
   if (!link?.matches) return NextResponse.json({ error: "Link not found" }, { status: 404 });
-  const body = await request.json().catch(() => null) as { tagName?: string; playerIds?: string[]; taggerName?: string } | null;
+  const body = await request.json().catch(() => null) as { tagName?: string; playerIds?: string[]; taggerName?: string; clientEventId?: string } | null;
   const tagName = body?.tagName?.trim() ?? "";
   const allowedTags = (link.matches.live_tag_names ?? []) as string[];
   if (!tagName || !allowedTags.includes(tagName)) return NextResponse.json({ error: "Invalid tag" }, { status: 400 });
@@ -58,13 +58,18 @@ export async function POST(request: Request, { params }: { params: { token: stri
   const allowedPlayers = new Set((link.matches.player_ids ?? []) as string[]);
   const playerIds = (body?.playerIds ?? []).filter((id) => allowedPlayers.has(id)).slice(0, 4);
   const taggerName = body?.taggerName?.trim().slice(0, 80) || null;
-  const { data, error } = await supabase.from("live_match_tags").insert({
+  const clientEventId = body?.clientEventId?.trim() ?? "";
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientEventId)) {
+    return NextResponse.json({ error: "Invalid event id" }, { status: 400 });
+  }
+  const { data, error } = await supabase.from("live_match_tags").upsert({
     match_id: link.matches.id,
     link_id: link.id,
     tag_name: tagName,
     player_ids: playerIds,
-    tagger_name: taggerName
-  }).select("id, occurred_at").single();
+    tagger_name: taggerName,
+    client_event_id: clientEventId
+  }, { onConflict: "link_id,client_event_id" }).select("id, occurred_at").single();
   if (error) return NextResponse.json({ error: "Tag could not be saved" }, { status: 500 });
   return NextResponse.json({ ...data, color: getTagColor(tagName) });
 }

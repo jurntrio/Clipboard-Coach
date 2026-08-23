@@ -372,6 +372,7 @@ export type LiveMatchTag = {
   tag_name: string;
   player_ids: string[];
   tagger_name: string | null;
+  client_event_id: string | null;
   occurred_at: string;
   reviewed_at: string | null;
   tag_id: string | null;
