@@ -135,9 +135,10 @@ export default function MatchesHubPage() {
   }
 
   async function shareClip(clip: HubClip) {
-    const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select().single();
-    if (error || !data) { setNotice(error?.message || t("share.createFailed")); return; }
-    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(data.token), tvUrl: buildTvShareUrl(data.short_code) });
+    const response = await fetch(`/api/clips/${clip.id}`, { method: "POST" });
+    const body = await response.json().catch(() => null) as { shareLink?: { token: string; short_code: string }; error?: string } | null;
+    if (!response.ok || !body?.shareLink) { setNotice(body?.error || t("share.createFailed")); return; }
+    setShareDialog({ clipName: clip.name, shareUrl: buildPublicShareUrl(body.shareLink.token), tvUrl: buildTvShareUrl(body.shareLink.short_code) });
   }
 
   async function confirmDeleteClip() {
@@ -176,10 +177,11 @@ export default function MatchesHubPage() {
     for (const clip of uniqueClips) {
       let token = clip.share_links?.[0]?.token;
       if (!token) {
-        const { data, error } = await supabase.from("share_links").insert({ clip_id: clip.id }).select("token, short_code").single();
-        if (error || !data) { setSharingPlayerId(""); setNotice(error?.message || t("share.createFailed")); return; }
-        token = data.token;
-        setClips((current) => current.map((item) => item.id === clip.id ? { ...item, share_links: [{ token: data.token, short_code: data.short_code }] } : item));
+        const response = await fetch(`/api/clips/${clip.id}`, { method: "POST" });
+        const body = await response.json().catch(() => null) as { shareLink?: { token: string; short_code: string }; error?: string } | null;
+        if (!response.ok || !body?.shareLink) { setSharingPlayerId(""); setNotice(body?.error || t("share.createFailed")); return; }
+        token = body.shareLink.token;
+        setClips((current) => current.map((item) => item.id === clip.id ? { ...item, share_links: [body.shareLink!] } : item));
       }
       links.push({ clip, token });
     }
