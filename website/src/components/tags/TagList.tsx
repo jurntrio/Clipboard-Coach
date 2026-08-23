@@ -28,7 +28,7 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
   onToggleSelect: (tagId: string) => void;
   onSeek: (time: number) => void;
   onDelete: (tagId: string) => void;
-  onUpdate?: (tagId: string, startTime: number, endTime: number) => void | Promise<void>;
+  onUpdate?: (tagId: string, startTime: number, endTime: number) => boolean | void | Promise<boolean | void>;
   onRename?: (tagId: string, name: string) => boolean | void | Promise<boolean | void>;
   onDraw?: (tag: Tag) => void;
   currentTime?: number;
@@ -43,6 +43,7 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(tag.name);
   const [savingName, setSavingName] = useState(false);
+  const [timeSaveState, setTimeSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => setStartDraft(formatTime(tag.start_time)), [tag.start_time]);
   useEffect(() => setEndDraft(formatTime(tag.end_time)), [tag.end_time]);
@@ -57,7 +58,7 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
     if (saved !== false) setEditingName(false);
   }
 
-  function saveTimes() {
+  async function saveTimes() {
     if (!onUpdate) return;
     const parsedStart = parseTime(startDraft);
     const parsedEnd = marker ? parsedStart : parseTime(endDraft);
@@ -69,7 +70,11 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
     const safeEnd = marker ? parsedStart : Math.max(parsedStart, parsedEnd);
     setStartDraft(formatTime(parsedStart));
     setEndDraft(formatTime(safeEnd));
-    void onUpdate(tag.id, parsedStart, safeEnd);
+    setTimeSaveState("saving");
+    const saved = await onUpdate(tag.id, parsedStart, safeEnd);
+    if (saved === false) { setTimeSaveState("error"); return; }
+    setTimeSaveState("saved");
+    window.setTimeout(() => setTimeSaveState("idle"), 900);
   }
 
   const timeInput = "w-[58px] rounded border border-border bg-input px-1.5 py-1 text-center text-[11px] text-textPrimary focus:border-accent focus:outline-none";
@@ -88,21 +93,24 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
         {!marker && onRename && <button type="button" onClick={() => setEditingName(true)} className="px-1 text-xs text-textMuted hover:text-accent">{t("common.edit")}</button>}
         <button onClick={() => onDelete(tag.id)} className="px-1 text-sm text-textMuted hover:text-red-400" aria-label={t("tag.deleteNamed", { name: tag.name })}>&times;</button>
       </div>
-      {meta && <div className="mt-1 flex items-center gap-1.5 pl-8 text-[10px] text-textMuted"><span className="inline-grid h-4 w-4 place-items-center rounded bg-accentDim font-bold text-accent">{meta.badge}</span><span className="truncate">{meta.byLabel}</span></div>}
-      <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-textMuted">
+      <div
+        className={`tagTimeSaveArea mt-2 flex items-center justify-end gap-1.5 overflow-hidden rounded-md px-1 py-0.5 text-[10px] text-textMuted ${timeSaveState}`}
+        onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) void saveTimes(); }}
+      >
+        {meta && <span title={meta.byLabel} aria-label={meta.byLabel} className="relative z-[1] mr-auto inline-flex min-w-7 items-center justify-center rounded bg-accentDim px-1.5 py-1 font-bold text-accent">{meta.badge}</span>}
         {!marker && onDraw && currentTime !== undefined && currentTime >= tag.start_time && currentTime <= tag.end_time && (
           <button type="button" onClick={() => onDraw(tag)} className="mr-auto rounded border border-accent/60 bg-accentDim px-2 py-1 text-[11px] font-semibold text-accent hover:bg-accent hover:text-page">
             {t("tag.draw")}
           </button>
         )}
-        <label className="flex items-center gap-1">
+        <label className="relative z-[1] flex items-center gap-1">
           <span>{marker ? t("tag.time") : t("tag.start")}</span>
-          <input value={startDraft} onChange={(event) => setStartDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} disabled={!onUpdate} className={timeInput} inputMode="numeric" />
+          <input value={startDraft} onChange={(event) => setStartDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} disabled={!onUpdate || timeSaveState === "saving"} className={timeInput} inputMode="numeric" />
         </label>
         {!marker && (
-          <label className="flex items-center gap-1">
+          <label className="relative z-[1] flex items-center gap-1">
             <span>{t("tag.end")}</span>
-            <input value={endDraft} onChange={(event) => setEndDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} disabled={!onUpdate} className={timeInput} inputMode="numeric" />
+            <input value={endDraft} onChange={(event) => setEndDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} disabled={!onUpdate || timeSaveState === "saving"} className={timeInput} inputMode="numeric" />
           </label>
         )}
       </div>
@@ -118,7 +126,7 @@ export function TagList({ tags, tagMetaById, selectedTagIds, onToggleSelect, onS
   onToggleSelect: (tagId: string) => void;
   onSeek: (time: number) => void;
   onDelete: (tagId: string) => void;
-  onUpdate?: (tagId: string, startTime: number, endTime: number) => void | Promise<void>;
+  onUpdate?: (tagId: string, startTime: number, endTime: number) => boolean | void | Promise<boolean | void>;
   onRename?: (tagId: string, name: string) => boolean | void | Promise<boolean | void>;
   onDraw?: (tag: Tag) => void;
   currentTime?: number;

@@ -58,21 +58,34 @@ export async function POST(request: Request, { params }: { params: { id: string 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const auth = await authorizedMatch(params.id);
   if ("error" in auth) return auth.error;
-  const body = await request.json().catch(() => null) as { tagId?: string; name?: string } | null;
-  const name = body?.name?.trim() ?? "";
-  if (!body?.tagId || !name) return NextResponse.json({ error: "Ongeldige tagnaam." }, { status: 400 });
+  const body = await request.json().catch(() => null) as { tagId?: string; name?: string; startTime?: number; endTime?: number } | null;
+  const name = body?.name?.trim();
+  const changesName = typeof name === "string" && name.length > 0;
+  const changesTimes = typeof body?.startTime === "number" && Number.isFinite(body.startTime)
+    && typeof body.endTime === "number" && Number.isFinite(body.endTime);
+  if (!body?.tagId || (!changesName && !changesTimes)) return NextResponse.json({ error: "Ongeldige tagwijziging." }, { status: 400 });
   const { data: tag } = await auth.admin.from("tags").select("id, video_id").eq("id", body.tagId).maybeSingle();
   if (!tag) return NextResponse.json({ error: "Tag niet gevonden." }, { status: 404 });
   const { data: link } = await auth.admin.from("match_videos").select("id")
     .eq("match_id", auth.match.id).eq("video_id", tag.video_id).maybeSingle();
   if (!link) return NextResponse.json({ error: "Tag hoort niet bij deze wedstrijd." }, { status: 403 });
-  const color = getTagColor(name);
-  const { data: updated, error } = await auth.admin.from("tags").update({ name, color }).eq("id", tag.id).select("*").single();
+  const update: { name?: string; color?: string; start_time?: number; end_time?: number } = {};
+  if (changesName) { update.name = name; update.color = getTagColor(name); }
+  if (changesTimes) {
+    const startTime = Math.max(0, body.startTime as number);
+    const endTime = Math.max(startTime, body.endTime as number);
+    if (endTime - startTime > 180) return NextResponse.json({ error: "De tag is te lang." }, { status: 400 });
+    update.start_time = startTime;
+    update.end_time = endTime;
+  }
+  const { data: updated, error } = await auth.admin.from("tags").update(update).eq("id", tag.id).select("*").single();
   if (error || !updated) {
     console.error("Match tag rename failed", { matchId: auth.match.id, tagId: tag.id, userId: auth.user.id, error: error?.message });
     return NextResponse.json({ error: error?.message || "Tag kon niet worden hernoemd." }, { status: 500 });
   }
-  const { error: liveTagError } = await auth.admin.from("live_match_tags").update({ tag_name: name }).eq("match_id", auth.match.id).eq("tag_id", tag.id);
-  if (liveTagError) console.error("Linked live tag rename failed", { matchId: auth.match.id, tagId: tag.id, error: liveTagError.message });
+  if (changesName) {
+    const { error: liveTagError } = await auth.admin.from("live_match_tags").update({ tag_name: name }).eq("match_id", auth.match.id).eq("tag_id", tag.id);
+    if (liveTagError) console.error("Linked live tag rename failed", { matchId: auth.match.id, tagId: tag.id, error: liveTagError.message });
+  }
   return NextResponse.json({ tag: updated });
 }

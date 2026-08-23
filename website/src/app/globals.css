@@ -210,3 +210,22 @@ table { max-width: 100%; }
 .match-viewer-focus.match-viewer-panel-right {
   cursor: default;
 }
+@keyframes tag-save-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(.92); }
+}
+
+.tagTimeSaveArea { position: relative; isolation: isolate; }
+.tagTimeSaveArea::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: rgba(34, 197, 94, .14);
+  transition: transform .2s ease, background-color .2s ease;
+}
+.tagTimeSaveArea.saving::before { animation: tag-save-fill 1.5s ease-out forwards; }
+.tagTimeSaveArea.saved::before { transform: scaleX(1); background: rgba(34, 197, 94, .24); }
+.tagTimeSaveArea.error::before { transform: scaleX(1); background: rgba(239, 68, 68, .16); }

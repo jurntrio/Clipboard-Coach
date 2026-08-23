@@ -443,8 +443,10 @@ export default function MatchViewerPage() {
   ), [allLiveMaterializedTagIds, displayTags, visibleLiveTagByMaterializedId]);
   const liveTagMetaById = useMemo(() => Object.fromEntries(
     [...visibleLiveTagByMaterializedId].map(([tagId, liveTag]) => [tagId, {
-      badge: "L",
-      byLabel: liveTag.tagger_name ? t("liveTags.by", { name: liveTag.tagger_name }) : t("liveTags.byUnknown"),
+      badge: liveTag.tagger_name?.trim()
+        ? liveTag.tagger_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase() ?? "").join("")
+        : "Onb",
+      byLabel: liveTag.tagger_name?.trim() || t("liveTags.unknownTagger"),
       onCalibrate: () => setCalibratingLiveTagId(liveTag.id)
     }])
   ), [t, visibleLiveTagByMaterializedId]);
@@ -847,12 +849,25 @@ export default function MatchViewerPage() {
     const startTime = Math.min(maximum, Math.max(0, combinedStart - offset));
     const requestedEnd = Math.min(maximum, Math.max(startTime, combinedEnd - offset));
     const endTime = isPeriodMarker(tag.name) ? startTime : requestedEnd;
-    if (endTime - startTime + drawingsSeconds(tag.drawings) > MAX_CLIP_SECONDS) { setError(t("tag.tooLong")); return; }
-    const { error: updateError } = await supabase.from("tags").update({ start_time: startTime, end_time: endTime }).eq("id", tagId);
-    if (updateError) { setError(updateError.message.includes("CLIP_TOO_LONG") ? t("tag.tooLong") : updateError.message); return; }
-    setTags((current) => current
-      .map((item) => item.id === tagId ? { ...item, start_time: startTime, end_time: endTime } : item)
+    if (endTime - startTime + drawingsSeconds(tag.drawings) > MAX_CLIP_SECONDS) { setError(t("tag.tooLong")); return false; }
+    try {
+      const response = await fetch(`/api/matches/${matchId}/tags`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tagId, startTime, endTime }),
+        keepalive: true
+      });
+      const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
+      if (!response.ok || !body?.tag) { setError(body?.error || `Tijden konden niet worden opgeslagen (${response.status}).`); return false; }
+      setTags((current) => current
+      .map((item) => item.id === tagId ? body.tag! : item)
       .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+      setError("");
+      return true;
+    } catch {
+      setError("De verbinding viel weg. De gewijzigde tijden zijn niet opgeslagen.");
+      return false;
+    }
   }
 
   async function renameTag(tagId: string, name: string) {
