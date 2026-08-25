@@ -100,7 +100,7 @@ export function ImportRosterModal({ teamId, clubTeamId, teamName, onClose, onImp
       {error && <p className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
       <div className="mt-5 flex justify-end gap-2">
         <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-textSecondary">{t("common.cancel")}</button>
-        <button type="button" disabled={!players.length || saving} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{saving ? t("common.saving") : `${players.length} spelers toevoegen`}</button>
+        <button type="button" disabled={!players.length || saving} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? t("common.saving") : `${players.length} spelers toevoegen`}</button>
       </div>
     </section>
   </div>;

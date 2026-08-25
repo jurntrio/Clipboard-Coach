@@ -8,6 +8,7 @@ import { useI18n } from "@/i18n/client";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 import { SvsBrand } from "@/components/branding/SvsBrand";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 
 export default function ResetPasswordPage() {
   const { t } = useI18n();
@@ -73,10 +74,9 @@ export default function ResetPasswordPage() {
               <form onSubmit={handleSubmit} className="space-y-4 text-left">
                 <div>
                   <label htmlFor="reset-password" className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.newPassword")}</label>
-                  <input
+                  <PasswordInput
                     id="reset-password"
                     name="password"
-                    type="password"
                     autoComplete="new-password"
                     minLength={6}
                     className="w-full px-4 py-3 bg-input text-textPrimary rounded-lg border border-border"
@@ -85,10 +85,9 @@ export default function ResetPasswordPage() {
                 </div>
                 <div>
                   <label htmlFor="reset-password-confirm" className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.confirmPassword")}</label>
-                  <input
+                  <PasswordInput
                     id="reset-password-confirm"
                     name="confirmPassword"
-                    type="password"
                     autoComplete="new-password"
                     minLength={6}
                     className="w-full px-4 py-3 bg-input text-textPrimary rounded-lg border border-border"
@@ -99,7 +98,7 @@ export default function ResetPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-accent text-page rounded-lg font-bold hover:opacity-90 disabled:opacity-50"
+                  className="w-full py-3 bg-accent text-page rounded-lg font-bold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading ? t("auth.updatingPassword") : t("auth.updatePassword")}
                 </button>

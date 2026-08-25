@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { InlineSignIn } from "@/components/auth/InlineSignIn";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { useI18n } from "@/i18n/client";
 import { LegalLinks } from "@/components/legal/LegalLinks";
@@ -60,12 +59,15 @@ export function HomeView() {
           <div className="hidden min-w-0 flex-1 items-center justify-end gap-3 xl:flex">
             <a href="#mogelijkheden" className="mr-2 whitespace-nowrap text-sm font-semibold text-textSecondary hover:text-accent">{t("home.discover")}</a>
             <LanguageSwitcher compact />
-            <InlineSignIn />
-            <Link href="/signup" className="px-4 py-2 rounded-lg border border-borderButton text-textPrimary text-sm font-semibold hover:border-accent hover:text-accent">
+            <Link href="/login" className="px-4 py-2 rounded-lg border border-borderButton text-textPrimary text-sm font-semibold hover:border-accent hover:text-accent">
+              {t("home.signIn")}
+            </Link>
+            <Link href="/signup" className="px-4 py-2 rounded-lg bg-accent text-page text-sm font-semibold hover:opacity-90">
               {t("home.register")}
             </Link>
           </div>
           <nav className="flex items-center gap-2 xl:hidden" aria-label={t("nav.account")}>
+            <LanguageSwitcher compact />
             <Link href="/login" className="rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent">
               {t("home.signIn")}
             </Link>

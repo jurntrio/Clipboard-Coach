@@ -133,7 +133,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
             value={activeClubId ?? ""}
             disabled={changing}
             onChange={(event) => void selectClub(event.target.value)}
-            className="h-8 min-w-0 max-w-20 rounded-lg border border-borderButton bg-button px-1.5 text-[10px] font-semibold text-textPrimary disabled:opacity-60 sm:h-[52px] sm:max-w-72 sm:rounded-xl sm:px-4 sm:text-base"
+            className="h-8 min-w-0 max-w-20 rounded-lg border border-borderButton bg-button px-1.5 text-[10px] font-semibold text-textPrimary disabled:cursor-not-allowed disabled:opacity-60 sm:h-[52px] sm:max-w-72 sm:rounded-xl sm:px-4 sm:text-base"
           >
             {clubs.map((club) => <option key={club.id} value={club.id}>{club.name}</option>)}
           </select>

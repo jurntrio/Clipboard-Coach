@@ -58,7 +58,7 @@ export function GoalTagDialog({ players, onCancel, onConfirm }: {
         )}
         <div className="mt-6 flex gap-3">
           <button type="button" onClick={onCancel} className="flex-1 rounded-lg bg-button px-4 py-2.5 text-textPrimary">Annuleren</button>
-          <button type="button" disabled={!canConfirm} onClick={() => eventType && onConfirm({ eventType, scorerId: scorerId || null, assistId: assistId || null })} className="flex-1 rounded-lg bg-accent px-4 py-2.5 font-semibold text-page disabled:opacity-40">Goal opslaan</button>
+          <button type="button" disabled={!canConfirm} onClick={() => eventType && onConfirm({ eventType, scorerId: scorerId || null, assistId: assistId || null })} className="flex-1 rounded-lg bg-accent px-4 py-2.5 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-40">Goal opslaan</button>
         </div>
       </section>
     </div>

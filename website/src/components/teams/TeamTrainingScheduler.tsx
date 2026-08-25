@@ -112,7 +112,7 @@ export function TeamTrainingScheduler({ teamId, groupId, trainers, assignedTrain
           </div>;
         })}</div>
       </div>}
-      <button type="button" disabled={busy} onClick={() => void save()} className="mt-4 rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:opacity-50">{busy ? "Bewaren…" : "Trainingen toevoegen"}</button>
+      <button type="button" disabled={busy} onClick={() => void save()} className="mt-4 rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Bewaren…" : "Trainingen toevoegen"}</button>
       {notice && <p className="mt-2 text-sm text-accent">{notice}</p>}
     </section>}
     <section className="rounded-xl border border-borderSubtle p-4">

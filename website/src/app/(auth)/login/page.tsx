@@ -8,6 +8,7 @@ import { useI18n } from "@/i18n/client";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 import { SvsBrand } from "@/components/branding/SvsBrand";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 
 export default function LoginPage() {
   const { locale, t } = useI18n();
@@ -80,10 +81,9 @@ export default function LoginPage() {
                 <label htmlFor="login-password" className="block font-mono text-xs uppercase tracking-widest text-textMuted">{t("auth.password")}</label>
                 <Link href="/forgot-password" className="font-mono text-xs text-accent hover:underline">{t("auth.forgotPassword")}</Link>
               </div>
-              <input
+              <PasswordInput
                 id="login-password"
                 name="password"
-                type="password"
                 autoComplete="current-password"
                 placeholder={t("auth.yourPassword")}
                 className="w-full px-4 py-3 bg-input text-textPrimary rounded-lg border border-border"
@@ -94,7 +94,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-accent text-page rounded-lg font-bold hover:opacity-90 disabled:opacity-50"
+              className="w-full py-3 bg-accent text-page rounded-lg font-bold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? t("auth.signingIn") : t("auth.signIn")}
             </button>

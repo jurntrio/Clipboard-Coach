@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { LEGAL_STATEMENT_VERSION, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 import { createClient } from "@/lib/supabase/client";
 import { SvsBrand } from "@/components/branding/SvsBrand";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 
 export default function PersonInvitePage() {
   const { token } = useParams<{ token: string }>();
@@ -96,7 +97,7 @@ export default function PersonInvitePage() {
             type="button"
             disabled={loading}
             onClick={claimExistingAccount}
-            className="mt-6 w-full rounded-lg bg-accent py-3 font-bold text-page disabled:opacity-50"
+            className="mt-6 w-full rounded-lg bg-accent py-3 font-bold text-page disabled:cursor-not-allowed disabled:opacity-50"
           >
             Koppel aan mijn aangemelde account
           </button>
@@ -114,10 +115,9 @@ export default function PersonInvitePage() {
             </label>
             <label className="block text-sm text-textSecondary">
               Wachtwoord
-              <input
+              <PasswordInput
                 required
                 minLength={6}
-                type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 className={inputClass}
@@ -144,7 +144,7 @@ export default function PersonInvitePage() {
             </label>
             <button
               disabled={loading || !accepted}
-              className="w-full rounded-lg bg-accent py-3 font-bold text-page disabled:opacity-50"
+              className="w-full rounded-lg bg-accent py-3 font-bold text-page disabled:cursor-not-allowed disabled:opacity-50"
             >
               Registreren en koppelen
             </button>

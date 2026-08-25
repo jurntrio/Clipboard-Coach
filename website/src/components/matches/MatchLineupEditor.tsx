@@ -105,7 +105,7 @@ export function MatchLineupEditor({ players, blocks, editable, onChange }: {
         <label className="flex items-center gap-2 text-xs font-bold text-textSecondary">Nieuw blok vanaf minuut
           <input type="number" min={1} max={120} value={newMinute} onChange={event => setNewMinute(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addBlock(); } }} className="w-20 rounded-lg border border-border bg-input px-2 py-2 text-textPrimary" />
         </label>
-        <button type="button" onClick={addBlock} disabled={!newMinute} className="rounded-lg bg-accent px-3 py-2 text-sm font-black text-page disabled:opacity-40">Blok toevoegen</button>
+        <button type="button" onClick={addBlock} disabled={!newMinute} className="rounded-lg bg-accent px-3 py-2 text-sm font-black text-page disabled:cursor-not-allowed disabled:opacity-40">Blok toevoegen</button>
       </div>}
     </div>
 

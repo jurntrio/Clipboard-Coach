@@ -148,7 +148,7 @@ export function ClubSponsorManager({ clubId, generalUrl, teams, readOnly, onChan
               <strong className="block text-sm text-textPrimary">{team.name}</strong>
               <button type="button" disabled={readOnly || !!busy}
                 onClick={() => chooseUpload({ kind: "team", id: team.id, name: team.name })}
-                className="mt-2 text-xs font-semibold text-accent disabled:opacity-50">
+                className="mt-2 text-xs font-semibold text-accent disabled:cursor-not-allowed disabled:opacity-50">
                 {url ? "Sponsor vervangen" : "Sponsor uploaden"}
               </button>
             </div>
@@ -195,7 +195,7 @@ function SourceButton({ label, selected, disabled, onClick }: {
   label: string; selected: boolean; disabled: boolean; onClick: () => void;
 }) {
   return <button type="button" disabled={disabled} onClick={onClick}
-    className={`px-2 py-2 text-xs font-semibold transition disabled:opacity-50 ${selected ? "bg-accent text-page" : "bg-button text-textSecondary hover:text-textPrimary"}`}>
+    className={`px-2 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${selected ? "bg-accent text-page" : "bg-button text-textSecondary hover:text-textPrimary"}`}>
     {label}
   </button>;
 }
@@ -219,7 +219,7 @@ function distributionFromSources(teams: TeamSponsor[], sources: Record<string, S
   return selected.size === 1 ? [...selected][0] : "individual";
 }
 
-const primaryButton = "rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page disabled:opacity-50";
-const secondaryButton = "rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50";
-const dangerButton = "rounded-lg border border-red-500/30 px-3 py-2 text-sm font-semibold text-red-300 disabled:opacity-50";
+const primaryButton = "rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryButton = "rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary disabled:cursor-not-allowed disabled:opacity-50";
+const dangerButton = "rounded-lg border border-red-500/30 px-3 py-2 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50";
 const disabledButton = "rounded-lg border border-borderSubtle px-3 py-2 text-sm font-semibold text-textMuted opacity-60";

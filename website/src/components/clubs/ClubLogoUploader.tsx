@@ -72,7 +72,7 @@ export function ClubLogoUploader({ clubId, clubName, logoUrl, readOnly = false, 
     <div>
       {!readOnly && <div className="flex flex-wrap gap-2">
         <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => event.target.files?.[0] && void upload(event.target.files[0])} />
-        <button type="button" disabled={busy} onClick={() => inputRef.current?.click()} className="rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">{busy ? "Uploaden…" : currentLogo ? "Logo vervangen" : "Logo uploaden"}</button>
+        <button type="button" disabled={busy} onClick={() => inputRef.current?.click()} className="rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Uploaden…" : currentLogo ? "Logo vervangen" : "Logo uploaden"}</button>
         {currentLogo && <button type="button" disabled={busy} onClick={() => void saveLogo(null).catch(reason => setError(reason.message))} className="rounded-lg px-3 py-2 text-sm text-red-300">Verwijderen</button>}
       </div>}
       <p className="mt-1 text-xs text-textMuted">PNG, JPEG of WebP · maximaal 5 MB</p>

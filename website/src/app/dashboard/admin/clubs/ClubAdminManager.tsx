@@ -41,7 +41,7 @@ export function ClubAdminManager({ clubs, profiles, readOnly }: { clubs: ClubRow
         <label className="text-sm text-textSecondary">RBFA-stamnummer (optioneel)<input value={rbfa} onChange={(event) => setRbfa(event.target.value)} className={inputClass} /></label>
         <label className="text-sm text-textSecondary">Eerste clubadmin (optioneel)<select value={adminId} onChange={(event) => setAdminId(event.target.value)} className={inputClass}><option value="">Later toewijzen</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name || profile.email}</option>)}</select></label>
       </div>
-      <button disabled={pending || !name.trim()} onClick={() => run(async () => { await createClub(name, rbfa, adminId); setName(""); setRbfa(""); setAdminId(""); })} className="mt-4 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">Club toevoegen</button>
+      <button disabled={pending || !name.trim()} onClick={() => run(async () => { await createClub(name, rbfa, adminId); setName(""); setRbfa(""); setAdminId(""); })} className="mt-4 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">Club toevoegen</button>
     </section>}
     {error && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
     {clubs.map((club) => <ClubDetails key={club.id} club={club} profiles={profiles} pending={pending} run={run} readOnly={readOnly} />)}
@@ -120,7 +120,7 @@ function ClubDetails({ club, profiles, pending, run, readOnly }: { club: ClubRow
             const enabled = club.modules.find((item) => item.module_key === module.key)?.enabled !== false;
             return <div key={module.key} className="rounded-lg border border-border bg-card">
               <label className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-textBright">
-                <input type="checkbox" checked={enabled} disabled={pending || readOnly} onChange={(event) => run(() => setClubModuleEntitlement(club.id, module.key as ClubModuleKey, event.target.checked))} className="h-4 w-4 accent-accent disabled:opacity-50" />
+                <input type="checkbox" checked={enabled} disabled={pending || readOnly} onChange={(event) => run(() => setClubModuleEntitlement(club.id, module.key as ClubModuleKey, event.target.checked))} className="h-4 w-4 accent-accent disabled:cursor-not-allowed disabled:opacity-50" />
                 {module.label}
               </label>
             </div>;
@@ -211,13 +211,13 @@ function RecordingSources({ club, pending, readOnly, run }: {
         <input type="number" min={1} max={20} value={cameraCount} disabled={pending || readOnly} onChange={(event) => setCameraCount(Number(event.target.value))} className={inputClass} />
       </label>
     </div>}
-    {!readOnly && <button type="button" disabled={pending} onClick={() => run(() => setClubRecordingConfig(club.id, externalEnabled, urlTemplate, cameraCount))} className="mt-3 rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">Videobronnen bewaren</button>}
+    {!readOnly && <button type="button" disabled={pending} onClick={() => run(() => setClubRecordingConfig(club.id, externalEnabled, urlTemplate, cameraCount))} className="mt-3 rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">Videobronnen bewaren</button>}
   </section>;
 }
 
 function SourceAvailability({ label, detail }: { label: string; detail: string }) {
   return <div className="flex items-start gap-3 rounded-lg border border-border bg-card p-3 text-sm text-textPrimary">
-    <input type="checkbox" checked readOnly disabled className="mt-0.5 h-4 w-4 accent-accent disabled:opacity-100" />
+    <input type="checkbox" checked readOnly disabled className="mt-0.5 h-4 w-4 accent-accent disabled:cursor-not-allowed disabled:opacity-100" />
     <span><strong className="block">{label}</strong><span className="text-xs text-textMuted">{detail}</span></span>
   </div>;
 }
@@ -227,7 +227,7 @@ function UsageCard({ label, value, detail }: { label: string; value: string; det
 }
 
 function RolePicker({ label, value, setValue, profiles, pending, onAdd }: { label: string; value: string; setValue: (value: string) => void; profiles: ProfileOption[]; pending: boolean; onAdd: () => void }) {
-  return <div><label className="text-sm text-textSecondary">{label}<select value={value} onChange={(event) => setValue(event.target.value)} className={inputClass}><option value="">Kies een gebruiker</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name || profile.email}</option>)}</select></label><button disabled={pending || !value} onClick={onAdd} className="mt-2 rounded-lg border border-borderButton px-3 py-2 text-sm text-textPrimary disabled:opacity-50">Toevoegen</button></div>;
+  return <div><label className="text-sm text-textSecondary">{label}<select value={value} onChange={(event) => setValue(event.target.value)} className={inputClass}><option value="">Kies een gebruiker</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name || profile.email}</option>)}</select></label><button disabled={pending || !value} onClick={onAdd} className="mt-2 rounded-lg border border-borderButton px-3 py-2 text-sm text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">Toevoegen</button></div>;
 }
 
 function splitName(displayName: string) {

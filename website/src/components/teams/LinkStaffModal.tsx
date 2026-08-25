@@ -29,7 +29,7 @@ export function LinkStaffModal({ teamId, teamName, onClose, onLinked }: { teamId
         <form onSubmit={inviteStaff} className="mt-4">
           <label className="text-sm text-textSecondary">{t("team.registeredName")}<input required type="email" autoFocus value={email} onChange={(event) => setEmail(event.target.value)} placeholder={t("team.nameOrEmail")} autoComplete="email" className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" /></label>
           {error && <p className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
-          <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-textSecondary hover:bg-cardHover">{t("common.cancel")}</button><button type="submit" disabled={saving || !email.trim()} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{saving ? t("team.linking") : t("team.link")}</button></div>
+          <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-textSecondary hover:bg-cardHover">{t("common.cancel")}</button><button type="submit" disabled={saving || !email.trim()} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? t("team.linking") : t("team.link")}</button></div>
         </form>
       </div>
     </div>

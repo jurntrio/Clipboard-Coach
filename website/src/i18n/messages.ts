@@ -261,6 +261,8 @@ const nl = {
   "auth.email": "E-mail",
   "auth.password": "Wachtwoord",
   "auth.passwordHint": "Minstens 6 tekens",
+  "auth.showPassword": "Wachtwoord tonen",
+  "auth.hidePassword": "Wachtwoord verbergen",
   "auth.signUp": "Registreren",
   "auth.creating": "Account aanmaken…",
   "auth.alreadyAccount": "Heb je al een account?",
@@ -775,8 +777,6 @@ const nl = {
   ,"admin.everyoneHasTeam": "Iedere gebruiker heeft minstens één ploeg."
   ,"admin.colClub": "Club"
   ,"nav.home": "Home"
-  ,"auth.inlineEmail": "E-mail"
-  ,"auth.inlinePassword": "Wachtwoord"
   ,"drawing.frameNotReady": "Het huidige videobeeld is nog niet klaar."
   ,"drawing.arrow": "Pijl"
   ,"drawing.dottedLine": "Stippellijn →"
@@ -1227,6 +1227,8 @@ const en: Record<MessageKey, string> = {
   "auth.email": "Email",
   "auth.password": "Password",
   "auth.passwordHint": "At least 6 characters",
+  "auth.showPassword": "Show password",
+  "auth.hidePassword": "Hide password",
   "auth.signUp": "Sign Up",
   "auth.creating": "Creating account…",
   "auth.alreadyAccount": "Already have an account?",
@@ -1741,8 +1743,6 @@ const en: Record<MessageKey, string> = {
   ,"admin.everyoneHasTeam": "Every user has at least one team."
   ,"admin.colClub": "Club"
   ,"nav.home": "Home"
-  ,"auth.inlineEmail": "Email"
-  ,"auth.inlinePassword": "Password"
   ,"drawing.frameNotReady": "The current video frame is not ready yet."
   ,"drawing.arrow": "Arrow"
   ,"drawing.dottedLine": "Dotted line →"

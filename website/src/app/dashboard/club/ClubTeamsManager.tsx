@@ -143,7 +143,7 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
       <datalist id="new-team-age-categories">{AGE_CATEGORIES.map(category => <option key={category} value={category} />)}</datalist>
       <input list="new-team-levels" value={newLevel} onChange={(event) => setNewLevel(event.target.value)} placeholder="Niveau" className={`${inputClass} w-44`} />
       <datalist id="new-team-levels">{TEAM_LEVELS.map(level => <option key={level} value={level} />)}</datalist>
-      <button disabled={busy === "create"} className="shrink-0 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{t("clubTeams.create")}</button>
+      <button disabled={busy === "create"} className="shrink-0 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{t("clubTeams.create")}</button>
     </form>}
     {error && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
     {!readOnly && !!migrationIssues.length && <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
@@ -155,7 +155,7 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
           <div className="mt-2 flex flex-wrap gap-2">{issue.candidates.map((candidate) => (
             <button key={candidate.teamId} type="button" disabled={resolving === issue.id}
               onClick={() => void resolvePrimary(issue, candidate.teamId)}
-              className="rounded-lg border border-borderButton px-3 py-1.5 text-xs font-semibold text-accent disabled:opacity-50">
+              className="rounded-lg border border-borderButton px-3 py-1.5 text-xs font-semibold text-accent disabled:cursor-not-allowed disabled:opacity-50">
               {t("clubTeams.choosePrimary", { team: candidate.teamName })}
             </button>
           ))}</div>
@@ -174,8 +174,8 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
           </div>
           <span className="text-xs text-textMuted">{t("matchHub.lineupCount", { count: team.teams?.[0]?.players?.filter((player) => player.role === "player").length ?? 0 })}</span>
           {allowReorder && <div className="flex gap-1" aria-label={`Volgorde van ${team.name}`}>
-            <button type="button" title="Naar boven" aria-label={`${team.name} naar boven`} disabled={index === 0 || !!busy} onClick={() => void moveTeam(index, -1)} className="grid h-9 w-9 place-items-center rounded-lg border border-borderButton text-textPrimary disabled:opacity-30">↑</button>
-            <button type="button" title="Naar beneden" aria-label={`${team.name} naar beneden`} disabled={index === teams.length - 1 || !!busy} onClick={() => void moveTeam(index, 1)} className="grid h-9 w-9 place-items-center rounded-lg border border-borderButton text-textPrimary disabled:opacity-30">↓</button>
+            <button type="button" title="Naar boven" aria-label={`${team.name} naar boven`} disabled={index === 0 || !!busy} onClick={() => void moveTeam(index, -1)} className="grid h-9 w-9 place-items-center rounded-lg border border-borderButton text-textPrimary disabled:cursor-not-allowed disabled:opacity-30">↑</button>
+            <button type="button" title="Naar beneden" aria-label={`${team.name} naar beneden`} disabled={index === teams.length - 1 || !!busy} onClick={() => void moveTeam(index, 1)} className="grid h-9 w-9 place-items-center rounded-lg border border-borderButton text-textPrimary disabled:cursor-not-allowed disabled:opacity-30">↓</button>
           </div>}
           <button type="button" onClick={() => setEditing((current) => current === team.id ? "" : team.id)} className="flex items-center gap-2 rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-accent">
             {t("common.edit")}<span className={`transition ${editing === team.id ? "rotate-90" : ""}`}>▶</span>
@@ -321,7 +321,7 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
       assignedTrainerIds={[...new Set([...coordinatorTrainerIds, ...(team.club_trainer_teams ?? []).filter(link => link.status === "active").map(link => link.trainer_id)])]}
       options={options} readOnly={readOnly} /> : <div className="space-y-5">
     <div className="flex flex-wrap gap-3">
-      <input value={name} disabled={readOnly} onChange={(event) => setName(event.target.value)} className={`${inputClass} min-w-52 flex-1 disabled:opacity-60`} />
+      <input value={name} disabled={readOnly} onChange={(event) => setName(event.target.value)} className={`${inputClass} min-w-52 flex-1 disabled:cursor-not-allowed disabled:opacity-60`} />
       {!readOnly && <button disabled={busy || !name.trim()} onClick={() => void saveAll()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page">{t("common.save")}</button>}
     </div>
     <div className="grid gap-2 md:grid-cols-2">
@@ -366,7 +366,7 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
       <h4 className="text-sm font-semibold text-textPrimary">{t("clubTeams.assignCoaches")}</h4>
       <div className="relative mt-2">
         <button type="button" disabled={readOnly} onClick={() => setCoachMenuOpen((open) => !open)}
-          className="flex w-full items-center justify-between rounded-lg border border-borderSubtle bg-input px-3 py-2 text-left text-sm text-textPrimary disabled:opacity-60">
+          className="flex w-full items-center justify-between rounded-lg border border-borderSubtle bg-input px-3 py-2 text-left text-sm text-textPrimary disabled:cursor-not-allowed disabled:opacity-60">
           <span>{(team.club_trainer_teams ?? []).filter((link) => link.status === "active").length
             ? t("clubTeams.selectedCoachCount", { count: (team.club_trainer_teams ?? []).filter((link) => link.status === "active").length })
             : t("clubTeams.chooseCoaches")}</span>
@@ -426,11 +426,11 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
       </div>}
       {rosterStatus && <p className="mt-2 text-sm text-accent">{rosterStatus}</p>}
       <div className="mt-3 space-y-2">{players.map((player, index) => <div key={index} className="grid gap-2 rounded-lg border border-borderSubtle p-2 md:grid-cols-[1fr_1fr_135px_1.3fr_1fr_auto]">
-        <input value={player.firstName} disabled={readOnly} onChange={(event) => updatePlayer(index, "firstName", event.target.value)} placeholder={t("clubTeams.firstNamePlaceholder")} className={`${inputClass} disabled:opacity-60`} />
-        <input value={player.lastName} disabled={readOnly} onChange={(event) => updatePlayer(index, "lastName", event.target.value)} placeholder={t("clubTeams.lastNamePlaceholder")} className={`${inputClass} disabled:opacity-60`} />
-        <input type="date" value={player.dateOfBirth} disabled={readOnly} onChange={(event) => updatePlayer(index, "dateOfBirth", event.target.value)} className={`${inputClass} disabled:opacity-60`} />
-        <input type="email" value={player.email} disabled={readOnly} onChange={(event) => updatePlayer(index, "email", event.target.value)} placeholder={t("auth.email")} className={`${inputClass} disabled:opacity-60`} />
-        <input value={player.phoneNumbers} disabled={readOnly} onChange={(event) => updatePlayer(index, "phoneNumbers", event.target.value)} placeholder={t("clubTeams.phonePlaceholder")} className={`${inputClass} disabled:opacity-60`} />
+        <input value={player.firstName} disabled={readOnly} onChange={(event) => updatePlayer(index, "firstName", event.target.value)} placeholder={t("clubTeams.firstNamePlaceholder")} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`} />
+        <input value={player.lastName} disabled={readOnly} onChange={(event) => updatePlayer(index, "lastName", event.target.value)} placeholder={t("clubTeams.lastNamePlaceholder")} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`} />
+        <input type="date" value={player.dateOfBirth} disabled={readOnly} onChange={(event) => updatePlayer(index, "dateOfBirth", event.target.value)} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`} />
+        <input type="email" value={player.email} disabled={readOnly} onChange={(event) => updatePlayer(index, "email", event.target.value)} placeholder={t("auth.email")} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`} />
+        <input value={player.phoneNumbers} disabled={readOnly} onChange={(event) => updatePlayer(index, "phoneNumbers", event.target.value)} placeholder={t("clubTeams.phonePlaceholder")} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`} />
         {!readOnly && (player.isStored
           ? <button type="button" disabled title={t("clubTeams.removeDisabledTooltip")} className="px-2 text-textMuted opacity-40">×</button>
           : <button type="button" onClick={() => setPlayers((current) => current.filter((_, row) => row !== index))} className="px-2 text-red-300">×</button>

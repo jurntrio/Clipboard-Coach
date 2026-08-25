@@ -49,7 +49,7 @@ export function LegalConsentForm() {
       <form onSubmit={submit} className="mt-6 space-y-4">
         <label className="flex items-start gap-3 rounded-lg border border-border bg-cardDeep p-4 text-sm leading-6 text-textSecondary"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="mt-1" /><span>{t("consent.checkbox")}</span></label>
         {error && <p className="text-sm text-red-400">{error}</p>}
-        <button type="submit" disabled={saving || !accepted} className="w-full rounded-lg bg-accent px-4 py-3 font-bold text-page hover:opacity-90 disabled:opacity-50">{saving ? t("consent.saving") : t("consent.submit")}</button>
+        <button type="submit" disabled={saving || !accepted} className="w-full rounded-lg bg-accent px-4 py-3 font-bold text-page hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{saving ? t("consent.saving") : t("consent.submit")}</button>
       </form>
     </div>
   </div>;

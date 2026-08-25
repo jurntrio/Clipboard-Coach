@@ -70,14 +70,14 @@ export function PlatformInvitationCreator({ clubs }: { clubs: Club[] }) {
           </select>
         </label>
         <label className="text-sm text-textSecondary">Ploeg
-          <select required value={teamId} disabled={!clubId} onChange={(event) => { setTeamId(event.target.value); setPlayerId(""); }} className={`${inputClass} disabled:opacity-50`}>
+          <select required value={teamId} disabled={!clubId} onChange={(event) => { setTeamId(event.target.value); setPlayerId(""); }} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-50`}>
             <option value="">Kies een ploeg</option>
             {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
           </select>
         </label>
       </div>}
       {isGuardian && <label className="block text-sm text-textSecondary">Speler
-        <select required value={playerId} disabled={!teamId} onChange={(event) => setPlayerId(event.target.value)} className={`${inputClass} disabled:opacity-50`}>
+        <select required value={playerId} disabled={!teamId} onChange={(event) => setPlayerId(event.target.value)} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-50`}>
           <option value="">Kies een speler</option>
           {players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
         </select>
@@ -93,7 +93,7 @@ export function PlatformInvitationCreator({ clubs }: { clubs: Club[] }) {
           <input type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+32…" className={inputClass} />
         </label>
       </div>
-      <button disabled={busy} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:opacity-50">{busy ? "Aanmaken…" : "Uitnodiging aanmaken"}</button>
+      <button disabled={busy} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Aanmaken…" : "Uitnodiging aanmaken"}</button>
     </form>
     {status && <p className="mt-3 text-sm text-accent">{status}</p>}
     {link && <div className="mt-3 flex gap-2 rounded-lg border border-borderSubtle bg-cardDeep p-2">

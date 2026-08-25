@@ -342,7 +342,7 @@ export function ClipBuilder({
       <h3 className="font-semibold text-textBright">{t("clip.make")}</h3>
       <p className="mb-3 mt-1 text-xs text-textMuted">{t("clip.selected", { count: clipTagIds.length })}</p>
       {clipAllowance && !clipAllowance.exempt && <p className={`mb-3 text-xs ${clipLimitReached ? "text-red-300" : "text-textMuted"}`}>{clipAllowance.plan === "pro" ? t("clip.proPlan", { count: clipAllowance.used }) : t("clip.freeUsed", { used: clipAllowance.used, limit: freeClipLimit })}</p>}
-      <button type="button" onClick={() => { setErrorMessage(""); setOpen(true); void loadAvailableTeams(); }} disabled={clipTagIds.length === 0 || (localVideo && !canUseLocalSources) || clipLimitReached} className="w-full rounded-lg bg-accent py-2 font-semibold text-page hover:opacity-90 disabled:opacity-50">{t("clip.create")}</button>
+      <button type="button" onClick={() => { setErrorMessage(""); setOpen(true); void loadAvailableTeams(); }} disabled={clipTagIds.length === 0 || (localVideo && !canUseLocalSources) || clipLimitReached} className="w-full rounded-lg bg-accent py-2 font-semibold text-page hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{t("clip.create")}</button>
       {localVideo && !canUseLocalSources && <p className="mt-2 text-xs text-textMuted">{t("clip.reconnectAll")}</p>}
       {clipLimitReached && <p className="mt-2 text-xs text-red-300">{t("clip.freeLimit")}</p>}
 
@@ -351,7 +351,7 @@ export function ClipBuilder({
           <div className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-xl border border-borderButton bg-cardAlt p-5 shadow-2xl" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("clip.create")}>
             <div className="mb-4 flex items-start justify-between gap-4">
               <div><h2 className="text-lg font-semibold text-textBright">{t("clip.create")}</h2><p className="text-xs text-textMuted">{t("clip.chooseAudience")}</p></div>
-              <button type="button" disabled={saving} onClick={() => setOpen(false)} className="text-textMuted hover:text-textPrimary disabled:opacity-50">&times;</button>
+              <button type="button" disabled={saving} onClick={() => setOpen(false)} className="text-textMuted hover:text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">&times;</button>
             </div>
 
             <label className="block text-sm text-textSecondary">{t("clip.name")}
@@ -375,12 +375,12 @@ export function ClipBuilder({
                       <div className="flex flex-wrap gap-1.5 max-md:col-span-3 max-md:pl-7">
                         {siblings.length > 1 && siblings.map((camera) => {
                           const checked = selected.includes(camera.id);
-                          return <button key={camera.id} type="button" disabled={saving} onClick={() => toggleTagCamera(tag, camera.id)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${checked ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary hover:bg-cardHover"}`}>{camera.label}</button>;
+                          return <button key={camera.id} type="button" disabled={saving} onClick={() => toggleTagCamera(tag, camera.id)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${checked ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary hover:bg-cardHover"}`}>{camera.label}</button>;
                         })}
                       </div>
                       <span className="flex gap-2 max-md:col-start-3 max-md:row-start-1">
-                        <button type="button" disabled={index === 0 || saving} onClick={() => moveClipTag(tag.id, -1)} aria-label={t("clip.moveUp", { name: tag.name })} title={t("clip.moveUp", { name: tag.name })} className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm text-textPrimary disabled:opacity-25">↑</button>
-                        <button type="button" disabled={index === clipCandidateTags.length - 1 || saving} onClick={() => moveClipTag(tag.id, 1)} aria-label={t("clip.moveDown", { name: tag.name })} title={t("clip.moveDown", { name: tag.name })} className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm text-textPrimary disabled:opacity-25">↓</button>
+                        <button type="button" disabled={index === 0 || saving} onClick={() => moveClipTag(tag.id, -1)} aria-label={t("clip.moveUp", { name: tag.name })} title={t("clip.moveUp", { name: tag.name })} className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm text-textPrimary disabled:cursor-not-allowed disabled:opacity-25">↑</button>
+                        <button type="button" disabled={index === clipCandidateTags.length - 1 || saving} onClick={() => moveClipTag(tag.id, 1)} aria-label={t("clip.moveDown", { name: tag.name })} title={t("clip.moveDown", { name: tag.name })} className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm text-textPrimary disabled:cursor-not-allowed disabled:opacity-25">↓</button>
                       </span>
                     </li>
                   );
@@ -406,7 +406,7 @@ export function ClipBuilder({
               <details className="rounded-lg border border-border bg-cardDeep px-3 py-2" open>
                 <summary className="cursor-pointer text-sm font-semibold text-textPrimary">{t("clip.teamPlayers", { count: teamPlayers.length })}</summary>
                 <div className="mt-3 space-y-2">{teamPlayers.map((player) => recipientButton(player, true))}{!teamPlayers.length && <p className="text-xs text-textMuted">{t("clip.noTeamPlayers")}</p>}</div>
-                <div className="mt-3 flex gap-2"><input value={newTeamPlayerName} onChange={(event) => setNewTeamPlayerName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void addTeamPlayer(); } }} placeholder={t("clip.addPlayerName")} className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" /><button type="button" disabled={addingPerson || !newTeamPlayerName.trim()} onClick={() => void addTeamPlayer()} className="rounded-lg bg-button px-3 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">{t("clip.add")}</button></div>
+                <div className="mt-3 flex gap-2"><input value={newTeamPlayerName} onChange={(event) => setNewTeamPlayerName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void addTeamPlayer(); } }} placeholder={t("clip.addPlayerName")} className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" /><button type="button" disabled={addingPerson || !newTeamPlayerName.trim()} onClick={() => void addTeamPlayer()} className="rounded-lg bg-button px-3 py-2 text-sm font-semibold text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">{t("clip.add")}</button></div>
               </details>
 
             </div>
@@ -415,7 +415,7 @@ export function ClipBuilder({
               <div className="mt-4" role="status" aria-live="polite"><div className="mb-1 flex justify-between text-xs text-textSecondary"><span>{status}</span><span>{Math.round(progress * 100)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-button"><div className="h-full bg-accent transition-[width]" style={{ width: `${progress * 100}%` }} /></div><p className="mt-2 text-xs text-textMuted">{t("clip.keepOpen")}</p></div>
             )}
             {errorMessage && <p className="mt-3 text-sm text-red-300">{errorMessage}</p>}
-            <div className="mt-5 flex gap-3"><button type="button" disabled={saving} onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary disabled:opacity-50">{t("common.cancel")}</button><button type="button" onClick={() => void handleCreateClip()} disabled={saving || clipLimitReached} className="flex-1 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{saving ? (localFile ? t("clip.making") : t("clip.creating")) : t("clip.create")}</button></div>
+            <div className="mt-5 flex gap-3"><button type="button" disabled={saving} onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">{t("common.cancel")}</button><button type="button" onClick={() => void handleCreateClip()} disabled={saving || clipLimitReached} className="flex-1 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? (localFile ? t("clip.making") : t("clip.creating")) : t("clip.create")}</button></div>
           </div>
         </div>
       )}

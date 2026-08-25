@@ -190,7 +190,7 @@ function RolePermissionDefaultsManager({ clubId, defaults, readOnly, onChanged }
               {CLUB_FUNCTION_ROLES.map(([role, roleLabel]) => {
                 const dependencyMissing = permission === "teams.import" && !rolePermissions[role]?.has("teams.manage");
                 return <td key={role} className="w-12 min-w-12 max-w-12 border-l border-borderSubtle p-2 text-center">
-                  <input aria-label={`${label} voor ${roleLabel}`} title={dependencyMissing ? "Vereist ‘Teams en spelers beheren’" : undefined} type="checkbox" checked={rolePermissions[role]?.has(permission) ?? false} disabled={readOnly || dependencyMissing} onChange={() => togglePermission(role, permission)} className="h-4 w-4 accent-accent disabled:opacity-30" />
+                  <input aria-label={`${label} voor ${roleLabel}`} title={dependencyMissing ? "Vereist ‘Teams en spelers beheren’" : undefined} type="checkbox" checked={rolePermissions[role]?.has(permission) ?? false} disabled={readOnly || dependencyMissing} onChange={() => togglePermission(role, permission)} className="h-4 w-4 accent-accent disabled:cursor-not-allowed disabled:opacity-30" />
                 </td>;
               })}
             </tr>;
@@ -369,4 +369,4 @@ function InfoTip({ text }: { text: string }) {
   </span>;
 }
 
-const inputClass = "mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:opacity-60";
+const inputClass = "mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-60";

@@ -39,7 +39,7 @@ export function MatchHeaderScoreEditor({ matchId, homeTeamName, awayTeamName, ho
       <label className="sr-only" htmlFor="score-away">Score {awayTeamName}</label>
       <input id="score-away" type="number" min="0" max="30" value={away} onChange={event => setAway(event.target.value)} className="w-14 rounded-xl border border-border bg-input px-2 py-2 text-center text-2xl font-black text-textBright" />
     </div>
-    <button type="button" disabled={busy} onClick={() => void save()} className="mt-2 rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-page disabled:opacity-50">Score bewaren</button>
+    <button type="button" disabled={busy} onClick={() => void save()} className="mt-2 rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">Score bewaren</button>
     {notice && <span className="mt-1 block text-center text-xs text-textMuted">{notice}</span>}
   </div>;
 }

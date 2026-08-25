@@ -154,7 +154,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
     return <label className="block">
       <span className="mb-1 block text-xs font-black uppercase tracking-wide text-textMuted">{label}</span>
       <textarea value={draft[key]} disabled={!editable} onChange={event => setDraft(current => ({ ...current, [key]: event.target.value }))}
-        placeholder={placeholder} rows={4} className="w-full resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:opacity-70" />
+        placeholder={placeholder} rows={4} className="w-full resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:cursor-not-allowed disabled:opacity-70" />
     </label>;
   }
 
@@ -287,7 +287,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
                     if (Number.isFinite(rating)) updateReview({ rating: Math.max(0, Math.min(10, rating)) });
                   }}
                   aria-label={`Punten voor ${player.first_name} ${player.last_name}`}
-                  className="min-w-0 flex-1 bg-transparent text-textPrimary outline-none disabled:opacity-70" />
+                  className="min-w-0 flex-1 bg-transparent text-textPrimary outline-none disabled:cursor-not-allowed disabled:opacity-70" />
                 <span className="ml-1 shrink-0 text-textMuted">/10</span>
               </span>
             </label>
@@ -330,10 +330,10 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
 
     {(editable || canComplete || scoutingEditable) && <div className="flex flex-wrap items-center justify-end gap-3 p-5">
       {notice && <p className="mr-auto text-sm text-accent">{notice}</p>}
-      {canComplete && played && !completed && <button type="button" disabled={saving} onClick={() => void save(true)} className="rounded-lg border border-accent px-5 py-2.5 text-sm font-black text-accent disabled:opacity-50">
+      {canComplete && played && !completed && <button type="button" disabled={saving} onClick={() => void save(true)} className="rounded-lg border border-accent px-5 py-2.5 text-sm font-black text-accent disabled:cursor-not-allowed disabled:opacity-50">
         Afgewerkt
       </button>}
-      {(editable || scoutingEditable) && <button type="button" disabled={saving} onClick={() => void save(false)} className="rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:opacity-50">
+      {(editable || scoutingEditable) && <button type="button" disabled={saving} onClick={() => void save(false)} className="rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:cursor-not-allowed disabled:opacity-50">
         {saving ? "Bewaren…" : "Wedstrijddossier bewaren"}
       </button>}
     </div>}
@@ -444,7 +444,7 @@ function GoalEditor({ goals, players, ownTeamSide, homeTeamName, awayTeamName, e
             <textarea rows={2} value={goal.description ?? ""} disabled={!editable}
               onChange={event => update(goal.id, { description: event.target.value })}
               placeholder="Bijvoorbeeld: opbouw, voorzet, afwerking of andere context…"
-              className="mt-1 w-full resize-y rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary disabled:opacity-70" />
+              className="mt-1 w-full resize-y rounded-lg border border-border bg-input px-3 py-2 font-normal text-textPrimary disabled:cursor-not-allowed disabled:opacity-70" />
           </label>
         </div>
       </article>;

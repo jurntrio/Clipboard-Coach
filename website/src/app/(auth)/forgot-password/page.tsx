@@ -74,7 +74,7 @@ export default function ForgotPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-accent text-page rounded-lg font-bold hover:opacity-90 disabled:opacity-50"
+                  className="w-full py-3 bg-accent text-page rounded-lg font-bold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading ? t("auth.sendingResetLink") : t("auth.sendResetLink")}
                 </button>

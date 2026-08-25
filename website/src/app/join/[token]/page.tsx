@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/i18n/client";
 import { LEGAL_STATEMENT_VERSION, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 
 export default function JoinPlayerPage() {
   const { locale, t } = useI18n();
@@ -90,7 +91,7 @@ export default function JoinPlayerPage() {
                 </div>
                 <div>
                   <label className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.password")}</label>
-                  <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} className="w-full px-4 py-3 bg-input text-textPrimary rounded-lg border border-border" required />
+                  <PasswordInput value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} className="w-full px-4 py-3 bg-input text-textPrimary rounded-lg border border-border" required />
                 </div>
                 {invite?.supportsAddress && <div className="rounded-lg border border-border bg-cardDeep p-3 text-left">
                   <p className="text-xs font-semibold uppercase tracking-wide text-textMuted">{t("guardianInvite.addressSectionTitle")}</p>
@@ -125,7 +126,7 @@ export default function JoinPlayerPage() {
                   <span>{t("auth.legalPrefix")} <Link href="/terms" target="_blank" className="font-semibold text-accent hover:underline">{t("legal.terms")}</Link>. {t("auth.legalPrivacyPrefix")} <Link href="/privacy" target="_blank" className="font-semibold text-accent hover:underline">{t("legal.privacy")}</Link>.</span>
                 </label>
                 {error && <p className="text-red-400 text-sm">{error}</p>}
-                <button type="submit" disabled={loading || !legalAccepted} className="w-full py-3 bg-accent text-page rounded-lg font-bold hover:opacity-90 disabled:opacity-50">{loading ? t("auth.creating") : t("auth.signUp")}</button>
+                <button type="submit" disabled={loading || !legalAccepted} className="w-full py-3 bg-accent text-page rounded-lg font-bold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{loading ? t("auth.creating") : t("auth.signUp")}</button>
               </form>
             </>
           )}

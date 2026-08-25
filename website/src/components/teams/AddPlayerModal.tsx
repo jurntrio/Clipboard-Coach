@@ -95,7 +95,7 @@ export function AddPlayerModal({
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-accent text-page rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
+              className="px-4 py-2 bg-accent text-page rounded-lg font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? t("team.adding") : t("settings.add")}
             </button>

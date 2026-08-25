@@ -38,7 +38,7 @@ export function MatchTagLinkButton({ matchId }: { matchId: string }) {
   }
 
   return <div className="w-full sm:w-auto">
-    <button type="button" disabled={busy} onClick={() => void getTagLink()} className="w-full rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page disabled:opacity-50">
+    <button type="button" disabled={busy} onClick={() => void getTagLink()} className="w-full rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">
       {busy ? "Taglink maken…" : "Taglink maken en kopiëren"}
     </button>
     {tagUrl && <div className="mt-2 flex max-w-xl gap-2 rounded-xl border border-accent/30 bg-card p-2">

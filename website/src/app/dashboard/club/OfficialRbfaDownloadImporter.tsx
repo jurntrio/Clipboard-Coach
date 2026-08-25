@@ -108,7 +108,7 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
   return <div className="rounded-lg border border-borderSubtle bg-cardDeep p-4">
     <h3 className="font-semibold text-textPrimary">Officiële reeksen koppelen</h3>
     <p className="mt-1 text-sm text-textMuted">SVS groepeert de Voetbal Vlaanderen-download per DIV-reeks. Controleer het voorstel of kies een andere ploeg; na bevestiging worden bestaande en nieuwe wedstrijden uit die reeks automatisch bij die ploeg gezet.</p>
-    <button type="button" disabled={readOnly || !!busy || !clubId} onClick={() => void checkDownloads()} className="mt-3 rounded-lg bg-button px-4 py-2 text-sm font-semibold text-textPrimary disabled:opacity-50">{busy === "check" ? "Reeksen zoeken…" : "Officiële reeksen controleren"}</button>
+    <button type="button" disabled={readOnly || !!busy || !clubId} onClick={() => void checkDownloads()} className="mt-3 rounded-lg bg-button px-4 py-2 text-sm font-semibold text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">{busy === "check" ? "Reeksen zoeken…" : "Officiële reeksen controleren"}</button>
     {message && <p className="mt-3 text-sm text-accent">{message}</p>}
     {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
     {!!series.length && <div className="mt-4 overflow-auto rounded-lg border border-border">
@@ -124,18 +124,18 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
               const teamId = event.target.value;
               setSelections(current => ({ ...current, [item.divisionCode]: teamId }));
               setCheckedSeries(current => ({ ...current, [item.divisionCode]: !!teamId && (!item.assignedTeamId || teamId !== item.assignedTeamId || item.unlinkedCount > 0) }));
-            }} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:opacity-50">
+            }} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">
               <option value="">Kies ploeg…</option>{teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}
             </select></td>
             <td className="p-3">{item.assignedTeamId ? <span className="text-emerald-300">Definitief bevestigd</span> : selected ? <span className="text-amber-300">Voorstel</span> : <span className="text-textMuted">Geen voorstel</span>}</td>
-            <td className="p-3 text-center"><input type="checkbox" aria-label={`Keur wedstrijden uit ${item.divisionCode} goed`} checked={checkedSeries[item.divisionCode] ?? false} disabled={readOnly || !!busy || !selected || (!!item.assignedTeamId && !changed && item.unlinkedCount === 0)} onChange={event => setCheckedSeries(current => ({ ...current, [item.divisionCode]: event.target.checked }))} className="h-5 w-5 accent-accent disabled:opacity-40" /></td>
+            <td className="p-3 text-center"><input type="checkbox" aria-label={`Keur wedstrijden uit ${item.divisionCode} goed`} checked={checkedSeries[item.divisionCode] ?? false} disabled={readOnly || !!busy || !selected || (!!item.assignedTeamId && !changed && item.unlinkedCount === 0)} onChange={event => setCheckedSeries(current => ({ ...current, [item.divisionCode]: event.target.checked }))} className="h-5 w-5 accent-accent disabled:cursor-not-allowed disabled:opacity-40" /></td>
           </tr>;
         })}</tbody>
       </table>
     </div>}
     {!!series.length && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-borderSubtle bg-cardDeep p-3">
       <p className="text-sm text-textMuted">{series.filter(item => checkedSeries[item.divisionCode] && !!selections[item.divisionCode] && (!item.assignedTeamId || selections[item.divisionCode] !== item.assignedTeamId || item.unlinkedCount > 0)).length} aangevinkt</p>
-      <button type="button" disabled={readOnly || !!busy || !series.some(item => checkedSeries[item.divisionCode] && !!selections[item.divisionCode] && (!item.assignedTeamId || selections[item.divisionCode] !== item.assignedTeamId || item.unlinkedCount > 0))} onClick={() => void confirmSelectedSeries()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:opacity-50">{busy === "selected" ? "Aangevinkte wedstrijden goedkeuren…" : "Keur alle aangevinkte wedstrijden goed"}</button>
+      <button type="button" disabled={readOnly || !!busy || !series.some(item => checkedSeries[item.divisionCode] && !!selections[item.divisionCode] && (!item.assignedTeamId || selections[item.divisionCode] !== item.assignedTeamId || item.unlinkedCount > 0))} onClick={() => void confirmSelectedSeries()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{busy === "selected" ? "Aangevinkte wedstrijden goedkeuren…" : "Keur alle aangevinkte wedstrijden goed"}</button>
     </div>}
     {!!fixtures.length && <details className="mt-4 rounded-lg border border-border bg-card" open>
       <summary className="cursor-pointer px-4 py-3 font-semibold text-textPrimary">Wedstrijd per wedstrijd koppelen</summary>
@@ -148,13 +148,13 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
             <td className="whitespace-nowrap p-3 text-textSecondary">{new Intl.DateTimeFormat("nl-BE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${item.date}T12:00:00`))}<div className="text-xs text-textMuted">{item.time}</div></td>
             <td className="p-3 text-textPrimary"><strong>{item.homeTeam}</strong><span className="mx-2 text-textMuted">–</span><strong>{item.awayTeam}</strong><div className="mt-0.5 text-xs text-textMuted">{item.ownIsHome ? "Thuiswedstrijd" : "Uitwedstrijd"}</div></td>
             <td className="p-3 text-textSecondary">{item.divisionCode}</td>
-            <td className="p-3"><select value={selected} disabled={readOnly || !!busy || item.linked} onChange={event => { const teamId = event.target.value; setFixtureSelections(current => ({ ...current, [item.key]: teamId })); setCheckedFixtures(current => ({ ...current, [item.key]: !!teamId })); }} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:opacity-50"><option value="">Kies ploeg…</option>{teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}</select></td>
+            <td className="p-3"><select value={selected} disabled={readOnly || !!busy || item.linked} onChange={event => { const teamId = event.target.value; setFixtureSelections(current => ({ ...current, [item.key]: teamId })); setCheckedFixtures(current => ({ ...current, [item.key]: !!teamId })); }} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-50"><option value="">Kies ploeg…</option>{teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}</select></td>
             <td className="p-3">{item.linked ? <span className="text-emerald-300">Reeds geïmporteerd</span> : <span className="text-amber-300">Nog te importeren</span>}</td>
-            <td className="p-3 text-center"><input type="checkbox" aria-label={`Importeer wedstrijd ${item.homeTeam} tegen ${item.awayTeam}`} checked={checkedFixtures[item.key] ?? false} disabled={readOnly || !!busy || item.linked || !selected} onChange={event => setCheckedFixtures(current => ({ ...current, [item.key]: event.target.checked }))} className="h-5 w-5 accent-accent disabled:opacity-40" /></td>
+            <td className="p-3 text-center"><input type="checkbox" aria-label={`Importeer wedstrijd ${item.homeTeam} tegen ${item.awayTeam}`} checked={checkedFixtures[item.key] ?? false} disabled={readOnly || !!busy || item.linked || !selected} onChange={event => setCheckedFixtures(current => ({ ...current, [item.key]: event.target.checked }))} className="h-5 w-5 accent-accent disabled:cursor-not-allowed disabled:opacity-40" /></td>
           </tr>;
         })}</tbody>
       </table></div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-3"><p className="text-sm text-textMuted">{fixtures.filter(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key]).length} wedstrijd(en) aangevinkt</p><button type="button" disabled={readOnly || !!busy || !fixtures.some(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key])} onClick={() => void confirmSelectedFixtures()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:opacity-50">{busy === "fixtures" ? "Wedstrijden importeren…" : "Importeer aangevinkte wedstrijden"}</button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-3"><p className="text-sm text-textMuted">{fixtures.filter(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key]).length} wedstrijd(en) aangevinkt</p><button type="button" disabled={readOnly || !!busy || !fixtures.some(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key])} onClick={() => void confirmSelectedFixtures()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{busy === "fixtures" ? "Wedstrijden importeren…" : "Importeer aangevinkte wedstrijden"}</button></div>
     </details>}
   </div>;
 }

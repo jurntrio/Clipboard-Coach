@@ -15,8 +15,8 @@ export function ConfirmDialog({ open, title, message, confirmLabel, destructive 
           <div><h2 id="confirm-title" className="text-lg font-semibold text-textBright">{title}</h2><p id="confirm-message" className="mt-1 text-sm leading-6 text-textSecondary">{message}</p></div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button type="button" disabled={busy} onClick={onCancel} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent disabled:opacity-50">{t("common.cancel")}</button>
-          <button type="button" disabled={busy} onClick={onConfirm} className={`rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 ${destructive ? "bg-red-500 text-white hover:bg-red-400" : "bg-accent text-page hover:opacity-90"}`}>{busy ? t("common.working") : (confirmLabel ?? t("common.delete"))}</button>
+          <button type="button" disabled={busy} onClick={onCancel} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent disabled:cursor-not-allowed disabled:opacity-50">{t("common.cancel")}</button>
+          <button type="button" disabled={busy} onClick={onConfirm} className={`rounded-lg px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${destructive ? "bg-red-500 text-white hover:bg-red-400" : "bg-accent text-page hover:opacity-90"}`}>{busy ? t("common.working") : (confirmLabel ?? t("common.delete"))}</button>
         </div>
       </div>
     </div>

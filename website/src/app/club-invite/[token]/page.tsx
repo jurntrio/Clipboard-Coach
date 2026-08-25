@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { LEGAL_STATEMENT_VERSION, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 import { SvsBrand } from "@/components/branding/SvsBrand";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 
 type Invite = {
   clubName: string | null; teamName: string | null; roleLabel: string;
@@ -64,10 +65,10 @@ export default function ClubInvitePage() {
       <form onSubmit={signup} className="mt-5 space-y-4">
         <label className="block text-sm text-textSecondary">Volledige naam<input required value={fullName} onChange={(event) => setFullName(event.target.value)} readOnly={!!invite?.expectedName} className={inputClass} /></label>
         <label className="block text-sm text-textSecondary">E-mail<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} readOnly={!!invite?.contactEmail} className={inputClass} /></label>
-        <label className="block text-sm text-textSecondary">Wachtwoord<input required minLength={6} type="password" value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} /></label>
+        <label className="block text-sm text-textSecondary">Wachtwoord<PasswordInput required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} /></label>
         <label className="flex items-start gap-2 text-sm text-textSecondary"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="mt-1" /><span>Ik ga akkoord met de <Link href="/terms" target="_blank" className="text-accent">Gebruiksvoorwaarden</Link> en de <Link href="/privacy" target="_blank" className="text-accent">Privacyverklaring</Link>.</span></label>
         {error && <p className="text-sm text-red-300">{error}</p>}
-        <button disabled={loading || !accepted} className="w-full rounded-lg bg-accent py-3 font-bold text-page disabled:opacity-50">Registreren</button>
+        <button disabled={loading || !accepted} className="w-full rounded-lg bg-accent py-3 font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">Registreren</button>
       </form>
     </>}
   </div></div>;

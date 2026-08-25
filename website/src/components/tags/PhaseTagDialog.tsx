@@ -36,7 +36,7 @@ export function PhaseTagDialog({ onCancel, onConfirm }: {
         </label>
         <div className="mt-4 flex gap-2">
           <button type="button" onClick={onCancel} className="flex-1 rounded-lg bg-button px-3 py-2 text-textPrimary">{t("common.cancel")}</button>
-          <button type="submit" disabled={!name.trim() || saving} className="flex-1 rounded-lg bg-accent px-3 py-2 font-semibold text-page disabled:opacity-50">{saving ? t("common.saving") : t("phaseTag.save")}</button>
+          <button type="submit" disabled={!name.trim() || saving} className="flex-1 rounded-lg bg-accent px-3 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? t("common.saving") : t("phaseTag.save")}</button>
         </div>
       </form>
     </div>

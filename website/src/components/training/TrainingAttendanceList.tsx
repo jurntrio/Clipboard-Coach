@@ -83,4 +83,4 @@ export function TrainingAttendanceList({ sessionId, players, reasons, initial, e
   </section>;
 }
 
-const inputClass = "w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:opacity-60";
+const inputClass = "w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:cursor-not-allowed disabled:opacity-60";

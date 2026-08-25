@@ -66,7 +66,7 @@ export function TeamMatchScheduler({ teamId, teamName, readOnly }: {
     <p className="mt-3 rounded-lg border border-borderSubtle bg-cardDeep px-3 py-2 text-sm text-textPrimary">
       {isHome ? `${teamName} – ${opponent || "Tegenstander"}` : `${opponent || "Tegenstander"} – ${teamName}`}
     </p>
-    <button disabled={busy} className="mt-4 rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:opacity-50">
+    <button disabled={busy} className="mt-4 rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:cursor-not-allowed disabled:opacity-50">
       {busy ? "Toevoegen…" : "Wedstrijd toevoegen"}
     </button>
     {notice && <p className="mt-2 text-sm text-accent">{notice}</p>}

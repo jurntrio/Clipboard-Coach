@@ -115,7 +115,7 @@ export function CreateTeamModal({ onClose, onCreated }: { onClose: () => void; o
           </section>
 
           {error && <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
-          <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-cardAlt px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:border-0 sm:p-0"><button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-textSecondary hover:bg-cardHover">{t("common.cancel")}</button><button type="submit" disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{saving ? t("team.creating") : t("team.create")}</button></div>
+          <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-cardAlt px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:border-0 sm:p-0"><button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-textSecondary hover:bg-cardHover">{t("common.cancel")}</button><button type="submit" disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? t("team.creating") : t("team.create")}</button></div>
         </form>
       </div>
     </div>

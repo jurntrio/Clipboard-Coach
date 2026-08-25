@@ -37,7 +37,7 @@ export function ActiveTeamSwitcher({ teams, activeTeamId, allTeamsLabel = "Alle 
         type="button"
         disabled={changing}
         onClick={() => setOpen((current) => !current)}
-        className="flex items-center gap-2 rounded-xl border border-borderButton bg-button px-4 py-3 text-sm font-semibold text-textPrimary hover:border-accent disabled:opacity-60"
+        className="flex items-center gap-2 rounded-xl border border-borderButton bg-button px-4 py-3 text-sm font-semibold text-textPrimary hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
       >
         {label}<span className={`text-accent transition ${open ? "rotate-90" : ""}`}>▶</span>
       </button>

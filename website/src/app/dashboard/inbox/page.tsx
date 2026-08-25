@@ -70,7 +70,7 @@ export default function InboxPage() {
       <SectionHeader title={t("mailbox.title")} artworkSrc="/branding/inbox.svg" showHome={false} />
 
       <div className="mb-4 flex justify-end">
-        <button type="button" onClick={() => { setComposeDraft({ subject: "", body: "" }); setComposeOpen(true); }} disabled={sendTargetsLoading} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page hover:opacity-90 disabled:cursor-wait disabled:opacity-50">{t("mailbox.newMessage")}</button>
+        <button type="button" onClick={() => { setComposeDraft({ subject: "", body: "" }); setComposeOpen(true); }} disabled={sendTargetsLoading} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page hover:opacity-90 disabled:cursor-wait disabled:cursor-not-allowed disabled:opacity-50">{t("mailbox.newMessage")}</button>
       </div>
 
       {loading ? (

@@ -343,7 +343,7 @@ function TickerEditor({ screen, blocks, canManage, act }: {
     {canManage && <div className="mt-4 rounded-lg border border-dashed border-borderButton p-3">
       <h4 className="text-sm font-bold text-textBright">Nieuwe tekstbalk</h4>
       <TickerFields value={draft} onChange={setDraft} />
-      <button disabled={!draft.text.trim()} onClick={() => void add()} className={`${primary} mt-4 disabled:opacity-50`}>Tekstbalk toevoegen</button>
+      <button disabled={!draft.text.trim()} onClick={() => void add()} className={`${primary} mt-4 disabled:cursor-not-allowed disabled:opacity-50`}>Tekstbalk toevoegen</button>
     </div>}
   </section>;
 }
@@ -363,8 +363,8 @@ function TickerBlockEditor({ block, canManage, first, last, onMove, onSave, onRe
     <div className="flex items-center gap-2">
       <span className="min-w-0 flex-1 break-words text-sm text-textPrimary">{settings.text}</span>
       {canManage && <>
-        <button disabled={first} onClick={() => onMove(-1)} title="Naar links" aria-label="Tekstbalk naar links" className="rounded border border-borderButton px-2 py-1 text-sm text-textSecondary disabled:opacity-30">←</button>
-        <button disabled={last} onClick={() => onMove(1)} title="Naar rechts" aria-label="Tekstbalk naar rechts" className="rounded border border-borderButton px-2 py-1 text-sm text-textSecondary disabled:opacity-30">→</button>
+        <button disabled={first} onClick={() => onMove(-1)} title="Naar links" aria-label="Tekstbalk naar links" className="rounded border border-borderButton px-2 py-1 text-sm text-textSecondary disabled:cursor-not-allowed disabled:opacity-30">←</button>
+        <button disabled={last} onClick={() => onMove(1)} title="Naar rechts" aria-label="Tekstbalk naar rechts" className="rounded border border-borderButton px-2 py-1 text-sm text-textSecondary disabled:cursor-not-allowed disabled:opacity-30">→</button>
         <button onClick={() => setOpen((value) => !value)} className="text-xs font-bold text-accent">{open ? "Sluiten" : "Instellen"}</button>
         <button onClick={onRemove} className="text-xs font-bold text-red-300">Verwijderen</button>
       </>}
@@ -376,7 +376,7 @@ function TickerBlockEditor({ block, canManage, first, last, onMove, onSave, onRe
         setSettings({ ...settings, text: settings.text.trim() });
         onSave(saved);
         setOpen(false);
-      }} className={`${primary} mt-4 disabled:opacity-50`}>Wijzigingen bewaren</button>
+      }} className={`${primary} mt-4 disabled:cursor-not-allowed disabled:opacity-50`}>Wijzigingen bewaren</button>
     </div>}
   </article>;
 }
@@ -545,7 +545,7 @@ function MatchHeaderEditor({
         <button
           disabled={enabled && !matchId}
           onClick={() => void save()}
-          className={`${primary} mt-4 disabled:opacity-50`}
+          className={`${primary} mt-4 disabled:cursor-not-allowed disabled:opacity-50`}
         >
           Wedstrijdinformatie bewaren
         </button>
@@ -884,7 +884,7 @@ function BlockRail({
             <button
               disabled={uploading || (type === "image" && !image && !existingImageUrl)}
               onClick={() => void save()}
-              className={`${primary} disabled:opacity-50`}
+              className={`${primary} disabled:cursor-not-allowed disabled:opacity-50`}
             >
               {uploading ? "Bezig…" : editingId ? "Wijzigen" : "Toevoegen"}
             </button>

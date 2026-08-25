@@ -34,12 +34,12 @@ export function ClubMatchCsvImporter({ teams, readOnly, onImported }: {
     <h3 className="font-semibold text-textPrimary">Wedstrijden importeren uit CSV</h3>
     <p className="mt-1 text-sm text-textMuted">Kies de clubploeg en upload een CSV uit Voetbal Vlaanderen. Een herhaalde import werkt bestaande wedstrijden bij.</p>
     <div className={`mt-3 grid gap-3 ${teams.length > 1 ? "sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]" : "sm:grid-cols-[minmax(0,1fr)_auto]"}`}>
-      {teams.length > 1 && <select value={teamId} disabled={readOnly || busy} onChange={(event) => setTeamId(event.target.value)} className="rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:opacity-60">
+      {teams.length > 1 && <select value={teamId} disabled={readOnly || busy} onChange={(event) => setTeamId(event.target.value)} className="rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-60">
         <option value="">Kies een ploeg</option>
         {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
       </select>}
-      <input type="file" accept=".csv,text/csv" disabled={readOnly || busy} onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary file:mr-3 file:rounded file:border-0 file:bg-button file:px-3 file:py-1 file:text-textPrimary disabled:opacity-60" />
-      <button type="button" disabled={readOnly || busy || !teamId || !file} onClick={() => void importCsv()} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{busy ? "Importeren…" : "Importeren"}</button>
+      <input type="file" accept=".csv,text/csv" disabled={readOnly || busy} onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary file:mr-3 file:rounded file:border-0 file:bg-button file:px-3 file:py-1 file:text-textPrimary disabled:cursor-not-allowed disabled:opacity-60" />
+      <button type="button" disabled={readOnly || busy || !teamId || !file} onClick={() => void importCsv()} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Importeren…" : "Importeren"}</button>
     </div>
     {message && <p className="mt-3 text-sm text-accent">{message}</p>}
     {error && <p className="mt-3 text-sm text-red-300">{error}</p>}

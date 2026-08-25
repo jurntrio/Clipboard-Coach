@@ -276,5 +276,5 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("nl-BE", { dateStyle: "medium" }).format(new Date(value));
 }
 const inputClass = "rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary";
-const primaryButton = "rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-page disabled:opacity-50";
-const secondaryButton = "rounded-lg border border-borderButton px-3 py-2 text-xs text-textSecondary disabled:opacity-50";
+const primaryButton = "rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryButton = "rounded-lg border border-borderButton px-3 py-2 text-xs text-textSecondary disabled:cursor-not-allowed disabled:opacity-50";

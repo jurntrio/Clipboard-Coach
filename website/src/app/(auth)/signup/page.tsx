@@ -9,6 +9,7 @@ import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { LEGAL_STATEMENT_VERSION, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 import { SvsBrand } from "@/components/branding/SvsBrand";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 
 export default function SignupPage() {
   const { locale, t } = useI18n();
@@ -131,8 +132,7 @@ export default function SignupPage() {
                 </div>
                 <div>
                   <label className="block font-mono text-xs uppercase tracking-widest text-textMuted mb-1">{t("auth.password")}</label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     placeholder={t("auth.passwordHint")}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
@@ -152,7 +152,7 @@ export default function SignupPage() {
                 <button
                   type="submit"
                   disabled={loading || !legalAccepted}
-                  className="w-full py-3 bg-accent text-page rounded-lg font-bold hover:opacity-90 disabled:opacity-50"
+                  className="w-full py-3 bg-accent text-page rounded-lg font-bold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading ? t("auth.creating") : t("auth.signUp")}
                 </button>

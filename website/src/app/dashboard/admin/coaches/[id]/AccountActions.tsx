@@ -91,28 +91,28 @@ export function AccountActions({
         <button
           onClick={handlePlanToggle}
           disabled={isPending}
-          className="px-4 py-2 rounded-lg text-sm font-semibold border border-borderButton text-textPrimary hover:bg-cardHover disabled:opacity-50"
+          className="px-4 py-2 rounded-lg text-sm font-semibold border border-borderButton text-textPrimary hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {plan === "pro" ? t("admin.toFree") : t("admin.markPro")}
         </button>
         <button
           onClick={handleBanToggle}
           disabled={isPending}
-          className="px-4 py-2 rounded-lg text-sm font-semibold border border-borderButton text-textPrimary hover:bg-cardHover disabled:opacity-50"
+          className="px-4 py-2 rounded-lg text-sm font-semibold border border-borderButton text-textPrimary hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {banned ? t("admin.unblockAccount") : t("admin.blockAccount")}
         </button>
         <button
           onClick={handleAdminViewerToggle}
           disabled={isPending}
-          className="px-4 py-2 rounded-lg text-sm font-semibold border border-borderButton text-textPrimary hover:bg-cardHover disabled:opacity-50"
+          className="px-4 py-2 rounded-lg text-sm font-semibold border border-borderButton text-textPrimary hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {accountRole === "admin_viewer" ? "Admin (viewer) verwijderen" : "Admin (viewer) maken"}
         </button>
         <button
           onClick={handleDelete}
           disabled={isPending}
-          className="px-4 py-2 rounded-lg text-sm font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 disabled:opacity-50"
+          className="px-4 py-2 rounded-lg text-sm font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("admin.deleteAccount")}
         </button>

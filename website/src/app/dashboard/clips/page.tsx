@@ -318,7 +318,7 @@ function ClipPills({ clips, onClip, onDelete, canDelete, empty }: { clips: HubCl
     const viewCount = clip.share_links?.reduce((sum, link) => sum + (link.view_count ?? 0), 0) ?? 0;
     return <span key={clip.id} className="inline-flex flex-col overflow-hidden rounded-xl border border-accent/40 bg-accentDim">
       <span className="inline-flex">
-        <button type="button" disabled={processing} onClick={() => onClip(clip)} title={clip.name} aria-label={`${clip.name} ${t("common.play")}`} className="flex h-8 min-w-10 max-w-44 items-center justify-center gap-1 px-2 text-xs font-bold text-accent hover:bg-accent hover:text-page disabled:cursor-wait disabled:opacity-70"><span aria-hidden="true">{processing ? "…" : "▶"}</span><span className="truncate">{clip.display_number ?? clip.name}</span></button>
+        <button type="button" disabled={processing} onClick={() => onClip(clip)} title={clip.name} aria-label={`${clip.name} ${t("common.play")}`} className="flex h-8 min-w-10 max-w-44 items-center justify-center gap-1 px-2 text-xs font-bold text-accent hover:bg-accent hover:text-page disabled:cursor-wait disabled:cursor-not-allowed disabled:opacity-70"><span aria-hidden="true">{processing ? "…" : "▶"}</span><span className="truncate">{clip.display_number ?? clip.name}</span></button>
         {onDelete && canDelete?.(clip) && <button type="button" onClick={() => onDelete(clip)} title={`${clip.name} ${t("common.remove")}`} aria-label={`${clip.name} ${t("common.remove")}`} className="grid h-8 w-7 place-items-center border-l border-red-500/30 text-sm text-red-300 hover:bg-red-500/20">×</button>}
       </span>
       {processing && <span className="border-t border-accent/20 px-2 py-1 text-[9px] font-semibold text-textMuted" title={t("clip.estimateHelp")}>
@@ -420,6 +420,6 @@ function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved 
       </div>}
       <Link href="/dashboard/settings#quick-tags" target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-xs font-semibold text-accent hover:underline">{t("matchHub.manageTagLibrary")} ↗</Link>
     </section>}
-    {error && <p className="mt-4 text-sm text-red-300">{error}</p>}<div className="mt-6 flex gap-3"><button type="button" onClick={onClose} className="flex-1 rounded-xl bg-button py-3 text-textPrimary">{t("common.cancel")}</button><button type="button" disabled={saving} onClick={() => void save()} className="flex-1 rounded-xl bg-accent py-3 font-bold text-page disabled:opacity-50">{saving ? t("common.saving") : t("common.save")}</button></div>
+    {error && <p className="mt-4 text-sm text-red-300">{error}</p>}<div className="mt-6 flex gap-3"><button type="button" onClick={onClose} className="flex-1 rounded-xl bg-button py-3 text-textPrimary">{t("common.cancel")}</button><button type="button" disabled={saving} onClick={() => void save()} className="flex-1 rounded-xl bg-accent py-3 font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? t("common.saving") : t("common.save")}</button></div>
   </div></div>;
 }

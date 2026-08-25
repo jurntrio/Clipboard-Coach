@@ -95,7 +95,7 @@ export function EditPlayerModal({
 
           <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
             <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-textSecondary hover:bg-cardHover">{t("common.cancel")}</button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page hover:opacity-90 disabled:opacity-50">{saving ? t("common.saving") : t("team.saveChanges")}</button>
+            <button type="submit" disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{saving ? t("common.saving") : t("team.saveChanges")}</button>
           </div>
         </form>
       </div>

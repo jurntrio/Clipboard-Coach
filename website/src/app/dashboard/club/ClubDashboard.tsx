@@ -296,7 +296,7 @@ export function ClubDashboard() {
                   checked={role === "club_admin" || (club?.clip_view_count_roles ?? ["club_admin"]).includes(role)}
                   disabled={readOnly || role === "club_admin" || saving === "clip-view-roles"}
                   onChange={(event) => void setClipViewRole(role, event.target.checked)}
-                  className="h-4 w-4 accent-accent disabled:opacity-60" />
+                  className="h-4 w-4 accent-accent disabled:cursor-not-allowed disabled:opacity-60" />
                 <span>{label}{role === "club_admin" && <span className="ml-1 text-xs text-textMuted">· altijd</span>}</span>
               </label>
             ))}
@@ -447,23 +447,23 @@ function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, ass
             <select value={selectedTeamId}
               onChange={event => setSelectedTeamId(event.target.value)}
               disabled={readOnly || saving === `match-team:${selectedMatch.id}`}
-              className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:opacity-50">
+              className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">
               <option value="" disabled>Kies een ploeg</option>
               {activeTeams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}
             </select>
           </label>
           <label className="text-sm text-textSecondary">Wedstrijddatum
             <input type="date" value={selectedMatchDate} onChange={event => setSelectedMatchDate(event.target.value)} disabled={readOnly || saving === `match-team:${selectedMatch.id}`}
-              className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:opacity-50" />
+              className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:cursor-not-allowed disabled:opacity-50" />
           </label>
           <label className="text-sm text-textSecondary">Aanvangsuur
             <input type="time" value={selectedStartTime} onChange={event => setSelectedStartTime(event.target.value)} disabled={readOnly || saving === `match-team:${selectedMatch.id}`}
-              className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:opacity-50" />
+              className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary disabled:cursor-not-allowed disabled:opacity-50" />
           </label>
           <button type="button"
             disabled={readOnly || !selectedTeamId || saving === `match-team:${selectedMatch.id}` || (selectedTeamId === selectedMatch.club_team_id && selectedMatchDate === (selectedMatch.match_date ?? "") && selectedStartTime === (selectedMatch.start_time?.slice(0, 5) ?? ""))}
             onClick={() => void onChangeDetails(selectedMatch, selectedTeamId, selectedMatchDate, selectedStartTime)}
-            className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page disabled:opacity-50 sm:col-span-2">
+            className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">
             {saving === `match-team:${selectedMatch.id}` ? "Opslaan…" : "Wedstrijd opslaan"}
           </button>
         </div>
@@ -485,14 +485,14 @@ function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, ass
             return <div key={trainer.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
               <input type="checkbox" checked={state.visible} disabled={readOnly || saving === key}
                 aria-label={`${trainer.display_name} toegang tot wedstrijd`}
-                onChange={() => void onToggle(selectedMatch, trainer)} className="h-5 w-5 accent-accent disabled:opacity-50" />
+                onChange={() => void onToggle(selectedMatch, trainer)} className="h-5 w-5 accent-accent disabled:cursor-not-allowed disabled:opacity-50" />
               <span className="min-w-0 flex-1">
                 <strong className="block truncate text-sm text-textPrimary">{trainer.display_name}</strong>
                 <span className="block truncate text-xs text-textMuted">{trainer.profiles?.email || "Geen gekoppeld e-mailadres"} · {state.source}</span>
               </span>
               {!readOnly && <button type="button" disabled={!!saving}
                 onClick={() => void onRemoveTrainer(trainer)}
-                className="rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs text-red-300 disabled:opacity-50">
+                className="rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs text-red-300 disabled:cursor-not-allowed disabled:opacity-50">
                 Verwijderen
               </button>}
             </div>;
@@ -552,6 +552,6 @@ function TrainingModuleSettings({ settings, saving, readOnly, onSave }: {
         <input type="checkbox" checked={draft[key]} disabled={readOnly} onChange={() => toggle(key)} className="h-4 w-4 accent-accent" />{label}
       </label>)}
     </div>
-    {!readOnly && <button type="button" disabled={saving} onClick={() => void onSave(draft)} className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:opacity-50">{saving ? "Opslaan…" : "Instellingen opslaan"}</button>}
+    {!readOnly && <button type="button" disabled={saving} onClick={() => void onSave(draft)} className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Opslaan…" : "Instellingen opslaan"}</button>}
   </section>;
 }

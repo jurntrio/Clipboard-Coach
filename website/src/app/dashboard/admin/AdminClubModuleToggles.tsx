@@ -62,7 +62,7 @@ export function AdminClubModuleToggles({
             <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm text-textPrimary">
               <input type="checkbox" checked={enabledByKey[module.key]} disabled={busy}
                 onChange={(event) => setPendingChange({ key: module.key, label: module.label, enabled: event.target.checked })}
-                className="h-4 w-4 accent-accent disabled:opacity-50" />
+                className="h-4 w-4 accent-accent disabled:cursor-not-allowed disabled:opacity-50" />
               <span className="font-semibold">{module.label}</span>
             </label>
           </div>;

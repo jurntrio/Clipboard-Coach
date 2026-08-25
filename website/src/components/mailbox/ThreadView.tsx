@@ -109,7 +109,7 @@ export function ThreadView({ thread, currentUserId, onReplySent, onForward, onDe
           <button type="button" onClick={() => { setReplyMode(null); setReply(""); }} className="text-xs text-textMuted hover:text-textPrimary">{t("mailbox.cancel")}</button>
         </div>
         <textarea autoFocus value={reply} onChange={(event) => setReply(event.target.value)} rows={5} className="w-full rounded-xl border border-border bg-input px-3 py-2 text-textPrimary" placeholder={t("mailbox.replyPlaceholder")} />
-        <div className="mt-2 flex justify-end"><button type="button" onClick={() => void sendReply()} disabled={sending || !reply.trim()} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page disabled:opacity-50">{sending ? "..." : t("mailbox.send")}</button></div>
+        <div className="mt-2 flex justify-end"><button type="button" onClick={() => void sendReply()} disabled={sending || !reply.trim()} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">{sending ? "..." : t("mailbox.send")}</button></div>
       </div>}
 
       <ConfirmDialog open={confirmDelete} title={t("mailbox.deleteTitle")} message={t("mailbox.deleteMessage")} confirmLabel={t("mailbox.delete")} busy={deleting} onCancel={() => setConfirmDelete(false)} onConfirm={() => void deleteThread()} />

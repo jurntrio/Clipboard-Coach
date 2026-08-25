@@ -1105,7 +1105,7 @@ export default function MatchViewerPage() {
             <div className="mt-3 space-y-2">
               {blocks.map((block) => block.videos && <div key={block.id} className="flex items-center gap-2 rounded-lg border border-border bg-cardAlt px-2 py-1.5 text-xs">
                 <span className="min-w-0 flex-1 truncate text-textPrimary">{block.label || block.videos.title}</span>
-                <button type="button" disabled={removingVideoId === block.videos.id} onClick={() => void removeVideoSource(block.videos!)} className="text-red-300 hover:text-red-200 disabled:opacity-50">{t("common.remove")}</button>
+                <button type="button" disabled={removingVideoId === block.videos.id} onClick={() => void removeVideoSource(block.videos!)} className="text-red-300 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50">{t("common.remove")}</button>
               </div>)}
               <button type="button" disabled={attaching} onClick={() => void chooseLocalFilesToAttach()} className="w-full rounded-lg bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary">+ {t("match.sourceFile")}</button>
               {recordingConfig && <div className="rounded-lg border border-border bg-cardAlt p-2">
@@ -1114,9 +1114,9 @@ export default function MatchViewerPage() {
                 <div className="mt-2 grid grid-cols-4 gap-1">
                   {externalRecordingCameras(recordingConfig).map((cameraNumber) => <button key={cameraNumber} type="button" onClick={() => toggleAttachCamera(cameraNumber)} className={`rounded border py-1 text-xs ${attachCameras.includes(cameraNumber) ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary"}`}>{cameraNumber}</button>)}
                 </div>
-                <button type="button" disabled={attaching || !attachRecordingId.trim() || !attachCameras.length} onClick={() => void attachExternalRecording()} className="mt-2 w-full rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:opacity-50">+ 360SI</button>
+                <button type="button" disabled={attaching || !attachRecordingId.trim() || !attachCameras.length} onClick={() => void attachExternalRecording()} className="mt-2 w-full rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">+ 360SI</button>
               </div>}
-              <div className="flex gap-2"><input type="url" value={attach360Url} onChange={(event) => setAttach360Url(event.target.value)} placeholder="https://360si..." className="min-w-0 flex-1 rounded-lg border border-border bg-input px-2 py-1.5 text-xs text-textPrimary" /><button type="button" disabled={attaching || !attach360Url.trim()} onClick={() => void attach360Recording()} className="rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:opacity-50">+ 360SI</button></div>
+              <div className="flex gap-2"><input type="url" value={attach360Url} onChange={(event) => setAttach360Url(event.target.value)} placeholder="https://360si..." className="min-w-0 flex-1 rounded-lg border border-border bg-input px-2 py-1.5 text-xs text-textPrimary" /><button type="button" disabled={attaching || !attach360Url.trim()} onClick={() => void attach360Recording()} className="rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">+ 360SI</button></div>
             </div>
           </details>}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
@@ -1166,11 +1166,11 @@ export default function MatchViewerPage() {
                           })}
                         </div>
                       </div>
-                      <button type="button" disabled={attaching || !attachRecordingId.trim() || !attachCameras.length} onClick={() => void attachExternalRecording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
+                      <button type="button" disabled={attaching || !attachRecordingId.trim() || !attachCameras.length} onClick={() => void attachExternalRecording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
                     </div>
                   ) : attachSource === "file" ? (
                     <div className="mt-4">
-                      <button type="button" disabled={attaching} onClick={() => void chooseLocalFilesToAttach()} className="w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
+                      <button type="button" disabled={attaching} onClick={() => void chooseLocalFilesToAttach()} className="w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
                     </div>
                   ) : attachSource === "360" ? (
                     <div className="mt-4">
@@ -1178,7 +1178,7 @@ export default function MatchViewerPage() {
                       <label className="mt-3 block text-sm text-textSecondary">{t("match.360Link")}
                         <input type="url" value={attach360Url} onChange={(event) => setAttach360Url(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
                       </label>
-                      <button type="button" disabled={attaching || !attach360Url.trim()} onClick={() => void attach360Recording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
+                      <button type="button" disabled={attaching || !attach360Url.trim()} onClick={() => void attach360Recording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
                     </div>
                   ) : (
                     <div className="mt-4">
@@ -1186,7 +1186,7 @@ export default function MatchViewerPage() {
                       <label className="mt-3 block text-sm text-textSecondary">{t("match.veoLink")}
                         <input type="url" value={attachVeoUrl} onChange={(event) => setAttachVeoUrl(event.target.value)} placeholder="https://app.veo.co/matches/..." className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
                       </label>
-                      <button type="button" disabled={attaching || !attachVeoUrl.trim()} onClick={() => void attachVeoRecording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:opacity-50">{attaching ? t("match.resolvingVeo") : t("match.attachAction")}</button>
+                      <button type="button" disabled={attaching || !attachVeoUrl.trim()} onClick={() => void attachVeoRecording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{attaching ? t("match.resolvingVeo") : t("match.attachAction")}</button>
                     </div>
                   )}
                 </div>

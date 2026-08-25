@@ -635,9 +635,9 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-accentDim px-4 py-2 text-sm font-black text-accent">Totale duur: {totalMinutes} minuten</span>
             <button type="button" onClick={() => setShowPrintPreview(true)} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-bold text-textPrimary">Afdrukvoorbeeld</button>
-            <button type="button" disabled={saving} onClick={requestEmptyTraining} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-bold text-textPrimary disabled:opacity-50">Nieuwe training</button>
+            <button type="button" disabled={saving} onClick={requestEmptyTraining} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-bold text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">Nieuwe training</button>
             <button type="button" disabled={saving} onClick={() => void saveDraft()}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page disabled:opacity-50">
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page disabled:cursor-not-allowed disabled:opacity-50">
               {saving ? "Opslaan…" : editingTrainingId ? "Nieuwe versie opslaan" : "Opslaan"}
             </button>
           </div>
@@ -651,7 +651,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <button type="button" disabled={saving} onClick={() => setConfirmNewTraining(false)} className="rounded-lg border border-borderButton px-4 py-2 text-sm font-bold text-textPrimary">Annuleren</button>
             <button type="button" disabled={saving} onClick={startEmptyTraining} className="rounded-lg border border-red-500/60 px-4 py-2 text-sm font-bold text-red-400">Niet opslaan</button>
-            <button type="button" disabled={saving} onClick={() => void saveAndStartEmptyTraining()} className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page disabled:opacity-50">{saving ? "Opslaan…" : "Opslaan"}</button>
+            <button type="button" disabled={saving} onClick={() => void saveAndStartEmptyTraining()} className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Opslaan…" : "Opslaan"}</button>
           </div>
         </div>
       </div>}

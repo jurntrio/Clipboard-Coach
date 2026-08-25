@@ -119,8 +119,8 @@ export function ComposeDialog({ sendTargets, currentUserId, emailNotificationsEn
         </div>
 
         <div className="flex justify-end gap-3 border-t border-border bg-cardDeep px-5 py-4">
-          <button type="button" onClick={onClose} disabled={sending} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent disabled:opacity-50">{t("mailbox.cancel")}</button>
-          <button type="button" onClick={() => void submit()} disabled={sending} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page hover:opacity-90 disabled:opacity-50">{sending ? t("mailbox.sending") : t("mailbox.send")}</button>
+          <button type="button" onClick={onClose} disabled={sending} className="rounded-lg border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary hover:border-accent disabled:cursor-not-allowed disabled:opacity-50">{t("mailbox.cancel")}</button>
+          <button type="button" onClick={() => void submit()} disabled={sending} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{sending ? t("mailbox.sending") : t("mailbox.send")}</button>
         </div>
       </section>
     </div>

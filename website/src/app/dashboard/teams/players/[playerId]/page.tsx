@@ -422,7 +422,7 @@ export default function PlayerClipsPage() {
             {photoError && <p className="mt-2 text-xs text-red-300">{photoError}</p>}
           </div>
         </div>
-        <button type="button" onClick={() => setEditing(true)} disabled={!player} title={t("team.editPlayer")} aria-label={t("team.editPlayer")} className="ml-auto grid h-14 w-14 flex-shrink-0 place-items-center rounded-xl border border-borderButton bg-button transition hover:border-accent hover:bg-cardHover disabled:opacity-40"><MenuIcon src="/branding/Menu/edit.svg" /></button>
+        <button type="button" onClick={() => setEditing(true)} disabled={!player} title={t("team.editPlayer")} aria-label={t("team.editPlayer")} className="ml-auto grid h-14 w-14 flex-shrink-0 place-items-center rounded-xl border border-borderButton bg-button transition hover:border-accent hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-40"><MenuIcon src="/branding/Menu/edit.svg" /></button>
       </header>
       <nav aria-label="Spelersprofiel" className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5">
         {["Contact", "Planning", "Trainingen", "Wedstrijden", "Evaluaties", "Medisch", "Clips", "Vragenlijsten"].map((tab) => <button key={tab} type="button" onClick={() => setActiveTab(tab.toLowerCase())} className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${activeTab === tab.toLowerCase() ? "bg-accent text-page" : "text-textSecondary hover:bg-cardHover hover:text-textPrimary"}`}>{tab}</button>)}
@@ -454,7 +454,7 @@ export default function PlayerClipsPage() {
                 <input type="text" value={row.firstName} onChange={(event) => updateContactDraft(index, "firstName", event.target.value)} placeholder="Voornaam" className="w-36 flex-shrink-0 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
                 <input type="email" value={row.email} onChange={(event) => updateContactDraft(index, "email", event.target.value)} placeholder="E-mailadres" className="min-w-52 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
                 <input type="tel" value={row.phone} onChange={(event) => updateContactDraft(index, "phone", event.target.value)} placeholder={t("guardianInvite.contactPhonePlaceholder")} className="w-40 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
-                <button type="button" disabled={invitePending || (!row.email.trim() && !row.phone.trim())} onClick={() => void createGuardianInvite(index)} className="flex-shrink-0 rounded-lg border border-borderButton px-3 py-2 text-xs font-semibold text-accent transition hover:border-accent disabled:opacity-40">
+                <button type="button" disabled={invitePending || (!row.email.trim() && !row.phone.trim())} onClick={() => void createGuardianInvite(index)} className="flex-shrink-0 rounded-lg border border-borderButton px-3 py-2 text-xs font-semibold text-accent transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-40">
                   {invitePending ? t("guardianInvite.generating") : t("guardianInvite.generateLink")}
                 </button>
               </div>
@@ -482,7 +482,7 @@ export default function PlayerClipsPage() {
                     </p>
                   </div>
                   {!guardian.revoked_at && (
-                    <button type="button" disabled={guardiansBusy === guardian.id} onClick={() => void revokeGuardian(guardian.id)} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:opacity-40">
+                    <button type="button" disabled={guardiansBusy === guardian.id} onClick={() => void revokeGuardian(guardian.id)} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-40">
                       {t("guardianInvite.revoke")}
                     </button>
                   )}
@@ -507,7 +507,7 @@ export default function PlayerClipsPage() {
                     {invite.delivery_error && <span className="mt-1 block text-xs text-red-300">{invite.delivery_error}</span>}
                   </span>
                   <div className="flex gap-2">
-                    {!invite.used_at && <button type="button" disabled={guardiansBusy === invite.id} onClick={() => void cancelInvite(invite.id)} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:opacity-40">
+                    {!invite.used_at && <button type="button" disabled={guardiansBusy === invite.id} onClick={() => void cancelInvite(invite.id)} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-40">
                       {t("guardianInvite.cancel")}
                     </button>}
                   </div>
@@ -531,7 +531,7 @@ export default function PlayerClipsPage() {
               <input type="text" value={childInfoDraft.nationalRegistryNumber} onChange={(event) => setChildInfoDraft((current) => ({ ...current, nationalRegistryNumber: event.target.value }))} placeholder="Rijksregisternummer" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
               <input type="text" value={childInfoDraft.birthPlace} onChange={(event) => setChildInfoDraft((current) => ({ ...current, birthPlace: event.target.value }))} placeholder="Geboorteplaats" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
               <div className="flex items-center gap-3 sm:col-span-2">
-                <button type="button" disabled={childInfoSaving} onClick={() => void saveChildInfo()} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page hover:opacity-90 disabled:opacity-50">
+                <button type="button" disabled={childInfoSaving} onClick={() => void saveChildInfo()} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
                   {childInfoSaving ? t("guardianInvite.saving") : t("guardianInvite.save")}
                 </button>
                 {childInfoSaved && <span className="text-sm text-textMuted">{t("guardianInvite.saved")}</span>}
@@ -557,7 +557,7 @@ export default function PlayerClipsPage() {
             <input value={guardianDetailDraft.city} onChange={event => setGuardianDetailDraft(current => ({ ...current, city: event.target.value }))} placeholder="Gemeente" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary" />
             <input type="tel" value={guardianDetailDraft.phone} onChange={event => setGuardianDetailDraft(current => ({ ...current, phone: event.target.value }))} placeholder="Telefoonnummer" className="rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary sm:col-span-2" />
             <textarea value={guardianDetailDraft.notes} onChange={event => setGuardianDetailDraft(current => ({ ...current, notes: event.target.value }))} placeholder="Praktische informatie (optioneel)" className="min-h-20 rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary sm:col-span-2" />
-            <div className="flex items-center gap-3 sm:col-span-2"><button type="button" disabled={childInfoSaving} onClick={() => void saveGuardianDetails()} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page disabled:opacity-50">{childInfoSaving ? "Opslaan…" : "Gegevens opslaan"}</button>{childInfoSaved && <span className="text-sm text-accent">Opgeslagen</span>}</div>
+            <div className="flex items-center gap-3 sm:col-span-2"><button type="button" disabled={childInfoSaving} onClick={() => void saveGuardianDetails()} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">{childInfoSaving ? "Opslaan…" : "Gegevens opslaan"}</button>{childInfoSaved && <span className="text-sm text-accent">Opgeslagen</span>}</div>
           </div>
         </section>
       )}

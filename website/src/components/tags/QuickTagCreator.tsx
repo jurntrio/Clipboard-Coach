@@ -52,7 +52,7 @@ export function QuickTagCreator({ onCreated }: { onCreated: (tag: StandardTag) =
             {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
             <div className="mt-4 flex gap-2">
               <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-button px-3 py-2 text-textPrimary">{t("common.cancel")}</button>
-              <button type="submit" disabled={!name.trim() || saving} className="flex-1 rounded-lg bg-accent px-3 py-2 font-semibold text-page disabled:opacity-50">{saving ? t("common.saving") : t("tag.addAction")}</button>
+              <button type="submit" disabled={!name.trim() || saving} className="flex-1 rounded-lg bg-accent px-3 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? t("common.saving") : t("tag.addAction")}</button>
             </div>
           </form>
         </div>

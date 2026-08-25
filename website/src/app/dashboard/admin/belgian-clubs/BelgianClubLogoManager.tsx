@@ -124,7 +124,7 @@ export function BelgianClubLogoManager({ rows, readOnly }: { rows: Row[]; readOn
                         type="button"
                         disabled={busyStamnummer === row.stamnummer}
                         onClick={() => inputRefs.current[row.stamnummer]?.click()}
-                        className="rounded-lg border border-borderButton px-3 py-1.5 text-xs font-semibold text-textPrimary disabled:opacity-50"
+                        className="rounded-lg border border-borderButton px-3 py-1.5 text-xs font-semibold text-textPrimary disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {busyStamnummer === row.stamnummer ? "Bezig…" : row.largeLogoUrl ? "Vervangen" : "Uploaden"}
                       </button>
@@ -133,7 +133,7 @@ export function BelgianClubLogoManager({ rows, readOnly }: { rows: Row[]; readOn
                           type="button"
                           disabled={busyStamnummer === row.stamnummer}
                           onClick={() => void remove(row.stamnummer)}
-                          className="rounded-lg px-3 py-1.5 text-xs text-red-300 disabled:opacity-50"
+                          className="rounded-lg px-3 py-1.5 text-xs text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Verwijderen
                         </button>
