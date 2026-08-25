@@ -695,6 +695,7 @@ function App() {
   const segmentEndHandledRef = useRef(false);
   const drawingTriggerHandledRef = useRef(false);
   const pendingDrawingIndexRef = useRef(0);
+  const clipPreviewShouldPlayRef = useRef(false);
   const addTagInputRef = useRef<HTMLInputElement | null>(null);
   const [screen, setScreen] = useState<Screen>("home");
   const [videoZoom, setVideoZoom] = useState(1);
@@ -1105,6 +1106,7 @@ function App() {
     setIsEditingClipName(false);
     setClipPreviewSegmentIndex(0);
     setIsClipPreviewPlaying(false);
+    clipPreviewShouldPlayRef.current = false;
     setPendingClipPreviewPlay(false);
     setExportError("");
     setClipPreviewVideo(null);
@@ -1170,6 +1172,7 @@ function App() {
             .catch((error) => {
               console.error("Clip preview playback failed:", error);
               setClipPreviewError("Clip preview could not start.");
+              clipPreviewShouldPlayRef.current = false;
               setIsClipPreviewPlaying(false);
             });
         }
@@ -1834,7 +1837,13 @@ function App() {
     setNewTagText("");
     setIsAddTagOpen(false);
     setCurrentTime(0);
-    setDuration(0);
+    setDuration(
+      typeof selectedVideo.mediaInfo?.durationSeconds === "number" &&
+        Number.isFinite(selectedVideo.mediaInfo.durationSeconds) &&
+        selectedVideo.mediaInfo.durationSeconds > 0
+        ? selectedVideo.mediaInfo.durationSeconds
+        : 0
+    );
     setIsPlaying(false);
     setPlaybackRate(1);
     setVideoError("");
@@ -3076,6 +3085,8 @@ function App() {
     const targetSourcePath = segment.sourceVideoPath ?? selectedClip?.sourceVideoPath;
 
     segmentEndHandledRef.current = false;
+    clipPreviewShouldPlayRef.current = autoplay;
+    setIsClipPreviewPlaying(autoplay);
     drawingTriggerHandledRef.current = false;
     pendingDrawingIndexRef.current = (segment.drawings ?? []).filter((d) => d.videoTime <= targetTime).length;
     setClipPreviewSegmentIndex(segmentIndex);
@@ -3095,6 +3106,7 @@ function App() {
       } catch (error) {
         console.error("Clip segment source video missing:", targetSourcePath, error);
         setClipPreviewError("Source video missing - preview unavailable.");
+        clipPreviewShouldPlayRef.current = false;
         setIsClipPreviewPlaying(false);
       }
       return;
@@ -3109,6 +3121,7 @@ function App() {
     player.currentTime = targetTime;
 
     if (!autoplay) {
+      player.pause();
       return;
     }
 
@@ -3118,6 +3131,7 @@ function App() {
     } catch (error) {
       console.error("Clip preview playback failed:", error);
       setClipPreviewError("Clip preview could not start.");
+      clipPreviewShouldPlayRef.current = false;
       setIsClipPreviewPlaying(false);
     }
   }
@@ -3166,6 +3180,7 @@ function App() {
     }
 
     setClipPreviewProgress(selectedClipDuration);
+    clipPreviewShouldPlayRef.current = false;
     setIsClipPreviewPlaying(false);
     setIsClipPreviewFinished(true);
   }
@@ -3202,6 +3217,7 @@ function App() {
     setClipPreviewError("");
     setClipPreviewProgress(0);
     setIsClipPreviewFinished(false);
+    clipPreviewShouldPlayRef.current = false;
     setIsClipPreviewPlaying(false);
     setScreen("clips");
   }
@@ -3255,6 +3271,7 @@ function App() {
     }
 
     if (isClipPreviewPlaying) {
+      clipPreviewShouldPlayRef.current = false;
       player.pause();
       setIsClipPreviewPlaying(false);
       return;
@@ -3826,13 +3843,21 @@ function App() {
                                 .catch((error) => {
                                   console.error("Clip preview playback failed:", error);
                                   setClipPreviewError("Clip preview could not start.");
+                                  clipPreviewShouldPlayRef.current = false;
                                   setIsClipPreviewPlaying(false);
                                 });
                             }
                           }}
                           onTimeUpdate={handleClipPreviewTimeUpdate}
-                          onPause={() => setIsClipPreviewPlaying(false)}
-                          onPlay={() => setIsClipPreviewPlaying(true)}
+                          onPause={() => {
+                            if (!clipPreviewShouldPlayRef.current) {
+                              setIsClipPreviewPlaying(false);
+                            }
+                          }}
+                          onPlay={() => {
+                            clipPreviewShouldPlayRef.current = true;
+                            setIsClipPreviewPlaying(true);
+                          }}
                         />
                         {drawingPlayback ? (
                           <div className="clipDrawingOverlay">
@@ -4567,7 +4592,14 @@ function App() {
                   setVideoError("");
                 }}
                 onLoadedMetadata={(event) => {
-                  const nextDuration = event.currentTarget.duration || 0;
+                  const reportedDuration = event.currentTarget.duration;
+                  const inspectedDuration = video.mediaInfo?.durationSeconds;
+                  const nextDuration =
+                    Number.isFinite(reportedDuration) && reportedDuration > 0
+                      ? reportedDuration
+                      : typeof inspectedDuration === "number" && Number.isFinite(inspectedDuration) && inspectedDuration > 0
+                        ? inspectedDuration
+                        : 0;
                   setVideoZoom(1);
                   setVideoZoomOrigin({ x: 50, y: 50 });
                   videoPanRef.current = { x: 0, y: 0 };
@@ -4600,6 +4632,12 @@ function App() {
 
                   setDuration(nextDuration);
                   setStatus(`Video loaded: ${video.name}.`);
+                }}
+                onDurationChange={(event) => {
+                  const nextDuration = event.currentTarget.duration;
+                  if (Number.isFinite(nextDuration) && nextDuration > 0) {
+                    setDuration(nextDuration);
+                  }
                 }}
                 onError={handleVideoError}
                 onPause={() => setIsPlaying(false)}
