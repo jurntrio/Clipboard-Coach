@@ -9,7 +9,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
-  const { data: match } = await admin.from("matches").select("id, coach_id, club_id, club_team_id, match_date, status").eq("id", params.id).maybeSingle();
+  const { data: match } = await admin.from("matches").select("id, coach_id, club_id, club_team_id, match_date, status, live_tag_names").eq("id", params.id).maybeSingle();
   if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
   if (match.club_id) {
     const access = await getClubAccess(match.club_id, user);
@@ -21,6 +21,11 @@ export async function POST(_request: Request, { params }: { params: { id: string
   const today = new Date().toISOString().slice(0, 10);
   if (match.status === "finished" || match.match_date && match.match_date < today) {
     return NextResponse.json({ error: "Voor een afgelopen wedstrijd kan geen taglink meer worden gemaakt." }, { status: 409 });
+  }
+
+  if (match.club_id && !(match.live_tag_names?.length)) {
+    const { data: defaults } = await admin.from("club_live_tag_templates").select("name").eq("club_id", match.club_id).order("display_order").order("created_at");
+    if (defaults?.length) await admin.from("matches").update({ live_tag_names: defaults.map(tag => tag.name) }).eq("id", match.id);
   }
 
   const { data: existing } = await admin

@@ -14,6 +14,7 @@ import { ClubMatchOptionsManager, type ClubMatchOption } from "@/components/club
 import { OfficialRbfaDownloadImporter } from "./OfficialRbfaDownloadImporter";
 import { PlayerGroupsManager } from "./PlayerGroupsManager";
 import { SeasonManager } from "./SeasonManager";
+import { ClubLiveTagsManager } from "@/components/clubs/ClubLiveTagsManager";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean; is_personal?: boolean };
 type Team = {
@@ -256,6 +257,10 @@ export function ClubDashboard() {
           <OfficialRbfaDownloadImporter clubId={selectedClubId} teams={teams.filter(team => team.status === "active" && (team.teams?.length ?? 0) > 0).map(team => ({ id: team.id, name: team.name, display_order: team.display_order, age_category: team.age_category, level_or_competition: team.level_or_competition }))} readOnly={readOnly} onImported={async () => { await load(); await refreshImportCount(); window.dispatchEvent(new Event("dashboard-badges:refresh")); }} />
           <p className="rounded-lg border border-borderSubtle bg-cardDeep p-4 text-sm text-textSecondary">Automatische kalenderkoppelingen worden per ploeg ingesteld bij Teams & spelers.</p>
         </div>
+      </ModuleAccordion>}
+
+      {fullAdmin && moduleEnabled("matches") && <ModuleAccordion title="Live tagging" icon="/branding/games.png">
+        <ClubLiveTagsManager clubId={selectedClubId} readOnly={readOnly} />
       </ModuleAccordion>}
 
       {fullAdmin && (moduleEnabled("training") || moduleEnabled("intradesk")) && trainingSettings && (

@@ -189,6 +189,7 @@ export default function MatchViewerPage() {
   const [liveTags, setLiveTags] = useState<LiveMatchTag[]>([]);
   const [hiddenLiveTaggers, setHiddenLiveTaggers] = useState<string[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
+  const [clubLiveTagProfiles, setClubLiveTagProfiles] = useState<Array<{ name: string; live_start_offset_seconds: number; live_end_offset_seconds: number }>>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [combinedTime, setCombinedTime] = useState(0);
@@ -514,6 +515,11 @@ export default function MatchViewerPage() {
     if (!user) return;
     const { data } = await supabase.from("standard_tags").select("*").eq("coach_id", user.id).order("created_at");
     setStandardTags(data ?? []);
+    const response = await fetch(`/api/matches/${matchId}/live-tag-templates`, { cache: "no-store" });
+    if (response.ok) {
+      const body = await response.json() as { tags?: Array<{ name: string; live_start_offset_seconds: number; live_end_offset_seconds: number }> };
+      setClubLiveTagProfiles(body.tags ?? []);
+    }
   }
 
   async function attachFile(video: Video, file: File, handle?: FileSystemFileHandle | null) {
@@ -989,9 +995,10 @@ export default function MatchViewerPage() {
         }
         const targetVideo = videos[targetIndex];
         const localTime = Math.max(0, elapsed - (offsets.map.get(targetVideo.id) ?? 0));
-        const profile = standardTags.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
-        const startOffset = profile?.live_start_offset_seconds ?? profile?.start_offset_seconds ?? -5;
-        const endOffset = profile?.live_end_offset_seconds ?? profile?.end_offset_seconds ?? 5;
+        const clubProfile = clubLiveTagProfiles.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
+        const personalProfile = standardTags.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
+        const startOffset = clubProfile?.live_start_offset_seconds ?? personalProfile?.live_start_offset_seconds ?? personalProfile?.start_offset_seconds ?? -5;
+        const endOffset = clubProfile?.live_end_offset_seconds ?? personalProfile?.live_end_offset_seconds ?? personalProfile?.end_offset_seconds ?? 5;
         const maxDuration = targetVideo.duration ?? Number.POSITIVE_INFINITY;
         const startTime = Math.max(0, localTime + startOffset);
         const endTime = Math.min(maxDuration, Math.max(startTime, localTime + endOffset));
