@@ -2,14 +2,33 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { useI18n } from "@/i18n/client";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 import { SvsBrand } from "@/components/branding/SvsBrand";
+import { createClient } from "@/lib/supabase/client";
 
 export function HomeView() {
   const { t } = useI18n();
+  const [signedInAs, setSignedInAs] = useState<string | null>(null);
+  const [switchingAccount, setSwitchingAccount] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    void supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", data.user.id).maybeSingle();
+      setSignedInAs(profile?.full_name?.trim() || data.user.email || "account");
+    });
+  }, []);
+
+  async function switchAccount() {
+    setSwitchingAccount(true);
+    const response = await fetch("/api/auth/logout", { method: "POST" });
+    if (response.ok) window.location.assign("/login");
+    else setSwitchingAccount(false);
+  }
   const features = [
     { icon: "/branding/video-viewer.png", title: t("common.videoViewer"), body: t("home.videoBody") },
     { icon: "/branding/teams.png", title: t("common.teams"), body: t("home.teamsBody") },
@@ -59,24 +78,29 @@ export function HomeView() {
           <div className="hidden min-w-0 flex-1 items-center justify-end gap-3 xl:flex">
             <a href="#mogelijkheden" className="mr-2 whitespace-nowrap text-sm font-semibold text-textSecondary hover:text-accent">{t("home.discover")}</a>
             <LanguageSwitcher compact />
-            <Link href="/login" className="px-4 py-2 rounded-lg border border-borderButton text-textPrimary text-sm font-semibold hover:border-accent hover:text-accent">
-              {t("home.signIn")}
+            <Link href={signedInAs ? "/dashboard" : "/login"} className="px-4 py-2 rounded-lg border border-borderButton text-textPrimary text-sm font-semibold hover:border-accent hover:text-accent">
+              {signedInAs ? "Naar dashboard" : t("home.signIn")}
             </Link>
-            <Link href="/signup" className="px-4 py-2 rounded-lg bg-accent text-page text-sm font-semibold hover:opacity-90">
-              {t("home.register")}
-            </Link>
+            {!signedInAs && <Link href="/signup" className="px-4 py-2 rounded-lg bg-accent text-page text-sm font-semibold hover:opacity-90">{t("home.register")}</Link>}
           </div>
           <nav className="flex items-center gap-2 xl:hidden" aria-label={t("nav.account")}>
             <LanguageSwitcher compact />
-            <Link href="/login" className="rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent">
-              {t("home.signIn")}
+            <Link href={signedInAs ? "/dashboard" : "/login"} className="rounded-lg border border-borderButton px-3 py-2 text-sm font-semibold text-textPrimary hover:border-accent hover:text-accent">
+              {signedInAs ? "Dashboard" : t("home.signIn")}
             </Link>
-            <Link href="/signup" className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page hover:opacity-90">
-              {t("home.register")}
-            </Link>
+            {!signedInAs && <Link href="/signup" className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-page hover:opacity-90">{t("home.register")}</Link>}
           </nav>
         </div>
       </header>
+
+      {signedInAs && <div className="border-b border-accent/20 bg-accent/10">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-2 text-center text-sm text-textSecondary sm:justify-end sm:px-6">
+          <span>Aangemeld als <strong className="text-textBright">{signedInAs}</strong></span>
+          <button type="button" disabled={switchingAccount} onClick={() => void switchAccount()} className="font-semibold text-accent underline underline-offset-4 disabled:opacity-50">
+            {switchingAccount ? "Afmelden…" : "Aanmelden met een ander account"}
+          </button>
+        </div>
+      </div>}
 
       <main>
         <section className="relative mx-auto max-w-5xl overflow-hidden px-5 pb-14 pt-10 text-center sm:px-6 sm:pb-20 sm:pt-16">
@@ -90,11 +114,11 @@ export function HomeView() {
             {t("home.intro")}
           </p>
           <div className="flex gap-3 justify-center flex-wrap mt-8">
-            <Link href="/signup" className="px-6 py-3 rounded-xl bg-accent text-page font-bold hover:opacity-90">
-              {t("home.start")}
+            <Link href={signedInAs ? "/dashboard" : "/signup"} className="px-6 py-3 rounded-xl bg-accent text-page font-bold hover:opacity-90">
+              {signedInAs ? "Verdergaan als huidige gebruiker" : t("home.start")}
             </Link>
-            <Link href="/login" className="px-6 py-3 rounded-xl border border-borderButton text-textPrimary font-bold hover:border-accent">
-              {t("home.signIn")}
+            <Link href={signedInAs ? "/dashboard" : "/login"} className="px-6 py-3 rounded-xl border border-borderButton text-textPrimary font-bold hover:border-accent">
+              {signedInAs ? "Naar dashboard" : t("home.signIn")}
             </Link>
           </div>
           <div className="relative mt-12 sm:mt-16">
@@ -150,7 +174,7 @@ export function HomeView() {
           <div className="rounded-2xl border border-accent/30 bg-accent/10 px-6 py-10 sm:px-12">
             <h2 className="font-display text-3xl uppercase text-textBright">{t("home.ctaTitle")}</h2>
             <p className="mx-auto mt-3 max-w-xl text-textSecondary">{t("home.ctaBody")}</p>
-            <Link href="/signup" className="mt-7 inline-flex rounded-xl bg-accent px-6 py-3 font-bold text-page hover:opacity-90">{t("home.register")}</Link>
+            <Link href={signedInAs ? "/dashboard" : "/signup"} className="mt-7 inline-flex rounded-xl bg-accent px-6 py-3 font-bold text-page hover:opacity-90">{signedInAs ? "Naar dashboard" : t("home.register")}</Link>
           </div>
         </section>
       </main>
