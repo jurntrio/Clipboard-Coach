@@ -12,6 +12,7 @@ import { PlaybackControls } from "@/components/video-player/PlaybackControls";
 import { Timeline } from "@/components/video-player/Timeline";
 import { TagList } from "@/components/tags/TagList";
 import { QuickTagCreator } from "@/components/tags/QuickTagCreator";
+import { PhaseTagDialog } from "@/components/tags/PhaseTagDialog";
 import { ClipBuilder } from "@/components/clips/ClipBuilder";
 import { MatchDetailsCard } from "@/components/matches/MatchDetailsCard";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -189,6 +190,8 @@ export default function MatchViewerPage() {
   const [liveTags, setLiveTags] = useState<LiveMatchTag[]>([]);
   const [hiddenLiveTaggers, setHiddenLiveTaggers] = useState<string[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
+  const [activePhaseTag, setActivePhaseTag] = useState<{ videoId: string; startTime: number } | null>(null);
+  const [pendingPhaseTag, setPendingPhaseTag] = useState<{ videoId: string; startTime: number; endTime: number } | null>(null);
   const [clubLiveTagProfiles, setClubLiveTagProfiles] = useState<Array<{ name: string; live_start_offset_seconds: number; live_end_offset_seconds: number }>>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -854,6 +857,38 @@ export default function MatchViewerPage() {
     if (data) setTags((current) => [...current, data].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
   }
 
+  function togglePhaseTag() {
+    if (!currentVideo) return;
+    const localTime = videoRef.current?.currentTime ?? Math.max(0, combinedTime - (offsets.map.get(currentVideo.id) ?? 0));
+    if (!activePhaseTag) {
+      setActivePhaseTag({ videoId: currentVideo.id, startTime: localTime });
+      return;
+    }
+    if (activePhaseTag.videoId !== currentVideo.id) {
+      setError("Stop de fase binnen dezelfde videobron waarin ze gestart is.");
+      return;
+    }
+    setPendingPhaseTag({ videoId: currentVideo.id, startTime: Math.min(activePhaseTag.startTime, localTime), endTime: Math.max(activePhaseTag.startTime, localTime) });
+    setActivePhaseTag(null);
+    videoRef.current?.pause();
+  }
+
+  async function savePhaseTag(name: string) {
+    if (!pendingPhaseTag) return;
+    const response = await fetch(`/api/matches/${matchId}/tags`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        videoId: pendingPhaseTag.videoId, name, occurredAtSeconds: pendingPhaseTag.startTime,
+        startTime: pendingPhaseTag.startTime, endTime: pendingPhaseTag.endTime,
+        playerIds: match?.player_ids?.length ? match.player_ids : currentVideo?.active_player_ids ?? []
+      })
+    });
+    const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
+    if (!response.ok || !body?.tag) { setError(body?.error || "Fase kon niet worden opgeslagen."); return; }
+    setTags((current) => [...current.filter(tag => tag.id !== body.tag!.id), body.tag!]
+      .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+    setPendingPhaseTag(null);
+  }
+
   async function updateTag(tagId: string, combinedStart: number, combinedEnd: number) {
     const tag = tags.find((item) => item.id === tagId);
     if (!tag) return;
@@ -1127,6 +1162,7 @@ export default function MatchViewerPage() {
             </div>
           </details>}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
+          <div className="space-y-2"><h3 className="text-sm font-semibold text-textBright">{t("video.phaseTags")}</h3><button type="button" onClick={togglePhaseTag} className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${activePhaseTag ? "border-red-500 bg-red-500/10 text-red-400 hover:bg-red-500/20" : "border-dashed border-accent bg-accentDim text-accent hover:bg-cardHover"}`}><span className={`h-2.5 w-2.5 rounded-full ${activePhaseTag ? "animate-pulse bg-red-500" : "bg-accent"}`} />{activePhaseTag ? `${t("phaseTag.stop")} · ${formatTime(Math.max(0, (videoRef.current?.currentTime ?? 0) - activePhaseTag.startTime))}` : t("phaseTag.start")}</button></div>
           <div><h3 className="mb-2 text-sm font-semibold text-textBright">{t("video.periodMarkers")}</h3><div className="space-y-2">{markerTags.map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div></div>
           {displayTags.some((tag) => isPeriodMarker(tag.name)) && (
             <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
@@ -1290,6 +1326,7 @@ export default function MatchViewerPage() {
         </aside>
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}
+      {pendingPhaseTag && <PhaseTagDialog onCancel={() => setPendingPhaseTag(null)} onConfirm={savePhaseTag} />}
       {pendingGoal && <GoalTagDialog players={players} onCancel={() => setPendingGoal(null)} onConfirm={async (details) => { const pending = pendingGoal; setPendingGoal(null); await persistProfiledTag(pending.video, pending.label, pending.localTime, details); }} />}
       <ConfirmDialog open={confirmDeleteMatch} title={t("match.deleteTitle")} message={t("match.deleteMessage")} busy={deletingMatch} onCancel={() => setConfirmDeleteMatch(false)} onConfirm={() => void deleteMatch()} />
     </div>
