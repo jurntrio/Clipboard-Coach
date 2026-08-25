@@ -253,7 +253,7 @@ export function ClubDashboard() {
             <h2 className="text-xl font-semibold text-textBright">Wedstrijdkalenders</h2>
             <p className="mt-1 text-sm text-textMuted">Importeer of synchroniseer wedstrijdgegevens hier. De pagina Wedstrijden blijft zo gericht op de dagelijkse werking.</p>
           </div>
-          <OfficialRbfaDownloadImporter clubId={selectedClubId} teams={teams.filter(team => team.status === "active").map(team => ({ id: team.id, name: team.name, display_order: team.display_order, age_category: team.age_category, level_or_competition: team.level_or_competition }))} readOnly={readOnly} onImported={async () => { await load(); await refreshImportCount(); window.dispatchEvent(new Event("dashboard-badges:refresh")); }} />
+          <OfficialRbfaDownloadImporter clubId={selectedClubId} teams={teams.filter(team => team.status === "active" && (team.teams?.length ?? 0) > 0).map(team => ({ id: team.id, name: team.name, display_order: team.display_order, age_category: team.age_category, level_or_competition: team.level_or_competition }))} readOnly={readOnly} onImported={async () => { await load(); await refreshImportCount(); window.dispatchEvent(new Event("dashboard-badges:refresh")); }} />
           <p className="rounded-lg border border-borderSubtle bg-cardDeep p-4 text-sm text-textSecondary">Automatische kalenderkoppelingen worden per ploeg ingesteld bij Teams & spelers.</p>
         </div>
       </ModuleAccordion>}
