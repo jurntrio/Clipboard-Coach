@@ -244,7 +244,6 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
             </div>
           </nav>
         </div>
-        <div aria-hidden="true" className="hidden xl:block xl:w-80 xl:shrink-0" />
       </div>
     </div>
   );
