@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { ClubTeamsManager } from "./ClubTeamsManager";
 import { ClubLogoUploader } from "@/components/clubs/ClubLogoUploader";
@@ -507,7 +508,7 @@ function MatchAssignmentManager({ matches, trainers, teamNames, activeTeams, ass
 function ModuleAccordion({ id, title, icon, badgeCount = 0, children }: { id?: string; title: string; icon: string; badgeCount?: number; children: React.ReactNode }) {
   return <details id={id} className="group rounded-xl border border-border bg-card">
     <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
-      <img src={icon} alt="" className="h-10 w-10 rounded-lg object-cover" />
+      <Image src={icon} alt="" width={40} height={40} unoptimized className="h-10 w-10 rounded-lg object-cover" />
       <span className="flex-1 text-lg font-semibold text-textBright">{title}</span>
       {badgeCount > 0 && <span className="grid min-h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-xs font-black text-white">{badgeCount > 99 ? "99+" : badgeCount}</span>}
       <span className="text-accent transition-transform group-open:rotate-90">▶</span>

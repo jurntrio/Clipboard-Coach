@@ -58,35 +58,66 @@ const blockOptions = [
   ["image", "Eigen afbeelding", "Toon een clubbericht of affiche."],
 ] as const;
 
+type ClubTvTeam = {
+  id: string;
+  name: string;
+  age_category: string | null;
+  status: string;
+  season_id: string | null;
+  club_seasons: { name: string; status: string } | null;
+};
+
+type ClubTvData = {
+  screens: Screen[];
+  matches: Match[];
+  teams: ClubTvTeam[];
+  clubId: string;
+  canManage: boolean;
+};
+
+const emptyClubTvData: ClubTvData = { screens: [], matches: [], teams: [], clubId: "", canManage: false };
+
+type ClubTvAction =
+  | { action: "createScreen"; name: string; location: string }
+  | { action: "addBlock"; screenId: string; blockType: string; title: string; displayOrder: number; configuration: Record<string, unknown> }
+  | { action: "updateBlock"; screenId: string; blockId: string; title?: string; displayOrder?: number; configuration?: Record<string, unknown> }
+  | { action: "removeBlock"; screenId: string; blockId: string };
+
+type ClubTvActionResult = {
+  id?: string;
+  public_token?: string;
+  ok?: boolean;
+  block?: { id: string; title: string | null; display_order: number; configuration: Record<string, unknown> };
+  error?: string;
+};
+
+type ClubTvAct = (action: ClubTvAction) => Promise<ClubTvActionResult | null>;
+
 export function ClubTvManager() {
-  const [data, setData] = useState<any>({
-      screens: [],
-      matches: [],
-      teams: [],
-    }),
+  const [data, setData] = useState<ClubTvData>(emptyClubTvData),
     [openId, setOpenId] = useState(""),
     [name, setName] = useState(""),
     [location, setLocation] = useState(""),
     [error, setError] = useState("");
   async function load() {
     const r = await fetch("/api/club/club-tv", { cache: "no-store" }),
-      x = await r.json();
+      x: ClubTvData & { error?: string } = await r.json();
     if (!r.ok) throw Error(x.error);
     setData(x);
   }
   useEffect(() => {
     void load().catch((e) => setError(e.message));
   }, []);
-  async function act(body: any) {
+  async function act(body: ClubTvAction): Promise<ClubTvActionResult | null> {
     setError("");
     const r = await fetch("/api/club/club-tv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
-      x = await r.json();
+      x: ClubTvActionResult = await r.json();
     if (!r.ok) {
-      setError(x.error);
+      setError(x.error ?? "Onbekende fout.");
       return null;
     }
     await load();
@@ -182,10 +213,10 @@ function ScreenCard({
   open: boolean;
   onToggle: () => void;
   matches: Match[];
-  teams: any[];
+  teams: ClubTvTeam[];
   clubId: string;
   canManage: boolean;
-  act: (x: any) => Promise<any>;
+  act: ClubTvAct;
 }) {
   const header = screen.club_tv_blocks.find(
       (b) => b.block_type === "match_header" || b.block_type === "match",
@@ -264,7 +295,7 @@ function ScreenCard({
 }
 
 function TickerEditor({ screen, blocks, canManage, act }: {
-  screen: Screen; blocks: Block[]; canManage: boolean; act: (x: any) => Promise<any>;
+  screen: Screen; blocks: Block[]; canManage: boolean; act: ClubTvAct;
 }) {
   const [draft, setDraft] = useState<TickerSettings>(defaultTickerSettings);
   const orderedBlocks = [...blocks].sort((a, b) => a.display_order - b.display_order);
@@ -383,7 +414,7 @@ function TickerFields({ value, onChange }: { value: TickerSettings; onChange: (v
   </div>;
 }
 
-function tickerSettings(configuration: Record<string, any>): TickerSettings {
+function tickerSettings(configuration: Partial<TickerSettings>): TickerSettings {
   return { ...defaultTickerSettings, ...configuration, text: String(configuration?.text ?? "") };
 }
 
@@ -398,7 +429,7 @@ function MatchHeaderEditor({
   block?: Block;
   matches: Match[];
   canManage: boolean;
-  act: (x: any) => Promise<any>;
+  act: ClubTvAct;
 }) {
   const c = block?.configuration ?? {},
     [matchId, setMatchId] = useState(c.matchId ?? ""),
@@ -476,12 +507,12 @@ function MatchHeaderEditor({
             ))}
           </select>
           <div className="mt-4 flex flex-wrap gap-4">
-            {[
+            {([
               [score, setScore, "Stand"],
               [lineup, setLineup, "Opstelling"],
               [sponsors, setSponsors, "Wedstrijdsponsors"],
               [donors, setDonors, "Ballenschenkers"],
-            ].map(([value, setter, label]: any) => (
+            ] as [boolean, (value: boolean) => void, string][]).map(([value, setter, label]) => (
               <label key={label} className="text-sm text-textSecondary">
                 <input
                   type="checkbox"
@@ -534,11 +565,11 @@ function BlockRail({
 }: {
   screen: Screen;
   blocks: Block[];
-  teams: any[];
+  teams: ClubTvTeam[];
   matches: Match[];
   clubId: string;
   canManage: boolean;
-  act: (x: any) => Promise<any>;
+  act: ClubTvAct;
 }) {
   const [adding, setAdding] = useState(false),
     [editingId, setEditingId] = useState<string | null>(null),

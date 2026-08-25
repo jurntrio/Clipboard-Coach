@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -45,6 +45,27 @@ export default function TeamDetailPage() {
   const statisticsSection = useKeyedFetch<StatisticsData>();
   const activeTeamId = useRef(initialTeamId);
   const sectionRequests = useRef(new Map<string, Promise<void>>());
+
+  // matchesSection/trainingSection/statisticsSection are fresh objects every render,
+  // but their fetchKeyed methods are ref-backed and stable (see useKeyedFetch), so it's
+  // safe to treat this callback as never needing to change.
+  const preloadTeamSections = useCallback(async (selectedTeamId: string) => {
+    const existingRequest = sectionRequests.current.get(selectedTeamId);
+    if (existingRequest) return existingRequest;
+    const request = Promise.all([
+      matchesSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=matches`, (body: { matches: Match[] }) => body.matches ?? [])
+        .then((result) => { if (result && activeTeamId.current === selectedTeamId) setMatches(result); }),
+      trainingSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=training`, (body: { trainings: Training[]; training_options: { id: string; label: string }[] }) => ({
+        trainings: body.trainings ?? [],
+        optionNames: Object.fromEntries((body.training_options ?? []).map(option => [option.id, option.label]))
+      })).then((result) => { if (result && activeTeamId.current === selectedTeamId) { setTrainings(result.trainings); setOptionNames(result.optionNames); } }),
+      statisticsSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=statistics`, (body: { statistics: TrainingStatistic[]; match_statistics: MatchStatistic[] }) => ({ training: body.statistics ?? [], matches: body.match_statistics ?? [] }))
+        .then((result) => { if (result && activeTeamId.current === selectedTeamId) { setStatistics(result.training); setMatchStatistics(result.matches); } })
+    ]).then(() => undefined).finally(() => sectionRequests.current.delete(selectedTeamId));
+    sectionRequests.current.set(selectedTeamId, request);
+    return request;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     activeTeamId.current = teamId;
@@ -96,7 +117,7 @@ export default function TeamDetailPage() {
       });
     }
     if (tab === "statistics" && (matches === null || statistics === null)) void preloadTeamSections(teamId);
-  }, [matches, tab, teamId, trainings]);
+  }, [matches, tab, teamId, trainings, statistics, preloadTeamSections]);
 
   const players = useMemo(() => (team?.players ?? []).filter((player) => player.role !== "staff").sort(sortPeople), [team]);
   const legacyStaff = useMemo(() => (team?.players ?? []).filter((player) => player.role === "staff").sort(sortPeople), [team]);
@@ -137,23 +158,6 @@ export default function TeamDetailPage() {
   function selectClubTeam(clubTeamId: string | null) {
     const option = teamOptions.find(item => item.club_team_id === clubTeamId);
     if (option) openTeam(option);
-  }
-
-  async function preloadTeamSections(selectedTeamId: string) {
-    const existingRequest = sectionRequests.current.get(selectedTeamId);
-    if (existingRequest) return existingRequest;
-    const request = Promise.all([
-      matchesSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=matches`, (body: { matches: Match[] }) => body.matches ?? [])
-        .then((result) => { if (result && activeTeamId.current === selectedTeamId) setMatches(result); }),
-      trainingSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=training`, (body: { trainings: Training[]; training_options: { id: string; label: string }[] }) => ({
-        trainings: body.trainings ?? [],
-        optionNames: Object.fromEntries((body.training_options ?? []).map(option => [option.id, option.label]))
-      })).then((result) => { if (result && activeTeamId.current === selectedTeamId) { setTrainings(result.trainings); setOptionNames(result.optionNames); } }),
-      statisticsSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=statistics`, (body: { statistics: TrainingStatistic[]; match_statistics: MatchStatistic[] }) => ({ training: body.statistics ?? [], matches: body.match_statistics ?? [] }))
-        .then((result) => { if (result && activeTeamId.current === selectedTeamId) { setStatistics(result.training); setMatchStatistics(result.matches); } })
-    ]).then(() => undefined).finally(() => sectionRequests.current.delete(selectedTeamId));
-    sectionRequests.current.set(selectedTeamId, request);
-    return request;
   }
 
   if (loading && !team) return <div className="mx-auto max-w-6xl p-5 sm:p-7"><p className="rounded-xl border border-border bg-card p-5 text-textMuted">{t("team.loading")}</p></div>;

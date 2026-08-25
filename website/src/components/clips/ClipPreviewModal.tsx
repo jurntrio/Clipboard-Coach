@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n/client";
+import { ActiveDrawingOverlay } from "@/components/video-player/ActiveDrawingOverlay";
 
 export type ClipSegmentPlayback = {
   id: string;
@@ -142,7 +143,7 @@ export function ClipPreviewModal({
             onSeeked={handleSeeked}
             onEnded={handleEnded}
           />
-          {activeDrawing && <div className="absolute inset-0 grid place-items-center bg-black"><img src={activeDrawing.url} alt="" className="h-full w-full object-contain" /></div>}
+          <ActiveDrawingOverlay drawing={activeDrawing} alt="" />
         </div>
 
         {showSegmentList && <div className="mt-3 space-y-1">

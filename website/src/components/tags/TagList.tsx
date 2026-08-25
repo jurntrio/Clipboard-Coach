@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import type { Tag, TagDrawing } from "@/types/database";
 import { formatTime } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
@@ -114,7 +115,7 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
           </label>
         )}
       </div>
-      {!marker && (tag.drawings?.length ?? 0) > 0 && <div className="mt-2 flex flex-wrap gap-2">{tag.drawings.map((drawing) => <div key={drawing.id} className="w-24 rounded border border-border bg-card p-1"><button type="button" onClick={() => onOpenDrawing?.(tag, drawing)} className="block w-full" aria-label={t("tag.editDrawingAt", { time: formatTime(drawing.video_time) })}><img src={drawing.url} alt={t("tag.drawingAt", { time: formatTime(drawing.video_time) })} className="h-12 w-full rounded bg-black object-cover" /></button><label className="mt-1 flex items-center gap-1 text-[10px] text-textMuted"><input type="number" min={1} max={30} value={drawing.duration_seconds} onChange={(event) => void onDrawingDurationChange?.(tag, drawing.id, Math.min(30, Math.max(1, Number(event.target.value) || 1)))} className="w-10 rounded border border-border bg-input px-1 text-textPrimary" /> {t("tag.seconds")}</label></div>)}</div>}
+      {!marker && (tag.drawings?.length ?? 0) > 0 && <div className="mt-2 flex flex-wrap gap-2">{tag.drawings.map((drawing) => <div key={drawing.id} className="w-24 rounded border border-border bg-card p-1"><button type="button" onClick={() => onOpenDrawing?.(tag, drawing)} className="relative block h-12 w-full" aria-label={t("tag.editDrawingAt", { time: formatTime(drawing.video_time) })}><Image src={drawing.url} alt={t("tag.drawingAt", { time: formatTime(drawing.video_time) })} fill unoptimized sizes="96px" className="rounded bg-black object-cover" /></button><label className="mt-1 flex items-center gap-1 text-[10px] text-textMuted"><input type="number" min={1} max={30} value={drawing.duration_seconds} onChange={(event) => void onDrawingDurationChange?.(tag, drawing.id, Math.min(30, Math.max(1, Number(event.target.value) || 1)))} className="w-10 rounded border border-border bg-input px-1 text-textPrimary" /> {t("tag.seconds")}</label></div>)}</div>}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ClipSegmentPlayback } from "./ClipPreviewModal";
 import { useHlsSource } from "../video-player/useHlsSource";
+import { ActiveDrawingOverlay } from "../video-player/ActiveDrawingOverlay";
 import { useI18n } from "@/i18n/client";
 
 export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segments: ClipSegmentPlayback[] }) {
@@ -196,7 +197,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
           onCanPlay={() => setPlaybackError("")}
           onError={() => setPlaybackError(t("clip.formatUnsupported"))}
         />
-        {activeDrawing && <div className="absolute inset-0 grid place-items-center bg-black"><img src={activeDrawing.url} alt="" className="h-full w-full object-contain" /></div>}
+        <ActiveDrawingOverlay drawing={activeDrawing} alt="" />
       </div>
       <div className="flex items-center gap-3 border-t border-white/10 px-3 py-2 text-white">
         <button type="button" onClick={togglePlayback} className="grid h-9 w-9 place-items-center rounded-full bg-accent font-bold text-page" aria-label={playing ? t("clip.pause") : t("clip.play")}>

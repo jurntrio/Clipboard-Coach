@@ -1,7 +1,12 @@
 import { notFound, redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false }
+};
 
 export default async function TvSharePage({ params }: { params: { code: string } }) {
   const code = params.code.trim().toUpperCase().replace(/[^2-9A-HJ-NP-Z]/g, "");

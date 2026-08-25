@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import { LegalPage, LegalSection } from "@/components/legal/LegalPage";
 import { getServerI18n } from "@/i18n/server";
 import { PRIVACY_VERSION } from "@/lib/legal";
+
+export function generateMetadata(): Metadata {
+  const { t } = getServerI18n();
+  return { title: t("privacyPolicy.title") };
+}
 
 export default function PrivacyPage() {
   const { t } = getServerI18n();

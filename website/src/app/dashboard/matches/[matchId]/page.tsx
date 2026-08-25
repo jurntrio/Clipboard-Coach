@@ -76,6 +76,18 @@ function parseClockTime(value: string): number | null {
   return null;
 }
 
+function liveTagVideoSeconds(liveTag: LiveMatchTag, match: Match) {
+  if (!match.match_date || !match.recording_start_time) return null;
+  const recordingStartedAt = new Date(`${match.match_date}T${match.recording_start_time}`);
+  if (Number.isNaN(recordingStartedAt.getTime())) return null;
+  const seconds = (new Date(liveTag.occurred_at).getTime() - recordingStartedAt.getTime()) / 1000;
+  return Math.max(0, seconds + (match.live_tag_offset_seconds ?? 0));
+}
+
+function liveTagElapsedSeconds(liveTag: LiveMatchTag, match: Match | null) {
+  return match ? liveTagVideoSeconds(liveTag, match) : null;
+}
+
 function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleReviewed, onSeek, onCalibrate, onUpdateTimes, onDelete, t }: {
   liveTag: LiveMatchTag;
   materializedTag: Tag | undefined;
@@ -91,7 +103,11 @@ function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleRevie
   const [startDraft, setStartDraft] = useState(materializedTag ? formatTime(materializedTag.start_time) : "");
   const [endDraft, setEndDraft] = useState(materializedTag ? formatTime(materializedTag.end_time) : "");
 
+  // Only the time value should reset the draft; depending on `materializedTag` itself
+  // would wipe in-progress edits on every re-render that gives a new tag object reference.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (materializedTag) setStartDraft(formatTime(materializedTag.start_time)); }, [materializedTag?.start_time]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (materializedTag) setEndDraft(formatTime(materializedTag.end_time)); }, [materializedTag?.end_time]);
 
   function saveTimes() {
@@ -406,8 +422,8 @@ export default function MatchViewerPage() {
   const sortedLiveTags = useMemo(() => {
     const displayedTagById = new Map(displayTags.map((tag) => [tag.id, tag]));
     return [...liveTags].sort((a, b) => {
-      const aTime = (a.tag_id ? displayedTagById.get(a.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(a);
-      const bTime = (b.tag_id ? displayedTagById.get(b.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(b);
+      const aTime = (a.tag_id ? displayedTagById.get(a.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(a, match);
+      const bTime = (b.tag_id ? displayedTagById.get(b.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(b, match);
       if (aTime === null) return bTime === null ? a.occurred_at.localeCompare(b.occurred_at) : 1;
       if (bTime === null) return -1;
       return aTime - bTime || a.occurred_at.localeCompare(b.occurred_at);
@@ -926,26 +942,11 @@ export default function MatchViewerPage() {
     if (updateError) setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, reviewed_at: liveTag.reviewed_at } : item));
   }
 
-  function liveTagElapsedSeconds(liveTag: LiveMatchTag) {
-    if (!match?.match_date) return null;
-    // The recording's real start time is the true anchor for a live tag's timestamp - the
-    // scheduled kickoff time is only an estimate and the camera is rarely started at that exact
-    // instant - but fall back to it so a tag still gets placed (roughly) even before "Start van
-    // de opname" has been filled in. live_tag_offset_seconds is a small fine-tune (e.g. average
-    // phone-grab delay), or a manual correction via the recalibrate button.
-    const anchorTime = match.recording_start_time ?? match.start_time;
-    if (!anchorTime) return null;
-    const anchor = new Date(`${match.match_date}T${anchorTime}`);
-    if (Number.isNaN(anchor.getTime())) return null;
-    const secondsSinceAnchor = (new Date(liveTag.occurred_at).getTime() - anchor.getTime()) / 1000;
-    return Math.max(0, secondsSinceAnchor + (match.live_tag_offset_seconds ?? 0));
-  }
-
   async function confirmLiveTagCalibration() {
     const liveTag = liveTags.find((item) => item.id === calibratingLiveTagId);
     setCalibratingLiveTagId(null);
     if (!liveTag || !match) return;
-    const currentComputed = liveTagElapsedSeconds(liveTag);
+    const currentComputed = liveTagElapsedSeconds(liveTag, match);
     if (currentComputed === null) return;
     const delta = combinedTime - currentComputed;
     if (Math.abs(delta) < 0.01) return;
@@ -978,7 +979,7 @@ export default function MatchViewerPage() {
     for (const liveTag of pending) {
       materializingLiveTagIdsRef.current.add(liveTag.id);
       try {
-        const elapsed = liveTagElapsedSeconds(liveTag);
+        const elapsed = liveTagElapsedSeconds(liveTag, match);
         if (elapsed === null) continue;
         let targetIndex = videos.length - 1;
         for (let index = 0; index < videos.length; index += 1) {
@@ -1261,7 +1262,7 @@ export default function MatchViewerPage() {
             <TagList tags={rightColumnTags} tagMetaById={liveTagMetaById} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={deleteDisplayedTag} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={combinedTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
             {!!visibleLiveTags.some((liveTag) => !liveTag.tag_id) && <div className="mt-1 space-y-1">
               {visibleLiveTags.filter((liveTag) => !liveTag.tag_id).map((liveTag) => {
-                const elapsed = liveTagElapsedSeconds(liveTag);
+                const elapsed = liveTagElapsedSeconds(liveTag, match);
                 return <LiveTagRow
                   key={liveTag.id}
                   liveTag={liveTag}

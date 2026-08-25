@@ -2,19 +2,29 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ShareClipPlayer } from "@/components/clips/ShareClipPlayer";
+import type { ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { getServerI18n } from "@/i18n/server";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 import type { Metadata } from "next";
 import { SvsBrand } from "@/components/branding/SvsBrand";
+import type { Clip, ClipSegment, Match, ShareLink, Tag, Video } from "@/types/database";
 
 export const dynamic = "force-dynamic";
+
+type MetadataMatch = Pick<Match, "team_a_name" | "team_b_name" | "match_date" | "score_a" | "score_b">;
+type MetadataRow = {
+  clips: {
+    name: string;
+    videos: { match_videos: { matches: MetadataMatch | null }[] } | null;
+  } | null;
+};
 
 export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
   const supabase = createAdminClient();
   const { data } = await supabase.from("share_links").select(
     "clips(name, videos(match_videos(matches(team_a_name, team_b_name, match_date, score_a, score_b))))"
-  ).eq("token", params.token).maybeSingle();
-  const clip = data?.clips as any;
+  ).eq("token", params.token).maybeSingle<MetadataRow>();
+  const clip = data?.clips;
   const match = clip?.videos?.match_videos?.[0]?.matches;
   const title = match ? `${match.team_a_name} – ${match.team_b_name}${match.score_a !== null && match.score_b !== null ? ` | ${match.score_a}–${match.score_b}` : ""}` : clip?.name || "Gedeelde clip";
   const description = match?.match_date
@@ -22,6 +32,28 @@ export async function generateMetadata({ params }: { params: { token: string } }
     : "Bekijk deze gedeelde wedstrijdclip.";
   return { title, description, robots: { index: false, follow: false }, openGraph: { title, description, type: "video.other" } };
 }
+
+type ShareMatch = Pick<Match, "id" | "club_id" | "club_team_id" | "team_a_name" | "team_b_name" | "match_date" | "start_time" | "score_a" | "score_b" | "public_location" | "show_public_location" | "sponsor_source" | "sponsor_caption">;
+
+type ShareTag = Pick<Tag, "id" | "name" | "start_time" | "end_time" | "color">;
+
+type ShareClipSegment = Pick<ClipSegment, "id" | "sequence_order" | "video_id"> & {
+  videos: Pick<Video, "video_url"> | null;
+  tags: ShareTag | null;
+};
+
+type ShareVideo = Pick<Video, "video_url" | "title" | "home_team" | "away_team"> & {
+  match_videos: { match_id: string; matches: ShareMatch | null }[];
+};
+
+type ShareClip = Pick<Clip, "name" | "team_id" | "render_status" | "rendered_segments"> & {
+  videos: ShareVideo | null;
+  clip_segments: ShareClipSegment[] | null;
+};
+
+type ShareLinkRow = Pick<ShareLink, "id" | "view_count" | "expires_at"> & {
+  clips: ShareClip | null;
+};
 
 export default async function SharePage({ params }: { params: { token: string } }) {
   const { t } = getServerI18n();
@@ -40,7 +72,7 @@ export default async function SharePage({ params }: { params: { token: string } 
        )`
     )
     .eq("token", params.token)
-    .single();
+    .single<ShareLinkRow>();
 
   if (!shareLink || !shareLink.clips) {
     notFound();
@@ -57,21 +89,21 @@ export default async function SharePage({ params }: { params: { token: string } 
     await supabase.from("share_links").update({ view_count: shareLink.view_count + 1 }).eq("id", shareLink.id);
   }
 
-  const clip = shareLink.clips as any;
+  const clip = shareLink.clips;
   const match = clip.videos?.match_videos?.[0]?.matches ?? null;
-  const sourceSegments = (clip.clip_segments ?? [])
-    .sort((a: any, b: any) => a.sequence_order - b.sequence_order)
-    .filter((segment: any) => !!segment.tags)
-    .map((segment: any) => ({ id: segment.id, name: segment.tags.name, color: segment.tags.color, start_time: segment.tags.start_time, end_time: segment.tags.end_time, url: segment.videos?.video_url }));
-  const segments = clip.render_status === "ready" && clip.rendered_segments?.length
-    ? clip.rendered_segments.map((segment: any) => ({
+  const sourceSegments: ClipSegmentPlayback[] = (clip.clip_segments ?? [])
+    .sort((a, b) => a.sequence_order - b.sequence_order)
+    .filter((segment): segment is ShareClipSegment & { tags: ShareTag } => !!segment.tags)
+    .map((segment) => ({ id: segment.id, name: segment.tags.name, color: segment.tags.color, start_time: segment.tags.start_time, end_time: segment.tags.end_time, url: segment.videos?.video_url }));
+  const segments: ClipSegmentPlayback[] = clip.render_status === "ready" && clip.rendered_segments?.length
+    ? clip.rendered_segments.map((segment) => ({
         id: segment.id,
         name: segment.name,
         color: segment.color,
         start_time: segment.play_start ?? 0,
         end_time: segment.duration,
         url: segment.url,
-        drawings: (segment.mobile_compatible ? [] : segment.drawings ?? []).map((drawing: any) => ({
+        drawings: (segment.mobile_compatible ? [] : segment.drawings ?? []).map((drawing) => ({
           id: drawing.id,
           url: drawing.url,
           at_time: (segment.drawing_time_base === "clip" ? (segment.play_start ?? 0) : 0) + drawing.at_seconds,
@@ -81,7 +113,7 @@ export default async function SharePage({ params }: { params: { token: string } 
         source_end: segment.source_end
       }))
     : sourceSegments;
-  const hasOnlineSegments = clip.render_status === "ready" && segments.length > 0 && segments.every((segment: any) => typeof segment.url === "string" && /^https?:\/\//.test(segment.url));
+  const hasOnlineSegments = clip.render_status === "ready" && segments.length > 0 && segments.every((segment) => typeof segment.url === "string" && /^https?:\/\//.test(segment.url));
   let sponsorUrl: string | null = null;
   let sponsorCaption: string | null = null;
   if (match?.club_id && match.sponsor_source !== "none") {
@@ -127,7 +159,7 @@ export default async function SharePage({ params }: { params: { token: string } 
         </section>}
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           {hasOnlineSegments ? (
-            <ShareClipPlayer videoUrl={clip.videos?.video_url} segments={segments} />
+            <ShareClipPlayer videoUrl={clip.videos?.video_url ?? ""} segments={segments} />
           ) : (
             <div className="grid min-h-72 place-items-center bg-black p-8 text-center">
               <div><h2 className="font-semibold text-textBright">{t("public.unavailable")}</h2><p className="mt-2 text-sm text-textMuted">{t("public.unavailableBody")}</p></div>

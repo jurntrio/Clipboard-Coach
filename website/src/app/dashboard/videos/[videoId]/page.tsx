@@ -133,17 +133,53 @@ export default function VideoViewerPage() {
   }
 
   useEffect(() => {
-    loadVideo();
-    loadTags();
-    loadStandardTags();
+    // Guards against a slow response for a previously viewed video overwriting
+    // the state of the video the user has since navigated to.
+    let cancelled = false;
+
+    async function loadVideo() {
+      const { data } = await supabase.from("videos").select("*").eq("id", videoId).single();
+      if (!cancelled) setVideo(data);
+    }
+
+    async function loadTags() {
+      const { data } = await supabase
+        .from("tags")
+        .select("*")
+        .eq("video_id", videoId)
+        .order("start_time", { ascending: true });
+      if (!cancelled) setTags(data ?? []);
+    }
+
+    async function loadStandardTags() {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data } = await supabase.from("standard_tags").select("*").eq("coach_id", user.id).order("created_at");
+      if (!cancelled) setStandardTags(data ?? []);
+    }
+
+    void loadVideo();
+    void loadTags();
+    void loadStandardTags();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
   useEffect(() => {
-    if (video?.team_id) {
-      loadPlayers(video.team_id);
-    } else {
-      setPlayers([]);
+    if (!video?.team_id) { setPlayers([]); return; }
+    let cancelled = false;
+    const teamId = video.team_id;
+
+    async function loadPlayers() {
+      const { data } = await supabase.from("players").select("*").eq("team_id", teamId).neq("role", "staff").order("last_name");
+      if (!cancelled) setPlayers(data ?? []);
     }
+
+    void loadPlayers();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video?.team_id]);
 
   useEffect(() => {
@@ -164,36 +200,6 @@ export default function VideoViewerPage() {
     setLocalVideoUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [localFile]);
-
-  async function loadVideo() {
-    const { data } = await supabase.from("videos").select("*").eq("id", videoId).single();
-    setVideo(data);
-  }
-
-  async function loadTags() {
-    const { data } = await supabase
-      .from("tags")
-      .select("*")
-      .eq("video_id", videoId)
-      .order("start_time", { ascending: true });
-
-    setTags(data ?? []);
-  }
-
-  async function loadStandardTags() {
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data } = await supabase.from("standard_tags").select("*").eq("coach_id", user.id).order("created_at");
-    setStandardTags(data ?? []);
-  }
-
-  async function loadPlayers(teamId: string) {
-    const { data } = await supabase.from("players").select("*").eq("team_id", teamId).neq("role", "staff").order("last_name");
-    setPlayers(data ?? []);
-  }
 
   async function addTag(label: string, profile?: StandardTag) {
     if (!label.trim() || !video) return;

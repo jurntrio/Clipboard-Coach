@@ -29,6 +29,7 @@ export const metadata: Metadata = {
     title: "Sport Visual Systems",
     description: "Sportanalyse, teambeheer, videoreview en communicatie in één platform.",
     siteName: "Sport Visual Systems",
+    locale: "nl_BE",
     images: [{ url: "/branding/svs-square-dark.png", width: 887, height: 887, alt: "Sport Visual Systems" }]
   }
 };
