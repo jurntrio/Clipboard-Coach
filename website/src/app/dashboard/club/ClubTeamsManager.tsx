@@ -433,7 +433,10 @@ function TeamEditor({ clubId, team, trainers, coordinatorTrainerIds, options, bu
         <input value={player.phoneNumbers} disabled={readOnly} onChange={(event) => updatePlayer(index, "phoneNumbers", event.target.value)} placeholder={t("clubTeams.phonePlaceholder")} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`} />
         {!readOnly && (player.isStored
           ? <button type="button" disabled title={t("clubTeams.removeDisabledTooltip")} className="px-2 text-textMuted opacity-40">×</button>
-          : <button type="button" onClick={() => setPlayers((current) => current.filter((_, row) => row !== index))} className="px-2 text-red-300">×</button>
+          : <div className="flex items-center justify-end gap-2">
+              <button type="button" disabled={busy || !player.firstName.trim() || !player.lastName.trim()} onClick={() => void saveAll()} className="whitespace-nowrap rounded-lg bg-accent px-3 py-2 text-xs font-bold text-page disabled:cursor-not-allowed disabled:opacity-40">Speler opslaan</button>
+              <button type="button" aria-label={`${player.firstName || "Speler"} verwijderen`} onClick={() => setPlayers((current) => current.filter((_, row) => row !== index))} className="px-2 text-red-300">×</button>
+            </div>
         )}
       </div>)}</div>
       {!readOnly && <p className="mt-3 text-xs text-textMuted">{t("clubTeams.saveHint", { save: t("common.save") })}</p>}
