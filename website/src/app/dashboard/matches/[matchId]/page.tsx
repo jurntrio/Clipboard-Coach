@@ -1141,7 +1141,7 @@ export default function MatchViewerPage() {
             <div className="grid grid-cols-1 gap-2">
               {clipTags.map((tag) => <button key={tag.id} onClick={() => void addTag(tag.name)} className="rounded-lg border border-borderButton bg-button px-2 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}
             </div>
-            <div className="mt-2"><QuickTagCreator onCreated={async (tag) => { setStandardTags((current) => [...current, tag]); await addTag(tag.name); }} /></div>
+            <div className="mt-2"><QuickTagCreator onCreated={async (name) => { await addTag(name); }} /></div>
           </div>
           <button type="button" onClick={drawDownloadOnly} className="mt-auto w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page">{t("tag.draw")}</button>
         </aside>
