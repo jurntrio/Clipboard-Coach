@@ -330,7 +330,6 @@ export default function MatchViewerPage() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [currentUserId, setCurrentUserId] = useState("");
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
-  const [canEditMatch, setCanEditMatch] = useState(false);
   const [canManageSources, setCanManageSources] = useState(false);
   const [removingVideoId, setRemovingVideoId] = useState<string | null>(null);
   const [replacing, setReplacing] = useState(false);
@@ -341,11 +340,6 @@ export default function MatchViewerPage() {
   const primaryBlocks = useMemo(() => blocks.filter((block) => block.is_primary), [blocks]);
   const videos = useMemo(() => primaryBlocks.map((block) => block.videos).filter((video): video is Video => !!video), [primaryBlocks]);
   const allVideos = useMemo(() => blocks.map((block) => block.videos).filter((video): video is Video => !!video), [blocks]);
-  const videoById = useMemo(() => {
-    const map = new Map<string, Video>();
-    for (const block of blocks) if (block.videos) map.set(block.videos.id, block.videos);
-    return map;
-  }, [blocks]);
   const camerasByBlockOrder = useMemo(() => {
     const map = new Map<number, MatchBlock[]>();
     for (const block of blocks) {
@@ -483,8 +477,6 @@ export default function MatchViewerPage() {
     const body = await response.json().catch(() => null) as { match?: MatchWithBlocks; tags?: Tag[]; liveTags?: LiveMatchTag[]; canManageSources?: boolean; recordingConfig?: { external_recording_url_template: string | null; external_recording_camera_count: number | null } | null; error?: string } | null;
     if (!response.ok || !body?.match) { setError(body?.error || t("match.notFound")); return; }
     const loaded = body.match;
-    const { data: profile } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
-    setCanEditMatch(loaded.coach_id === user.id || profile?.account_role === "club_admin");
     setCanManageSources(body.canManageSources === true);
     setMatch(loaded);
     setRecordingConfig(externalRecordingConfig(body.recordingConfig));

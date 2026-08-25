@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 import { getClubContext } from "@/lib/auth/active-club";
@@ -69,7 +70,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 function PendingClubAccessNotice({ pendingClubs }: { pendingClubs: { id: string; name: string }[] }) {
   return (
     <div className="mx-auto max-w-xl px-5 py-16 text-center">
-      <img src="/branding/clubadmin.png" alt="" className="mx-auto h-16 w-16 rounded-xl object-cover" />
+      <Image src="/branding/clubadmin.png" alt="" width={64} height={64} className="mx-auto h-16 w-16 rounded-xl object-cover" />
       <h1 className="mt-6 text-xl font-semibold text-textBright">Je aanvraag staat nog open</h1>
       <p className="mt-3 text-sm text-textMuted">
         {pendingClubs.length === 1
