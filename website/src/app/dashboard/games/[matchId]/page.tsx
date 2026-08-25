@@ -9,6 +9,7 @@ import { MatchPreparationEditor } from "@/components/matches/MatchPreparationEdi
 import { MatchTagLinkButton } from "@/components/matches/MatchTagLinkButton";
 import { getClubContext } from "@/lib/auth/active-club";
 import { MatchCoreInfoEditor } from "@/components/matches/MatchCoreInfoEditor";
+import { MatchHeaderScoreEditor } from "@/components/matches/MatchHeaderScoreEditor";
 import { deleteObject } from "@/lib/r2/upload";
 
 type GuardianPlayer = { player_id: string; team_id: string | null };
@@ -48,6 +49,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   const canViewSelection = staffCanView && hasClubPermission(access, "games.selection.view");
   const canViewReport = staffCanView && hasClubPermission(access, "games.report.view");
   const canManageReport = staffCanView && hasClubPermission(access, "games.report.manage");
+  const canEditScore = canManage || canManageReport;
   const canManagePublicInfo = staffCanView && hasClubPermission(access, "games.communication.manage");
   const canViewScouting = staffCanView && hasClubPermission(access, "games.scouting.view");
   const canManageScouting = staffCanView && hasClubPermission(access, "games.scouting.manage");
@@ -167,9 +169,9 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       </div>
       <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
         <h1 className="text-xl font-black text-textBright sm:text-3xl">{homeTeamName}</h1>
-        <div className="min-w-20 rounded-xl border border-borderSubtle bg-cardDeep px-3 py-2 text-2xl font-black text-textBright">
-          {scoreKnown ? `${homeScore} – ${awayScore}` : "–"}
-        </div>
+        {editing && canEditScore
+          ? <MatchHeaderScoreEditor matchId={match.id} homeTeamName={homeTeamName} awayTeamName={awayTeamName} homeScore={homeScore} awayScore={awayScore} />
+          : <div className="min-w-20 rounded-xl border border-borderSubtle bg-cardDeep px-3 py-2 text-2xl font-black text-textBright">{scoreKnown ? `${homeScore} – ${awayScore}` : "–"}</div>}
         <h2 className="text-xl font-black text-textBright sm:text-3xl">{awayTeamName}</h2>
       </div>
       <p className="mt-5 text-center text-sm text-textMuted">{displayDate(match.match_date)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}{match.official_series_name ? ` · ${match.official_series_name}` : ""}</p>
@@ -181,7 +183,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
 
     {editing && canManage && <MatchCoreInfoEditor match={match} teams={(editableTeams ?? []).map(team => ({ id: team.id, name: team.name }))} />}
 
-    <section className="grid gap-4">
+    {!editing && <section className="grid gap-4">
       <PublicMatchInfoEditor
         match={match}
         sponsorFeatureEnabled={club?.clip_advertising_enabled !== false}
@@ -204,7 +206,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
         </dl>}
         {match.show_public_location && match.public_location && <Info label="Locatie" value={match.public_location} />}
       </PublicMatchInfoEditor>
-    </section>
+    </section>}
 
     {editing && canPrepare && <MatchPreparationEditor match={match} />}
 

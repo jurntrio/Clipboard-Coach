@@ -38,6 +38,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
   const [generalOpen, setGeneralOpen] = useState(false);
   const [selectionOpen, setSelectionOpen] = useState(false);
   const [meetingTimeEnabled, setMeetingTimeEnabled] = useState(false);
+  const [recordingStartTime, setRecordingStartTime] = useState("");
   const [isHomeMatch, setIsHomeMatch] = useState(true);
   const [meetingTime, setMeetingTime] = useState("");
   const [departureTimeEnabled, setDepartureTimeEnabled] = useState(false);
@@ -60,7 +61,6 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
   const [matchFormat, setMatchFormat] = useState("");
   const [periodCount, setPeriodCount] = useState("");
   const [periodMinutes, setPeriodMinutes] = useState("");
-  const [minimumPlayers, setMinimumPlayers] = useState("");
   const [transportMode, setTransportMode] = useState<"club" | "own">("own");
   const [communication, setCommunication] = useState<SelectionCommunication | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
@@ -120,6 +120,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
       setMeetingTimeEnabled(current.meeting_time_enabled === true || !current.meeting_time);
       setIsHomeMatch(current.is_home_match !== false);
       setMeetingTime(current.meeting_time?.slice(0, 5) ?? "");
+      setRecordingStartTime(current.recording_start_time?.slice(0, 5) ?? "");
       setDepartureTimeEnabled(current.departure_time_enabled === true);
       setDepartureTime(current.departure_time?.slice(0, 5) ?? "");
       setFieldOptionId(current.field_option_id ?? "");
@@ -133,7 +134,6 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
       setMatchFormat(current.match_format ?? "");
       setPeriodCount(current.match_period_count?.toString() ?? "");
       setPeriodMinutes(current.match_period_minutes?.toString() ?? "");
-      setMinimumPlayers(current.match_minimum_players?.toString() ?? "");
       const age = Number(String(body.ageCategory ?? "").match(/U(\d+)/i)?.[1] ?? 99);
       setTransportMode(current.transport_mode === "club" || (!current.transport_mode && current.is_home_match === false && age <= 13) ? "club" : "own");
       setBusy(false);
@@ -162,7 +162,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
     const response = await fetch(`/api/matches/${match.id}/preparation`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        isHomeMatch, meetingTimeEnabled, meetingTime,
+        isHomeMatch, meetingTimeEnabled, meetingTime, recordingStartTime,
         departureTimeEnabled: !isHomeMatch && departureTimeEnabled,
         departureTime: !isHomeMatch ? departureTime : "",
         fieldOptionId, lockerRoomOptionId, visitorLockerRoomOptionId, refereeOptionId,
@@ -170,7 +170,8 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
         matchFormat,
         periodCount: periodCount === "" ? null : Number(periodCount),
         periodMinutes: periodMinutes === "" ? null : Number(periodMinutes),
-        minimumPlayers: minimumPlayers === "" ? null : Number(minimumPlayers), transportMode,
+        minimumPlayers: matchFormat === "5v5" ? 5 : matchFormat === "8v8" ? 8 : matchFormat === "11v11" ? 11 : null,
+        transportMode,
         players: drafts.map(item => ({
           playerId: item.playerId, selected: item.selected,
           jerseyNumber: item.jerseyNumber === "" ? null : Number(item.jerseyNumber),
@@ -238,6 +239,10 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
             {t("matchPrep.general")}<span className={`text-accent transition ${generalOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
           {generalOpen && <div className="grid gap-3 border-t border-borderSubtle p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="text-sm text-textSecondary">Start van de opname
+              <input type="time" value={recordingStartTime} onChange={event => setRecordingStartTime(event.target.value)} className={`mt-1 ${inputClass}`} />
+              <span className="mt-1 block text-xs text-textMuted">Het tijdstip waarop de camera-opname werkelijk gestart is.</span>
+            </label>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-textPrimary"><input type="checkbox" checked={meetingTimeEnabled} onChange={event => setMeetingTimeEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.meetingTime")}</label>
               {meetingTimeEnabled && <input type="time" value={meetingTime} onChange={event => setMeetingTime(event.target.value)} className={inputClass} />}
@@ -247,13 +252,12 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
               <strong className="block text-textBright">{match.team_a_name} – {match.team_b_name}</strong>
               <span>{match.match_date || "—"}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</span>
             </div>
-            <label className="text-sm text-textSecondary">Spelvorm<select value={matchFormat} onChange={event => setMatchFormat(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option><option value="5v5">5v5</option><option value="8v8">8v8</option><option value="11v11">11v11</option></select></label>
+            <label className="text-sm text-textSecondary">Spelvorm<select value={matchFormat} onChange={event => setMatchFormat(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option><option value="5v5">5vs5</option><option value="8v8">8vs8</option><option value="11v11">11vs11</option></select></label>
             <label className="text-sm text-textSecondary">Aantal periodes<input type="number" min="1" max="12" value={periodCount} onChange={event => setPeriodCount(event.target.value)} className={`mt-1 ${inputClass}`} /></label>
             <label className="text-sm text-textSecondary">Minuten per periode<input type="number" min="1" max="120" value={periodMinutes} onChange={event => setPeriodMinutes(event.target.value)} className={`mt-1 ${inputClass}`} /></label>
-            <label className="text-sm text-textSecondary">Minimum spelers<input type="number" min="1" max="30" value={minimumPlayers} onChange={event => setMinimumPlayers(event.target.value)} className={`mt-1 ${inputClass}`} /><span className="mt-1 block text-[11px] text-textMuted">Alleen gebruikt om een tekort in de selectie te signaleren.</span></label>
             {isHomeMatch && <label className="text-sm text-textSecondary">{t("matchPrep.field")}<select value={fieldOptionId} onChange={event => setFieldOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("field").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
             {isHomeMatch && <label className="text-sm text-textSecondary">{t("matchPrep.lockerRoom")}<select value={lockerRoomOptionId} onChange={event => setLockerRoomOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("locker_room").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
-            {isHomeMatch && <label className="text-sm text-textSecondary">Kleedkamer bezoekers<select value={visitorLockerRoomOptionId} onChange={event => setVisitorLockerRoomOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("visitor_locker_room").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
+            {isHomeMatch && <label className="text-sm text-textSecondary">Kleedkamer bezoekers<select value={visitorLockerRoomOptionId} onChange={event => setVisitorLockerRoomOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">—</option>{byType("locker_room").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>}
             <label className="text-sm text-textSecondary">Scheidsrechter<select value={refereeOptionId} onChange={event => setRefereeOptionId(event.target.value)} className={`mt-1 ${inputClass}`}><option value="">Aangeduid door KBVB</option>{byType("referee").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select>{loadedMatch?.official_referee_name && <span className="mt-1 block text-xs text-accent">Bondsaanduiding: {loadedMatch.official_referee_name}</span>}{loadedMatch?.official_assistant_referee_1_name && <span className="block text-xs text-textMuted">Assistent 1: {loadedMatch.official_assistant_referee_1_name}</span>}{loadedMatch?.official_assistant_referee_2_name && <span className="block text-xs text-textMuted">Assistent 2: {loadedMatch.official_assistant_referee_2_name}</span>}</label>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm text-textPrimary"><input type="checkbox" checked={meetingPlaceEnabled} onChange={event => setMeetingPlaceEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.meetingPlace")}</label>
@@ -272,7 +276,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
           </button>
           {selectionOpen && <div className="space-y-3 border-t border-borderSubtle p-4">
             <p className="rounded-lg border border-borderSubtle bg-cardDeep p-3 text-sm text-textMuted">De volledige selectie staat compact in één venster. Je kunt ook een speler uit een andere ploeg of een losse naam toevoegen.</p>
-            {(drafts.length > 0 || validGuestPlayers.length > 0) && minimumPlayers !== "" && selectedCount < Number(minimumPlayers) && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Voor {matchFormat || "deze spelvorm"} zijn minstens {minimumPlayers} spelers nodig. Momenteel zijn {selectedCount} spelers geselecteerd.</p>}
+            {(drafts.length > 0 || validGuestPlayers.length > 0) && matchFormat && selectedCount < Number(matchFormat.split("v")[0]) && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Voor {matchFormat.replace("v", "vs")} zijn minstens {matchFormat.split("v")[0]} spelers nodig. Momenteel zijn {selectedCount} spelers geselecteerd.</p>}
             {duplicateJerseyNumbers.length > 0 && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Dubbel rugnummer bij de geselecteerde spelers: {duplicateJerseyNumbers.join(", ")}.</p>}
             {canSelect && extraPlayers.some(player => !players.some(current => current.id === player.id)) && <div>
               <h3 className="text-sm font-bold text-textBright">Extra speler uit spelerslijst</h3>

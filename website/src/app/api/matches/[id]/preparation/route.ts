@@ -131,6 +131,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     ...(canPlan ? {
       meeting_time_enabled: body?.meetingTimeEnabled === true,
       meeting_time: body?.meetingTimeEnabled === true ? time(body?.meetingTime) : null,
+      recording_start_time: time(body?.recordingStartTime),
       departure_time_enabled: !isHomeMatch && body?.departureTimeEnabled === true,
       departure_time: !isHomeMatch && body?.departureTimeEnabled === true ? time(body?.departureTime) : null,
       field_option_id: isHomeMatch ? id(body?.fieldOptionId) : null,
