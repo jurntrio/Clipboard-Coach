@@ -105,56 +105,80 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
     } finally { setBusy(""); }
   }
 
+  function seriesRow(item: Series) {
+    const selected = selections[item.divisionCode] ?? "";
+    const changed = selected !== (item.assignedTeamId ?? "");
+    return <tr key={item.divisionCode} className={!item.assignedTeamId ? "bg-amber-500/5" : ""}>
+      <td className="p-3 font-bold text-textPrimary">{item.divisionCode || "Zonder reeks"}</td>
+      <td className="p-3 text-textMuted">{item.fixtureCount}{item.unlinkedCount ? ` · ${item.unlinkedCount} nog te importeren` : ""}</td>
+      <td className="p-3"><select value={selected} disabled={readOnly || !!busy} onChange={event => {
+        const teamId = event.target.value;
+        setSelections(current => ({ ...current, [item.divisionCode]: teamId }));
+        setCheckedSeries(current => ({ ...current, [item.divisionCode]: !!teamId && (!item.assignedTeamId || teamId !== item.assignedTeamId || item.unlinkedCount > 0) }));
+      }} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">
+        <option value="">Kies ploeg…</option>{teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}
+      </select></td>
+      <td className="p-3">{item.assignedTeamId ? <span className="text-emerald-300">Definitief bevestigd</span> : selected ? <span className="text-amber-300">Voorstel</span> : <span className="text-textMuted">Geen voorstel</span>}</td>
+      <td className="p-3 text-center"><input type="checkbox" aria-label={`Keur wedstrijden uit ${item.divisionCode} goed`} checked={checkedSeries[item.divisionCode] ?? false} disabled={readOnly || !!busy || !selected || (!!item.assignedTeamId && !changed && item.unlinkedCount === 0)} onChange={event => setCheckedSeries(current => ({ ...current, [item.divisionCode]: event.target.checked }))} className="h-5 w-5 accent-accent disabled:cursor-not-allowed disabled:opacity-40" /></td>
+    </tr>;
+  }
+  function fixtureRow(item: Fixture) {
+    const selected = fixtureSelections[item.key] ?? "";
+    return <tr key={item.key} className={item.linked ? "opacity-60" : ""}>
+      <td className="whitespace-nowrap p-3 text-textSecondary">{new Intl.DateTimeFormat("nl-BE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${item.date}T12:00:00`))}<div className="text-xs text-textMuted">{item.time}</div></td>
+      <td className="p-3 text-textPrimary"><strong>{item.homeTeam}</strong><span className="mx-2 text-textMuted">–</span><strong>{item.awayTeam}</strong><div className="mt-0.5 text-xs text-textMuted">{item.ownIsHome ? "Thuiswedstrijd" : "Uitwedstrijd"}</div></td>
+      <td className="p-3 text-textSecondary">{item.divisionCode}</td>
+      <td className="p-3"><select value={selected} disabled={readOnly || !!busy || item.linked} onChange={event => { const teamId = event.target.value; setFixtureSelections(current => ({ ...current, [item.key]: teamId })); setCheckedFixtures(current => ({ ...current, [item.key]: !!teamId })); }} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-50"><option value="">Kies ploeg…</option>{teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}</select></td>
+      <td className="p-3">{item.linked ? <span className="text-emerald-300">Reeds geïmporteerd</span> : <span className="text-amber-300">Nog te importeren</span>}</td>
+      <td className="p-3 text-center"><input type="checkbox" aria-label={`Importeer wedstrijd ${item.homeTeam} tegen ${item.awayTeam}`} checked={checkedFixtures[item.key] ?? false} disabled={readOnly || !!busy || item.linked || !selected} onChange={event => setCheckedFixtures(current => ({ ...current, [item.key]: event.target.checked }))} className="h-5 w-5 accent-accent disabled:cursor-not-allowed disabled:opacity-40" /></td>
+    </tr>;
+  }
+
+  const pendingSeries = series.filter(item => !item.assignedTeamId || item.unlinkedCount > 0);
+  const confirmedSeries = series.filter(item => item.assignedTeamId && item.unlinkedCount === 0);
+  const pendingFixtures = fixtures.filter(item => !item.linked);
+  const importedFixtures = fixtures.filter(item => item.linked);
+  const seriesTableHead = <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="p-3">DIV-reeks</th><th className="p-3">Wedstrijden</th><th className="p-3">Ploeg</th><th className="p-3">Status</th><th className="p-3 text-center">Goedkeuren</th></tr></thead>;
+  const fixtureTableHead = <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="p-3">Datum</th><th className="p-3">Wedstrijd</th><th className="p-3">Reeks</th><th className="p-3">SVS-ploeg</th><th className="p-3">Status</th><th className="p-3 text-center">Importeren</th></tr></thead>;
+
   return <div className="rounded-lg border border-borderSubtle bg-cardDeep p-4">
     <h3 className="font-semibold text-textPrimary">Officiële reeksen koppelen</h3>
     <p className="mt-1 text-sm text-textMuted">SVS groepeert de Voetbal Vlaanderen-download per DIV-reeks. Controleer het voorstel of kies een andere ploeg; na bevestiging worden bestaande en nieuwe wedstrijden uit die reeks automatisch bij die ploeg gezet.</p>
     <button type="button" disabled={readOnly || !!busy || !clubId} onClick={() => void checkDownloads()} className="mt-3 rounded-lg bg-button px-4 py-2 text-sm font-semibold text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">{busy === "check" ? "Reeksen zoeken…" : "Officiële reeksen controleren"}</button>
     {message && <p className="mt-3 text-sm text-accent">{message}</p>}
     {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
-    {!!series.length && <div className="mt-4 overflow-auto rounded-lg border border-border">
+    {!!pendingSeries.length && <div className="mt-4 overflow-auto rounded-lg border border-border">
       <table className="w-full min-w-[720px] text-left text-sm">
-        <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="p-3">DIV-reeks</th><th className="p-3">Wedstrijden</th><th className="p-3">Ploeg</th><th className="p-3">Status</th><th className="p-3 text-center">Goedkeuren</th></tr></thead>
-        <tbody className="divide-y divide-borderSubtle">{series.map(item => {
-          const selected = selections[item.divisionCode] ?? "";
-          const changed = selected !== (item.assignedTeamId ?? "");
-          return <tr key={item.divisionCode} className={!item.assignedTeamId ? "bg-amber-500/5" : ""}>
-            <td className="p-3 font-bold text-textPrimary">{item.divisionCode || "Zonder reeks"}</td>
-            <td className="p-3 text-textMuted">{item.fixtureCount}{item.unlinkedCount ? ` · ${item.unlinkedCount} nog te importeren` : ""}</td>
-            <td className="p-3"><select value={selected} disabled={readOnly || !!busy} onChange={event => {
-              const teamId = event.target.value;
-              setSelections(current => ({ ...current, [item.divisionCode]: teamId }));
-              setCheckedSeries(current => ({ ...current, [item.divisionCode]: !!teamId && (!item.assignedTeamId || teamId !== item.assignedTeamId || item.unlinkedCount > 0) }));
-            }} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">
-              <option value="">Kies ploeg…</option>{teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}
-            </select></td>
-            <td className="p-3">{item.assignedTeamId ? <span className="text-emerald-300">Definitief bevestigd</span> : selected ? <span className="text-amber-300">Voorstel</span> : <span className="text-textMuted">Geen voorstel</span>}</td>
-            <td className="p-3 text-center"><input type="checkbox" aria-label={`Keur wedstrijden uit ${item.divisionCode} goed`} checked={checkedSeries[item.divisionCode] ?? false} disabled={readOnly || !!busy || !selected || (!!item.assignedTeamId && !changed && item.unlinkedCount === 0)} onChange={event => setCheckedSeries(current => ({ ...current, [item.divisionCode]: event.target.checked }))} className="h-5 w-5 accent-accent disabled:cursor-not-allowed disabled:opacity-40" /></td>
-          </tr>;
-        })}</tbody>
+        {seriesTableHead}
+        <tbody className="divide-y divide-borderSubtle">{pendingSeries.map(seriesRow)}</tbody>
       </table>
     </div>}
     {!!series.length && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-borderSubtle bg-cardDeep p-3">
       <p className="text-sm text-textMuted">{series.filter(item => checkedSeries[item.divisionCode] && !!selections[item.divisionCode] && (!item.assignedTeamId || selections[item.divisionCode] !== item.assignedTeamId || item.unlinkedCount > 0)).length} aangevinkt</p>
       <button type="button" disabled={readOnly || !!busy || !series.some(item => checkedSeries[item.divisionCode] && !!selections[item.divisionCode] && (!item.assignedTeamId || selections[item.divisionCode] !== item.assignedTeamId || item.unlinkedCount > 0))} onClick={() => void confirmSelectedSeries()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{busy === "selected" ? "Aangevinkte wedstrijden goedkeuren…" : "Keur alle aangevinkte wedstrijden goed"}</button>
     </div>}
+    {!!confirmedSeries.length && <details className="mt-3 rounded-lg border border-border bg-card">
+      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-textSecondary">Reeds bevestigde reeksen ({confirmedSeries.length})</summary>
+      <div className="overflow-auto border-t border-border"><table className="w-full min-w-[720px] text-left text-sm">
+        {seriesTableHead}
+        <tbody className="divide-y divide-borderSubtle">{confirmedSeries.map(seriesRow)}</tbody>
+      </table></div>
+    </details>}
     {!!fixtures.length && <details className="mt-4 rounded-lg border border-border bg-card" open>
       <summary className="cursor-pointer px-4 py-3 font-semibold text-textPrimary">Wedstrijd per wedstrijd koppelen</summary>
-      <p className="px-4 pb-3 text-sm text-textMuted">Kies voor iedere nog niet geïmporteerde wedstrijd afzonderlijk de juiste SVS-ploeg. Reeds geïmporteerde wedstrijden blijven zichtbaar maar kunnen niet dubbel worden toegevoegd.</p>
-      <div className="overflow-auto border-t border-border"><table className="w-full min-w-[900px] text-left text-sm">
-        <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="p-3">Datum</th><th className="p-3">Wedstrijd</th><th className="p-3">Reeks</th><th className="p-3">SVS-ploeg</th><th className="p-3">Status</th><th className="p-3 text-center">Importeren</th></tr></thead>
-        <tbody className="divide-y divide-borderSubtle">{fixtures.map(item => {
-          const selected = fixtureSelections[item.key] ?? "";
-          return <tr key={item.key} className={item.linked ? "opacity-60" : ""}>
-            <td className="whitespace-nowrap p-3 text-textSecondary">{new Intl.DateTimeFormat("nl-BE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${item.date}T12:00:00`))}<div className="text-xs text-textMuted">{item.time}</div></td>
-            <td className="p-3 text-textPrimary"><strong>{item.homeTeam}</strong><span className="mx-2 text-textMuted">–</span><strong>{item.awayTeam}</strong><div className="mt-0.5 text-xs text-textMuted">{item.ownIsHome ? "Thuiswedstrijd" : "Uitwedstrijd"}</div></td>
-            <td className="p-3 text-textSecondary">{item.divisionCode}</td>
-            <td className="p-3"><select value={selected} disabled={readOnly || !!busy || item.linked} onChange={event => { const teamId = event.target.value; setFixtureSelections(current => ({ ...current, [item.key]: teamId })); setCheckedFixtures(current => ({ ...current, [item.key]: !!teamId })); }} className="w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-50"><option value="">Kies ploeg…</option>{teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}</select></td>
-            <td className="p-3">{item.linked ? <span className="text-emerald-300">Reeds geïmporteerd</span> : <span className="text-amber-300">Nog te importeren</span>}</td>
-            <td className="p-3 text-center"><input type="checkbox" aria-label={`Importeer wedstrijd ${item.homeTeam} tegen ${item.awayTeam}`} checked={checkedFixtures[item.key] ?? false} disabled={readOnly || !!busy || item.linked || !selected} onChange={event => setCheckedFixtures(current => ({ ...current, [item.key]: event.target.checked }))} className="h-5 w-5 accent-accent disabled:cursor-not-allowed disabled:opacity-40" /></td>
-          </tr>;
-        })}</tbody>
-      </table></div>
+      <p className="px-4 pb-3 text-sm text-textMuted">Kies voor iedere nog niet geïmporteerde wedstrijd afzonderlijk de juiste SVS-ploeg.</p>
+      {!!pendingFixtures.length ? <div className="overflow-auto border-t border-border"><table className="w-full min-w-[900px] text-left text-sm">
+        {fixtureTableHead}
+        <tbody className="divide-y divide-borderSubtle">{pendingFixtures.map(fixtureRow)}</tbody>
+      </table></div> : <p className="border-t border-border px-4 py-3 text-sm text-textMuted">Alle wedstrijden uit deze download zijn al geïmporteerd.</p>}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-3"><p className="text-sm text-textMuted">{fixtures.filter(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key]).length} wedstrijd(en) aangevinkt</p><button type="button" disabled={readOnly || !!busy || !fixtures.some(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key])} onClick={() => void confirmSelectedFixtures()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{busy === "fixtures" ? "Wedstrijden importeren…" : "Importeer aangevinkte wedstrijden"}</button></div>
+      {!!importedFixtures.length && <details className="border-t border-border">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-textSecondary">Reeds geïmporteerde wedstrijden ({importedFixtures.length})</summary>
+        <div className="overflow-auto border-t border-border"><table className="w-full min-w-[900px] text-left text-sm">
+          {fixtureTableHead}
+          <tbody className="divide-y divide-borderSubtle">{importedFixtures.map(fixtureRow)}</tbody>
+        </table></div>
+      </details>}
     </details>}
   </div>;
 }

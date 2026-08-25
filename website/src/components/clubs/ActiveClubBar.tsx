@@ -23,7 +23,9 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
   const [pendingOfficialImportCount, setPendingOfficialImportCount] = useState(0);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [clubMenuOpen, setClubMenuOpen] = useState(false);
   const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
+  const [clubMenuPosition, setClubMenuPosition] = useState({ top: 0, left: 0 });
   const [canApproveRequests, setCanApproveRequests] = useState(false);
   const [canReviewClubNames, setCanReviewClubNames] = useState(false);
   const mailboxIndex = navigation.findIndex((item) => item.href === "/dashboard/inbox");
@@ -63,28 +65,42 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
   const actionsPopupRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const clubMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const clubMenuPopupRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function closeMenus(event: PointerEvent) {
       const target = event.target as Node;
       if (actionsOpen && !actionsButtonRef.current?.contains(target) && !actionsPopupRef.current?.contains(target)) setActionsOpen(false);
       if (moreOpen && !moreButtonRef.current?.contains(target) && !moreMenuRef.current?.contains(target)) setMoreOpen(false);
+      if (clubMenuOpen && !clubMenuButtonRef.current?.contains(target) && !clubMenuPopupRef.current?.contains(target)) setClubMenuOpen(false);
     }
-    function closeOnEscape(event: KeyboardEvent) { if (event.key === "Escape") { setActionsOpen(false); setMoreOpen(false); } }
+    function closeOnEscape(event: KeyboardEvent) { if (event.key === "Escape") { setActionsOpen(false); setMoreOpen(false); setClubMenuOpen(false); } }
     document.addEventListener("pointerdown", closeMenus);
     document.addEventListener("keydown", closeOnEscape);
     return () => { document.removeEventListener("pointerdown", closeMenus); document.removeEventListener("keydown", closeOnEscape); };
-  }, [actionsOpen, moreOpen]);
+  }, [actionsOpen, moreOpen, clubMenuOpen]);
 
   useEffect(() => {
     setActionsOpen(false);
     setMoreOpen(false);
+    setClubMenuOpen(false);
   }, [pathname]);
   function toggleActions() {
     if (actionsOpen) return setActionsOpen(false);
     const rect = actionsButtonRef.current?.getBoundingClientRect();
     if (rect) setPopupPosition({ top: rect.bottom + 8, left: Math.max(8, Math.min(window.innerWidth - 328, rect.right - 320)) });
     setActionsOpen(true);
+  }
+  function toggleClubMenu() {
+    if (clubMenuOpen) return setClubMenuOpen(false);
+    const rect = clubMenuButtonRef.current?.getBoundingClientRect();
+    if (rect) setClubMenuPosition({ top: rect.bottom + 8, left: Math.max(8, Math.min(window.innerWidth - 264, rect.left)) });
+    setClubMenuOpen(true);
+  }
+  function chooseClub(clubId: string) {
+    setClubMenuOpen(false);
+    if (clubId !== activeClubId) void selectClub(clubId);
   }
   async function signOut() {
     const supabase = createClient();
@@ -104,8 +120,8 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
 
   return (
     <div className="sticky top-0 z-40 border-b border-border bg-card/95 px-1.5 py-1.5 backdrop-blur sm:px-5 sm:py-3">
-      <div className="relative mx-auto flex max-w-[96rem] flex-col items-center justify-center gap-1 sm:gap-2 xl:flex-row">
-        <div className="flex items-center gap-3 xl:absolute xl:left-0">
+      <div className="mx-auto flex max-w-[96rem] flex-col items-center gap-1 sm:gap-2 xl:flex-row xl:justify-between">
+        <div className="flex items-center gap-2 xl:w-80 xl:shrink-0">
         <Link href="/dashboard" aria-label="Sport Visual Systems home" className="hidden sm:block">
           <SvsBrand format="square" width={52} height={52} className="h-[52px] w-[52px] rounded-xl border border-borderButton" />
         </Link>
@@ -128,15 +144,37 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
           </div>
         )}
         {showClubSelector && (
-          <select
-            aria-label="Actieve club"
-            value={activeClubId ?? ""}
+          <button
+            ref={clubMenuButtonRef}
+            type="button"
             disabled={changing}
-            onChange={(event) => void selectClub(event.target.value)}
-            className="h-8 min-w-0 max-w-20 rounded-lg border border-borderButton bg-button px-1.5 text-[10px] font-semibold text-textPrimary disabled:cursor-not-allowed disabled:opacity-60 sm:h-[52px] sm:max-w-72 sm:rounded-xl sm:px-4 sm:text-base"
+            onClick={toggleClubMenu}
+            aria-haspopup="listbox"
+            aria-expanded={clubMenuOpen}
+            aria-label="Actieve club wijzigen"
+            className="flex h-8 min-w-0 max-w-28 items-center gap-1.5 rounded-lg border border-borderButton bg-button px-2 text-left text-[10px] font-semibold text-textPrimary transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60 sm:h-[52px] sm:max-w-48 sm:gap-2 sm:rounded-xl sm:px-3 sm:text-sm"
           >
-            {clubs.map((club) => <option key={club.id} value={club.id}>{club.name}</option>)}
-          </select>
+            <span className="min-w-0 flex-1 truncate">{activeClub?.name ?? "Kies een club"}</span>
+            <span aria-hidden="true" className={`shrink-0 text-textMuted transition-transform ${clubMenuOpen ? "rotate-180" : ""}`}>▾</span>
+          </button>
+        )}
+        {clubMenuOpen && typeof document !== "undefined" && createPortal(
+          <div ref={clubMenuPopupRef} role="listbox" aria-label="Clubs" style={{ top: clubMenuPosition.top, left: clubMenuPosition.left }} className="fixed z-[100] max-h-[min(70vh,28rem)] w-64 overflow-y-auto rounded-2xl border border-border bg-cardAlt py-2 shadow-2xl">
+            {clubs.map((club) => (
+              <button
+                key={club.id}
+                type="button"
+                role="option"
+                aria-selected={club.id === activeClubId}
+                onClick={() => chooseClub(club.id)}
+                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-cardHover ${club.id === activeClubId ? "font-semibold text-accent" : "text-textPrimary"}`}
+              >
+                <span className="min-w-0 flex-1 truncate">{club.name}</span>
+                {club.id === activeClubId && <span aria-hidden="true">✓</span>}
+              </button>
+            ))}
+          </div>,
+          document.body
         )}
         </div>
         <div className="flex min-w-0 max-w-full items-center justify-center gap-1 sm:gap-2">
@@ -206,6 +244,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
             </div>
           </nav>
         </div>
+        <div aria-hidden="true" className="hidden xl:block xl:w-80 xl:shrink-0" />
       </div>
     </div>
   );
