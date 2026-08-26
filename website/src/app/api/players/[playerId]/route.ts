@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getClubContext } from "@/lib/auth/active-club";
 import { canAccessTeam, canManagePlayer, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { canMovePlayerToTeam } from "@/lib/auth/player-team-move";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 async function playerContext(playerId: string) {
@@ -13,7 +14,11 @@ async function playerContext(playerId: string) {
   if (!team.club_team_id) {
     const canEdit = context.isPlatformAdmin || team.coach_id === context.user.id;
     if (!canEdit) return { response: NextResponse.json({ error: "Geen toegang tot deze speler." }, { status: 403 }) };
-    return { admin, player, canEdit, canManageGoalkeeper: context.isPlatformAdmin, goalkeeperRestricted: false };
+    return {
+      admin, player, canEdit, canManageGoalkeeper: context.isPlatformAdmin, goalkeeperRestricted: false,
+      access: null, sourceClubId: null, sourceCoachId: team.coach_id, isPlatformAdmin: context.isPlatformAdmin,
+      canOverrideRosterLock: context.isPlatformAdmin
+    };
   }
   const { data: clubTeam } = await admin.from("club_teams").select("club_id, trainers_can_edit_roster").eq("id", team.club_team_id).maybeSingle();
   if (!clubTeam) return { response: NextResponse.json({ error: "Ploeg niet gevonden." }, { status: 404 }) };
@@ -26,7 +31,11 @@ async function playerContext(playerId: string) {
     && canManagePlayer(access, player.id));
   const canManageGoalkeeper = canEdit && (context.isPlatformAdmin || ["platform_admin", "club_admin"].includes(access.role)
     || privilegedRosterRole);
-  return { admin, player, canEdit, canManageGoalkeeper, goalkeeperRestricted: access.goalkeeperPlayerIds !== null };
+  return {
+    admin, player, canEdit, canManageGoalkeeper, goalkeeperRestricted: access.goalkeeperPlayerIds !== null,
+    access, sourceClubId: clubTeam.club_id, sourceCoachId: team.coach_id, isPlatformAdmin: context.isPlatformAdmin,
+    canOverrideRosterLock: context.isPlatformAdmin || ["platform_admin", "club_admin"].includes(access.role) || privilegedRosterRole
+  };
 }
 
 export async function GET(_request: Request, { params }: { params: { playerId: string } }) {
@@ -49,12 +58,34 @@ export async function PATCH(request: Request, { params }: { params: { playerId: 
   if (ctx.goalkeeperRestricted && typeof body.teamId === "string" && body.teamId !== ctx.player.team_id) {
     return NextResponse.json({ error: "Een keeperstrainer kan een toegewezen doelman niet naar een andere ploeg verplaatsen." }, { status: 403 });
   }
+  const targetTeamId = typeof body.teamId === "string" ? body.teamId : ctx.player.team_id;
+  if (targetTeamId !== ctx.player.team_id) {
+    const { data: targetTeam } = await ctx.admin.from("teams")
+      .select("id, coach_id, club_team_id, club_teams(club_id, trainers_can_edit_roster)")
+      .eq("id", targetTeamId).maybeSingle();
+    const targetClubTeam = targetTeam?.club_teams as unknown as { club_id: string; trainers_can_edit_roster: boolean } | null;
+    const allowed = !!targetTeam && canMovePlayerToTeam({
+      sourceClubId: ctx.sourceClubId,
+      sourceCoachId: ctx.sourceCoachId,
+      targetClubId: targetClubTeam?.club_id ?? null,
+      targetClubTeamId: targetTeam.club_team_id,
+      targetCoachId: targetTeam.coach_id,
+      isPlatformAdmin: ctx.isPlatformAdmin,
+      canAccessTargetTeam: !!ctx.access && canAccessTeam(ctx.access, targetTeam.club_team_id),
+      canManageTeams: !!ctx.access && hasClubPermission(ctx.access, "teams.manage"),
+      canOverrideRosterLock: ctx.canOverrideRosterLock,
+      targetTrainersCanEditRoster: targetClubTeam?.trainers_can_edit_roster === true
+    });
+    if (!allowed) {
+      return NextResponse.json({ error: "Geen recht om deze speler naar deze ploeg te verplaatsen." }, { status: 403 });
+    }
+  }
   const jerseyNumber = body.jerseyNumber === null || body.jerseyNumber === "" ? null : Number(body.jerseyNumber);
   if (jerseyNumber !== null && (!Number.isInteger(jerseyNumber) || jerseyNumber < 0 || jerseyNumber > 999)) {
     return NextResponse.json({ error: "Ongeldig rugnummer." }, { status: 400 });
   }
   const update = {
-    team_id: typeof body.teamId === "string" ? body.teamId : ctx.player.team_id,
+    team_id: targetTeamId,
     first_name: body.firstName.trim(), last_name: body.lastName.trim(),
     role: body.role === "staff" ? "staff" : "player",
     jersey_number: jerseyNumber,

@@ -98,7 +98,7 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
       return null;
     }
     await load();
-    return responseBody;
+    return responseBody ?? true;
   }
 
   async function invite(person: Person) {
@@ -111,6 +111,14 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
     const url = `${window.location.origin}/person-invite/${result.token}`;
     await navigator.clipboard.writeText(url).catch(() => undefined);
     setNotice(`Persoonlijke link aangemaakt en gekopieerd: ${url}`);
+  }
+
+  async function revokeInvitation(person: Person, invitation: Invitation) {
+    if (!window.confirm(`Uitnodiging${invitation.intended_email ? ` voor ${invitation.intended_email}` : ""} intrekken? De bestaande link werkt daarna niet meer.`)) return;
+    const result = await request("/api/club/person-invitations", "DELETE", {
+      clubId, clubPersonId: person.id, invitationId: invitation.id
+    }, `invite:${person.id}`);
+    if (result) setNotice("Uitnodiging ingetrokken. De oude link kan niet meer worden gebruikt.");
   }
 
   async function revoke(account: Account) {
@@ -184,9 +192,12 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
                 {!readOnly && <button disabled={!!busy} onClick={() => void revoke(activeAccount)} className={`${secondaryButton} mt-3`}>Account ontkoppelen</button>}
               </div> : <div className="mt-2 rounded-lg border border-dashed border-border p-3">
                 <p className="text-sm text-textMuted">{pendingInvite ? `Uitnodiging wacht op gebruik tot ${formatDate(pendingInvite.expires_at)}` : "Nog geen account gekoppeld."}</p>
-                {!readOnly && <button disabled={!!busy} onClick={() => void invite(person)} className={`${primaryButton} mt-3`}>
-                  {pendingInvite ? "Nieuwe link maken" : "Persoon uitnodigen"}
-                </button>}
+                {!readOnly && <div className="mt-3 flex flex-wrap gap-2">
+                  <button disabled={!!busy} onClick={() => void invite(person)} className={primaryButton}>
+                    {pendingInvite ? "Nieuwe link maken" : "Persoon uitnodigen"}
+                  </button>
+                  {pendingInvite && <button disabled={!!busy} onClick={() => void revokeInvitation(person, pendingInvite)} className={secondaryButton}>Uitnodiging intrekken</button>}
+                </div>}
               </div>}
             </div>
             <RoleEditor person={person} roles={activeRoles} teams={teams} readOnly={readOnly} busy={busy}

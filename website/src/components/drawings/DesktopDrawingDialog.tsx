@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import DrawingCanvas, { type Shape } from "../../../../src/DrawingCanvas";
+import DrawingCanvas, { type Shape } from "./DrawingCanvas";
 import { useI18n } from "@/i18n/client";
 import { formatTime } from "@/lib/utils";
 export type WebDrawingShape = Shape;
