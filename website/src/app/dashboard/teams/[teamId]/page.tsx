@@ -68,6 +68,15 @@ export default function TeamDetailPage() {
   }, []);
 
   useEffect(() => {
+    function selectTabFromNavigation(event: Event) {
+      const requested = (event as CustomEvent<{ tab?: string }>).detail?.tab ?? null;
+      if (isTab(requested)) setTab(requested);
+    }
+    window.addEventListener("dashboard-team-tab", selectTabFromNavigation);
+    return () => window.removeEventListener("dashboard-team-tab", selectTabFromNavigation);
+  }, []);
+
+  useEffect(() => {
     activeTeamId.current = teamId;
     const cachedTeam = overview.getCached(teamId);
     if (cachedTeam) {
@@ -138,7 +147,8 @@ export default function TeamDetailPage() {
   function openTeam(option: Team) {
     if (option.id === teamId) return;
     if (option.club_team_id) void fetch("/api/team-context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clubTeamId: option.club_team_id }) });
-    window.history.replaceState(null, "", `/dashboard/teams/${option.id}`);
+    const tabQuery = tab === "overview" ? "" : `?tab=${tab}`;
+    window.history.replaceState(null, "", `/dashboard/teams/${option.id}${tabQuery}`);
     const cachedTeam = overview.getCached(option.id);
     const cachedMatches = matchesSection.getCached(option.id) ?? null;
     const cachedTraining = trainingSection.getCached(option.id) ?? null;
@@ -151,7 +161,6 @@ export default function TeamDetailPage() {
     setStatistics(cachedStatistics?.training ?? null);
     setMatchStatistics(cachedStatistics?.matches ?? null);
     setLoadingSection(null);
-    setTab("overview");
     setTeamId(option.id);
   }
 
@@ -172,7 +181,7 @@ export default function TeamDetailPage() {
       onSelect={selectClubTeam}
     />
     <nav className="mb-6 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label={t("team.navigation")}>
-      {tabs.map((item) => <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`rounded-lg px-4 py-2 text-sm font-bold ${tab === item.id ? "bg-accent text-page" : "text-textPrimary hover:bg-cardDeep"}`}>{item.label}</button>)}
+      {tabs.map((item) => <button key={item.id} type="button" onClick={() => { setTab(item.id); window.history.replaceState(null, "", item.id === "overview" ? `/dashboard/teams/${teamId}` : `/dashboard/teams/${teamId}?tab=${item.id}`); }} className={`rounded-lg px-4 py-2 text-sm font-bold ${tab === item.id ? "bg-accent text-page" : "text-textPrimary hover:bg-cardDeep"}`}>{item.label}</button>)}
     </nav>
     {loading && <Loading text={t("team.loading")} />}
 

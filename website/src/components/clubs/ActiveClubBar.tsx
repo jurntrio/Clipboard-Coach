@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import { useActiveClub } from "./ActiveClubProvider";
@@ -11,6 +11,12 @@ import { MenuIcon } from "@/components/ui/MenuIcon";
 import { SvsBrand } from "@/components/branding/SvsBrand";
 
 export type DashboardNavItem = { href: string; label: string; icon: string; primary: boolean };
+
+function teamTabForHref(href: string) {
+  if (!href.startsWith("/dashboard/teams")) return null;
+  const query = href.split("?", 2)[1];
+  return new URLSearchParams(query ?? "").get("tab") ?? "overview";
+}
 
 export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavItem[] }) {
   const { clubs, activeClub, activeClubId, isPlatformAdmin, changing, selectClub } = useActiveClub();
@@ -102,6 +108,14 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
     setClubMenuOpen(false);
     if (clubId !== activeClubId) void selectClub(clubId);
   }
+  function handleNavigation(event: MouseEvent<HTMLAnchorElement>, href: string) {
+    const teamTab = teamTabForHref(href);
+    if (!teamTab || !/^\/dashboard\/teams\/[^/]+/.test(pathname)) return;
+    event.preventDefault();
+    const nextUrl = teamTab === "overview" ? pathname : `${pathname}?tab=${teamTab}`;
+    window.history.replaceState(null, "", nextUrl);
+    window.dispatchEvent(new CustomEvent("dashboard-team-tab", { detail: { tab: teamTab } }));
+  }
   async function signOut() {
     const supabase = createClient();
     try {
@@ -120,7 +134,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
 
   return (
     <div className="sticky top-0 z-40 border-b border-border bg-card/95 px-1.5 py-1.5 backdrop-blur sm:px-5 sm:py-3">
-      <div className="mx-auto flex max-w-[96rem] flex-col items-center gap-1 sm:gap-2 xl:flex-row xl:justify-between">
+      <div className="mx-auto flex max-w-[96rem] flex-col items-center gap-1 sm:gap-2 xl:grid xl:grid-cols-[20rem_minmax(0,1fr)_20rem]">
         <div className="flex items-center gap-2 xl:w-80 xl:shrink-0">
         <Link href="/dashboard" aria-label="Sport Visual Systems home" className="hidden sm:block">
           <SvsBrand format="square" width={52} height={52} className="h-[52px] w-[52px] rounded-xl border border-borderButton" />
@@ -177,13 +191,13 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
           document.body
         )}
         </div>
-        <div className="flex min-w-0 max-w-full items-center justify-center gap-1 sm:gap-2">
+        <div className="flex min-w-0 max-w-full items-center justify-center gap-1 justify-self-center sm:gap-2">
           <nav aria-label="Hoofdnavigatie" className="flex min-w-0 items-center gap-1 overflow-x-auto py-1 sm:gap-2">
             <Link href="/dashboard" title="Home" aria-label="Home" className={`${actionClass} ${pathname === "/dashboard" ? activeClass : ""}`}>
               <MenuIcon src="/branding/cbcs_black_icons/home.png" />
             </Link>
             {beforeMessages.map(item => (
-              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} relative ${mobileOverflowHrefs.has(item.href) ? "hidden sm:grid" : ""} ${pathname.startsWith(item.href) ? activeClass : ""}`}>
+              <Link key={item.href} href={item.href} onClick={(event) => handleNavigation(event, item.href)} title={item.label} aria-label={item.label} className={`${actionClass} relative ${mobileOverflowHrefs.has(item.href) ? "hidden sm:grid" : ""} ${pathname.startsWith(item.href.split("?", 1)[0]) ? activeClass : ""}`}>
                 <MenuIcon src={item.icon} />
                 {item.href === "/dashboard/club" && pendingOfficialImportCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-card bg-red-500 px-1 text-[10px] font-black leading-none text-white">{pendingOfficialImportCount > 99 ? "99+" : pendingOfficialImportCount}</span>}
               </Link>
@@ -226,7 +240,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
             </div>
             , document.body)}
             {afterMessages.map(item => (
-              <Link key={item.href} href={item.href} title={item.label} aria-label={item.label} className={`${actionClass} relative ${mobileOverflowHrefs.has(item.href) ? "hidden sm:grid" : ""} ${pathname.startsWith(item.href) ? activeClass : ""}`}>
+              <Link key={item.href} href={item.href} onClick={(event) => handleNavigation(event, item.href)} title={item.label} aria-label={item.label} className={`${actionClass} relative ${mobileOverflowHrefs.has(item.href) ? "hidden sm:grid" : ""} ${pathname.startsWith(item.href.split("?", 1)[0]) ? activeClass : ""}`}>
                 <MenuIcon src={item.icon} />
                 {item.href === "/dashboard/club" && pendingOfficialImportCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-card bg-red-500 px-1 text-[10px] font-black leading-none text-white">{pendingOfficialImportCount > 99 ? "99+" : pendingOfficialImportCount}</span>}
               </Link>
@@ -244,6 +258,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
             </div>
           </nav>
         </div>
+        <div className="hidden xl:block" aria-hidden="true" />
       </div>
     </div>
   );
