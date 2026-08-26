@@ -26,33 +26,50 @@ export function TrainingAttendanceList({ sessionId, players, reasons, initial, e
     const next = { ...rows[playerId], ...patch };
     setRows(current => ({ ...current, [playerId]: next }));
     setBusy(playerId); setError("");
-    const response = await fetch(`/api/trainings/sessions/${sessionId}/attendance`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerId, status: next.attendance_status, reasonId: next.absence_reason_id, note: next.note })
-    });
-    const body = await response.json();
-    setBusy("");
-    if (!response.ok) setError(body.error || "Aanwezigheid kon niet worden bewaard.");
+    try {
+      const response = await fetch(`/api/trainings/sessions/${sessionId}/attendance`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId, status: next.attendance_status, reasonId: next.absence_reason_id, note: next.note })
+      });
+      const body = await response.json();
+      if (!response.ok) setError(body.error || "Aanwezigheid kon niet worden bewaard.");
+    } catch {
+      setError("Aanwezigheid kon niet worden bewaard. Controleer je internetverbinding en probeer opnieuw.");
+    } finally {
+      setBusy("");
+    }
   }
 
   async function saveTrainerInfo() {
     setBusy("trainer-info"); setError("");
-    const response = await fetch(`/api/trainings/sessions/${sessionId}/attendance`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "trainer_info", trainerInfo })
-    });
-    const body = await response.json(); setBusy("");
-    if (!response.ok) setError(body.error || "Trainerinfo kon niet worden bewaard.");
+    try {
+      const response = await fetch(`/api/trainings/sessions/${sessionId}/attendance`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "trainer_info", trainerInfo })
+      });
+      const body = await response.json();
+      if (!response.ok) setError(body.error || "Trainerinfo kon niet worden bewaard.");
+    } catch {
+      setError("Trainerinfo kon niet worden bewaard. Controleer je internetverbinding en probeer opnieuw.");
+    } finally {
+      setBusy("");
+    }
   }
   async function confirmAttendance() {
     setBusy("confirm"); setError("");
-    const response = await fetch(`/api/trainings/sessions/${sessionId}/attendance`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "confirm" })
-    });
-    const body = await response.json(); setBusy("");
-    if (!response.ok) return setError(body.error || "Aanwezigheden konden niet worden bevestigd.");
-    setConfirmed(body.confirmedAt);
-    window.dispatchEvent(new Event("dashboard-badges:refresh"));
+    try {
+      const response = await fetch(`/api/trainings/sessions/${sessionId}/attendance`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "confirm" })
+      });
+      const body = await response.json();
+      if (!response.ok) return setError(body.error || "Aanwezigheden konden niet worden bevestigd.");
+      setConfirmed(body.confirmedAt);
+      window.dispatchEvent(new Event("dashboard-badges:refresh"));
+    } catch {
+      setError("Aanwezigheden konden niet worden bevestigd. Controleer je internetverbinding en probeer opnieuw.");
+    } finally {
+      setBusy("");
+    }
   }
 
   return <section id="aanwezigheden" className="scroll-mt-24 rounded-2xl border border-border bg-card p-5">
