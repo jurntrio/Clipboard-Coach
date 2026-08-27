@@ -10,7 +10,7 @@ type Scope = { clubPlayerId: string | null; playerId: string };
 // Zelfde autorisatiecheck + club_player_id-resolutie als players/[playerId]/invite/route.ts:
 // een clubbrede speler (membership_id gezet) groepeert guardians/invites via club_player_id
 // (1 kind, mogelijk meerdere teams), een persoonlijk-teamspeler blijft op player_id.
-async function authorizeAndResolveScope(admin: Admin, userId: string, userEmail: string | undefined, playerId: string): Promise<{ error: NextResponse } | { error?: undefined; scope: Scope }> {
+async function authorizeAndResolveScope(admin: Admin, userId: string, userEmail: string | undefined, playerId: string, permission: "teams.view" | "teams.manage"): Promise<{ error: NextResponse } | { error?: undefined; scope: Scope }> {
   const { data: player } = await admin.from("players").select("id, team_id, membership_id").eq("id", playerId).maybeSingle();
   if (!player) return { error: NextResponse.json({ error: "Speler niet gevonden." }, { status: 404 }) };
   const { data: team } = await admin.from("teams").select("id, coach_id, club_team_id").eq("id", player.team_id).maybeSingle();
@@ -21,7 +21,7 @@ async function authorizeAndResolveScope(admin: Admin, userId: string, userEmail:
     const { data: clubTeam } = await admin.from("club_teams").select("club_id, trainers_can_edit_roster").eq("id", team.club_team_id).maybeSingle();
     if (clubTeam) {
       const access = await getClubAccess(clubTeam.club_id, { id: userId, email: userEmail });
-      allowed = canAccessTeam(access, team.club_team_id) && hasClubPermission(access, "teams.manage")
+      allowed = canAccessTeam(access, team.club_team_id) && hasClubPermission(access, permission)
         && canManagePlayer(access, player.id);
     }
   }
@@ -40,7 +40,7 @@ export async function GET(request: Request, { params }: { params: { playerId: st
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Niet aangemeld." }, { status: 401 });
   const admin = createAdminClient();
-  const authorized = await authorizeAndResolveScope(admin, user.id, user.email, params.playerId);
+  const authorized = await authorizeAndResolveScope(admin, user.id, user.email, params.playerId, "teams.view");
   if (authorized.error) return authorized.error;
   const { scope } = authorized;
 
@@ -66,7 +66,7 @@ export async function PATCH(request: Request, { params }: { params: { playerId: 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Niet aangemeld." }, { status: 401 });
   const admin = createAdminClient();
-  const authorized = await authorizeAndResolveScope(admin, user.id, user.email, params.playerId);
+  const authorized = await authorizeAndResolveScope(admin, user.id, user.email, params.playerId, "teams.manage");
   if (authorized.error) return authorized.error;
   const { scope } = authorized;
 

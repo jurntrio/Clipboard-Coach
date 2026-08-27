@@ -78,6 +78,7 @@ export default function PlayerClipsPage() {
   const [inviteCopied, setInviteCopied] = useState(false);
   const [guardians, setGuardians] = useState<Guardian[]>([]);
   const [invites, setInvites] = useState<PlayerInvite[]>([]);
+  const [guardiansLoading, setGuardiansLoading] = useState(true);
   const [guardiansError, setGuardiansError] = useState("");
   const [guardiansBusy, setGuardiansBusy] = useState("");
   const [contactDrafts, setContactDrafts] = useState<{ lastName: string; firstName: string; email: string; phone: string }[]>([{ lastName: "", firstName: "", email: "", phone: "" }]);
@@ -191,9 +192,21 @@ export default function PlayerClipsPage() {
   }
 
   async function loadGuardians() {
-    const response = await fetch(`/api/players/${playerId}/guardians`);
-    const body = await response.json().catch(() => null) as { guardians?: Guardian[]; invites?: PlayerInvite[] } | null;
-    if (response.ok && body) { setGuardians(body.guardians ?? []); setInvites(body.invites ?? []); }
+    setGuardiansLoading(true);
+    setGuardiansError("");
+    try {
+      const response = await fetch(`/api/players/${playerId}/guardians`, { cache: "no-store" });
+      const body = await response.json().catch(() => null) as { guardians?: Guardian[]; invites?: PlayerInvite[]; error?: string } | null;
+      if (!response.ok) throw new Error(body?.error || "Contactpersonen konden niet geladen worden.");
+      setGuardians(body?.guardians ?? []);
+      setInvites(body?.invites ?? []);
+    } catch (reason) {
+      setGuardians([]);
+      setInvites([]);
+      setGuardiansError(reason instanceof Error ? reason.message : "Contactpersonen konden niet geladen worden.");
+    } finally {
+      setGuardiansLoading(false);
+    }
   }
 
   async function revokeGuardian(id: string) {
@@ -463,7 +476,8 @@ export default function PlayerClipsPage() {
           </div>
 
           {guardiansError && <p className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-sm text-red-300">{guardiansError}</p>}
-          {!guardians.length && !invites.length && <p className="mt-3 text-sm text-textMuted">{t("guardianInvite.noneLinkedYet")}</p>}
+          {guardiansLoading && <p className="mt-3 text-sm text-textMuted">Contactpersonen laden…</p>}
+          {!guardiansLoading && !guardiansError && !guardians.length && !invites.length && <p className="mt-3 text-sm text-textMuted">{t("guardianInvite.noneLinkedYet")}</p>}
           {!!guardians.length && (
             <div className="mt-3 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-textMuted">{t("guardianInvite.linkedGuardians")}</p>
