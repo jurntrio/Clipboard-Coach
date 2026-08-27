@@ -22,7 +22,7 @@ export function MenuIcon({ src, compact = false }: { src: string; compact?: bool
         }
         style={{ filter: isVectorIcon
           ? "brightness(0) saturate(100%) invert(76%) sepia(95%) saturate(1915%) hue-rotate(85deg) brightness(112%) contrast(118%)"
-          : "brightness(0) saturate(100%) invert(76%) sepia(95%) saturate(1915%) hue-rotate(85deg) brightness(112%) contrast(118%) drop-shadow(0 0 0.3px #00f06a)"
+          : undefined
         }}
       />
     </span>

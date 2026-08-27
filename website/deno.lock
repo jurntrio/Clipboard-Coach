@@ -13,6 +13,7 @@
       "dependencies": [
         "npm:@aws-sdk/client-s3@^3.632.0",
         "npm:@aws-sdk/s3-request-presigner@^3.632.0",
+        "npm:@sentry/nextjs@^10.71.0",
         "npm:@supabase/ssr@~0.5.1",
         "npm:@supabase/supabase-js@^2.45.4",
         "npm:@types/node@^20.14.15",

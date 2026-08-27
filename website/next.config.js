@@ -3,6 +3,9 @@ const { withSentryConfig } = require("@sentry/nextjs");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
+    // Netlify's image endpoint is not available for this deployment setup.
+    // Serve the already optimized branding assets and uploaded images directly.
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
