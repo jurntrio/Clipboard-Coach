@@ -1,16 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import type { StandardTag } from "@/types/database";
 import { useI18n } from "@/i18n/client";
 
-export function QuickTagCreator({ onCreated }: { onCreated: (tag: StandardTag) => void | Promise<void> }) {
+export function QuickTagCreator({ onCreated }: { onCreated: (name: string) => void | Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const supabase = createClient();
   const { t } = useI18n();
 
   async function createTag(event: React.FormEvent) {
@@ -18,19 +15,7 @@ export function QuickTagCreator({ onCreated }: { onCreated: (tag: StandardTag) =
     if (!name.trim() || saving) return;
     setSaving(true);
     setError("");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError(t("errors.sessionExpired"));
-      setSaving(false);
-      return;
-    }
-    const { data, error: insertError } = await supabase.from("standard_tags").insert({ coach_id: user.id, name: name.trim() }).select().single();
-    if (insertError) {
-      setError(insertError.code === "23505" ? t("tag.alreadyExists") : insertError.message);
-      setSaving(false);
-      return;
-    }
-    await onCreated(data);
+    await onCreated(name.trim());
     setName("");
     setSaving(false);
     setOpen(false);

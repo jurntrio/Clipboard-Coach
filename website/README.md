@@ -75,6 +75,24 @@ Mailbox e-mail notifications require both `RESEND_API_KEY` and
 `MAILBOX_EMAIL_FROM` (for example `Sport Visual Systems <noreply@sportvisualsystems.com>`).
 The sender domain must be verified in Resend. Without both values the mailbox
 continues to work in-app and the compose UI states that no e-mail is sent.
+
+### Error monitoring
+
+Production error monitoring uses Sentry for grouped browser/server exceptions and
+Resend for rate-limited developer alerts. Configure these deployment variables:
+
+- `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN`: server and browser DSN (usually identical).
+- `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`: required for source-map uploads.
+- `SENTRY_RELEASE` and `NEXT_PUBLIC_SENTRY_RELEASE`: optional matching server/browser release; Netlify's `COMMIT_REF` is the server fallback.
+- `MONITORING_ALERT_EMAIL`: optional recipient, default `jurntrio@gmail.com`.
+- `MONITORING_EMAIL_FROM`: optional verified sender, falling back to `MAILBOX_EMAIL_FROM`.
+
+Request bodies, query strings, cookies, authorization headers, video files and
+default personal data are excluded. Performance traces use 5% sampling. Developer
+alerts are deduplicated for 15 minutes per fingerprint and capped at 20 per hour.
+Also configure a Sentry issue alert for new and regressed issues to the project
+owner; Sentry retains and counts all repetitions.
+
 - **Railway** (or similar) — hosts the `worker/` service that compresses
   raw uploads into a web-friendly HLS proxy. Optional: without it, videos
   just keep playing straight from the raw R2 upload. See

@@ -73,7 +73,7 @@ export async function GET(request: Request) {
 type ImportContext = { user: { id: string }; club: { id: string }; season: { id: string } };
 type ImportTeam = { id: string; name: string; sponsor_source: string | null; teams: { id: string } | { id: string }[] };
 
-async function matchPayload(ctx: ImportContext, fixture: RbfaClubFixture, team: ImportTeam, ownClubId: string | null, opponentClubIds: Map<string, string | null>) {
+async function matchPayload(ctx: ImportContext, fixture: RbfaClubFixture, team: ImportTeam, ownClubId: string | null, opponentClubIds: Map<string, string | null>, liveTagNames: string[]) {
   const operationalTeam = Array.isArray(team.teams) ? team.teams[0] : team.teams;
   const opponent = fixture.ownIsHome ? fixture.awayTeam : fixture.homeTeam;
   if (!opponentClubIds.has(opponent)) opponentClubIds.set(opponent, await resolveBelgianClubByName(opponent));
@@ -85,6 +85,7 @@ async function matchPayload(ctx: ImportContext, fixture: RbfaClubFixture, team: 
     match_date: fixture.date, start_time: fixture.time, status: fixture.status,
     score_a: fixture.ownIsHome ? fixture.scoreHome : fixture.scoreAway,
     score_b: fixture.ownIsHome ? fixture.scoreAway : fixture.scoreHome,
+    live_tag_names: liveTagNames,
     official_series_name: fixture.division || null,
     external_source: "voetbal_vlaanderen_download", external_match_id: `${ctx.club.id}:${fixture.key}`,
     sponsor_source: team.sponsor_source ?? "none", official_referee_name: fixture.referee,
@@ -119,14 +120,16 @@ export async function POST(request: Request) {
   );
   if (!fixtures.length) return NextResponse.json({ error: "Deze reeks komt niet meer voor in de officiële download." }, { status: 409 });
   const ownClubId = await resolveBelgianClubForClub(ctx.club.id);
+  const { data: liveTags } = await ctx.admin.from("club_live_tag_templates").select("name").eq("club_id", ctx.club.id).order("display_order").order("created_at");
+  const liveTagNames = (liveTags ?? []).map(tag => tag.name);
   const opponentClubIds = new Map<string, string | null>();
   let imported = 0;
   let updated = 0;
   for (const fixture of fixtures) {
-    const payload = await matchPayload(ctx, fixture, team as ImportTeam, ownClubId, opponentClubIds);
-    const { data: existing } = await ctx.admin.from("matches").select("id")
+    const payload = await matchPayload(ctx, fixture, team as ImportTeam, ownClubId, opponentClubIds, liveTagNames);
+    const { data: existing } = await ctx.admin.from("matches").select("id, live_tag_names")
       .eq("external_source", "voetbal_vlaanderen_download").eq("external_match_id", payload.external_match_id).maybeSingle();
-    const result = existing ? await ctx.admin.from("matches").update(payload).eq("id", existing.id) : await ctx.admin.from("matches").insert(payload);
+    const result = existing ? await ctx.admin.from("matches").update({ ...payload, live_tag_names: existing.live_tag_names?.length ? existing.live_tag_names : payload.live_tag_names }).eq("id", existing.id) : await ctx.admin.from("matches").insert(payload);
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
     if (existing) updated += 1; else imported += 1;
   }

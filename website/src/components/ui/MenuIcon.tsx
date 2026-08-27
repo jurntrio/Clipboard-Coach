@@ -2,7 +2,6 @@ import Image from "next/image";
 
 export function MenuIcon({ src, compact = false }: { src: string; compact?: boolean }) {
   const isVectorIcon = src.toLowerCase().endsWith(".svg");
-  const usesOwnColors = src.includes("/branding/cbcs_black_icons/");
   return (
     <span className={compact
       ? "relative block h-8 w-8 shrink-0 rounded-lg bg-black"
@@ -21,9 +20,9 @@ export function MenuIcon({ src, compact = false }: { src: string; compact?: bool
             ? "absolute left-1/2 top-1/2 h-[38px] w-[38px] max-w-none -translate-x-1/2 -translate-y-1/2 object-contain"
             : "absolute left-1/2 top-1/2 h-7 w-7 max-w-none -translate-x-1/2 -translate-y-1/2 object-contain sm:h-11 sm:w-11"
         }
-        style={{ filter: usesOwnColors ? "none" : isVectorIcon
+        style={{ filter: isVectorIcon
           ? "brightness(0) saturate(100%) invert(76%) sepia(95%) saturate(1915%) hue-rotate(85deg) brightness(112%) contrast(118%)"
-          : "brightness(0) saturate(100%) invert(76%) sepia(95%) saturate(1915%) hue-rotate(85deg) brightness(112%) contrast(118%) drop-shadow(0 0 0.3px #00f06a)"
+          : undefined
         }}
       />
     </span>

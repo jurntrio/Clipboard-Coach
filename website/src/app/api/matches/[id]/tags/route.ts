@@ -24,7 +24,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const auth = await authorizedMatch(params.id);
   if ("error" in auth) return auth.error;
   const body = await request.json().catch(() => null) as {
-    videoId?: string; name?: string; occurredAtSeconds?: number; playerIds?: string[];
+    videoId?: string; name?: string; occurredAtSeconds?: number; startTime?: number; endTime?: number; playerIds?: string[];
   } | null;
   const name = body?.name?.trim() ?? "";
   const moment = body?.occurredAtSeconds;
@@ -36,12 +36,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .eq("match_id", auth.match.id).eq("video_id", body.videoId).maybeSingle();
   if (!matchVideo) return NextResponse.json({ error: "Videobron niet gevonden." }, { status: 404 });
   const video = Array.isArray(matchVideo.videos) ? matchVideo.videos[0] : matchVideo.videos;
-  const { data: profile } = await auth.admin.from("standard_tags")
+  const safeMoment = Math.max(0, Math.min(video?.duration ?? Number.POSITIVE_INFINITY, moment));
+  const explicitRange = typeof body.startTime === "number" && Number.isFinite(body.startTime)
+    && typeof body.endTime === "number" && Number.isFinite(body.endTime);
+  const { data: profile } = explicitRange ? { data: null } : await auth.admin.from("standard_tags")
     .select("start_offset_seconds, end_offset_seconds")
     .eq("coach_id", auth.user.id).ilike("name", name).limit(1).maybeSingle();
-  const safeMoment = Math.max(0, Math.min(video?.duration ?? Number.POSITIVE_INFINITY, moment));
-  const startTime = Math.max(0, safeMoment + (profile?.start_offset_seconds ?? -5));
-  const endTime = Math.min(video?.duration ?? Number.POSITIVE_INFINITY, Math.max(startTime, safeMoment + (profile?.end_offset_seconds ?? 5)));
+  const startTime = explicitRange
+    ? Math.max(0, Math.min(video?.duration ?? Number.POSITIVE_INFINITY, body.startTime as number))
+    : Math.max(0, safeMoment + (profile?.start_offset_seconds ?? -5));
+  const endTime = explicitRange
+    ? Math.max(startTime, Math.min(video?.duration ?? Number.POSITIVE_INFINITY, body.endTime as number))
+    : Math.min(video?.duration ?? Number.POSITIVE_INFINITY, Math.max(startTime, safeMoment + (profile?.end_offset_seconds ?? 5)));
+  if (endTime - startTime > 180) return NextResponse.json({ error: "De tag is te lang." }, { status: 400 });
   const { data: tag, error } = await auth.admin.from("tags").insert({
     video_id: body.videoId,
     name,

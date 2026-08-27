@@ -34,7 +34,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     .eq("club_id", ctx.match.club_id)
     .neq("status", "merged");
   if (ctx.match.season_id) extraTeamsQuery.eq("season_id", ctx.match.season_id);
-  const [{ data: options }, { data: selections }, { data: team }, { data: clubTeam }, { data: guestPlayers }, { data: extraTeams }] = await Promise.all([
+  const [{ data: options }, { data: selections }, { data: team }, { data: clubTeam }, { data: guestPlayers }, { data: extraTeams }, { data: liveTagDefaults }] = await Promise.all([
     canPlan || canViewSelection ? ctx.admin.from("club_match_options").select("*").eq("club_id", ctx.match.club_id).eq("active", true).order("label") : Promise.resolve({ data: [] }),
     canViewSelection ? ctx.admin.from("match_player_selections").select("*").eq("match_id", params.id) : Promise.resolve({ data: [] }),
     canViewSelection && ctx.match.team_a_id
@@ -44,7 +44,8 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       ? ctx.admin.from("club_teams").select("age_category, match_format, match_period_count, match_period_minutes, match_minimum_players").eq("id", ctx.match.club_team_id).maybeSingle()
       : Promise.resolve({ data: null }),
     canViewSelection ? ctx.admin.from("match_guest_players").select("*").eq("match_id", params.id).order("created_at") : Promise.resolve({ data: [] }),
-    canViewSelection ? extraTeamsQuery.order("name") : Promise.resolve({ data: [] })
+    canViewSelection ? extraTeamsQuery.order("name") : Promise.resolve({ data: [] }),
+    canTags || canCreateTagLink ? ctx.admin.from("club_live_tag_templates").select("name").eq("club_id", ctx.match.club_id).order("display_order").order("created_at") : Promise.resolve({ data: [] })
   ]);
   const allowedPlayerIds = ctx.access.goalkeeperPlayerIds;
   const extraPlayers = ((extraTeams ?? []).flatMap(clubTeamRow => {
@@ -57,6 +58,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   return NextResponse.json({
     match: {
       ...(allowedPlayerIds === null ? ctx.match : { ...ctx.match, player_ids: (ctx.match.player_ids ?? []).filter((id: string) => allowedPlayerIds.has(id)) }),
+      live_tag_names: ctx.match.live_tag_names?.length ? ctx.match.live_tag_names : (liveTagDefaults ?? []).map(tag => tag.name),
       match_format: ctx.match.match_format ?? clubTeam?.match_format ?? null,
       match_period_count: ctx.match.match_period_count ?? clubTeam?.match_period_count ?? null,
       match_period_minutes: ctx.match.match_period_minutes ?? clubTeam?.match_period_minutes ?? null,

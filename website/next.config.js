@@ -1,8 +1,11 @@
-const path = require("path");
+const { withSentryConfig } = require("@sentry/nextjs");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
+    // Netlify's image endpoint is not available for this deployment setup.
+    // Serve the already optimized branding assets and uploaded images directly.
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
@@ -13,17 +16,16 @@ const nextConfig = {
         hostname: "**.r2.cloudflarestorage.com"
       }
     ]
-  },
-  webpack(config) {
-    // DrawingCanvas is shared with the desktop app and lives one directory
-    // above this package. Netlify installs only website/node_modules, so make
-    // sure imports from that shared file resolve to this app's React runtime.
-    config.resolve.modules = [
-      path.resolve(__dirname, "node_modules"),
-      ...(config.resolve.modules || ["node_modules"])
-    ];
-    return config;
   }
 };
 
-module.exports = nextConfig;
+module.exports = withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  telemetry: false,
+  widenClientFileUpload: true,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  webpack: { treeshake: { removeDebugLogging: true } }
+});

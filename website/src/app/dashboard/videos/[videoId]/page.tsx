@@ -379,7 +379,7 @@ export default function VideoViewerPage() {
           <div className="grid grid-cols-1 gap-2">
             {standardTags.filter((tag) => !isPeriodMarker(tag.name)).map((tag) => <button key={tag.id} onClick={() => void addTag(tag.name, tag)} className="rounded-lg border border-borderButton bg-button px-2 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}
           </div>
-          <div className="mt-2"><QuickTagCreator onCreated={async (tag) => { setStandardTags((current) => [...current, tag]); await addTag(tag.name, tag); }} /></div>
+          <div className="mt-2"><QuickTagCreator onCreated={async (name) => { await addTag(name); }} /></div>
         </div>
         <button type="button" onClick={drawDownloadOnly} className="mt-auto w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page">{t("video.draw")}</button>
       </div>
