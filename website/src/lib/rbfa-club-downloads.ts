@@ -82,8 +82,7 @@ export async function downloadRbfaClubFixtures(clubName: string, registrationNum
   const [resultsCsv, designationsCsv] = await Promise.all(DOWNLOADS.map(downloadCsv));
   const registration = String(registrationNumber).padStart(5, "0");
   const fixtures: Omit<RbfaClubFixture, "key">[] = [];
-  const resultIdentities = new Set<string>();
-  const resultFixturesByIdentity = new Map<string, Omit<RbfaClubFixture, "key">>();
+  const resultFixturesByMatch = new Map<string, Omit<RbfaClubFixture, "key">>();
 
   for (const row of parseRows(resultsCsv)) {
     const home = row.REGNUMBERHOME === registration;
@@ -91,8 +90,7 @@ export async function downloadRbfaClubFixtures(clubName: string, registrationNum
     if (!home && !away) continue;
     const date = dateToIso(row.DATE);
     if (!date || !row.HOME || !row.AWAY) continue;
-    const identity = `${date}|${row.HOUR}|${normalizeRbfaFixtureName(row.HOME)}|${normalizeRbfaFixtureName(row.AWAY)}`;
-    resultIdentities.add(identity);
+    const matchIdentity = `${date}|${normalizeRbfaFixtureName(row.HOME)}|${normalizeRbfaFixtureName(row.AWAY)}`;
     const scoreHome = numberOrNull(row.RH);
     const scoreAway = numberOrNull(row.RA);
     const fixture: Omit<RbfaClubFixture, "key"> = {
@@ -102,7 +100,7 @@ export async function downloadRbfaClubFixtures(clubName: string, registrationNum
       sourceFile: "results", referee: null, assistantReferee1: null, assistantReferee2: null
     };
     fixtures.push(fixture);
-    resultFixturesByIdentity.set(identity, fixture);
+    resultFixturesByMatch.set(matchIdentity, fixture);
   }
 
   for (const row of parseRows(designationsCsv)) {
@@ -111,9 +109,12 @@ export async function downloadRbfaClubFixtures(clubName: string, registrationNum
     if (home === away) continue;
     const date = dateToIso(row.DATE);
     if (!date || !row.HOME || !row.AWAY) continue;
-    const identity = `${date}|${row.HOUR}|${normalizeRbfaFixtureName(row.HOME)}|${normalizeRbfaFixtureName(row.AWAY)}`;
-    const resultFixture = resultFixturesByIdentity.get(identity);
+    const matchIdentity = `${date}|${normalizeRbfaFixtureName(row.HOME)}|${normalizeRbfaFixtureName(row.AWAY)}`;
+    const resultFixture = resultFixturesByMatch.get(matchIdentity);
     if (resultFixture) {
+      // The designation feed carries schedule corrections. Keep the result and
+      // update its kickoff instead of importing the corrected row as a new game.
+      resultFixture.time = row.HOUR || resultFixture.time;
       resultFixture.referee = row.REFEREE || null;
       resultFixture.assistantReferee1 = row["ASSISTANT-REFEREE1"] || null;
       resultFixture.assistantReferee2 = row["ASSISTANT-REFEREE2"] || null;
@@ -150,11 +151,11 @@ export function filterUnlinkedRbfaFixtures(fixtures: RbfaClubFixture[], matches:
   const linkedCounts = new Map<string, number>();
   for (const match of matches) {
     if (!match.club_team_id || !match.match_date) continue;
-    const signature = `${match.match_date}|${match.start_time?.slice(0, 5) ?? ""}|${normalizeRbfaFixtureName(match.team_b_name)}`;
+    const signature = `${match.match_date}|${normalizeRbfaFixtureName(match.team_b_name)}`;
     linkedCounts.set(signature, (linkedCounts.get(signature) ?? 0) + 1);
   }
   return fixtures.filter(fixture => {
-    const signature = `${fixture.date}|${fixture.time.slice(0, 5)}|${normalizeRbfaFixtureName(rbfaFixtureOpponent(fixture))}`;
+    const signature = `${fixture.date}|${normalizeRbfaFixtureName(rbfaFixtureOpponent(fixture))}`;
     const count = linkedCounts.get(signature) ?? 0;
     if (!count) return true;
     linkedCounts.set(signature, count - 1);

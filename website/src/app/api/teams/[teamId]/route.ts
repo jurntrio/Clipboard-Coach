@@ -35,12 +35,12 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
   const section = new URL(request.url).searchParams.get("section");
   if (section === "matches") {
     const clubMatchesQuery = clubTeam
-      ? admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match, player_ids, completed_at, match_type")
+      ? admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match, player_ids, completed_at, match_type, updated_at")
           .eq("club_id", clubTeam.club_id).or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id},club_team_id.eq.${clubTeam.id}`)
       : null;
     const { data: matches } = clubTeam
       ? await (clubTeam.season_id ? clubMatchesQuery!.eq("season_id", clubTeam.season_id) : clubMatchesQuery!).order("match_date", { ascending: false })
-      : await admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match, player_ids, completed_at, match_type")
+      : await admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match, player_ids, completed_at, match_type, updated_at")
           .or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id}`).order("match_date", { ascending: false });
     const normalized = (value: string | null) => (value ?? "").toLocaleLowerCase("nl-BE")
       .replace(/\([^)]*\)/g, "").replace(/\bu\d{1,2}\b/g, "").replace(/[^a-z0-9]+/g, " ").trim();
@@ -48,9 +48,9 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
     for (const match of matches ?? []) {
       const opponent = match.team_a_id === team.id || normalized(match.team_a_name) === normalized(team.name)
         ? match.team_b_name : match.team_a_name;
-      const key = `${match.match_date ?? ""}|${match.start_time?.slice(0, 5) ?? ""}|${normalized(opponent)}`;
+      const key = `${match.match_date ?? ""}|${normalized(opponent)}`;
       const existing = uniqueMatches.get(key);
-      if (!existing || (!existing.club_team_id && match.club_team_id)) uniqueMatches.set(key, match);
+      if (!existing || (!existing.completed_at && !!match.completed_at) || `${match.updated_at}` > `${existing.updated_at}`) uniqueMatches.set(key, match);
     }
     return NextResponse.json({ matches: [...uniqueMatches.values()] });
   }

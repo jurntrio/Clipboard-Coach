@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { downloadRbfaClubFixtures, filterUnlinkedRbfaFixtures, type RbfaClubFixture } from "@/lib/rbfa-club-downloads";
+import { normalizeRbfaFixtureName } from "@/lib/rbfa-club-downloads";
 import { normalizeRbfaDivisionCode } from "@/lib/rbfa-team-suggestions";
 import { resolveBelgianClubByName, resolveBelgianClubForClub } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
@@ -155,8 +156,21 @@ export async function POST(request: Request) {
   for (const fixture of fixtures) {
     const fixtureTeam = isBatch ? teamsById.get(fixtureTeamIds.get(fixture.key)!)! : team;
     const payload = await matchPayload(ctx, fixture, fixtureTeam, ownClubId, opponentClubIds, liveTagNames);
-    const { data: existing } = await ctx.admin.from("matches").select("id, live_tag_names")
+    let { data: existing } = await ctx.admin.from("matches").select("id, live_tag_names")
       .eq("external_source", "voetbal_vlaanderen_download").eq("external_match_id", payload.external_match_id).maybeSingle();
+    if (!existing) {
+      const { data: candidates } = await ctx.admin.from("matches").select("id, live_tag_names, team_b_name, match_date, start_time, updated_at")
+        .eq("external_source", "voetbal_vlaanderen_download")
+        .eq("club_team_id", fixtureTeam.id)
+        .eq("season_id", ctx.season.id)
+        .eq("is_home_match", fixture.ownIsHome);
+      const fixtureDate = Date.parse(`${fixture.date}T12:00:00Z`);
+      existing = (candidates ?? [])
+        .filter(candidate => normalizeRbfaFixtureName(candidate.team_b_name) === normalizeRbfaFixtureName(fixture.ownIsHome ? fixture.awayTeam : fixture.homeTeam))
+        .map(candidate => ({ ...candidate, distance: Math.abs(Date.parse(`${candidate.match_date}T12:00:00Z`) - fixtureDate) }))
+        .filter(candidate => Number.isFinite(candidate.distance) && candidate.distance <= 21 * 86_400_000)
+        .sort((a, b) => a.distance - b.distance || `${b.updated_at}`.localeCompare(`${a.updated_at}`))[0] ?? null;
+    }
     const result = existing ? await ctx.admin.from("matches").update({ ...payload, live_tag_names: existing.live_tag_names?.length ? existing.live_tag_names : payload.live_tag_names }).eq("id", existing.id) : await ctx.admin.from("matches").insert(payload);
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
     if (existing) updated += 1; else imported += 1;

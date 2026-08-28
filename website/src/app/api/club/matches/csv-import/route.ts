@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { parseClubMatchCsv } from "@/lib/club-match-csv";
+import { normalizeRbfaFixtureName } from "@/lib/rbfa-club-downloads";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { resolveBelgianClubByName, resolveBelgianClubForClub } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
 
@@ -48,8 +49,18 @@ export async function POST(request: Request) {
       external_source: "voetbal_vlaanderen_csv", external_match_id: externalMatchId,
       sponsor_source: team.sponsor_source ?? "none"
     };
-    const { data: existing } = await admin.from("matches").select("id")
+    let { data: existing } = await admin.from("matches").select("id")
       .eq("external_source", "voetbal_vlaanderen_csv").eq("external_match_id", externalMatchId).maybeSingle();
+    if (!existing) {
+      const { data: candidates } = await admin.from("matches").select("id, team_b_name, match_date, updated_at")
+        .eq("external_source", "voetbal_vlaanderen_csv").eq("club_team_id", team.id).eq("is_home_match", row.isHome);
+      const rowDate = Date.parse(`${row.date}T12:00:00Z`);
+      existing = (candidates ?? [])
+        .filter(candidate => normalizeRbfaFixtureName(candidate.team_b_name) === normalizeRbfaFixtureName(opponent))
+        .map(candidate => ({ ...candidate, distance: Math.abs(Date.parse(`${candidate.match_date}T12:00:00Z`) - rowDate) }))
+        .filter(candidate => Number.isFinite(candidate.distance) && candidate.distance <= 21 * 86_400_000)
+        .sort((a, b) => a.distance - b.distance || `${b.updated_at}`.localeCompare(`${a.updated_at}`))[0] ?? null;
+    }
     const result = existing ? await admin.from("matches").update(payload).eq("id", existing.id) : await admin.from("matches").insert(payload);
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
     if (existing) updated += 1; else imported += 1;
