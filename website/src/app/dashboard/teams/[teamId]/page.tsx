@@ -228,18 +228,21 @@ function StaffCard({ name, role, href }: { name: string; role: string; href?: st
 function MatchList({ id, title, matches, empty }: { id: string; title: string; matches: Match[]; empty: string }) {
   return <section id={id} className="scroll-mt-6">
     <h3 className="mb-3 text-base font-bold text-textBright">{title}</h3>
-    {matches.length ? <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="hidden grid-cols-[minmax(180px,0.9fr)_minmax(130px,0.7fr)_minmax(280px,2fr)_auto_minmax(230px,auto)] gap-4 border-b border-borderSubtle bg-cardDeep px-4 py-2 text-xs font-bold uppercase tracking-wide text-textMuted lg:grid">
-        <span>Datum</span><span>Reeks</span><span>Wedstrijd</span><span>Stand</span><span className="text-right">Wedstrijdvoorbereiding</span>
-      </div>
-      <div className="divide-y divide-borderSubtle">{matches.map(match => <article key={match.id} className="grid gap-2 px-4 py-3 transition hover:bg-cardHover lg:grid-cols-[minmax(180px,0.9fr)_minmax(130px,0.7fr)_minmax(280px,2fr)_auto_minmax(230px,auto)] lg:items-center lg:gap-4">
+    {matches.length ? <div className="rounded-xl border border-border bg-card">
+      <div className="divide-y divide-borderSubtle">{matches.map(match => <article key={match.id} className="grid gap-2 px-4 py-3 transition first:rounded-t-xl last:rounded-b-xl hover:bg-cardHover lg:grid-cols-[minmax(180px,0.9fr)_minmax(130px,0.7fr)_minmax(280px,2fr)_auto_92px] lg:items-center lg:gap-4">
         <p className="whitespace-nowrap text-sm font-semibold text-textPrimary">{formatMatchDateShort(match.match_date)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p>
         <p className="truncate text-sm text-textMuted">{match.official_series_name ?? "–"}</p>
         <Link href={`/dashboard/games/${match.id}`} className="min-w-0 truncate font-bold text-textBright hover:text-accent hover:underline">{match.team_a_name} – {match.team_b_name}</Link>
         <strong className="text-sm text-accent">{match.score_a !== null && match.score_b !== null ? `${match.score_a} – ${match.score_b}` : "–"}</strong>
-        <div className="flex flex-wrap gap-x-4 gap-y-2 lg:justify-end">
-          <Link href={`/dashboard/games/${match.id}`} className="text-sm font-semibold text-accent hover:underline">Voorbereiding lezen</Link>
-          <Link href={`/dashboard/games/${match.id}?edit=1`} className="text-sm font-semibold text-textPrimary hover:text-accent hover:underline">Aanpassen</Link>
+        <div className="flex gap-2 lg:justify-end">
+          <Link href={`/dashboard/games/${match.id}`} title="Wedstrijdvoorbereiding lezen" aria-label="Wedstrijdvoorbereiding lezen" className="group relative grid h-9 w-9 place-items-center rounded-lg border border-borderButton bg-button text-accent transition hover:border-accent hover:bg-accentDim">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.8"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 0 4 22V5.5Z"/><path d="M4 5.5A2.5 2.5 0 0 1 6.5 8H20M8 12h8M8 16h5"/></svg>
+            <span className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 hidden whitespace-nowrap rounded-lg bg-cardAlt px-2.5 py-1.5 text-xs font-semibold text-textPrimary shadow-xl ring-1 ring-border group-hover:block">Wedstrijdvoorbereiding lezen</span>
+          </Link>
+          <Link href={`/dashboard/games/${match.id}?edit=1`} title="Wedstrijdvoorbereiding aanpassen" aria-label="Wedstrijdvoorbereiding aanpassen" className="group relative grid h-9 w-9 place-items-center rounded-lg border border-borderButton bg-button text-textPrimary transition hover:border-accent hover:bg-accentDim hover:text-accent">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.8"><path d="m14.5 5.5 4 4M4 20l4.25-.75L19 8.5a2.12 2.12 0 0 0-3-3L5.25 16.25 4 20Z"/><path d="m13.5 7.5 3 3"/></svg>
+            <span className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 hidden whitespace-nowrap rounded-lg bg-cardAlt px-2.5 py-1.5 text-xs font-semibold text-textPrimary shadow-xl ring-1 ring-border group-hover:block">Wedstrijdvoorbereiding aanpassen</span>
+          </Link>
         </div>
       </article>)}</div>
     </div> : <Empty text={empty} />}
