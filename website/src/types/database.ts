@@ -310,7 +310,7 @@ export type Match = {
   external_match_id: string | null;
   official_series_id: string | null;
   official_series_name: string | null;
-  match_type: "friendly" | "competition" | null;
+  match_type: "friendly" | "competition" | "cup" | null;
     is_home_match: boolean;
     completed_by: string | null;
     completed_at: string | null;

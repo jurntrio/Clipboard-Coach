@@ -101,7 +101,7 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
     }
     const dossierOwnsStat = (matchId: string, statType: "goal" | "assist") => (dossierGoalsByMatch.get(matchId) ?? []).some(goal =>
       statType === "goal" ? goal.scorerType === "player" && !!goal.scorerPlayerId : goal.assistType === "player" && !!goal.assistPlayerId);
-    const buildMatchStatistics = (matchType?: "friendly" | "competition") => {
+    const buildMatchStatistics = (matchType?: "friendly" | "competition" | "cup") => {
       const selectedMatches = (teamMatches ?? []).filter(match => !matchType || match.match_type === matchType);
       const selectedIds = new Set(selectedMatches.map(match => match.id));
       const selectedGoals = selectedMatches.flatMap(match => dossierGoalsByMatch.get(match.id) ?? []);
@@ -115,7 +115,17 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
           + (events ?? []).filter(event => selectedIds.has(event.match_id) && event.player_id === player.id && event.stat_type === "assist" && !dossierOwnsStat(event.match_id, "assist")).length
       }));
     };
-    return NextResponse.json({ statistics, match_statistics: buildMatchStatistics(), match_statistics_by_type: { friendly: buildMatchStatistics("friendly"), competition: buildMatchStatistics("competition") } });
+    const hasCupMatches = (teamMatches ?? []).some(match => match.match_type === "cup");
+    return NextResponse.json({
+      statistics,
+      match_statistics: buildMatchStatistics(),
+      match_statistics_by_type: {
+        friendly: buildMatchStatistics("friendly"),
+        competition: buildMatchStatistics("competition"),
+        cup: buildMatchStatistics("cup")
+      },
+      has_cup_matches: hasCupMatches
+    });
   }
 
   const allPlayers = (team.players ?? []) as Array<Record<string, unknown> & { id: string }>;

@@ -21,8 +21,8 @@ type TeamDetail = Team & { players: DetailedPlayer[]; linked_staff?: StaffMember
 type Training = { id: string; training_date: string; start_time: string; field_option_id: string | null; locker_room_option_id: string | null; attendance_confirmed_at: string | null };
 type TrainingData = { trainings: Training[]; optionNames: Record<string, string> };
 type MatchStatistic = { playerId: string; playerName: string; appearances: number; goals: number; assists: number };
-type StatisticsData = { training: TrainingStatistic[]; matches: MatchStatistic[]; friendlyMatches: MatchStatistic[]; competitionMatches: MatchStatistic[] };
-type MatchStatisticsFilter = "all" | "friendly" | "competition";
+type StatisticsData = { training: TrainingStatistic[]; matches: MatchStatistic[]; friendlyMatches: MatchStatistic[]; competitionMatches: MatchStatistic[]; cupMatches: MatchStatistic[]; hasCupMatches: boolean };
+type MatchStatisticsFilter = "all" | "friendly" | "competition" | "cup";
 
 export default function TeamDetailPage() {
   const { teamId: initialTeamId } = useParams<{ teamId: string }>();
@@ -40,6 +40,8 @@ export default function TeamDetailPage() {
   const [matchStatistics, setMatchStatistics] = useState<MatchStatistic[] | null>(null);
   const [friendlyMatchStatistics, setFriendlyMatchStatistics] = useState<MatchStatistic[]>([]);
   const [competitionMatchStatistics, setCompetitionMatchStatistics] = useState<MatchStatistic[]>([]);
+  const [cupMatchStatistics, setCupMatchStatistics] = useState<MatchStatistic[]>([]);
+  const [hasCupMatches, setHasCupMatches] = useState(false);
   const [matchStatisticsFilter, setMatchStatisticsFilter] = useState<MatchStatisticsFilter>("all");
   const [loading, setLoading] = useState(true);
   const [loadingSection, setLoadingSection] = useState<"matches" | "training" | null>(null);
@@ -65,8 +67,8 @@ export default function TeamDetailPage() {
         trainings: body.trainings ?? [],
         optionNames: Object.fromEntries((body.training_options ?? []).map(option => [option.id, option.label]))
       })).then((result) => { if (result && activeTeamId.current === selectedTeamId) { setTrainings(result.trainings); setOptionNames(result.optionNames); } }),
-      statisticsSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=statistics`, (body: { statistics: TrainingStatistic[]; match_statistics: MatchStatistic[]; match_statistics_by_type?: { friendly?: MatchStatistic[]; competition?: MatchStatistic[] } }) => ({ training: body.statistics ?? [], matches: body.match_statistics ?? [], friendlyMatches: body.match_statistics_by_type?.friendly ?? [], competitionMatches: body.match_statistics_by_type?.competition ?? [] }))
-        .then((result) => { if (result && activeTeamId.current === selectedTeamId) { setStatistics(result.training); setMatchStatistics(result.matches); setFriendlyMatchStatistics(result.friendlyMatches); setCompetitionMatchStatistics(result.competitionMatches); } })
+      statisticsSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=statistics`, (body: { statistics: TrainingStatistic[]; match_statistics: MatchStatistic[]; match_statistics_by_type?: { friendly?: MatchStatistic[]; competition?: MatchStatistic[]; cup?: MatchStatistic[] }; has_cup_matches?: boolean }) => ({ training: body.statistics ?? [], matches: body.match_statistics ?? [], friendlyMatches: body.match_statistics_by_type?.friendly ?? [], competitionMatches: body.match_statistics_by_type?.competition ?? [], cupMatches: body.match_statistics_by_type?.cup ?? [], hasCupMatches: body.has_cup_matches === true }))
+        .then((result) => { if (result && activeTeamId.current === selectedTeamId) { setStatistics(result.training); setMatchStatistics(result.matches); setFriendlyMatchStatistics(result.friendlyMatches); setCompetitionMatchStatistics(result.competitionMatches); setCupMatchStatistics(result.cupMatches); setHasCupMatches(result.hasCupMatches); } })
     ]).then(() => undefined).finally(() => sectionRequests.current.delete(selectedTeamId));
     sectionRequests.current.set(selectedTeamId, request);
     return request;
@@ -172,6 +174,8 @@ export default function TeamDetailPage() {
     setMatchStatistics(cachedStatistics?.matches ?? null);
     setFriendlyMatchStatistics(cachedStatistics?.friendlyMatches ?? []);
     setCompetitionMatchStatistics(cachedStatistics?.competitionMatches ?? []);
+    setCupMatchStatistics(cachedStatistics?.cupMatches ?? []);
+    setHasCupMatches(cachedStatistics?.hasCupMatches ?? false);
     setMatchStatisticsFilter("all");
     setLoadingSection(null);
     setTeamId(option.id);
@@ -213,7 +217,7 @@ export default function TeamDetailPage() {
     {tab === "evaluations" && <Empty text={t("team.evaluationsComingSoon")} />}
     {tab === "statistics" && <section>
       <nav className="mb-6 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label="Ga naar statistiekensectie"><a href="#wedstrijdstatistieken" className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Wedstrijdstatistieken</a><a href="#trainingsstatistieken" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Trainingsstatistieken</a></nav>
-      <div id="wedstrijdstatistieken" className="scroll-mt-6"><h2 className="mb-3 text-lg font-bold text-textBright">Wedstrijdstatistieken</h2>{matchStatistics === null ? <Loading text="Wedstrijdstatistieken laden…" /> : <><div className="mb-3 flex flex-wrap gap-2">{([['all','Alle wedstrijden'],['friendly','Vriendschappelijk'],['competition','Competitie']] as const).map(([value,label]) => <button key={value} type="button" onClick={() => setMatchStatisticsFilter(value)} className={`rounded-lg px-4 py-2 text-sm font-bold ${matchStatisticsFilter === value ? 'bg-accent text-page' : 'border border-borderButton bg-button text-textPrimary hover:border-accent'}`}>{label}</button>)}</div><MatchStatistics rows={matchStatisticsFilter === "friendly" ? friendlyMatchStatistics : matchStatisticsFilter === "competition" ? competitionMatchStatistics : matchStatistics} /></>}</div>
+      <div id="wedstrijdstatistieken" className="scroll-mt-6"><h2 className="mb-3 text-lg font-bold text-textBright">Wedstrijdstatistieken</h2>{matchStatistics === null ? <Loading text="Wedstrijdstatistieken laden…" /> : <><div className="mb-3 flex flex-wrap gap-2">{([['all','Alle wedstrijden'],['friendly','Vriendschappelijk'],['competition','Competitie'], ...(hasCupMatches ? [['cup','Beker'] as const] : [])] as const).map(([value,label]) => <button key={value} type="button" onClick={() => setMatchStatisticsFilter(value)} className={`rounded-lg px-4 py-2 text-sm font-bold ${matchStatisticsFilter === value ? 'bg-accent text-page' : 'border border-borderButton bg-button text-textPrimary hover:border-accent'}`}>{label}</button>)}</div><MatchStatistics rows={matchStatisticsFilter === "friendly" ? friendlyMatchStatistics : matchStatisticsFilter === "competition" ? competitionMatchStatistics : matchStatisticsFilter === "cup" ? cupMatchStatistics : matchStatistics} /></>}</div>
       <div id="trainingsstatistieken" className="mt-10 scroll-mt-6"><h2 className="mb-3 text-lg font-bold text-textBright">Trainingsstatistieken</h2>{statistics ? <TrainingStatistics rows={statistics} /> : <Loading text="Trainingsstatistieken laden…" />}</div>
     </section>}
   </div>;
@@ -238,7 +242,7 @@ function MatchList({ id, title, matches, empty, played = false }: { id: string; 
     {matches.length ? <div className="rounded-xl border border-border bg-card">
       <div className="divide-y divide-borderSubtle">{matches.map(match => { const readLabel = played ? "Wedstrijdverslag lezen" : "Wedstrijdvoorbereiding lezen"; const editLabel = played ? match.completed_at ? "Wedstrijdverslag aanpassen" : "Wedstrijdverslag opmaken" : "Wedstrijdvoorbereiding aanpassen"; return <article key={match.id} className="grid gap-2 px-4 py-3 transition first:rounded-t-xl last:rounded-b-xl hover:bg-cardHover lg:grid-cols-[minmax(180px,0.9fr)_minmax(130px,0.7fr)_minmax(280px,2fr)_auto_92px] lg:items-center lg:gap-4">
         <p className="whitespace-nowrap text-sm font-semibold text-textPrimary">{formatMatchDateShort(match.match_date)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p>
-        <p className="flex justify-center"><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${match.match_type === "competition" ? "border-accent/50 bg-accent/10 text-accent" : match.match_type === "friendly" ? "border-blue-400/50 bg-blue-400/10 text-blue-300" : "border-borderButton bg-button text-textMuted"}`}>{match.match_type === "competition" ? "Competitie" : match.match_type === "friendly" ? "Vriendschappelijk" : "Niet bepaald"}</span></p>
+        <p className="flex justify-center"><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${match.match_type === "competition" ? "border-accent/50 bg-accent/10 text-accent" : match.match_type === "cup" ? "border-amber-400/50 bg-amber-400/10 text-amber-300" : match.match_type === "friendly" ? "border-blue-400/50 bg-blue-400/10 text-blue-300" : "border-borderButton bg-button text-textMuted"}`}>{match.match_type === "competition" ? "Competitie" : match.match_type === "cup" ? "Beker" : match.match_type === "friendly" ? "Vriendschappelijk" : "Niet bepaald"}</span></p>
         <Link href={`/dashboard/games/${match.id}`} className="min-w-0 truncate font-bold text-textBright hover:text-accent hover:underline">{match.team_a_name} – {match.team_b_name}</Link>
         <strong className="text-sm text-accent">{match.score_a !== null && match.score_b !== null ? `${match.score_a} – ${match.score_b}` : "–"}</strong>
         <div className="flex gap-2 lg:justify-end">
