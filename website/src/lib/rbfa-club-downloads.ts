@@ -60,6 +60,12 @@ function numberOrNull(value: string | undefined) {
   return value !== undefined && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
 }
 
+function officialMatchIdentity(date: string, division: string, home: string, away: string) {
+  const teams = `${normalizeRbfaFixtureName(home)}|${normalizeRbfaFixtureName(away)}`;
+  const normalizedDivision = normalizeRbfaFixtureName(division);
+  return normalizedDivision ? `${normalizedDivision}|${teams}` : `${date}|${teams}`;
+}
+
 async function downloadCsv(url: string) {
   const response = await fetch(url, { next: { revalidate: 21_600 }, signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error(`Voetbal Vlaanderen-download mislukt (${response.status}).`);
@@ -90,7 +96,7 @@ export async function downloadRbfaClubFixtures(clubName: string, registrationNum
     if (!home && !away) continue;
     const date = dateToIso(row.DATE);
     if (!date || !row.HOME || !row.AWAY) continue;
-    const matchIdentity = `${date}|${normalizeRbfaFixtureName(row.HOME)}|${normalizeRbfaFixtureName(row.AWAY)}`;
+    const matchIdentity = officialMatchIdentity(date, row.DIV, row.HOME, row.AWAY);
     const scoreHome = numberOrNull(row.RH);
     const scoreAway = numberOrNull(row.RA);
     const fixture: Omit<RbfaClubFixture, "key"> = {
@@ -109,11 +115,12 @@ export async function downloadRbfaClubFixtures(clubName: string, registrationNum
     if (home === away) continue;
     const date = dateToIso(row.DATE);
     if (!date || !row.HOME || !row.AWAY) continue;
-    const matchIdentity = `${date}|${normalizeRbfaFixtureName(row.HOME)}|${normalizeRbfaFixtureName(row.AWAY)}`;
+    const matchIdentity = officialMatchIdentity(date, row.DIV, row.HOME, row.AWAY);
     const resultFixture = resultFixturesByMatch.get(matchIdentity);
     if (resultFixture) {
       // The designation feed carries schedule corrections. Keep the result and
       // update its kickoff instead of importing the corrected row as a new game.
+      resultFixture.date = date;
       resultFixture.time = row.HOUR || resultFixture.time;
       resultFixture.referee = row.REFEREE || null;
       resultFixture.assistantReferee1 = row["ASSISTANT-REFEREE1"] || null;
