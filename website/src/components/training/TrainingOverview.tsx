@@ -1,14 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TrainingWeek } from "@/components/training/TrainingWeek";
 import type { TrainingSessionSummary } from "@/components/training/types";
+import { hasScheduledEventEnded } from "@/lib/schedule-status";
 
 export function TrainingOverview({ sessions, optionNames, canManage }: { sessions: TrainingSessionSummary[]; optionNames: Record<string, string>; canManage: boolean }) {
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = useMemo(() => groupByWeek(sessions.filter(session => session.training_date >= today)), [sessions, today]);
-  const past = useMemo(() => groupByWeek(sessions.filter(session => session.training_date < today)).reverse(), [sessions, today]);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const upcoming = useMemo(() => groupByWeek(sessions.filter(session => !hasScheduledEventEnded(session.training_date, session.start_time, now))), [sessions, now]);
+  const past = useMemo(() => groupByWeek(sessions.filter(session => hasScheduledEventEnded(session.training_date, session.start_time, now))).reverse(), [sessions, now]);
   return <section>
     <div className="mb-4 flex flex-wrap gap-2 border-b border-border" role="tablist" aria-label="Trainingen filteren">
       <TabButton active={activeTab === "upcoming"} onClick={() => setActiveTab("upcoming")}>Komende trainingen</TabButton>
