@@ -255,7 +255,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
       </div>
     </ClosedPanel></div>}
 
-    {showSelection && (players.length > 0 || editable) && <ClosedPanel title={`Spelersbeoordelingen (${players.length})`} expanded={played}>
+    {played && showSelection && (players.length > 0 || editable) && <ClosedPanel title={`Spelersbeoordelingen (${players.length})`} expanded>
       <p className="mb-4 rounded-lg border border-borderSubtle bg-cardDeep p-3 text-xs text-textMuted">Intern: nooit zichtbaar voor spelers of contactpersonen.</p>
       {players.length ? <div className="overflow-hidden rounded-xl border border-borderSubtle">
         {players.map(player => {

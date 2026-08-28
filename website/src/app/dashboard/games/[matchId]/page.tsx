@@ -11,6 +11,7 @@ import { getClubContext } from "@/lib/auth/active-club";
 import { MatchCoreInfoEditor } from "@/components/matches/MatchCoreInfoEditor";
 import { MatchHeaderScoreEditor } from "@/components/matches/MatchHeaderScoreEditor";
 import { deleteObject } from "@/lib/r2/upload";
+import { hasScheduledEventEnded } from "@/lib/schedule-status";
 
 type GuardianPlayer = { player_id: string; team_id: string | null };
 type PlayerFacingReview = { playerId?: unknown; playerReport?: unknown };
@@ -139,14 +140,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     return [{ playerId: review.playerId, report: review.playerReport.trim() }];
   });
   const scoreKnown = match.score_a !== null && match.score_b !== null;
-  const nowInBrussels = new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Europe/Brussels", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hour12: false
-  }).format(new Date());
-  const [todayInBrussels, timeInBrussels] = nowInBrussels.split(" ");
-  const played = match.status === "finished"
-    || (!!match.match_date && (match.match_date < todayInBrussels
-      || (match.match_date === todayInBrussels && !!match.start_time && match.start_time.slice(0, 5) <= timeInBrussels)));
+  const played = match.status === "finished" || hasScheduledEventEnded(match.match_date, match.start_time);
   const homeTeamName = match.is_home_match ? match.team_a_name : match.team_b_name;
   const awayTeamName = match.is_home_match ? match.team_b_name : match.team_a_name;
   const homeScore = match.is_home_match ? match.score_a : match.score_b;
@@ -157,7 +151,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       <Link href="/dashboard" className="text-sm font-semibold text-accent hover:underline">← Terug naar dashboard</Link>
       <div className="flex flex-wrap gap-2">
         {canCreateTagLink && !played && <MatchTagLinkButton matchId={match.id} />}
-        {canEditAnything && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : "Wedstrijd bewerken"}</Link>}
+        {canEditAnything && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : played ? "Wedstrijdverslag opmaken" : "Wedstrijdvoorbereiding opmaken"}</Link>}
         {canViewVideo && !!videoCount && <Link href={`/dashboard/matches/${match.id}`} className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page">Open videoviewer</Link>}
       </div>
     </div>

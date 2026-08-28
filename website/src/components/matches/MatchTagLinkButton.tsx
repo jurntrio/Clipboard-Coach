@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function MatchTagLinkButton({ matchId }: { matchId: string }) {
   const [tagUrl, setTagUrl] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function getTagLink() {
+  async function getTagLink(copyAfterLoad = true) {
     setBusy(true);
     setNotice("");
     const response = await fetch(`/api/matches/${matchId}/tag-link`, { method: "POST" });
@@ -20,6 +20,7 @@ export function MatchTagLinkButton({ matchId }: { matchId: string }) {
 
     const url = `${window.location.origin}/tag/${body.token}`;
     setTagUrl(url);
+    if (!copyAfterLoad) return;
     try {
       await navigator.clipboard.writeText(url);
       setNotice("Taglink gekopieerd.");
@@ -27,6 +28,12 @@ export function MatchTagLinkButton({ matchId }: { matchId: string }) {
       setNotice("Kopieer de taglink hieronder.");
     }
   }
+
+  useEffect(() => {
+    void getTagLink(false);
+    // De endpoint geeft een bestaande actieve link terug en maakt er alleen een als die ontbreekt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId]);
 
   async function copyTagLink() {
     try {
@@ -38,8 +45,8 @@ export function MatchTagLinkButton({ matchId }: { matchId: string }) {
   }
 
   return <div className="w-full sm:w-auto">
-    <button type="button" disabled={busy} onClick={() => void getTagLink()} className="w-full rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">
-      {busy ? "Taglink maken…" : "Taglink maken en kopiëren"}
+    <button type="button" disabled={busy || !tagUrl} onClick={() => void copyTagLink()} className="w-full rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">
+      {busy ? "Live-taglink laden…" : "Live-taglink kopiëren"}
     </button>
     {tagUrl && <div className="mt-2 flex max-w-xl gap-2 rounded-xl border border-accent/30 bg-card p-2">
       <input aria-label="Externe taglink" readOnly value={tagUrl} onFocus={(event) => event.currentTarget.select()} className="min-w-0 flex-1 bg-transparent px-2 text-xs text-textPrimary" />
