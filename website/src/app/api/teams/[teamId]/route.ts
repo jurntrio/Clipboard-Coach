@@ -35,12 +35,12 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
   const section = new URL(request.url).searchParams.get("section");
   if (section === "matches") {
     const clubMatchesQuery = clubTeam
-      ? admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match, player_ids, completed_at")
+      ? admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match, player_ids, completed_at, match_type")
           .eq("club_id", clubTeam.club_id).or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id},club_team_id.eq.${clubTeam.id}`)
       : null;
     const { data: matches } = clubTeam
       ? await (clubTeam.season_id ? clubMatchesQuery!.eq("season_id", clubTeam.season_id) : clubMatchesQuery!).order("match_date", { ascending: false })
-      : await admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match, player_ids, completed_at")
+      : await admin.from("matches").select("id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, club_team_id, is_home_match, player_ids, completed_at, match_type")
           .or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id}`).order("match_date", { ascending: false });
     const normalized = (value: string | null) => (value ?? "").toLocaleLowerCase("nl-BE")
       .replace(/\([^)]*\)/g, "").replace(/\bu\d{1,2}\b/g, "").replace(/[^a-z0-9]+/g, " ").trim();
@@ -89,7 +89,7 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
       }));
     const playerIds = roster.map(player => player.id);
     const [{ data: teamMatches }, { data: events }] = await Promise.all([
-      admin.from("matches").select("id, player_ids, match_dossiers(goal_events)").eq("club_team_id", clubTeam.id),
+      admin.from("matches").select("id, player_ids, match_type, match_dossiers(goal_events)").eq("club_team_id", clubTeam.id),
       playerIds.length ? admin.from("player_stat_events").select("match_id, player_id, stat_type").in("player_id", playerIds) : Promise.resolve({ data: [] })
     ]);
     type DossierGoal = { scorerType?: string; scorerPlayerId?: string; assistType?: string; assistPlayerId?: string };
@@ -101,16 +101,21 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
     }
     const dossierOwnsStat = (matchId: string, statType: "goal" | "assist") => (dossierGoalsByMatch.get(matchId) ?? []).some(goal =>
       statType === "goal" ? goal.scorerType === "player" && !!goal.scorerPlayerId : goal.assistType === "player" && !!goal.assistPlayerId);
-    const matchStatistics = roster.map(player => ({
-      playerId: player.id,
-      playerName: `${player.first_name} ${player.last_name}`.trim(),
-      appearances: (teamMatches ?? []).filter(match => (match.player_ids ?? []).includes(player.id)).length,
-      goals: [...dossierGoalsByMatch.values()].flat().filter(goal => goal.scorerType === "player" && goal.scorerPlayerId === player.id).length
-        + (events ?? []).filter(event => event.player_id === player.id && event.stat_type === "goal" && !dossierOwnsStat(event.match_id, "goal")).length,
-      assists: [...dossierGoalsByMatch.values()].flat().filter(goal => goal.assistType === "player" && goal.assistPlayerId === player.id).length
-        + (events ?? []).filter(event => event.player_id === player.id && event.stat_type === "assist" && !dossierOwnsStat(event.match_id, "assist")).length
-    }));
-    return NextResponse.json({ statistics, match_statistics: matchStatistics });
+    const buildMatchStatistics = (matchType?: "friendly" | "competition") => {
+      const selectedMatches = (teamMatches ?? []).filter(match => !matchType || match.match_type === matchType);
+      const selectedIds = new Set(selectedMatches.map(match => match.id));
+      const selectedGoals = selectedMatches.flatMap(match => dossierGoalsByMatch.get(match.id) ?? []);
+      return roster.map(player => ({
+        playerId: player.id,
+        playerName: `${player.first_name} ${player.last_name}`.trim(),
+        appearances: selectedMatches.filter(match => (match.player_ids ?? []).includes(player.id)).length,
+        goals: selectedGoals.filter(goal => goal.scorerType === "player" && goal.scorerPlayerId === player.id).length
+          + (events ?? []).filter(event => selectedIds.has(event.match_id) && event.player_id === player.id && event.stat_type === "goal" && !dossierOwnsStat(event.match_id, "goal")).length,
+        assists: selectedGoals.filter(goal => goal.assistType === "player" && goal.assistPlayerId === player.id).length
+          + (events ?? []).filter(event => selectedIds.has(event.match_id) && event.player_id === player.id && event.stat_type === "assist" && !dossierOwnsStat(event.match_id, "assist")).length
+      }));
+    };
+    return NextResponse.json({ statistics, match_statistics: buildMatchStatistics(), match_statistics_by_type: { friendly: buildMatchStatistics("friendly"), competition: buildMatchStatistics("competition") } });
   }
 
   const allPlayers = (team.players ?? []) as Array<Record<string, unknown> & { id: string }>;
