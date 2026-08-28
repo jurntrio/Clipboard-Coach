@@ -223,7 +223,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
           document.body
         )}
         </div>
-        <div className="flex w-full min-w-0 max-w-full items-center justify-center gap-1 justify-self-center sm:gap-2 xl:w-auto">
+        <div className="flex w-full min-w-0 max-w-full items-center justify-center gap-1 justify-self-stretch sm:gap-2">
           <nav ref={navigationRef} aria-label="Hoofdnavigatie" className="flex w-full min-w-0 max-w-full items-center justify-center gap-1 py-1 sm:gap-2">
             <Link ref={homeButtonRef} href="/dashboard" title="Home" aria-label="Home" className={`${actionClass} ${pathname === "/dashboard" ? activeClass : ""}`}>
               <MenuIcon src="/branding/cbcs_black_icons/home.png" />
