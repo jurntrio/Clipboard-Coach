@@ -61,7 +61,7 @@ export async function PUT(request: Request, { params }: { params: { sessionId: s
     }
     const { error } = await admin.from("team_training_sessions").update({
       attendance_confirmed_at: confirmedAt, attendance_confirmed_by: context.user.id
-    }).eq("id", session.id).is("attendance_confirmed_at", null);
+    }).eq("id", session.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ confirmedAt });
   }

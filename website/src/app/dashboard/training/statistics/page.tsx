@@ -19,8 +19,9 @@ export default async function TrainingStatisticsPage() {
   const selection = readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, validTeamIds);
   const activeTeamId = selection.teamId ?? (selection.explicitAll || !context.activeClubId || !context.user ? null : await resolveDefaultTeamId(admin, context.activeClubId, context.user.id, teams.map(team => team.id)));
   const visibleTeams = activeTeamId ? teams.filter(team => team.id === activeTeamId) : teams;
-  const teamIds = visibleTeams.map(team => team.id); const today = new Date().toISOString().slice(0, 10);
-  const { data: sessions } = teamIds.length ? await admin.from("team_training_sessions").select("id, club_team_id").in("club_team_id", teamIds).lt("training_date", today).not("attendance_confirmed_at", "is", null) : { data: [] };
+  const teamIds = visibleTeams.map(team => team.id);
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Brussels" }).format(new Date());
+  const { data: sessions } = teamIds.length ? await admin.from("team_training_sessions").select("id, club_team_id").in("club_team_id", teamIds).lte("training_date", today).not("attendance_confirmed_at", "is", null) : { data: [] };
   const sessionIds = (sessions ?? []).map(session => session.id);
   const { data: attendance } = sessionIds.length ? await admin.from("team_training_attendance").select("training_session_id, player_id, attendance_status").in("training_session_id", sessionIds) : { data: [] };
   const rows: TrainingStatistic[] = visibleTeams.flatMap(team => {
