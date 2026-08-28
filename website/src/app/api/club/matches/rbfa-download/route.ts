@@ -37,7 +37,9 @@ export async function GET(request: Request) {
   const clubId = new URL(request.url).searchParams.get("clubId") ?? "";
   const ctx = await context(clubId);
   if (ctx.error) return ctx.error;
-  const fixtures = await downloadRbfaClubFixtures(ctx.club.name, ctx.club.rbfa_registration_number);
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Brussels" });
+  const fixtures = (await downloadRbfaClubFixtures(ctx.club.name, ctx.club.rbfa_registration_number))
+    .filter(fixture => fixture.date >= today && fixture.status !== "finished");
   const [{ data: matches, error }, { data: assignments, error: assignmentError }] = await Promise.all([
     ctx.admin.from("matches").select("club_team_id, match_date, start_time, team_b_name").eq("club_id", ctx.club.id).eq("season_id", ctx.season.id),
     ctx.admin.from("club_official_series_assignments").select("division_code, club_team_id").eq("club_id", ctx.club.id).eq("season_id", ctx.season.id)
@@ -96,18 +98,39 @@ async function matchPayload(ctx: ImportContext, fixture: RbfaClubFixture, team: 
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as { clubId?: string; divisionCode?: string; fixtureKey?: string; teamId?: string } | null;
-  if (!body?.clubId || !body.teamId || (!body.divisionCode && !body.fixtureKey)) return NextResponse.json({ error: "Ongeldige wedstrijd- of reekskoppeling." }, { status: 400 });
+  const body = await request.json().catch(() => null) as {
+    clubId?: string;
+    divisionCode?: string;
+    fixtureKey?: string;
+    teamId?: string;
+    fixtureAssignments?: Array<{ fixtureKey?: string; teamId?: string }>;
+  } | null;
+  const fixtureAssignments = (body?.fixtureAssignments ?? []).filter(
+    (item): item is { fixtureKey: string; teamId: string } => !!item.fixtureKey && !!item.teamId
+  );
+  const isBatch = fixtureAssignments.length > 0;
+  if (!body?.clubId || (!isBatch && (!body.teamId || (!body.divisionCode && !body.fixtureKey)))) {
+    return NextResponse.json({ error: "Ongeldige wedstrijd- of reekskoppeling." }, { status: 400 });
+  }
   const ctx = await context(body.clubId);
   if (ctx.error) return ctx.error;
   const divisionCode = normalizeRbfaDivisionCode(body.divisionCode ?? "");
-  const { data: team, error: teamError } = await ctx.admin.from("club_teams")
-    .select("id, name, sponsor_source, season_id, teams(id)").eq("id", body.teamId).eq("club_id", ctx.club.id).eq("season_id", ctx.season.id).eq("status", "active").maybeSingle();
-  if (teamError || !team || (!ctx.platformAdmin && !canAccessTeam(ctx.access, team.id))) return NextResponse.json({ error: teamError?.message ?? "Ploeg niet gevonden." }, { status: 400 });
-  const operationalTeam = Array.isArray(team.teams) ? team.teams[0] : team.teams;
-  if (!operationalTeam?.id) return NextResponse.json({ error: "De gekozen clubploeg heeft geen operationele ploeg." }, { status: 400 });
+  const requestedTeamIds = [...new Set(isBatch ? fixtureAssignments.map(item => item.teamId) : [body.teamId!])];
+  const { data: teams, error: teamError } = await ctx.admin.from("club_teams")
+    .select("id, name, sponsor_source, season_id, teams(id)").in("id", requestedTeamIds)
+    .eq("club_id", ctx.club.id).eq("season_id", ctx.season.id).eq("status", "active");
+  if (teamError || !teams || teams.length !== requestedTeamIds.length) {
+    return NextResponse.json({ error: teamError?.message ?? "Een gekozen ploeg werd niet gevonden." }, { status: 400 });
+  }
+  const teamsById = new Map(teams.map(team => [team.id, team as ImportTeam]));
+  for (const team of teams) {
+    if (!ctx.platformAdmin && !canAccessTeam(ctx.access, team.id)) return NextResponse.json({ error: "Ploeg niet gevonden." }, { status: 400 });
+    const operationalTeam = Array.isArray(team.teams) ? team.teams[0] : team.teams;
+    if (!operationalTeam?.id) return NextResponse.json({ error: `De gekozen clubploeg ${team.name} heeft geen operationele ploeg.` }, { status: 400 });
+  }
+  const team = teamsById.get(body.teamId ?? fixtureAssignments[0].teamId)!;
 
-  if (!body.fixtureKey) {
+  if (!isBatch && !body.fixtureKey) {
     const { error: mappingError } = await ctx.admin.from("club_official_series_assignments").upsert({
       club_id: ctx.club.id, season_id: ctx.season.id, division_code: divisionCode,
       club_team_id: team.id, approved_by: ctx.user.id, approved_at: new Date().toISOString(), updated_at: new Date().toISOString()
@@ -115,10 +138,14 @@ export async function POST(request: Request) {
     if (mappingError) return NextResponse.json({ error: mappingError.message }, { status: 500 });
   }
 
+  const fixtureTeamIds = new Map(fixtureAssignments.map(item => [item.fixtureKey, item.teamId]));
   const fixtures = (await downloadRbfaClubFixtures(ctx.club.name, ctx.club.rbfa_registration_number)).filter(fixture =>
-    body.fixtureKey ? fixture.key === body.fixtureKey : (normalizeRbfaDivisionCode(fixture.division) || "ZONDER REEKS") === divisionCode
+    isBatch ? fixtureTeamIds.has(fixture.key) : body.fixtureKey ? fixture.key === body.fixtureKey : (normalizeRbfaDivisionCode(fixture.division) || "ZONDER REEKS") === divisionCode
   );
   if (!fixtures.length) return NextResponse.json({ error: "Deze reeks komt niet meer voor in de officiële download." }, { status: 409 });
+  if (isBatch && fixtures.length !== fixtureTeamIds.size) {
+    return NextResponse.json({ error: "Een of meer gekozen wedstrijden komen niet meer voor in de officiële download. Controleer de reeksen opnieuw." }, { status: 409 });
+  }
   const ownClubId = await resolveBelgianClubForClub(ctx.club.id);
   const { data: liveTags } = await ctx.admin.from("club_live_tag_templates").select("name").eq("club_id", ctx.club.id).order("display_order").order("created_at");
   const liveTagNames = (liveTags ?? []).map(tag => tag.name);
@@ -126,7 +153,8 @@ export async function POST(request: Request) {
   let imported = 0;
   let updated = 0;
   for (const fixture of fixtures) {
-    const payload = await matchPayload(ctx, fixture, team as ImportTeam, ownClubId, opponentClubIds, liveTagNames);
+    const fixtureTeam = isBatch ? teamsById.get(fixtureTeamIds.get(fixture.key)!)! : team;
+    const payload = await matchPayload(ctx, fixture, fixtureTeam, ownClubId, opponentClubIds, liveTagNames);
     const { data: existing } = await ctx.admin.from("matches").select("id, live_tag_names")
       .eq("external_source", "voetbal_vlaanderen_download").eq("external_match_id", payload.external_match_id).maybeSingle();
     const result = existing ? await ctx.admin.from("matches").update({ ...payload, live_tag_names: existing.live_tag_names?.length ? existing.live_tag_names : payload.live_tag_names }).eq("id", existing.id) : await ctx.admin.from("matches").insert(payload);

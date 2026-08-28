@@ -35,10 +35,10 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
       setCheckedFixtures({});
       setCheckedSeries(Object.fromEntries(nextSeries.map(item => {
         const selected = nextSelections[item.divisionCode];
-        return [item.divisionCode, !!selected && (!item.assignedTeamId || item.assignedTeamId !== selected || item.unlinkedCount > 0)];
+        return [item.divisionCode, item.unlinkedCount > 0 && !!selected && (!item.assignedTeamId || item.assignedTeamId !== selected || item.unlinkedCount > 0)];
       })));
-      const pending = nextSeries.filter(item => !item.assignedTeamId).length;
-      setMessage(`${nextSeries.length} officiële reeksen gevonden.${pending ? ` ${pending} wachten op bevestiging.` : " Alle reeksen zijn definitief gekoppeld."}`);
+      const pending = nextSeries.filter(item => item.unlinkedCount > 0).length;
+      setMessage(`${nextSeries.length} officiële reeksen met toekomstige wedstrijden gevonden.${pending ? ` ${pending} bevatten nog te koppelen wedstrijden.` : " Alle toekomstige wedstrijden zijn gekoppeld."}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "De officiële downloads konden niet gelezen worden.");
     } finally { setBusy(""); }
@@ -48,23 +48,26 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
     const selectedFixtures = fixtures.filter(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key]);
     if (!selectedFixtures.length) return;
     setBusy("fixtures"); setError(""); setMessage("");
-    let imported = 0; let updated = 0;
     try {
-      for (const item of selectedFixtures) {
-        const response = await fetch("/api/club/matches/rbfa-download", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clubId, fixtureKey: item.key, teamId: fixtureSelections[item.key] })
-        });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || `De wedstrijd van ${item.date} kon niet worden geïmporteerd.`);
-        imported += body.imported ?? 0; updated += body.updated ?? 0;
-        setFixtures(current => current.map(row => row.key === item.key ? { ...row, linked: true } : row));
-        setCheckedFixtures(current => ({ ...current, [item.key]: false }));
-      }
-      setMessage(`${selectedFixtures.length} wedstrijd(en) verwerkt. ${imported} toegevoegd, ${updated} bijgewerkt.`);
+      const response = await fetch("/api/club/matches/rbfa-download", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clubId,
+          fixtureAssignments: selectedFixtures.map(item => ({ fixtureKey: item.key, teamId: fixtureSelections[item.key] }))
+        })
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "De geselecteerde wedstrijden konden niet worden geïmporteerd.");
+      const selectedKeys = new Set(selectedFixtures.map(item => item.key));
+      setFixtures(current => current.map(row => selectedKeys.has(row.key) ? { ...row, linked: true } : row));
+      setCheckedFixtures(current => Object.fromEntries(Object.entries(current).map(([key, checked]) => [key, selectedKeys.has(key) ? false : checked])));
+      setMessage(`${selectedFixtures.length} wedstrijd(en) verwerkt. ${body.imported ?? 0} toegevoegd, ${body.updated ?? 0} bijgewerkt.`);
       await onImported();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "De geselecteerde wedstrijden konden niet worden geïmporteerd.");
+      const networkFailure = reason instanceof TypeError || (reason instanceof Error && /network|fetch/i.test(reason.message));
+      setError(networkFailure
+        ? "De verbinding werd onderbroken tijdens het bevestigen. Reeds ontvangen wedstrijden kunnen wel opgeslagen zijn. Controleer de officiële reeksen opnieuw voordat je opnieuw probeert."
+        : reason instanceof Error ? reason.message : "De geselecteerde wedstrijden konden niet worden geïmporteerd.");
       await onImported();
     } finally { setBusy(""); }
   }
@@ -108,9 +111,18 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
   function seriesRow(item: Series) {
     const selected = selections[item.divisionCode] ?? "";
     const changed = selected !== (item.assignedTeamId ?? "");
+    const seriesFixtures = fixtures.filter(fixture => fixture.divisionCode === item.divisionCode);
     return <tr key={item.divisionCode} className={!item.assignedTeamId ? "bg-amber-500/5" : ""}>
       <td className="p-3 font-bold text-textPrimary">{item.divisionCode || "Zonder reeks"}</td>
-      <td className="p-3 text-textMuted">{item.fixtureCount}{item.unlinkedCount ? ` · ${item.unlinkedCount} nog te importeren` : ""}</td>
+      <td className="p-3 text-textMuted"><details>
+        <summary className="cursor-pointer font-medium text-textSecondary">{item.fixtureCount} toekomstig{item.unlinkedCount ? ` · ${item.unlinkedCount} nog te importeren` : ""}</summary>
+        <div className="mt-2 min-w-72 space-y-2 rounded-lg border border-borderSubtle bg-card p-3">
+          {seriesFixtures.map(fixture => <div key={fixture.key} className="border-b border-borderSubtle pb-2 last:border-0 last:pb-0">
+            <strong className="block text-sm text-textPrimary">{fixture.homeTeam} – {fixture.awayTeam}</strong>
+            <span className="text-xs text-textMuted">{new Intl.DateTimeFormat("nl-BE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${fixture.date}T12:00:00`))} · {fixture.time} · {fixture.linked ? "gekoppeld" : "nog te koppelen"}</span>
+          </div>)}
+        </div>
+      </details></td>
       <td className="p-3"><select value={selected} disabled={readOnly || !!busy} onChange={event => {
         const teamId = event.target.value;
         setSelections(current => ({ ...current, [item.divisionCode]: teamId }));
@@ -134,10 +146,9 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
     </tr>;
   }
 
-  const pendingSeries = series.filter(item => !item.assignedTeamId || item.unlinkedCount > 0);
+  const pendingSeries = series.filter(item => item.unlinkedCount > 0);
   const confirmedSeries = series.filter(item => item.assignedTeamId && item.unlinkedCount === 0);
   const pendingFixtures = fixtures.filter(item => !item.linked);
-  const importedFixtures = fixtures.filter(item => item.linked);
   const seriesTableHead = <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="p-3">DIV-reeks</th><th className="p-3">Wedstrijden</th><th className="p-3">Ploeg</th><th className="p-3">Status</th><th className="p-3 text-center">Goedkeuren</th></tr></thead>;
   const fixtureTableHead = <thead className="bg-cardDeep text-xs uppercase text-textMuted"><tr><th className="p-3">Datum</th><th className="p-3">Wedstrijd</th><th className="p-3">Reeks</th><th className="p-3">SVS-ploeg</th><th className="p-3">Status</th><th className="p-3 text-center">Importeren</th></tr></thead>;
 
@@ -153,7 +164,7 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
         <tbody className="divide-y divide-borderSubtle">{pendingSeries.map(seriesRow)}</tbody>
       </table>
     </div>}
-    {!!series.length && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-borderSubtle bg-cardDeep p-3">
+    {!!pendingSeries.length && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-borderSubtle bg-cardDeep p-3">
       <p className="text-sm text-textMuted">{series.filter(item => checkedSeries[item.divisionCode] && !!selections[item.divisionCode] && (!item.assignedTeamId || selections[item.divisionCode] !== item.assignedTeamId || item.unlinkedCount > 0)).length} aangevinkt</p>
       <button type="button" disabled={readOnly || !!busy || !series.some(item => checkedSeries[item.divisionCode] && !!selections[item.divisionCode] && (!item.assignedTeamId || selections[item.divisionCode] !== item.assignedTeamId || item.unlinkedCount > 0))} onClick={() => void confirmSelectedSeries()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{busy === "selected" ? "Aangevinkte wedstrijden goedkeuren…" : "Keur alle aangevinkte wedstrijden goed"}</button>
     </div>}
@@ -164,21 +175,14 @@ export function OfficialRbfaDownloadImporter({ clubId, teams, readOnly, onImport
         <tbody className="divide-y divide-borderSubtle">{confirmedSeries.map(seriesRow)}</tbody>
       </table></div>
     </details>}
-    {!!fixtures.length && <details className="mt-4 rounded-lg border border-border bg-card" open>
+    {!!pendingFixtures.length && <details className="mt-4 rounded-lg border border-border bg-card" open>
       <summary className="cursor-pointer px-4 py-3 font-semibold text-textPrimary">Wedstrijd per wedstrijd koppelen</summary>
       <p className="px-4 pb-3 text-sm text-textMuted">Kies voor iedere nog niet geïmporteerde wedstrijd afzonderlijk de juiste SVS-ploeg.</p>
-      {!!pendingFixtures.length ? <div className="overflow-auto border-t border-border"><table className="w-full min-w-[900px] text-left text-sm">
+      <div className="overflow-auto border-t border-border"><table className="w-full min-w-[900px] text-left text-sm">
         {fixtureTableHead}
         <tbody className="divide-y divide-borderSubtle">{pendingFixtures.map(fixtureRow)}</tbody>
-      </table></div> : <p className="border-t border-border px-4 py-3 text-sm text-textMuted">Alle wedstrijden uit deze download zijn al geïmporteerd.</p>}
+      </table></div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-3"><p className="text-sm text-textMuted">{fixtures.filter(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key]).length} wedstrijd(en) aangevinkt</p><button type="button" disabled={readOnly || !!busy || !fixtures.some(item => !item.linked && checkedFixtures[item.key] && fixtureSelections[item.key])} onClick={() => void confirmSelectedFixtures()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{busy === "fixtures" ? "Wedstrijden importeren…" : "Importeer aangevinkte wedstrijden"}</button></div>
-      {!!importedFixtures.length && <details className="border-t border-border">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-textSecondary">Reeds geïmporteerde wedstrijden ({importedFixtures.length})</summary>
-        <div className="overflow-auto border-t border-border"><table className="w-full min-w-[900px] text-left text-sm">
-          {fixtureTableHead}
-          <tbody className="divide-y divide-borderSubtle">{importedFixtures.map(fixtureRow)}</tbody>
-        </table></div>
-      </details>}
     </details>}
   </div>;
 }
