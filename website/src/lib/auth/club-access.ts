@@ -22,35 +22,54 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
     readOnly: false, permissions: new Set(CLUB_PERMISSION_OPTIONS.map(([key]) => key)), teamIds: null as Set<string> | null,
     goalkeeperPlayerIds: null as Set<string> | null
   };
-  const [{ data: membership }, { data: explicit }, { data: selected }, { data: trainer }] = await Promise.all([
-    admin.from("club_memberships").select("role, status, function_role, team_scope").eq("club_id", clubId).eq("profile_id", userId).maybeSingle(),
-    admin.from("club_member_permissions").select("permission_key, enabled").eq("club_id", clubId).eq("profile_id", userId),
-    admin.from("club_member_team_access").select("club_team_id").eq("club_id", clubId).eq("profile_id", userId),
-    admin.from("club_trainers").select("id").eq("club_id", clubId).eq("profile_id", userId).maybeSingle()
+  const { data: account } = await admin.from("person_accounts").select("person_id")
+    .eq("profile_id", userId).eq("status", "active").is("revoked_at", null).maybeSingle();
+  const { data: clubPerson } = account
+    ? await admin.from("club_people").select("id").eq("club_id", clubId)
+      .eq("person_id", account.person_id).eq("status", "active").maybeSingle()
+    : { data: null };
+  if (!clubPerson) return { exists: false, role: "", functionRole: "", teamScope: "none" as TeamScope, readOnly: true, permissions: new Set<ClubPermissionKey>(), teamIds: new Set<string>(), goalkeeperPlayerIds: null as Set<string> | null };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ data: roles }, { data: trainer }] = await Promise.all([
+    admin.from("club_role_assignments")
+      .select("id, role_type, club_team_id, team_scope, valid_from, valid_until, club_role_permission_overrides(permission_key, enabled)")
+      .eq("club_person_id", clubPerson.id).eq("status", "active")
+      .lte("valid_from", today).or(`valid_until.is.null,valid_until.gte.${today}`),
+    admin.from("club_trainers").select("id").eq("club_id", clubId).eq("club_person_id", clubPerson.id).maybeSingle()
   ]);
-  if (!membership || membership.status !== "active") return { exists: false, role: "", functionRole: "", teamScope: "none" as TeamScope, readOnly: true, permissions: new Set<ClubPermissionKey>(), teamIds: new Set<string>(), goalkeeperPlayerIds: null as Set<string> | null };
-  const readOnly = membership.role === "club_admin_viewer";
-  let permissions = membership.role === "club_admin" || readOnly
-    ? new Set(CLUB_PERMISSION_OPTIONS.map(([key]) => key))
-    : ["youth_coordinator", "head_youth_development", "technical_director"].includes(membership.function_role ?? "")
-      ? new Set(coordinatorDefaults)
-    : ["doctor", "physiotherapist"].includes(membership.function_role ?? "")
-      ? new Set(defaultPermissionsForRole(membership.function_role ?? ""))
-    : ["goalkeeper_coach", "team_manager"].includes(membership.function_role ?? "")
-      ? new Set<ClubPermissionKey>(["teams.view", ...defaultPermissionsForRole(membership.function_role ?? "")])
-    : membership.function_role === "communications"
-      ? new Set(communicationsDefaults)
-    : membership.function_role === "commercial_manager"
-      ? new Set(commercialDefaults)
-    : membership.function_role === "sponsor_viewer"
-      ? new Set(sponsorViewerDefaults)
-      : membership.function_role === "scout"
-        ? new Set(scoutDefaults)
-      : membership.role === "analyst" || membership.function_role === "video_analyst"
-      ? new Set(analystDefaults) : membership.role === "trainer" || membership.role === "coach"
-        ? new Set(trainerDefaults) : new Set(readDefaults);
+  if (!roles?.length) return { exists: false, role: "", functionRole: "", teamScope: "none" as TeamScope, readOnly: true, permissions: new Set<ClubPermissionKey>(), teamIds: new Set<string>(), goalkeeperPlayerIds: null as Set<string> | null };
+
+  const rolePriority = ["club_admin", "club_admin_viewer", "technical_director", "head_youth_development", "youth_coordinator", "trainer", "video_analyst"];
+  const baseRoles = roles.filter((item) => !item.club_team_id);
+  const primary = [...(baseRoles.length ? baseRoles : roles)].sort((a, b) => {
+    const ai = rolePriority.indexOf(a.role_type);
+    const bi = rolePriority.indexOf(b.role_type);
+    return (ai < 0 ? rolePriority.length : ai) - (bi < 0 ? rolePriority.length : bi);
+  })[0];
+  const role = primary.role_type === "video_analyst" ? "analyst"
+    : primary.role_type === "assistant_trainer" ? "trainer" : primary.role_type;
+  const functionRole = primary.role_type;
+  const readOnly = primary.role_type === "club_admin_viewer";
+  let permissions = new Set<ClubPermissionKey>();
+  for (const assignment of roles) {
+    const assignmentRole = assignment.role_type;
+    const defaults = assignmentRole === "club_admin" || assignmentRole === "club_admin_viewer"
+      ? CLUB_PERMISSION_OPTIONS.map(([key]) => key)
+      : ["youth_coordinator", "head_youth_development", "technical_director"].includes(assignmentRole)
+        ? [...coordinatorDefaults]
+        : assignmentRole === "video_analyst" ? [...analystDefaults]
+        : ["trainer", "assistant_trainer"].includes(assignmentRole) ? [...trainerDefaults]
+        : assignmentRole === "communications" ? [...communicationsDefaults]
+        : assignmentRole === "commercial_manager" ? [...commercialDefaults]
+        : assignmentRole === "sponsor_viewer" ? [...sponsorViewerDefaults]
+        : assignmentRole === "scout" ? [...scoutDefaults]
+        : defaultPermissionsForRole(assignmentRole);
+    for (const permission of defaults) permissions.add(permission);
+  }
+  const explicit = baseRoles.flatMap((assignment) => assignment.club_role_permission_overrides ?? []);
   if (readOnly) permissions = new Set([...permissions].filter((key) => !key.endsWith(".manage") && !["games.create", "games.tag_link.create", "games.tag", "clips.share", "teams.import"].includes(key)));
-  if (!["club_admin", "club_admin_viewer"].includes(membership.role)) {
+  if (!["club_admin", "club_admin_viewer"].includes(primary.role_type)) {
     for (const row of explicit ?? []) {
       if (row.enabled) permissions.add(row.permission_key as ClubPermissionKey);
       else permissions.delete(row.permission_key as ClubPermissionKey);
@@ -69,19 +88,11 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
   if (permissions.has("sponsors.internal.manage")) permissions.add("sponsors.internal.view");
   if (permissions.has("sponsors.scopes.manage")) permissions.add("sponsors.scopes.view");
   if (permissions.has("sponsors.matches.manage")) permissions.add("sponsors.matches.view");
-  const teamIds = new Set((selected ?? []).map((row) => row.club_team_id));
-  if (membership.team_scope === "assigned" && trainer) {
-    const { data: assignments } = await admin.from("club_trainer_teams")
-      .select("club_team_id, club_teams!inner(club_seasons!club_teams_season_id_fkey!inner(status, trainers_visible_from))")
-      .eq("trainer_id", trainer.id).eq("status", "active");
-    for (const assignment of assignments ?? []) {
-      const team = assignment.club_teams as unknown as { club_seasons: { status: string; trainers_visible_from: string | null } | null } | null;
-      const season = team?.club_seasons;
-      if (season?.status === "ACTIVE" || (season?.status === "PREPARATION" && season.trainers_visible_from && new Date(season.trainers_visible_from) <= new Date())) teamIds.add(assignment.club_team_id);
-    }
-  }
+  const teamIds = new Set(roles.flatMap((assignment) => assignment.club_team_id ? [assignment.club_team_id] : []));
+  const teamScope: TeamScope = primary.role_type === "club_admin" || readOnly || baseRoles.some((item) => item.team_scope === "all") || permissions.has("teams.view_all")
+    ? "all" : baseRoles.some((item) => item.team_scope === "assigned") ? "assigned" : "none";
   let goalkeeperPlayerIds: Set<string> | null = null;
-  if (membership.function_role === "goalkeeper_coach") {
+  if (roles.some((assignment) => assignment.role_type === "goalkeeper_coach")) {
     const { data: playerAssignments } = trainer
       ? await admin.from("player_group_staff").select("player_groups!inner(active, player_group_players(player_id, valid_until))").eq("trainer_id", trainer.id).eq("player_groups.active", true)
       : { data: [] };
@@ -91,9 +102,9 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
     }));
   }
   return {
-    exists: true, role: membership.role, functionRole: membership.function_role,
-    teamScope: membership.team_scope as TeamScope, readOnly, permissions,
-    teamIds: membership.role === "club_admin" || readOnly || membership.team_scope === "all" || permissions.has("teams.view_all") ? null : teamIds,
+    exists: true, role, functionRole,
+    teamScope, readOnly, permissions,
+    teamIds: teamScope === "all" ? null : teamIds,
     goalkeeperPlayerIds
   };
 }

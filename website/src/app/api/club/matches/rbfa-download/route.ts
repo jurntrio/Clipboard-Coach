@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
-import { isAdminEmail } from "@/lib/auth/admin";
 import { downloadRbfaClubFixtures, filterUnlinkedRbfaFixtures, type RbfaClubFixture } from "@/lib/rbfa-club-downloads";
 import { normalizeRbfaFixtureName } from "@/lib/rbfa-club-downloads";
 import { normalizeRbfaDivisionCode } from "@/lib/rbfa-team-suggestions";
@@ -13,18 +12,17 @@ async function context(clubId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Niet aangemeld." }, { status: 401 }) };
   const admin = createAdminClient();
-  const [{ data: club }, { data: membership }, { data: season }] = await Promise.all([
+  const [{ data: club }, { data: season }] = await Promise.all([
     admin.from("clubs").select("id, name, rbfa_registration_number").eq("id", clubId).maybeSingle(),
-    admin.from("club_memberships").select("role").eq("club_id", clubId).eq("profile_id", user.id).eq("status", "active").maybeSingle(),
     admin.from("club_seasons").select("id").eq("club_id", clubId).eq("status", "ACTIVE").maybeSingle()
   ]);
   if (!club) return { error: NextResponse.json({ error: "Club niet gevonden." }, { status: 404 }) };
   if (!season) return { error: NextResponse.json({ error: "De club heeft geen actief seizoen." }, { status: 400 }) };
-  if (!isAdminEmail(user.email) && membership?.role !== "club_admin") {
+  const access = await getClubAccess(club.id, user);
+  if (!["club_admin", "platform_admin"].includes(access.role)) {
     return { error: NextResponse.json({ error: "Alleen een clubadmin kan officiële reeksen koppelen." }, { status: 403 }) };
   }
-  const access = await getClubAccess(club.id, user);
-  const platformAdmin = isAdminEmail(user.email);
+  const platformAdmin = access.role === "platform_admin";
   if (!platformAdmin && !hasClubPermission(access, "games.create")) {
     return { error: NextResponse.json({ error: "Je mag geen wedstrijden importeren." }, { status: 403 }) };
   }

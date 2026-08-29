@@ -25,15 +25,31 @@ const loadAvailableClubs = unstable_cache(async (userId: string, platformAdmin: 
     const { data } = await admin.from("clubs").select("id, name, logo_url").eq("status", "active").order("name");
     return (data ?? []).map((club) => ({ id: club.id, name: club.name, logoUrl: club.logo_url, role: "platform_admin" }));
   }
-  const { data: memberships } = await admin.from("club_memberships")
-    .select("club_id, role, clubs(id, name, status, logo_url)")
-    .eq("profile_id", userId)
-    .eq("status", "active");
-  const membershipClubs = (memberships ?? []).flatMap((membership) => {
-    const club = membership.clubs as unknown as { id: string; name: string; status: string; logo_url: string | null } | null;
-    return club?.status === "active"
-      ? [{ id: club.id, name: club.name, logoUrl: club.logo_url, role: membership.role }]
-      : [];
+  const { data: account } = await admin.from("person_accounts").select("person_id")
+    .eq("profile_id", userId).eq("status", "active").is("revoked_at", null).maybeSingle();
+  const { data: clubPeople } = account
+    ? await admin.from("club_people").select("id, club_id, clubs(id, name, status, logo_url)")
+      .eq("person_id", account.person_id).eq("status", "active")
+    : { data: [] };
+  const today = new Date().toISOString().slice(0, 10);
+  const clubPersonIds = (clubPeople ?? []).map((item) => item.id);
+  const { data: roleRows } = clubPersonIds.length
+    ? await admin.from("club_role_assignments").select("club_person_id, role_type, club_team_id")
+      .in("club_person_id", clubPersonIds).eq("status", "active")
+      .lte("valid_from", today).or(`valid_until.is.null,valid_until.gte.${today}`)
+    : { data: [] };
+  const rolesByClubPerson = new Map<string, string[]>();
+  for (const role of roleRows ?? []) {
+    if (role.club_team_id) continue;
+    rolesByClubPerson.set(role.club_person_id, [...(rolesByClubPerson.get(role.club_person_id) ?? []), role.role_type]);
+  }
+  const membershipClubs = (clubPeople ?? []).flatMap((clubPerson) => {
+    const club = clubPerson.clubs as unknown as { id: string; name: string; status: string; logo_url: string | null } | null;
+    const roles = rolesByClubPerson.get(clubPerson.id) ?? [];
+    if (club?.status !== "active" || !roles.length) return [];
+    const role = roles.includes("club_admin") ? "club_admin"
+      : roles.includes("club_admin_viewer") ? "club_admin_viewer" : roles[0];
+    return [{ id: club.id, name: club.name, logoUrl: club.logo_url, role }];
   });
 
   const { data: guardianLinks } = await admin.from("player_guardians")

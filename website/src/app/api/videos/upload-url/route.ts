@@ -24,10 +24,8 @@ export async function POST(request: Request) {
     let clubLogoAllowed = false;
     const brandingClubId = clubLogoMatch?.[1] ?? clubSponsorMatch?.[1];
     if (brandingClubId && ["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
-      const admin = createAdminClient();
-      const { data: membership } = await admin.from("club_memberships").select("role, status")
-        .eq("club_id", brandingClubId).eq("profile_id", user.id).maybeSingle();
-      clubLogoAllowed = isAdminEmail(user.email) || (membership?.role === "club_admin" && membership.status === "active");
+      const access = await getClubAccess(brandingClubId, user);
+      clubLogoAllowed = access.role === "club_admin" || access.role === "platform_admin";
     }
     let clubTvAllowed = false;
     if (clubTvMatch && ["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
