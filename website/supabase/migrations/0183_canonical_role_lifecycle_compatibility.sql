@@ -6,6 +6,40 @@ alter table public.person_accounts
   add constraint person_accounts_profile_id_fkey
   foreign key (profile_id) references public.profiles(id) on delete cascade;
 
+create or replace function public.is_active_club_admin(target_club_id uuid, target_user_id uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.profiles profile
+    where profile.id = target_user_id and profile.account_role = 'platform_admin'
+  ) or exists (
+    select 1
+    from public.person_accounts account
+    join public.club_people club_person on club_person.person_id = account.person_id
+    join public.club_role_assignments role on role.club_person_id = club_person.id
+    where account.profile_id = target_user_id
+      and account.status = 'active' and account.revoked_at is null
+      and club_person.club_id = target_club_id and club_person.status = 'active'
+      and role.role_type = 'club_admin' and role.status = 'active'
+      and role.valid_from <= current_date
+      and (role.valid_until is null or role.valid_until >= current_date)
+  ) or (
+    -- Transitional fallback for onboarding/older integrations only. Once a canonical
+    -- club identity exists, stale legacy admin data can never grant access.
+    not exists (
+      select 1 from public.person_accounts account
+      join public.club_people club_person on club_person.person_id = account.person_id
+      where account.profile_id = target_user_id
+        and account.status = 'active' and account.revoked_at is null
+        and club_person.club_id = target_club_id
+    )
+    and exists (
+      select 1 from public.club_memberships membership
+      where membership.club_id = target_club_id and membership.profile_id = target_user_id
+        and membership.role = 'club_admin' and membership.status = 'active'
+    )
+  )
+$$;
+
 create or replace function public.sync_canonical_membership_role(
   target_club_id uuid, target_profile_id uuid
 ) returns void language plpgsql security definer set search_path = public as $$
@@ -97,6 +131,27 @@ create trigger sync_account_membership_roles_trigger
 after insert or update of status, revoked_at on public.person_accounts
 for each row execute function public.sync_account_membership_roles();
 
+create or replace function public.sync_club_person_membership_roles()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare account_row record;
+begin
+  if new.status = 'active' then
+    for account_row in
+      select profile_id from public.person_accounts
+      where person_id = new.person_id and status = 'active' and revoked_at is null
+    loop
+      perform public.sync_canonical_membership_role(new.club_id, account_row.profile_id);
+    end loop;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists sync_club_person_membership_roles_trigger on public.club_people;
+create trigger sync_club_person_membership_roles_trigger
+after insert or update of status on public.club_people
+for each row execute function public.sync_club_person_membership_roles();
+
 revoke all on function public.sync_canonical_membership_role(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.sync_account_membership_roles() from public, anon, authenticated;
-
+revoke all on function public.sync_club_person_membership_roles() from public, anon, authenticated;

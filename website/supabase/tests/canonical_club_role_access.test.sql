@@ -21,6 +21,16 @@ values (
   'trainer', 'active', 'trainer', 'assigned'
 );
 
+do $$
+begin
+  perform public.ensure_registered_club_identity(
+    '81000000-0000-0000-0000-000000000010',
+    '81000000-0000-0000-0000-000000000001',
+    '81000000-0000-0000-0000-000000000010'
+  );
+end;
+$$;
+
 select ok(exists(
   select 1 from public.person_accounts
   where profile_id = '81000000-0000-0000-0000-000000000010'
