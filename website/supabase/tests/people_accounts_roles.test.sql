@@ -41,6 +41,17 @@ insert into public.club_memberships(club_id, profile_id, role, status) values
   ('86000000-0000-0000-0000-000000000001', '86000000-0000-0000-0000-000000000021', 'club_admin', 'active'),
   ('86000000-0000-0000-0000-000000000002', '86000000-0000-0000-0000-000000000022', 'club_admin', 'active');
 
+do $$ begin
+  perform public.ensure_registered_club_identity(
+    '86000000-0000-0000-0000-000000000021', '86000000-0000-0000-0000-000000000001',
+    '86000000-0000-0000-0000-000000000021'
+  );
+  perform public.ensure_registered_club_identity(
+    '86000000-0000-0000-0000-000000000022', '86000000-0000-0000-0000-000000000002',
+    '86000000-0000-0000-0000-000000000022'
+  );
+end $$;
+
 insert into public.people(id, first_name, last_name, date_of_birth) values
   ('86000000-0000-0000-0000-000000000031', 'Dylan', 'Bauwens', '2009-01-01'),
   ('86000000-0000-0000-0000-000000000032', 'Dylan', 'Bauwens', null),
@@ -122,7 +133,7 @@ select set_config('request.jwt.claim.sub', '86000000-0000-0000-0000-000000000021
 set local role authenticated;
 select is(
   (select count(*) from public.club_people),
-  2::bigint, 'club A admin only reads club A people'
+  3::bigint, 'club A admin only reads club A people, including their own canonical identity'
 );
 select is(
   (select count(*) from public.club_people where club_id = '86000000-0000-0000-0000-000000000002'),
