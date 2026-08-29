@@ -49,9 +49,12 @@ declare
   active_season_id uuid;
   target_team_ids uuid[];
 begin
-  select id into strict tommy_profile_id
+  select id into tommy_profile_id
   from public.profiles
   where lower(email) = 'tommy.lingier@telenet.be';
+  -- Fresh/test databases contain no production people. The reconciliation is intentionally
+  -- a no-op there; the schema/function part of this migration must still be reproducible.
+  if tommy_profile_id is null then return; end if;
 
   select cp.id, cp.club_id into strict tommy_club_person_id, target_club_id
   from public.person_accounts pa
