@@ -89,5 +89,76 @@ export async function PUT(request: Request) {
     })));
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  // Canonical authorization write. The legacy rows above remain operational projections
+  // until their remaining non-auth consumers have been migrated.
+  const { data: personAccount, error: accountError } = await admin.from("person_accounts")
+    .select("person_id").eq("profile_id", body.profileId).eq("status", "active")
+    .is("revoked_at", null).maybeSingle();
+  if (accountError || !personAccount) {
+    return NextResponse.json({ error: accountError?.message ?? "Persoon-accountkoppeling ontbreekt." }, { status: 409 });
+  }
+  const { data: clubPerson, error: personError } = await admin.from("club_people")
+    .select("id").eq("club_id", body.clubId).eq("person_id", personAccount.person_id)
+    .eq("status", "active").maybeSingle();
+  if (personError || !clubPerson) {
+    return NextResponse.json({ error: personError?.message ?? "Persoon ontbreekt in deze club." }, { status: 409 });
+  }
+  const canonicalRole = body.functionRole === "coach" ? "trainer"
+    : body.functionRole === "assistant_coach" ? "assistant_trainer" : body.functionRole;
+  const today = new Date().toISOString().slice(0, 10);
+  const { error: endError } = await admin.from("club_role_assignments").update({
+    status: "ended", valid_until: today, ended_at: new Date().toISOString(),
+    ended_by: user.id, end_reason: "access_settings_replaced"
+  }).eq("club_person_id", clubPerson.id).eq("status", "active").is("club_team_id", null);
+  if (endError) return NextResponse.json({ error: endError.message }, { status: 400 });
+  const { data: baseRole, error: baseRoleError } = await admin.from("club_role_assignments").insert({
+    club_person_id: clubPerson.id, role_type: canonicalRole,
+    club_team_id: null, team_scope: body.teamScope, custom_role_name: customRoleName,
+    valid_from: today, status: "active", created_by: user.id
+  }).select("id").single();
+  if (baseRoleError || !baseRole) return NextResponse.json({ error: baseRoleError?.message ?? "Rol kon niet worden bewaard." }, { status: 400 });
+  const canonicalTeamIds = body.teamScope === "assigned" ? allTeamIds : [];
+  const { data: currentTeamRoles } = await admin.from("club_role_assignments").select("id, club_team_id")
+    .eq("club_person_id", clubPerson.id).eq("status", "active").not("club_team_id", "is", null);
+  const retainedTeamRoleIds = (currentTeamRoles ?? [])
+    .filter((item) => item.club_team_id && canonicalTeamIds.includes(item.club_team_id))
+    .map((item) => item.id);
+  if (retainedTeamRoleIds.length) {
+    const { error } = await admin.from("club_role_assignments").update({ role_type: canonicalRole })
+      .in("id", retainedTeamRoleIds);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  const obsoleteTeamRoleIds = (currentTeamRoles ?? [])
+    .filter((item) => !item.club_team_id || !canonicalTeamIds.includes(item.club_team_id))
+    .map((item) => item.id);
+  if (obsoleteTeamRoleIds.length) {
+    const { error } = await admin.from("club_role_assignments").update({
+      status: "ended", valid_until: today, ended_at: new Date().toISOString(),
+      ended_by: user.id, end_reason: "team_access_replaced"
+    }).in("id", obsoleteTeamRoleIds);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  const { data: existingTeamRoles } = canonicalTeamIds.length
+    ? await admin.from("club_role_assignments").select("club_team_id")
+      .eq("club_person_id", clubPerson.id).eq("status", "active").in("club_team_id", canonicalTeamIds)
+    : { data: [] };
+  const existingIds = new Set((existingTeamRoles ?? []).map((item) => item.club_team_id));
+  const missingTeamIds = canonicalTeamIds.filter((id) => !existingIds.has(id));
+  if (missingTeamIds.length) {
+    const { error } = await admin.from("club_role_assignments").insert(missingTeamIds.map((clubTeamId) => ({
+      club_person_id: clubPerson.id, role_type: canonicalRole, club_team_id: clubTeamId,
+      team_scope: "assigned", valid_from: today, status: "active", created_by: user.id
+    })));
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  const { error: overrideError } = await admin.from("club_role_permission_overrides").insert(
+    CLUB_PERMISSION_OPTIONS.map(([permissionKey]) => ({
+      club_role_assignment_id: baseRole.id, permission_key: permissionKey,
+      enabled: permissions.includes(permissionKey), updated_by: user.id,
+      updated_at: new Date().toISOString()
+    }))
+  );
+  if (overrideError) return NextResponse.json({ error: overrideError.message }, { status: 400 });
   return NextResponse.json({ ok: true });
 }

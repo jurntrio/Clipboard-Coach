@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { getClubAccess } from "@/lib/auth/club-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,13 +13,12 @@ export async function DELETE(request: Request) {
   }
 
   const admin = createAdminClient();
-  const [{ data: membership }, { data: trainer }] = await Promise.all([
-    admin.from("club_memberships").select("role").eq("club_id", body.clubId)
-      .eq("profile_id", user.id).maybeSingle(),
+  const [{ data: trainer }, access] = await Promise.all([
     admin.from("club_trainers").select("id, club_id, profile_id, display_name")
       .eq("id", body.trainerId).eq("club_id", body.clubId).maybeSingle()
+    , getClubAccess(body.clubId, user)
   ]);
-  if (!isAdminEmail(user.email) && membership?.role !== "club_admin") {
+  if (!["club_admin", "platform_admin"].includes(access.role)) {
     return NextResponse.json({ error: "Geen toegang." }, { status: 403 });
   }
   if (!trainer) return NextResponse.json({ error: "Persoon niet gevonden." }, { status: 404 });

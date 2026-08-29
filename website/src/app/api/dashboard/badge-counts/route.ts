@@ -71,23 +71,8 @@ export async function GET() {
   const canManageReports = !!access && !access.readOnly && hasClubPermission(access, "games.report.manage");
   let pendingMatchReports: { id: string; match_date: string; start_time: string | null; title: string }[] = [];
   if (clubId && canManageReports) {
-    const [{ data: membership }, { data: selectedTeams }, { data: ownTrainer }] = await Promise.all([
-      admin.from("club_memberships").select("role, function_role, team_scope, status").eq("club_id", clubId).eq("profile_id", context.user.id).maybeSingle(),
-      admin.from("club_member_team_access").select("club_team_id").eq("club_id", clubId).eq("profile_id", context.user.id),
-      admin.from("club_trainers").select("id").eq("club_id", clubId).eq("profile_id", context.user.id).maybeSingle()
-    ]);
-    const { data: trainerTeams } = ownTrainer
-      ? await admin.from("club_trainer_teams").select("club_team_id").eq("trainer_id", ownTrainer.id).eq("status", "active")
-      : { data: [] };
-    const hasClubWideReportScope = membership?.status === "active" && (
-      membership.role === "club_admin"
-      || membership.team_scope === "all"
-      || ["youth_coordinator", "head_youth_development", "technical_director"].includes(membership.function_role ?? "")
-    );
-    const reportTeamIds = new Set([
-      ...(selectedTeams ?? []).map(team => team.club_team_id),
-      ...(trainerTeams ?? []).map(team => team.club_team_id)
-    ]);
+    const hasClubWideReportScope = access.teamIds === null;
+    const reportTeamIds = access.teamIds ?? new Set<string>();
     const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Brussels" });
     const { data: playedMatches } = await admin.from("matches")
       .select("id, club_team_id, team_a_name, team_b_name, match_date, start_time, status")

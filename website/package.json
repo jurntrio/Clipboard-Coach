@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "audit:club-roles": "node --env-file=.env.local scripts/audit-club-role-migration.mjs",
     "lint": "next lint"
   },
   "dependencies": {

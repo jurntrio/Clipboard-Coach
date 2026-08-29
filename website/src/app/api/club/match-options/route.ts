@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { getClubAccess } from "@/lib/auth/club-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -9,13 +9,11 @@ async function authorize(clubId: string) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  const admin = createAdminClient();
-  if (!isAdminEmail(user.email)) {
-    const { data } = await admin.from("club_memberships").select("id").eq("club_id", clubId)
-      .eq("profile_id", user.id).eq("role", "club_admin").eq("status", "active").maybeSingle();
-    if (!data) return { response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  const access = await getClubAccess(clubId, user);
+  if (!["club_admin", "platform_admin"].includes(access.role)) {
+    return { response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
-  return { admin };
+  return { admin: createAdminClient() };
 }
 
 export async function GET(request: Request) {

@@ -69,9 +69,9 @@ select ok(not exists(select 1 from public.club_trainers where profile_id = 'a108
 select is((select cp.status from public.club_people cp join public.person_accounts pa on pa.person_id = cp.person_id
   where pa.profile_id = 'a1080000-0000-0000-0000-000000000021' and cp.club_id = 'a1080000-0000-0000-0000-000000000001'),
   'inactive', 'canonical club person is retained as inactive history');
-select is((select role.status from public.club_role_assignments role join public.club_people cp on cp.id = role.club_person_id
+select ok((select bool_and(role.status = 'ended') from public.club_role_assignments role join public.club_people cp on cp.id = role.club_person_id
   join public.person_accounts pa on pa.person_id = cp.person_id where pa.profile_id = 'a1080000-0000-0000-0000-000000000021'),
-  'ended', 'canonical role is ended rather than deleted');
+  'all canonical roles are ended rather than deleted');
 select is((select status from public.person_accounts where profile_id = 'a1080000-0000-0000-0000-000000000021'),
   'active', 'account-person identity remains available for another club');
 select ok(not has_function_privilege('authenticated', 'public.remove_registered_club_identity(uuid,uuid,uuid)', 'EXECUTE'),

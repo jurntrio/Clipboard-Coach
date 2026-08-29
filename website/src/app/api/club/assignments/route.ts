@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { getClubAccess } from "@/lib/auth/club-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,13 +20,8 @@ export async function POST(request: Request) {
   if (!match?.club_id || !trainer || trainer.club_id !== match.club_id) {
     return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
   }
-  const { data: membership } = await admin
-    .from("club_memberships")
-    .select("role")
-    .eq("club_id", match.club_id)
-    .eq("profile_id", user.id)
-    .maybeSingle();
-  if (!isAdminEmail(user.email) && membership?.role !== "club_admin") {
+  const access = await getClubAccess(match.club_id, user);
+  if (!["club_admin", "platform_admin"].includes(access.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -65,9 +60,8 @@ export async function PATCH(request: Request) {
   if (!match?.club_id || !targetTeam || targetTeam.club_id !== match.club_id || targetTeam.status !== "active") {
     return NextResponse.json({ error: "Wedstrijd of actieve ploeg niet gevonden." }, { status: 404 });
   }
-  const { data: membership } = await admin.from("club_memberships").select("role")
-    .eq("club_id", match.club_id).eq("profile_id", user.id).maybeSingle();
-  if (!isAdminEmail(user.email) && membership?.role !== "club_admin") {
+  const access = await getClubAccess(match.club_id, user);
+  if (!["club_admin", "platform_admin"].includes(access.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const operationalTeam = (targetTeam.teams as unknown as Array<{ id: string }> | null)?.[0];

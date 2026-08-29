@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { getClubAccess } from "@/lib/auth/club-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,13 +14,8 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const { data: membership } = await admin
-    .from("club_memberships")
-    .select("role, status")
-    .eq("club_id", body.clubId)
-    .eq("profile_id", user.id)
-    .maybeSingle();
-  const allowed = isAdminEmail(user.email) || (membership?.role === "club_admin" && membership.status === "active");
+  const access = await getClubAccess(body.clubId, user);
+  const allowed = access.role === "club_admin" || access.role === "platform_admin";
   if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   if (body.featurePermission && ["teams_manage", "teams_import"].includes(body.featurePermission.key)

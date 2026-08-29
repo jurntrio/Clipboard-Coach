@@ -18,16 +18,13 @@ export default async function NewTrainingPage({ searchParams }: { searchParams?:
   let editingTrainingId: string | undefined;
 
   if (user) {
-    const [{ data: profile }, { data: memberships }, { data: ownTrainerRows }] = await Promise.all([
+    const [{ data: profile }, { data: ownTrainerRows }] = await Promise.all([
       admin.from("profiles").select("full_name, email").eq("id", user.id).maybeSingle(),
-      admin.from("club_memberships").select("club_id").eq("profile_id", user.id).eq("status", "active"),
       admin.from("club_trainers").select("id, club_id, display_name").eq("profile_id", user.id)
     ]);
 
     trainerName = profile?.full_name?.trim() || profile?.email?.split("@")[0] || user.email?.split("@")[0] || "";
-    const clubIds = context.activeClubId && (context.isPlatformAdmin || (memberships ?? []).some(item => item.club_id === context.activeClubId))
-      ? [context.activeClubId]
-      : [];
+    const clubIds = context.activeClubId ? [context.activeClubId] : [];
     const trainerIds = (ownTrainerRows ?? []).map(item => item.id);
     const [{ data: clubTeams }, { data: assignments }, { data: clubTrainers }] = await Promise.all([
       clubIds.length

@@ -19,13 +19,8 @@ export default async function IntradeskPage() {
   const admin = createAdminClient();
   const context = await getClubContext();
   const user = context.user;
-  const { data: memberships } = user && !context.isPlatformAdmin
-    ? await admin.from("club_memberships").select("club_id, role").eq("profile_id", user.id).eq("status", "active")
-    : { data: [] };
-  const readableRoles = new Set(["trainer", "coach", "assistant_coach", "analyst", "club_admin", "club_admin_viewer"]);
-  const clubIds = context.activeClubId && (context.isPlatformAdmin || (memberships ?? []).some(item => item.club_id === context.activeClubId && readableRoles.has(item.role)))
-    ? [context.activeClubId]
-    : [];
+  const access = user && context.activeClubId ? await getClubAccess(context.activeClubId, user) : null;
+  const clubIds = context.activeClubId && access && hasClubPermission(access, "training.view") ? [context.activeClubId] : [];
   const { data } = clubIds.length
     ? await admin.from("club_trainings")
       .select("id, title, age_category, themes, current_version, updated_at, updated_by")
@@ -49,7 +44,6 @@ export default async function IntradeskPage() {
     updatedAt: training.updated_at,
     author: names.get(training.updated_by) ?? "Trainer"
   }));
-  const access = user && context.activeClubId ? await getClubAccess(context.activeClubId, user) : null;
   const canEdit = access ? hasClubPermission(access, "training.manage") : false;
   const { data: personalData } = user
     ? await admin.from("trainer_trainings").select("id, title, age_category, themes, publication_state, updated_at")

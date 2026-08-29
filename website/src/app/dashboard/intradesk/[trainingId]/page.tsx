@@ -13,10 +13,8 @@ export default async function IntradeskTrainingPage({ params }: { params: { trai
   const { data: training } = await admin.from("club_trainings").select("*")
     .eq("id", params.trainingId).eq("status", "published").maybeSingle();
   if (!training) notFound();
-  const { data: membership } = await admin.from("club_memberships").select("role, status")
-    .eq("club_id", training.club_id).eq("profile_id", user.id).maybeSingle();
-  const readableRoles = ["trainer", "coach", "assistant_coach", "analyst", "club_admin", "club_admin_viewer"];
-  if (membership?.status !== "active" || !readableRoles.includes(membership.role)) notFound();
+  const access = await getClubAccess(training.club_id, user);
+  if (!hasClubPermission(access, "training.view")) notFound();
 
   const { data: versions } = await admin.from("club_training_versions")
     .select("version_number, change_note, created_by, created_at, content")
@@ -26,7 +24,6 @@ export default async function IntradeskTrainingPage({ params }: { params: { trai
     team?: string; date?: string; playerCount?: number; keeperCount?: number;
     trainers?: string[]; themes?: string[]; material?: string; blocks?: Record<string, any>[];
   };
-  const access = await getClubAccess(training.club_id, user);
   const { data: builderEntitlement } = access.role === "platform_admin"
     ? { data: { club_id: training.club_id } }
     : await admin.from("club_module_entitlements").select("club_id").eq("club_id", training.club_id).eq("module_key", "training_builder").eq("enabled", true).maybeSingle();
