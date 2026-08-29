@@ -12,7 +12,7 @@ export default async function TrainingDetailPage({ params }: { params: { session
   if (!context.user || !context.activeClubId) redirect("/login");
   const admin = createAdminClient();
   const { data: session } = await admin.from("team_training_sessions")
-    .select("id, club_id, club_team_id, player_group_id, training_date, start_time, field_option_id, locker_room_option_id, staff_ids, trainer_info, attendance_confirmed_at, personal_training_id, club_training_id, club_teams(name, teams(id)), player_groups(name, icon)")
+    .select("id, club_id, club_team_id, player_group_id, training_date, start_time, season_phase, field_option_id, locker_room_option_id, staff_ids, trainer_info, attendance_confirmed_at, personal_training_id, club_training_id, club_teams(name, teams(id)), player_groups(name, icon)")
     .eq("id", params.sessionId).eq("club_id", context.activeClubId).maybeSingle();
   if (!session) notFound();
   const access = await getClubAccess(context.activeClubId, context.user);
@@ -52,6 +52,7 @@ export default async function TrainingDetailPage({ params }: { params: { session
       <p className="text-xs font-bold uppercase tracking-wide text-accent">{playerGroup ? "Extra groep" : "Teamtraining"}</p>
       <h1 className="mt-1 text-2xl font-bold text-textBright">{playerGroup ? `${playerGroup.icon ?? "＋"} ${playerGroup.name}` : clubTeam?.name ?? "Teamtraining"}</h1>
       <p className="mt-1 text-textSecondary">{new Date(`${session.training_date}T12:00:00`).toLocaleDateString("nl-BE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · {session.start_time.slice(0, 5)}</p>
+      <p className="mt-2 w-fit rounded-full bg-accent/10 px-3 py-1 text-sm font-semibold text-accent">Fase: {session.season_phase}</p>
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <Info label="Veld" value={field} /><Info label="Kleedkamer" value={lockerRoom} />
         <Info label="Staff" value={(staff ?? []).map(person => person.display_name).join(", ") || "Nog niemand aangeduid"} />

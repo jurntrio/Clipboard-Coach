@@ -340,6 +340,7 @@ export type TeamTrainingSession = {
   club_team_id: string | null;
   player_group_id: string | null;
   training_date: string;
+  season_phase: "Pre Season" | "Voorbereiding" | "Competitie" | "After Season";
   start_time: string;
   field_option_id: string | null;
   locker_room_option_id: string | null;

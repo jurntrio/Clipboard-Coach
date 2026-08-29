@@ -125,7 +125,7 @@ export default async function DashboardHomePage() {
           .limit(200)
       : Promise.resolve({ data: [] }),
     clubId && allowedClubTeamIds.length
-      ? admin.from("team_training_sessions").select("id, club_team_id, training_date, start_time, club_teams(name)")
+      ? admin.from("team_training_sessions").select("id, club_team_id, training_date, start_time, season_phase, club_teams(name)")
           .eq("club_id", clubId)
           .in("club_team_id", allowedClubTeamIds)
           .gte("training_date", activityFrom)
@@ -170,7 +170,7 @@ export default async function DashboardHomePage() {
     return [{
       id: `training-session:${session.id}`,
       kind: "training" as const,
-      title: `Training ${team?.name ?? ""}`.trim(),
+      title: `Training ${team?.name ?? ""} · Fase: ${session.season_phase}`.trim(),
       date: session.training_date,
       time: session.start_time?.slice(0, 5) || null,
       sortAt: `${session.training_date}T${session.start_time?.slice(0, 5) ?? "00:00"}`,

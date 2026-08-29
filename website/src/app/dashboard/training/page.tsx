@@ -54,7 +54,7 @@ export default async function TrainingPage() {
     if (ownTrainer?.id) orParts.push(`staff_ids.cs.{${ownTrainer.id}}`);
   }
   const hasNoScope = restrictedTeamIds !== null && !orParts.length;
-  let sessionsQuery = admin.from("team_training_sessions").select("id, club_team_id, player_group_id, training_date, start_time, field_option_id, locker_room_option_id, staff_ids, personal_training_id, club_training_id, attendance_confirmed_at, club_teams(name), player_groups(name, icon)")
+  let sessionsQuery = admin.from("team_training_sessions").select("id, club_team_id, player_group_id, training_date, start_time, season_phase, field_option_id, locker_room_option_id, staff_ids, personal_training_id, club_training_id, attendance_confirmed_at, club_teams(name), player_groups(name, icon)")
     .eq("club_id", clubId ?? "").order("training_date").order("start_time");
   if (orParts.length) sessionsQuery = sessionsQuery.or(orParts.join(","));
   const { data: sessions } = clubId && !hasNoScope ? await sessionsQuery : { data: [] };

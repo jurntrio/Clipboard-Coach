@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
 import { recurringDates, type TrainingRecurrence } from "@/lib/training-recurrence";
+import { calculatePhaseRanges, previousLocalDate, TRAINING_SEASON_PHASES, type SeasonPhaseInput, type TrainingSeasonPhase } from "@/lib/training-season-phases";
 
 type Trainer = { id: string; profile_id: string | null; display_name: string };
 type Training = {
-  id: string; training_date: string; start_time: string;
+  id: string; training_date: string; start_time: string; season_phase: TrainingSeasonPhase;
   field_option_id: string | null; locker_room_option_id: string | null; staff_ids: string[];
 };
 type DayDraft = { enabled: boolean; time: string; fieldOptionId: string; lockerRoomOptionId: string; staffIds: string[] };
@@ -29,6 +30,8 @@ export function TeamTrainingScheduler({ teamId, groupId, trainers, assignedTrain
   const [range, setRange] = useState({ start: "", end: "" });
   const [recurrence, setRecurrence] = useState<TrainingRecurrence>("weekly");
   const [trainings, setTrainings] = useState<Training[]>([]);
+  const [canManagePhases, setCanManagePhases] = useState(false);
+  const [phases, setPhases] = useState<SeasonPhaseInput[]>([{ phase: "Competitie", startDate: "", endDate: "" }]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const fields = options.filter(option => option.option_type === "field");
@@ -37,7 +40,7 @@ export function TeamTrainingScheduler({ teamId, groupId, trainers, assignedTrain
   async function load() {
     const response = await fetch(endpoint);
     const body = await response.json();
-    if (response.ok) setTrainings(body.trainings ?? []);
+    if (response.ok) { setTrainings(body.trainings ?? []); setCanManagePhases(!!body.canManagePhases); }
   }
   useEffect(() => { void load(); }, [endpoint]);
 
@@ -53,10 +56,12 @@ export function TeamTrainingScheduler({ teamId, groupId, trainers, assignedTrain
           })) : [];
         });
     if (!sessions.length || sessions.some(item => !item.date || !item.time)) return setNotice("Kies een datum, uur en minstens één trainingsdag.");
+    const phaseResult = calculatePhaseRanges(phases);
+    if (phaseResult.error) return setNotice(phaseResult.error);
     setBusy(true);
     const response = await fetch(endpoint, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessions, series: mode === "multiple" })
+      body: JSON.stringify({ sessions, series: mode === "multiple", phases })
     });
     const body = await response.json();
     setBusy(false);
@@ -77,7 +82,7 @@ export function TeamTrainingScheduler({ teamId, groupId, trainers, assignedTrain
 
   const optionLabel = (id: string | null) => options.find(option => option.id === id)?.label;
   return <div className="space-y-4">
-    {!readOnly && <section className="rounded-xl border border-borderSubtle bg-card p-4">
+    {!readOnly && canManagePhases && <section className="rounded-xl border border-borderSubtle bg-card p-4">
       <div className="flex gap-2">
         <button type="button" onClick={() => setMode("single")} className={`rounded-lg px-4 py-2 text-sm font-bold ${mode === "single" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>1 training</button>
         <button type="button" onClick={() => setMode("multiple")} className={`rounded-lg px-4 py-2 text-sm font-bold ${mode === "multiple" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Meerdere trainingen</button>
@@ -112,6 +117,7 @@ export function TeamTrainingScheduler({ teamId, groupId, trainers, assignedTrain
           </div>;
         })}</div>
       </div>}
+      <SeasonPhasesEditor phases={phases} onChange={setPhases} />
       <button type="button" disabled={busy} onClick={() => void save()} className="mt-4 rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Bewaren…" : "Trainingen toevoegen"}</button>
       {notice && <p className="mt-2 text-sm text-accent">{notice}</p>}
     </section>}
@@ -122,13 +128,33 @@ export function TeamTrainingScheduler({ teamId, groupId, trainers, assignedTrain
         <span className="grid h-9 w-9 place-items-center rounded-lg bg-accent/15 text-lg">⚽</span>
         <span className="min-w-0 flex-1"><strong className="block text-sm text-textBright">Training · {new Date(`${training.training_date}T12:00:00`).toLocaleDateString("nl-BE", { weekday: "long", day: "numeric", month: "long" })}</strong>
           <span className="text-xs text-textMuted">{training.start_time.slice(0, 5)}{optionLabel(training.field_option_id) ? ` · ${optionLabel(training.field_option_id)}` : ""}{optionLabel(training.locker_room_option_id) ? ` · ${optionLabel(training.locker_room_option_id)}` : ""}</span>
+          <span className="mt-1 block w-fit rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">Fase: {training.season_phase}</span>
         </span>
         <span className="text-xs text-textSecondary">{training.staff_ids.map(id => trainers.find(person => person.id === id)?.display_name).filter(Boolean).join(", ")}</span>
-        {!readOnly && <button type="button" disabled={busy} onClick={() => void remove(training.id)} className="text-sm text-red-300">Verwijderen</button>}
+        {!readOnly && canManagePhases && <button type="button" disabled={busy} onClick={() => void remove(training.id)} className="text-sm text-red-300">Verwijderen</button>}
       </div>)}</div>
       {!trainings.length && <p className="mt-3 rounded-lg border border-dashed border-border p-4 text-sm text-textMuted">Nog geen trainingen gepland.</p>}
     </section>
   </div>;
+}
+
+function SeasonPhasesEditor({ phases, onChange }: { phases: SeasonPhaseInput[]; onChange: (phases: SeasonPhaseInput[]) => void }) {
+  const result = calculatePhaseRanges(phases);
+  return <fieldset className="mt-5 rounded-xl border border-borderSubtle p-4">
+    <legend className="px-1 font-bold text-textBright">Seizoensfases</legend>
+    <div className="space-y-3">{phases.map((item, index) => {
+      const calculatedEnd = index < phases.length - 1 && phases[index + 1].startDate ? previousLocalDate(phases[index + 1].startDate) : null;
+      return <div key={index} className="grid items-end gap-3 rounded-lg bg-cardDeep p-3 md:grid-cols-[auto_1fr_1fr_1fr_auto]">
+        <span className="pb-2 text-sm font-bold text-textMuted">{index + 1}.</span>
+        <Labeled label="Fase"><select value={item.phase} onChange={event => onChange(phases.map((phase, phaseIndex) => phaseIndex === index ? { ...phase, phase: event.target.value as TrainingSeasonPhase } : phase))} className={inputClass}>{TRAINING_SEASON_PHASES.map(phase => <option key={phase}>{phase}</option>)}</select></Labeled>
+        <Labeled label="Start"><input type="date" value={item.startDate} min={index ? phases[index - 1].startDate || undefined : undefined} onChange={event => onChange(phases.map((phase, phaseIndex) => phaseIndex === index ? { ...phase, startDate: event.target.value } : phase))} className={inputClass} /></Labeled>
+        {index === phases.length - 1 ? <Labeled label="Einde"><input type="date" value={item.endDate ?? ""} min={item.startDate || undefined} onChange={event => onChange(phases.map((phase, phaseIndex) => phaseIndex === index ? { ...phase, endDate: event.target.value } : phase))} className={inputClass} /></Labeled> : <div className="pb-2 text-sm text-textSecondary"><span className="block text-xs font-semibold text-textMuted">Berekend einde</span>{calculatedEnd ?? "–"}</div>}
+        <button type="button" disabled={phases.length === 1} onClick={() => onChange(phases.filter((_, phaseIndex) => phaseIndex !== index))} className="mb-2 text-sm text-red-300 disabled:opacity-30">Verwijderen</button>
+      </div>;
+    })}</div>
+    <button type="button" onClick={() => onChange([...phases, { phase: "Competitie", startDate: "", endDate: "" }])} className="mt-3 rounded-lg border border-borderButton px-3 py-2 text-sm font-bold text-accent">+ Fase toevoegen</button>
+    {result.error && phases.some(phase => phase.startDate || phase.endDate) && <p className="mt-2 text-sm text-red-300">{result.error}</p>}
+  </fieldset>;
 }
 
 const inputClass = "w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary";

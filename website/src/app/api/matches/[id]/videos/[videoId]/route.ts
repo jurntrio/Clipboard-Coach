@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { canAccessTeam, getClubAccess } from "@/lib/auth/club-access";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { canManageMatchVideoSources } from "@/lib/auth/match-video-sources";
 
 export async function DELETE(_request: Request, { params }: { params: { id: string; videoId: string } }) {
   const supabase = createClient();
@@ -12,8 +13,14 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
   const { data: match } = await admin.from("matches").select("id, coach_id, club_id, club_team_id").eq("id", params.id).maybeSingle();
   if (!match?.club_id) return NextResponse.json({ error: "Wedstrijd niet gevonden." }, { status: 404 });
   const access = await getClubAccess(match.club_id, user);
-  const canManage = !access.readOnly && canAccessTeam(access, match.club_team_id)
-    && (match.coach_id === user.id || access.role === "club_admin" || access.role === "platform_admin");
+  const canManage = canManageMatchVideoSources({
+    readOnly: access.readOnly,
+    canAccessTeam: canAccessTeam(access, match.club_team_id),
+    canCreateGames: hasClubPermission(access, "games.create"),
+    role: access.role,
+    matchCoachId: match.coach_id,
+    userId: user.id
+  });
   if (!canManage) return NextResponse.json({ error: "Geen recht om wedstrijdbeelden te beheren." }, { status: 403 });
 
   const { data: link } = await admin.from("match_videos").select("id, sequence_order, is_primary").eq("match_id", match.id).eq("video_id", params.videoId).maybeSingle();

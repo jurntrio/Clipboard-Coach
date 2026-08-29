@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
 import { getClubAccess, canAccessTeam, hasClubPermission } from "@/lib/auth/club-access";
+import { calculatePhaseRanges, canManageTrainingPhases, phaseForTrainingDate, type SeasonPhaseInput } from "@/lib/training-season-phases";
 
 type SessionInput = {
   date?: string;
@@ -24,25 +25,30 @@ async function contextFor(teamId: string, mutate = false) {
   if (!canAccessTeam(access, teamId) || (mutate && (access.readOnly || !hasClubPermission(access, "teams.manage")))) {
     return { response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
-  return { admin, team, user: context.user };
+  return { admin, team, user: context.user, canManagePhases: canManageTrainingPhases(access.role, context.isPlatformAdmin) };
 }
 
 export async function GET(_request: Request, { params }: { params: { teamId: string } }) {
   const ctx = await contextFor(params.teamId);
   if ("response" in ctx) return ctx.response;
   const { data, error } = await ctx.admin.from("team_training_sessions")
-    .select("id, club_id, club_team_id, training_date, start_time, field_option_id, locker_room_option_id, staff_ids, series_id")
+    .select("id, club_id, club_team_id, training_date, start_time, season_phase, field_option_id, locker_room_option_id, staff_ids, series_id")
     .eq("club_team_id", params.teamId).order("training_date").order("start_time");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ trainings: data ?? [] });
+  return NextResponse.json({ trainings: data ?? [], canManagePhases: ctx.canManagePhases });
 }
 
 export async function POST(request: Request, { params }: { params: { teamId: string } }) {
   const ctx = await contextFor(params.teamId, true);
   if ("response" in ctx) return ctx.response;
-  const body = await request.json().catch(() => null) as { sessions?: SessionInput[]; series?: boolean } | null;
+  if (!ctx.canManagePhases) return NextResponse.json({ error: "Alleen een clubbeheerder kan trainingen met seizoensfases aanmaken." }, { status: 403 });
+  const body = await request.json().catch(() => null) as { sessions?: SessionInput[]; series?: boolean; phases?: SeasonPhaseInput[] } | null;
   const sessions = body?.sessions ?? [];
   if (!sessions.length || sessions.length > 370) return NextResponse.json({ error: "Voeg minstens één geldige training toe." }, { status: 400 });
+  const phaseResult = calculatePhaseRanges(body?.phases ?? []);
+  if (phaseResult.error) return NextResponse.json({ error: phaseResult.error }, { status: 400 });
+  const sessionPhases = sessions.map(item => item.date ? phaseForTrainingDate(item.date, phaseResult.ranges) : null);
+  if (sessionPhases.some(phase => !phase)) return NextResponse.json({ error: "Iedere trainingsdatum moet binnen exact één seizoensfase vallen." }, { status: 400 });
 
   const optionIds = new Set(sessions.flatMap(item => [item.fieldOptionId, item.lockerRoomOptionId]).filter((id): id is string => !!id));
   const staffIds = new Set(sessions.flatMap(item => item.staffIds ?? []));
@@ -55,7 +61,7 @@ export async function POST(request: Request, { params }: { params: { teamId: str
   if ([...staffIds].some(id => !validStaff.has(id))) return NextResponse.json({ error: "Ongeldige staffselectie." }, { status: 400 });
 
   const seriesId = body?.series ? crypto.randomUUID() : null;
-  const rows = sessions.map(item => {
+  const rows = sessions.map((item, index) => {
     if (!item.date || !datePattern.test(item.date) || !item.time || !timePattern.test(item.time)) throw new Error("Datum en uur zijn verplicht.");
     if (item.fieldOptionId && optionTypes.get(item.fieldOptionId) !== "field") throw new Error("Selecteer een geldig veld.");
     if (item.lockerRoomOptionId && optionTypes.get(item.lockerRoomOptionId) !== "locker_room") throw new Error("Selecteer een geldige kleedkamer.");
@@ -63,6 +69,7 @@ export async function POST(request: Request, { params }: { params: { teamId: str
       club_id: ctx.team.club_id,
       club_team_id: params.teamId,
       training_date: item.date,
+      season_phase: sessionPhases[index]!,
       start_time: item.time,
       field_option_id: item.fieldOptionId || null,
       locker_room_option_id: item.lockerRoomOptionId || null,

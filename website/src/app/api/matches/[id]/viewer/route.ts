@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { canManageMatchVideoSources } from "@/lib/auth/match-video-sources";
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -28,8 +29,14 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     admin.from("live_match_tags").select("*").eq("match_id", match.id).order("occurred_at"),
     admin.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", match.club_id).maybeSingle()
   ]);
-  const canManageSources = !access.readOnly
-    && (match.coach_id === user.id || access.role === "club_admin" || access.role === "platform_admin");
+  const canManageSources = canManageMatchVideoSources({
+    readOnly: access.readOnly,
+    canAccessTeam: canAccessTeam(access, match.club_team_id),
+    canCreateGames: hasClubPermission(access, "games.create"),
+    role: access.role,
+    matchCoachId: match.coach_id,
+    userId: user.id
+  });
 
   return NextResponse.json({ match, tags: tags ?? [], liveTags: liveTags ?? [], canManageSources, recordingConfig: club ?? null });
 }
