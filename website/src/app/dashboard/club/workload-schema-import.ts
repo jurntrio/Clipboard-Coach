@@ -8,7 +8,7 @@ export type ImportedBlock = { categoryId: string; modalityId: string; matchForma
 export type ImportedPhase = { id: string; phaseKind: WorkloadPhaseKind; durationWeeks: number; trainingsPerWeek: number; trainingMode: WorkloadTrainingMode; resumePolicy: WorkloadResumePolicy; sessions: { weekNumber: number; sessionNumber: number; warmup: string; note: string; blocks: ImportedBlock[] }[] };
 
 export async function importSvsWorkloadWorkbook(file: File, system: ImportSystem) {
-  const rows = await readSheet(file, "SVS Import");
+  const rows = file.name.toLowerCase().endsWith(".csv") ? parseCsv(await file.text()) : await readSheet(file, "SVS Import");
   if (rows.length < 2) throw new Error("Het tabblad ‘SVS Import’ bevat geen trainingen.");
   const headers = new Map(rows[0].map((value, index) => [String(value ?? "").trim(), index]));
   for (const required of ["Schema", "Fase", "Faseweek", "Training/week", "Uithoudingsvorm", "Explosiviteit / snelheid", "Opwarming", "Kracht"]) if (!headers.has(required)) throw new Error(`De verplichte kolom ‘${required}’ ontbreekt.`);
@@ -25,8 +25,7 @@ export async function importSvsWorkloadWorkbook(file: File, system: ImportSystem
     return options.find(item => normalize(item.code) === wanted || normalize(item.name) === wanted)?.id
       ?? options.find(item => wanted.includes(normalize(item.name)) || normalize(item.name).includes(wanted))?.id ?? "";
   };
-  const phaseOrder: WorkloadPhaseKind[] = ["Pre Season", "Voorbereiding", "Competitie", "Winterstop", "After Season"];
-  const phaseNames = [...new Set(dataRows.map(row => text(row, "Fase") as WorkloadPhaseKind))].sort((a, b) => phaseOrder.indexOf(a) - phaseOrder.indexOf(b));
+  const phaseNames = [...new Set(dataRows.map(row => text(row, "Fase") as WorkloadPhaseKind))];
   const phases: ImportedPhase[] = phaseNames.map(phaseKind => {
     const phaseRows = dataRows.filter(row => text(row, "Fase") === phaseKind);
     const sessions = phaseRows.map(row => {
@@ -51,3 +50,22 @@ export async function importSvsWorkloadWorkbook(file: File, system: ImportSystem
 }
 
 function normalize(value: string) { return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, ""); }
+
+function parseCsv(source: string): unknown[][] {
+  const delimiter = detectDelimiter(source);
+  const rows: string[][] = []; let row: string[] = []; let cell = ""; let quoted = false;
+  for (let index = source.charCodeAt(0) === 0xfeff ? 1 : 0; index < source.length; index++) {
+    const character = source[index];
+    if (character === '"') { if (quoted && source[index + 1] === '"') { cell += '"'; index++; } else quoted = !quoted; continue; }
+    if (!quoted && character === delimiter) { row.push(cell); cell = ""; continue; }
+    if (!quoted && (character === "\n" || character === "\r")) { if (character === "\r" && source[index + 1] === "\n") index++; row.push(cell); if (row.some(value => value.trim())) rows.push(row); row = []; cell = ""; continue; }
+    cell += character;
+  }
+  row.push(cell); if (row.some(value => value.trim())) rows.push(row);
+  return rows;
+}
+
+function detectDelimiter(source: string) {
+  const firstLine = source.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "";
+  return (firstLine.match(/;/g)?.length ?? 0) >= (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
+}
