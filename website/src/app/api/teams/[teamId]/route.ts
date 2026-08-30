@@ -86,13 +86,19 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
         blocksBySchemeSession.set(block.scheme_session_id, values);
         if (categoryName.toLocaleLowerCase("nl-BE") === "explosiviteit" && block.note?.trim()) notesBySchemeSession.set(block.scheme_session_id, block.note.trim());
       }
-      for (const schemeSessionId of schemeSessionIds) {
-        const values = blocksBySchemeSession.get(schemeSessionId) ?? [];
-        for (const expected of [{ category: "Opwarming", color: "#a3a3a3" }, { category: "Kracht", color: "#facc15" }, { category: "Uithouding", color: "#3b82f6" }, { category: "Explosiviteit", color: "#ef4444" }]) if (!values.some(item => item.category.toLocaleLowerCase("nl-BE") === expected.category.toLocaleLowerCase("nl-BE"))) values.push({ ...expected, modality: "–", details: [] });
+      for (const session of schemeSessions ?? []) {
+        const note = session.note?.trim() ?? "";
+        const values = blocksBySchemeSession.get(session.id) ?? [];
+        notesBySchemeSession.delete(session.id);
+        for (const item of values) {
+          const step = note.match(new RegExp(`\\b${escapeRegExp(item.modality)}\\s+stap\\s+(\\d+)`, "i"));
+          if (step) item.modality = `${item.modality} · Stap ${step[1]}`;
+        }
         values.sort((a, b) => workloadCategoryOrder(a.category) - workloadCategoryOrder(b.category));
-        blocksBySchemeSession.set(schemeSessionId, values);
+        blocksBySchemeSession.set(session.id, values);
+        const trainingNumber = note.match(/\bTr\s*\d+\b/i)?.[0];
+        if (trainingNumber) notesBySchemeSession.set(session.id, trainingNumber.replace(/\s+/g, " "));
       }
-      for (const session of schemeSessions ?? []) if (session.note?.trim()) notesBySchemeSession.set(session.id, session.note.trim());
       for (const assignment of assignments ?? []) if (assignment.scheme_session_id) {
         workloadsByTraining.set(assignment.training_session_id, blocksBySchemeSession.get(assignment.scheme_session_id) ?? []);
         const note = notesBySchemeSession.get(assignment.scheme_session_id);
@@ -292,3 +298,4 @@ function workloadDetails(block: { progression_step: number | null; match_format:
 
 function formatSeconds(seconds: number) { const minutes = Math.floor(seconds / 60); const remainder = seconds % 60; return minutes && remainder ? `${minutes} min ${remainder} sec` : minutes ? `${minutes} min` : `${remainder} sec`; }
 function workloadCategoryOrder(category: string) { const order = ["opwarming", "kracht", "uithouding", "explosiviteit"]; const index = order.indexOf(category.toLocaleLowerCase("nl-BE")); return index < 0 ? order.length : index; }
+function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
