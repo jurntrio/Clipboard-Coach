@@ -15,6 +15,7 @@ import { OfficialRbfaDownloadImporter } from "./OfficialRbfaDownloadImporter";
 import { PlayerGroupsManager } from "./PlayerGroupsManager";
 import { SeasonManager } from "./SeasonManager";
 import { ClubLiveTagsManager } from "@/components/clubs/ClubLiveTagsManager";
+import { TrainingManagement } from "./TrainingManagement";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean; is_personal?: boolean };
 type Team = {
@@ -261,6 +262,15 @@ export function ClubDashboard() {
 
       {fullAdmin && moduleEnabled("matches") && <ModuleAccordion title="Live tagging" icon="/branding/games.png">
         <ClubLiveTagsManager clubId={selectedClubId} readOnly={readOnly} />
+      </ModuleAccordion>}
+
+      {fullAdmin && moduleEnabled("training") && <ModuleAccordion title="Trainingen beheren" icon="/branding/training.png">
+        <TrainingManagement
+          teams={teams.filter(team => team.status === "active").map(team => ({ id: team.id, name: team.name }))}
+          trainers={trainers}
+          options={data.matchOptions.filter(option => option.club_id === selectedClubId)}
+          readOnly={readOnly}
+        />
       </ModuleAccordion>}
 
       {fullAdmin && (moduleEnabled("training") || moduleEnabled("intradesk")) && trainingSettings && (

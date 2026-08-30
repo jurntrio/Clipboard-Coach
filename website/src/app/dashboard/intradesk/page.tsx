@@ -1,9 +1,9 @@
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { IntradeskLibrary } from "@/components/intradesk/IntradeskLibrary";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
 import { getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
-import { PersonalTrainingLibrary, type PersonalTrainingRow } from "@/components/intradesk/PersonalTrainingLibrary";
+import { type PersonalTrainingRow } from "@/components/intradesk/PersonalTrainingLibrary";
+import { IntradeskTabs } from "@/components/intradesk/IntradeskTabs";
 
 type LibraryTraining = {
   id: string;
@@ -57,11 +57,13 @@ export default async function IntradeskPage() {
     publicationState: training.publication_state,
     updatedAt: training.updated_at
   })) as PersonalTrainingRow[];
+  const { data: schemeData } = context.activeClubId && access && hasClubPermission(access, "training.view")
+    ? await admin.from("club_workload_schemes").select("id,name,description,status,current_version,club_workload_scheme_versions(version_number,club_workload_scheme_phases(phase_kind,display_order,duration_weeks,trainings_per_week,club_workload_scheme_sessions(id)))").eq("club_id", context.activeClubId).neq("status", "archived").order("updated_at", { ascending: false })
+    : { data: [] };
+  const schemes = (schemeData ?? []).map(scheme => { const version = scheme.club_workload_scheme_versions.find(item => item.version_number === scheme.current_version); const phases = [...(version?.club_workload_scheme_phases ?? [])].sort((a, b) => a.display_order - b.display_order); return { id: scheme.id, name: scheme.name, description: scheme.description, status: scheme.status, version: scheme.current_version, weeks: phases.reduce((sum, phase) => sum + phase.duration_weeks, 0), sessions: phases.reduce((sum, phase) => sum + phase.club_workload_scheme_sessions.length, 0), phases: phases.map(phase => ({ name: phase.phase_kind, weeks: phase.duration_weeks, trainingsPerWeek: phase.trainings_per_week, sessions: phase.club_workload_scheme_sessions.length })) }; });
 
   return <div className="mx-auto max-w-[1500px] p-4 sm:p-8">
     <SectionHeader title="Intradesk" subtitle="Je persoonlijke trainingen en de gedeelde trainingsbibliotheek van je club." artworkSrc="/branding/intradesk.png" showHome={false} />
-    <PersonalTrainingLibrary trainings={personalTrainings} />
-    <div className="mb-3"><p className="text-xs font-black uppercase tracking-[.16em] text-accent">Gedeeld binnen de club</p><h2 className="mt-1 text-xl font-black text-textBright">Clubbibliotheek</h2></div>
-    <IntradeskLibrary trainings={rows} canEdit={canEdit} />
+    <IntradeskTabs personalTrainings={personalTrainings} clubTrainings={rows} schemes={schemes} canEdit={canEdit}/>
   </div>;
 }

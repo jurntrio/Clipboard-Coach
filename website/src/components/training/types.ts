@@ -1,6 +1,6 @@
 export type TrainingSessionSummary = {
   id: string; club_team_id: string | null; player_group_id: string | null; training_date: string; start_time: string;
-  season_phase: "Pre Season" | "Voorbereiding" | "Competitie" | "After Season";
+  season_phase: "Pre Season" | "Voorbereiding" | "Competitie" | "Winterstop" | "After Season";
   field_option_id: string | null; locker_room_option_id: string | null;
   personal_training_id: string | null; club_training_id: string | null;
   attendance_confirmed_at: string | null; attendance_total: number; attendance_absent: number; roster_total: number;

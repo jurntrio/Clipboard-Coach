@@ -1,4 +1,4 @@
-export const TRAINING_SEASON_PHASES = ["Pre Season", "Voorbereiding", "Competitie", "After Season"] as const;
+export const TRAINING_SEASON_PHASES = ["Pre Season", "Voorbereiding", "Competitie", "Winterstop", "After Season"] as const;
 export type TrainingSeasonPhase = typeof TRAINING_SEASON_PHASES[number];
 export type SeasonPhaseInput = { phase: TrainingSeasonPhase; startDate: string; endDate?: string };
 export type SeasonPhaseRange = { phase: TrainingSeasonPhase; startDate: string; endDate: string };
