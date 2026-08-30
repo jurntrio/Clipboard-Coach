@@ -13,7 +13,7 @@ import type { MessageKey } from "@/i18n/messages";
 import type { Match, Player, Team } from "@/types/database";
 import { hasScheduledEventEnded } from "@/lib/schedule-status";
 
-type Tab = "overview" | "staff" | "matches" | "training" | "evaluations" | "statistics";
+type Tab = "overview" | "staff" | "matches" | "training" | "evaluations" | "statistics" | "tests";
 type StaffMember = { id: string; user_id: string; full_name: string; role: string };
 type PlayerContact = { id: string; full_name: string; email: string | null; phone_number: string | null };
 type DetailedPlayer = Player & { contacts?: PlayerContact[]; can_manage?: boolean };
@@ -153,7 +153,8 @@ export default function TeamDetailPage() {
     { id: "matches", label: t("common.matches") },
     { id: "training", label: t("team.trainings") },
     { id: "evaluations", label: t("team.evaluations") },
-    { id: "statistics", label: "Statistieken" }
+    { id: "statistics", label: "Statistieken" },
+    { id: "tests", label: t("team.tests") }
   ];
 
   function openTeam(option: Team) {
@@ -215,6 +216,7 @@ export default function TeamDetailPage() {
     </section>}
 
     {tab === "evaluations" && <Empty text={t("team.evaluationsComingSoon")} />}
+    {tab === "tests" && <Empty text={t("team.testsComingSoon")} />}
     {tab === "statistics" && <section>
       <nav className="mb-6 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label="Ga naar statistiekensectie"><a href="#wedstrijdstatistieken" className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Wedstrijdstatistieken</a><a href="#trainingsstatistieken" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Trainingsstatistieken</a></nav>
       <div id="wedstrijdstatistieken" className="scroll-mt-6"><h2 className="mb-3 text-lg font-bold text-textBright">Wedstrijdstatistieken</h2>{matchStatistics === null ? <Loading text="Wedstrijdstatistieken laden…" /> : <><div className="mb-3 flex flex-wrap gap-2">{([['all','Alle wedstrijden'],['friendly','Vriendschappelijk'],['competition','Competitie'], ...(hasCupMatches ? [['cup','Beker'] as const] : [])] as const).map(([value,label]) => <button key={value} type="button" onClick={() => setMatchStatisticsFilter(value)} className={`rounded-lg px-4 py-2 text-sm font-bold ${matchStatisticsFilter === value ? 'bg-accent text-page' : 'border border-borderButton bg-button text-textPrimary hover:border-accent'}`}>{label}</button>)}</div><MatchStatistics rows={matchStatisticsFilter === "friendly" ? friendlyMatchStatistics : matchStatisticsFilter === "competition" ? competitionMatchStatistics : matchStatisticsFilter === "cup" ? cupMatchStatistics : matchStatistics} /></>}</div>
@@ -277,4 +279,4 @@ function formatCompactDate(date: string, locale: string) { return new Date(`${da
 function formatShortDate(date: string, locale: string) { return new Date(`${date}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB", { day: "numeric", month: "short" }); }
 function weekBounds(dateValue: string) { const date = new Date(`${dateValue}T12:00:00`); const offset = (date.getDay() + 6) % 7; const monday = new Date(date); monday.setDate(date.getDate() - offset); const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6); return { key: monday.toISOString().slice(0, 10), monday: monday.toISOString().slice(0, 10), sunday: sunday.toISOString().slice(0, 10) }; }
 function roleKey(role: string): "team.roleTrainer" | "team.roleAssistant" | "team.roleManager" | "team.roleCoordinator" | "team.roleYouthManager" | "team.roleTechnicalDirector" | "team.roleStaff" { if (role === "coach") return "team.roleTrainer"; if (role === "assistant_coach") return "team.roleAssistant"; if (role === "team_manager") return "team.roleManager"; if (role === "youth_coordinator") return "team.roleCoordinator"; if (role === "head_youth_development") return "team.roleYouthManager"; if (role === "technical_director") return "team.roleTechnicalDirector"; return "team.roleStaff"; }
-function isTab(value: string | null): value is Tab { return ["overview", "staff", "matches", "training", "evaluations", "statistics"].includes(value ?? ""); }
+function isTab(value: string | null): value is Tab { return ["overview", "staff", "matches", "training", "evaluations", "statistics", "tests"].includes(value ?? ""); }

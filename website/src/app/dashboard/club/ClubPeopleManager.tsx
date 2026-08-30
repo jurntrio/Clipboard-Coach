@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CLUB_FUNCTION_ROLES } from "@/lib/club-access-options";
 
 type Team = { id: string; name: string };
 type Account = {
@@ -9,7 +10,8 @@ type Account = {
 };
 type Role = {
   id: string; role_type: string; club_team_id: string | null; valid_from: string;
-  valid_until: string | null; status: string; club_teams: { name: string } | null;
+  valid_until: string | null; status: string; team_scope?: "none" | "assigned" | "all";
+  club_teams: { name: string } | null;
 };
 type Invitation = {
   id: string; intended_email: string | null; status: string; expires_at: string; created_at: string;
@@ -40,7 +42,7 @@ const roleOptions = [
   ["club_employee", "Clubmedewerker"],
   ["physiotherapist", "Kinesist"], ["doctor", "Dokter"]
 ] as const;
-const roleLabels = Object.fromEntries(roleOptions);
+const roleLabels: Record<string, string> = Object.fromEntries([...CLUB_FUNCTION_ROLES, ["assistant_trainer", "Assistent-trainer"]]);
 
 export function ClubPeopleManager({ clubId, teams, readOnly }: {
   clubId: string; teams: Team[]; readOnly: boolean;
@@ -170,6 +172,7 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
     {!loading && !error && <div className="mt-5 space-y-2">{visiblePeople.map((person) => {
       const activeAccount = person.accounts.find((account) => account.status === "active");
       const activeRoles = person.roles.filter((role) => role.status === "active");
+      const activeFunctionCount = new Set(activeRoles.map((role) => role.role_type)).size;
       const pendingInvite = person.invitations.find((invite) => invite.status === "pending" && new Date(invite.expires_at) > new Date());
       return <article key={person.id} className="rounded-xl border border-borderSubtle bg-cardDeep">
         <button type="button" onClick={() => setExpanded(expanded === person.id ? "" : person.id)}
@@ -179,7 +182,7 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
             <span className="text-xs text-textMuted">{person.dateOfBirth ? `Geboren ${formatDate(person.dateOfBirth)}` : "Geboortedatum niet gekend"}</span>
           </span>
           <StatusBadge activeAccount={activeAccount} pendingInvite={pendingInvite} />
-          <span className="text-xs text-textMuted">{activeRoles.length} {activeRoles.length === 1 ? "rol" : "rollen"}</span>
+          <span className="text-xs text-textMuted">{activeFunctionCount} {activeFunctionCount === 1 ? "functie" : "functies"}</span>
           <span aria-hidden="true" className="text-textMuted">{expanded === person.id ? "▲" : "▼"}</span>
         </button>
         {expanded === person.id && <div className="border-t border-borderSubtle p-4">
@@ -250,14 +253,38 @@ function RoleEditor({ person, roles, teams, readOnly, busy, onRequest, clubId }:
 }) {
   const [roleType, setRoleType] = useState("trainer");
   const [teamId, setTeamId] = useState("");
+  const groupedRoles = Array.from(roles.reduce((groups, role) => {
+    const group = groups.get(role.role_type) ?? [];
+    group.push(role);
+    groups.set(role.role_type, group);
+    return groups;
+  }, new Map<string, Role[]>()));
   return <div>
     <h4 className="text-sm font-semibold text-textPrimary">Clubrollen</h4>
-    <div className="mt-2 space-y-2">{roles.map((role) => <div key={role.id} className="flex items-center gap-2 rounded-lg border border-border bg-card p-3 text-sm">
-      <span className="min-w-0 flex-1 text-textPrimary">{roleLabels[role.role_type] ?? role.role_type}{role.club_teams?.name ? ` · ${role.club_teams.name}` : ""}</span>
-      {!readOnly && <button disabled={!!busy} onClick={() => void onRequest("/api/club/person-roles", "DELETE", {
-        clubId, roleAssignmentId: role.id
-      }, `role:${role.id}`)} className={secondaryButton}>Beëindigen</button>}
-    </div>)}</div>
+    <div className="mt-2 space-y-2">{groupedRoles.map(([roleTypeValue, assignments]) => {
+      const baseRole = assignments.find((role) => !role.club_team_id);
+      const teamRoles = assignments.filter((role) => !!role.club_team_id);
+      const allTeams = baseRole?.team_scope === "all";
+      return <div key={roleTypeValue} className="rounded-lg border border-border bg-card p-3 text-sm">
+        <div className="flex items-center gap-2">
+          <strong className="min-w-0 flex-1 text-textPrimary">{roleLabels[roleTypeValue] ?? roleTypeValue}</strong>
+          {!readOnly && baseRole && teamRoles.length === 0 && <button disabled={!!busy} onClick={() => {
+            if (window.confirm(`Functie ${roleLabels[roleTypeValue] ?? roleTypeValue} beëindigen?`)) void onRequest("/api/club/person-roles", "DELETE", {
+              clubId, roleAssignmentId: baseRole.id
+            }, `role:${baseRole.id}`);
+          }} className={secondaryButton}>Functie beëindigen</button>}
+        </div>
+        <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-textMuted">Ploegtoegang</p>
+        {allTeams ? <p className="mt-1 text-textSecondary">Alle ploegen van de club</p>
+          : teamRoles.length ? <div className="mt-1 space-y-1">{teamRoles.map((role) => <div key={role.id} className="flex items-center gap-2 rounded-md bg-cardDeep px-2.5 py-2">
+            <span className="min-w-0 flex-1 text-textSecondary">{role.club_teams?.name ?? "Onbekende ploeg"}</span>
+            {!readOnly && <button disabled={!!busy} onClick={() => void onRequest("/api/club/person-roles", "DELETE", {
+              clubId, roleAssignmentId: role.id
+            }, `role:${role.id}`)} className={secondaryButton}>Ploeg verwijderen</button>}
+          </div>)}</div>
+          : <p className="mt-1 text-textMuted">Geen ploegtoegang</p>}
+      </div>;
+    })}</div>
     {!roles.length && <p className="mt-2 text-sm text-textMuted">Geen actieve clubrol.</p>}
     {!readOnly && <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
       <select value={roleType} onChange={(event) => setRoleType(event.target.value)} className={inputClass}>

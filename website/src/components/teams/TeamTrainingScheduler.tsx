@@ -87,6 +87,7 @@ export function TeamTrainingScheduler({ teamId, groupId, trainers, assignedTrain
         <button type="button" onClick={() => setMode("single")} className={`rounded-lg px-4 py-2 text-sm font-bold ${mode === "single" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>1 training</button>
         <button type="button" onClick={() => setMode("multiple")} className={`rounded-lg px-4 py-2 text-sm font-bold ${mode === "multiple" ? "bg-accent text-page" : "bg-button text-textPrimary"}`}>Meerdere trainingen</button>
       </div>
+      <SeasonPhasesEditor phases={phases} onChange={setPhases} />
       {mode === "single" ? <div className="mt-4 grid gap-3 md:grid-cols-2">
         <Labeled label="Datum"><input type="date" value={single.date} onChange={event => setSingle(current => ({ ...current, date: event.target.value }))} className={inputClass} /></Labeled>
         <Labeled label="Uur"><input type="time" value={single.time} onChange={event => setSingle(current => ({ ...current, time: event.target.value }))} className={inputClass} /></Labeled>
@@ -117,7 +118,6 @@ export function TeamTrainingScheduler({ teamId, groupId, trainers, assignedTrain
           </div>;
         })}</div>
       </div>}
-      <SeasonPhasesEditor phases={phases} onChange={setPhases} />
       <button type="button" disabled={busy} onClick={() => void save()} className="mt-4 rounded-lg bg-accent px-5 py-2.5 text-sm font-black text-page disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Bewaren…" : "Trainingen toevoegen"}</button>
       {notice && <p className="mt-2 text-sm text-accent">{notice}</p>}
     </section>}

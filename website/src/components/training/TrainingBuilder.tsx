@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supportsBelgianTeamTactics, TRAINING_AGE_CATEGORIES } from "@/lib/training-categories";
-import { balls, colors, makeBlocks, otherEquipment, path, phases, playerFamilies } from "@/components/training/constants";
+import { makeBlocks, phases, playerFamilies } from "@/components/training/constants";
+import { buildEquipmentGroups } from "@/components/training/drawing/asset-catalog";
 import { Meta } from "@/components/training/Meta";
 import { MultiValueInput } from "@/components/training/MultiValueInput";
 import { TeamTacticsSelect } from "@/components/training/TeamTacticsSelect";
@@ -79,31 +80,7 @@ export function TrainingBuilder({ initialTrainer = "", teamOptions = [], trainer
   const draftSignature = useMemo(() => JSON.stringify({
     name, team, date, playerCount, keeperCount, trainers, teamTactics, themes, material, blocks, clubId, ageCategory
   }), [ageCategory, blocks, clubId, date, keeperCount, material, name, playerCount, team, teamTactics, themes, trainers]);
-  const byColor = (families: readonly (readonly [string, string])[]) =>
-    colors.flatMap(color => families.map(([file, label]) => ({
-      src: path(`${file}-${color.slug}.png`), label: `${label} ${color.label}`
-    })));
-  const equipmentGroups = [
-    { label: "Vrijetrapmuren", assets: byColor([["vrijetrapmuur-1-pop", "Vrijetrapmuur · 1 pop"], ["vrijetrapmuur-3-5-poppen", "Vrijetrapmuur · 3-5 poppen"]]) },
-    { label: "Ballen", assets: balls.map(([file, label]) => ({ src: path(file), label })) },
-    { label: "Markeringen", assets: [
-      ...byColor([["grote-kegel", "Grote kegel"], ["kleine-kegel", "Kleine kegel"]]),
-      { src: path("pylon.png"), label: "Pylon" },
-      ...byColor([["kegel-met-stok", "Kegel met stok"], ["koepelvormig-potje", "Koepelvormig potje"]]),
-      ...byColor([["platte-markeringsschijf", "Platte markeringsschijf"], ["kleine-platte-stip", "Kleine platte stip"]])
-    ] },
-    { label: "Coördinatie & hindernissen", assets: [
-      ...byColor([["korte-loopladder", "Korte loopladder"], ["lange-loopladder", "Lange loopladder"]]),
-      ...byColor([["dubbele-loopladder", "Dubbele loopladder"], ["laag-haagje", "Laag haagje"]]),
-      ...byColor([["middelhoog-haagje", "Middelhoog haagje"], ["hoog-haagje", "Hoog haagje"]]),
-      ...byColor([["hoepel", "Hoepel"], ["zeshoekige-ring", "Zeshoekige ring"]]),
-      { src: path("StepUpBankZwart.png"), label: "Step-upbank" }
-    ] },
-    { label: "Doelen & overig", assets: [
-      ...byColor([["trainershesje-t", "Trainershesje"]]),
-      ...otherEquipment.map(([file, label]) => ({ src: path(file), label }))
-    ] }
-  ];
+  const equipmentGroups = useMemo(buildEquipmentGroups, []);
 
   function restoreDraft(draft: Record<string, any>, localDraft: boolean) {
     restoredUnfinishedDraftRef.current = localDraft;
