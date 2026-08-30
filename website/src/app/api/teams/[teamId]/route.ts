@@ -63,22 +63,23 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
       admin.from("club_match_options").select("id, label").eq("club_id", clubTeam.club_id).eq("active", true)
     ]);
     const sessionIds = (sessions ?? []).map(session => session.id);
-    const workloadsByTraining = new Map<string, Array<{ category: string; modality: string; color: string }>>();
+    const workloadsByTraining = new Map<string, Array<{ category: string; modality: string; color: string; details: string[] }>>();
     if (access && sessionIds.length) {
       const { data: assignments } = await admin.from("team_training_session_workloads")
         .select("training_session_id, scheme_session_id").in("training_session_id", sessionIds).not("scheme_session_id", "is", null);
       const schemeSessionIds = [...new Set((assignments ?? []).flatMap(item => item.scheme_session_id ? [item.scheme_session_id] : []))];
       const { data: blocks } = schemeSessionIds.length
         ? await admin.from("club_workload_scheme_session_blocks")
-            .select("scheme_session_id, display_order, note, club_workload_categories(name,color), club_workload_modalities(name,color)")
+            .select("scheme_session_id, display_order, progression_step, match_format, duration_value, duration_unit, repetitions, sets, rest_between_repetitions_seconds, rest_between_sets_seconds, parameters, note, club_workload_categories(name,color), club_workload_modalities(name,color)")
             .in("scheme_session_id", schemeSessionIds).order("display_order")
         : { data: [] };
-      const blocksBySchemeSession = new Map<string, Array<{ category: string; modality: string; color: string }>>();
+      const blocksBySchemeSession = new Map<string, Array<{ category: string; modality: string; color: string; details: string[] }>>();
       for (const block of blocks ?? []) {
         const category = block.club_workload_categories as unknown as { name: string; color: string } | null;
         const modality = block.club_workload_modalities as unknown as { name: string; color: string } | null;
         const values = blocksBySchemeSession.get(block.scheme_session_id) ?? [];
-        values.push({ category: category?.name ?? "Workload", modality: modality?.name ?? block.note?.trim() ?? "–", color: modality?.color ?? category?.color ?? "#22c55e" });
+        values.push({ category: category?.name ?? "Workload", modality: modality?.name ?? block.note?.trim() ?? "–", color: modality?.color ?? category?.color ?? "#22c55e", details: workloadDetails(block) });
+        values.sort((a, b) => Number(b.category.toLocaleLowerCase("nl-BE") === "opwarming") - Number(a.category.toLocaleLowerCase("nl-BE") === "opwarming"));
         blocksBySchemeSession.set(block.scheme_session_id, values);
       }
       for (const assignment of assignments ?? []) if (assignment.scheme_session_id) workloadsByTraining.set(assignment.training_session_id, blocksBySchemeSession.get(assignment.scheme_session_id) ?? []);
@@ -253,3 +254,23 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
     team: { ...enriched, linked_staff: linkedStaff, details_loaded: true }
   });
 }
+
+function workloadDetails(block: { progression_step: number | null; match_format: string; duration_value: number | null; duration_unit: string | null; repetitions: number | null; sets: number | null; rest_between_repetitions_seconds: number | null; rest_between_sets_seconds: number | null; parameters: unknown; note: string }) {
+  const details: string[] = [];
+  if (block.match_format?.trim()) details.push(`Wedstrijdvorm: ${block.match_format.trim()}`);
+  if (block.duration_value !== null) details.push(`Duur: ${block.duration_value} ${block.duration_unit === "seconds" ? "sec" : block.duration_unit === "minutes" ? "min" : block.duration_unit === "meters" ? "m" : block.duration_unit ?? ""}`.trim());
+  if (block.repetitions !== null) details.push(`Herhalingen: ${block.repetitions}`);
+  if (block.sets !== null) details.push(`Sets/sessies: ${block.sets}`);
+  if (block.rest_between_repetitions_seconds !== null) details.push(`Rust herhalingen: ${formatSeconds(block.rest_between_repetitions_seconds)}`);
+  if (block.rest_between_sets_seconds !== null) details.push(`Rust sets: ${formatSeconds(block.rest_between_sets_seconds)}`);
+  if (block.progression_step !== null) details.push(`Stap: ${block.progression_step}`);
+  if (block.parameters && typeof block.parameters === "object" && !Array.isArray(block.parameters)) for (const [key, value] of Object.entries(block.parameters)) {
+    if (value === "" || value === false || value === null || value === undefined) continue;
+    const label = key === "targetTime" ? "Doeltijd" : key === "speedKmh" ? "Snelheid" : key === "yoyoTest" ? "Yo-Yo-test" : key.replace(/([a-z])([A-Z])/g, "$1 $2");
+    details.push(`${label}: ${value === true ? "Ja" : value}${key === "speedKmh" ? " km/u" : ""}`);
+  }
+  if (block.note?.trim()) details.push(`Notitie: ${block.note.trim()}`);
+  return details;
+}
+
+function formatSeconds(seconds: number) { const minutes = Math.floor(seconds / 60); const remainder = seconds % 60; return minutes && remainder ? `${minutes} min ${remainder} sec` : minutes ? `${minutes} min` : `${remainder} sec`; }
