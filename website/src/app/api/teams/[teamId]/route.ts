@@ -62,7 +62,28 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
         .eq("club_team_id", clubTeam.id).order("training_date").order("start_time"),
       admin.from("club_match_options").select("id, label").eq("club_id", clubTeam.club_id).eq("active", true)
     ]);
-    return NextResponse.json({ trainings: sessions ?? [], training_options: options ?? [] });
+    const sessionIds = (sessions ?? []).map(session => session.id);
+    const workloadsByTraining = new Map<string, Array<{ category: string; modality: string; color: string }>>();
+    if (access && sessionIds.length) {
+      const { data: assignments } = await admin.from("team_training_session_workloads")
+        .select("training_session_id, scheme_session_id").in("training_session_id", sessionIds).not("scheme_session_id", "is", null);
+      const schemeSessionIds = [...new Set((assignments ?? []).flatMap(item => item.scheme_session_id ? [item.scheme_session_id] : []))];
+      const { data: blocks } = schemeSessionIds.length
+        ? await admin.from("club_workload_scheme_session_blocks")
+            .select("scheme_session_id, display_order, note, club_workload_categories(name,color), club_workload_modalities(name,color)")
+            .in("scheme_session_id", schemeSessionIds).order("display_order")
+        : { data: [] };
+      const blocksBySchemeSession = new Map<string, Array<{ category: string; modality: string; color: string }>>();
+      for (const block of blocks ?? []) {
+        const category = block.club_workload_categories as unknown as { name: string; color: string } | null;
+        const modality = block.club_workload_modalities as unknown as { name: string; color: string } | null;
+        const values = blocksBySchemeSession.get(block.scheme_session_id) ?? [];
+        values.push({ category: category?.name ?? "Workload", modality: modality?.name ?? block.note?.trim() ?? "–", color: modality?.color ?? category?.color ?? "#22c55e" });
+        blocksBySchemeSession.set(block.scheme_session_id, values);
+      }
+      for (const assignment of assignments ?? []) if (assignment.scheme_session_id) workloadsByTraining.set(assignment.training_session_id, blocksBySchemeSession.get(assignment.scheme_session_id) ?? []);
+    }
+    return NextResponse.json({ trainings: (sessions ?? []).map(session => ({ ...session, workload_modalities: workloadsByTraining.get(session.id) ?? [] })), training_options: options ?? [] });
   }
 
   if (section === "statistics") {
