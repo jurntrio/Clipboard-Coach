@@ -69,11 +69,11 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
       const { data: assignments } = await admin.from("team_training_session_workloads")
         .select("training_session_id, scheme_session_id").in("training_session_id", sessionIds).not("scheme_session_id", "is", null);
       const schemeSessionIds = [...new Set((assignments ?? []).flatMap(item => item.scheme_session_id ? [item.scheme_session_id] : []))];
-      const { data: blocks } = schemeSessionIds.length
-        ? await admin.from("club_workload_scheme_session_blocks")
+      const [{ data: blocks }, { data: schemeSessions }] = schemeSessionIds.length
+        ? await Promise.all([admin.from("club_workload_scheme_session_blocks")
             .select("scheme_session_id, display_order, progression_step, match_format, duration_value, duration_unit, repetitions, sets, rest_between_repetitions_seconds, rest_between_sets_seconds, parameters, note, club_workload_categories(name,color), club_workload_modalities(name,color)")
-            .in("scheme_session_id", schemeSessionIds).order("display_order")
-        : { data: [] };
+            .in("scheme_session_id", schemeSessionIds).order("display_order"), admin.from("club_workload_scheme_sessions").select("id,note").in("id", schemeSessionIds)])
+        : [{ data: [] }, { data: [] }];
       const blocksBySchemeSession = new Map<string, Array<{ category: string; modality: string; color: string; details: string[] }>>();
       const notesBySchemeSession = new Map<string, string>();
       for (const block of blocks ?? []) {
@@ -86,6 +86,13 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
         blocksBySchemeSession.set(block.scheme_session_id, values);
         if (categoryName.toLocaleLowerCase("nl-BE") === "explosiviteit" && block.note?.trim()) notesBySchemeSession.set(block.scheme_session_id, block.note.trim());
       }
+      for (const schemeSessionId of schemeSessionIds) {
+        const values = blocksBySchemeSession.get(schemeSessionId) ?? [];
+        for (const expected of [{ category: "Opwarming", color: "#a3a3a3" }, { category: "Kracht", color: "#facc15" }, { category: "Uithouding", color: "#3b82f6" }, { category: "Explosiviteit", color: "#ef4444" }]) if (!values.some(item => item.category.toLocaleLowerCase("nl-BE") === expected.category.toLocaleLowerCase("nl-BE"))) values.push({ ...expected, modality: "–", details: [] });
+        values.sort((a, b) => workloadCategoryOrder(a.category) - workloadCategoryOrder(b.category));
+        blocksBySchemeSession.set(schemeSessionId, values);
+      }
+      for (const session of schemeSessions ?? []) if (session.note?.trim()) notesBySchemeSession.set(session.id, session.note.trim());
       for (const assignment of assignments ?? []) if (assignment.scheme_session_id) {
         workloadsByTraining.set(assignment.training_session_id, blocksBySchemeSession.get(assignment.scheme_session_id) ?? []);
         const note = notesBySchemeSession.get(assignment.scheme_session_id);
