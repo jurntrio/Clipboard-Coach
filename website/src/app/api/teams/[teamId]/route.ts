@@ -64,6 +64,7 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
     ]);
     const sessionIds = (sessions ?? []).map(session => session.id);
     const workloadsByTraining = new Map<string, Array<{ category: string; modality: string; color: string; details: string[] }>>();
+    const workloadNotesByTraining = new Map<string, string>();
     if (access && sessionIds.length) {
       const { data: assignments } = await admin.from("team_training_session_workloads")
         .select("training_session_id, scheme_session_id").in("training_session_id", sessionIds).not("scheme_session_id", "is", null);
@@ -74,17 +75,24 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
             .in("scheme_session_id", schemeSessionIds).order("display_order")
         : { data: [] };
       const blocksBySchemeSession = new Map<string, Array<{ category: string; modality: string; color: string; details: string[] }>>();
+      const notesBySchemeSession = new Map<string, string>();
       for (const block of blocks ?? []) {
         const category = block.club_workload_categories as unknown as { name: string; color: string } | null;
         const modality = block.club_workload_modalities as unknown as { name: string; color: string } | null;
         const values = blocksBySchemeSession.get(block.scheme_session_id) ?? [];
-        values.push({ category: category?.name ?? "Workload", modality: modality?.name ?? block.note?.trim() ?? "–", color: modality?.color ?? category?.color ?? "#22c55e", details: workloadDetails(block) });
-        values.sort((a, b) => Number(b.category.toLocaleLowerCase("nl-BE") === "opwarming") - Number(a.category.toLocaleLowerCase("nl-BE") === "opwarming"));
+        const categoryName = category?.name ?? "Workload";
+        values.push({ category: categoryName, modality: modality?.name ?? block.note?.trim() ?? "–", color: modality?.color ?? category?.color ?? "#22c55e", details: workloadDetails(block, categoryName) });
+        values.sort((a, b) => workloadCategoryOrder(a.category) - workloadCategoryOrder(b.category));
         blocksBySchemeSession.set(block.scheme_session_id, values);
+        if (categoryName.toLocaleLowerCase("nl-BE") === "explosiviteit" && block.note?.trim()) notesBySchemeSession.set(block.scheme_session_id, block.note.trim());
       }
-      for (const assignment of assignments ?? []) if (assignment.scheme_session_id) workloadsByTraining.set(assignment.training_session_id, blocksBySchemeSession.get(assignment.scheme_session_id) ?? []);
+      for (const assignment of assignments ?? []) if (assignment.scheme_session_id) {
+        workloadsByTraining.set(assignment.training_session_id, blocksBySchemeSession.get(assignment.scheme_session_id) ?? []);
+        const note = notesBySchemeSession.get(assignment.scheme_session_id);
+        if (note) workloadNotesByTraining.set(assignment.training_session_id, note);
+      }
     }
-    return NextResponse.json({ trainings: (sessions ?? []).map(session => ({ ...session, workload_modalities: workloadsByTraining.get(session.id) ?? [] })), training_options: options ?? [] });
+    return NextResponse.json({ trainings: (sessions ?? []).map(session => ({ ...session, workload_modalities: workloadsByTraining.get(session.id) ?? [], workload_note: workloadNotesByTraining.get(session.id) ?? "" })), training_options: options ?? [] });
   }
 
   if (section === "statistics") {
@@ -255,12 +263,14 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
   });
 }
 
-function workloadDetails(block: { progression_step: number | null; match_format: string; duration_value: number | null; duration_unit: string | null; repetitions: number | null; sets: number | null; rest_between_repetitions_seconds: number | null; rest_between_sets_seconds: number | null; parameters: unknown; note: string }) {
+function workloadDetails(block: { progression_step: number | null; match_format: string; duration_value: number | null; duration_unit: string | null; repetitions: number | null; sets: number | null; rest_between_repetitions_seconds: number | null; rest_between_sets_seconds: number | null; parameters: unknown; note: string }, category: string) {
+  const normalizedCategory = category.toLocaleLowerCase("nl-BE");
+  if (["opwarming", "kracht"].includes(normalizedCategory)) return [];
   const details: string[] = [];
-  if (block.match_format?.trim()) details.push(`Wedstrijdvorm: ${block.match_format.trim()}`);
+  if (block.match_format?.trim()) details.push(`${normalizedCategory === "uithouding" ? "WV" : "Wedstrijdvorm"}: ${block.match_format.trim()}`);
   if (block.duration_value !== null) details.push(`Duur: ${block.duration_value} ${block.duration_unit === "seconds" ? "sec" : block.duration_unit === "minutes" ? "min" : block.duration_unit === "meters" ? "m" : block.duration_unit ?? ""}`.trim());
   if (block.repetitions !== null) details.push(`Herhalingen: ${block.repetitions}`);
-  if (block.sets !== null) details.push(`Sets/sessies: ${block.sets}`);
+  if (block.sets !== null) details.push(`${normalizedCategory === "uithouding" ? "Sets" : "Sets/sessies"}: ${block.sets}`);
   if (block.rest_between_repetitions_seconds !== null) details.push(`Rust herhalingen: ${formatSeconds(block.rest_between_repetitions_seconds)}`);
   if (block.rest_between_sets_seconds !== null) details.push(`Rust sets: ${formatSeconds(block.rest_between_sets_seconds)}`);
   if (block.progression_step !== null) details.push(`Stap: ${block.progression_step}`);
@@ -269,8 +279,9 @@ function workloadDetails(block: { progression_step: number | null; match_format:
     const label = key === "targetTime" ? "Doeltijd" : key === "speedKmh" ? "Snelheid" : key === "yoyoTest" ? "Yo-Yo-test" : key.replace(/([a-z])([A-Z])/g, "$1 $2");
     details.push(`${label}: ${value === true ? "Ja" : value}${key === "speedKmh" ? " km/u" : ""}`);
   }
-  if (block.note?.trim()) details.push(`Notitie: ${block.note.trim()}`);
+  if (normalizedCategory !== "explosiviteit" && block.note?.trim()) details.push(`Notitie: ${block.note.trim()}`);
   return details;
 }
 
 function formatSeconds(seconds: number) { const minutes = Math.floor(seconds / 60); const remainder = seconds % 60; return minutes && remainder ? `${minutes} min ${remainder} sec` : minutes ? `${minutes} min` : `${remainder} sec`; }
+function workloadCategoryOrder(category: string) { const order = ["opwarming", "kracht", "uithouding", "explosiviteit"]; const index = order.indexOf(category.toLocaleLowerCase("nl-BE")); return index < 0 ? order.length : index; }
