@@ -281,6 +281,17 @@ function workloadDetails(block: { progression_step: number | null; match_format:
   if (["opwarming", "kracht"].includes(normalizedCategory)) return [];
   const details: string[] = [];
   if (block.match_format?.trim()) details.push(`${normalizedCategory === "uithouding" ? "WV" : "Wedstrijdvorm"}: ${block.match_format.trim()}`);
+  if (normalizedCategory === "uithouding") {
+    const parameters = block.parameters && typeof block.parameters === "object" && !Array.isArray(block.parameters) ? block.parameters as Record<string, unknown> : {};
+    if (parameters.targetTime !== "" && parameters.targetTime !== null && parameters.targetTime !== undefined) details.push(`A(min): ${formatMinuteValue(parameters.targetTime)}`);
+    if (block.repetitions !== null) details.push(`Herhalingen: ${block.repetitions}`);
+    if (block.sets !== null) details.push(`Serie(s): ${block.sets}`);
+    if (block.rest_between_repetitions_seconds !== null) details.push(`RTH (min): ${formatMinuteValue(block.rest_between_repetitions_seconds / 60)}`);
+    if (block.rest_between_sets_seconds !== null) details.push(`RTS (min): ${formatMinuteValue(block.rest_between_sets_seconds / 60)}`);
+    if (block.duration_value !== null) details.push(`Duur (min): ${formatNumber(block.duration_value)}`);
+    if (block.note?.trim()) details.push(`Notitie: ${block.note.trim()}`);
+    return details;
+  }
   if (block.duration_value !== null) details.push(`Duur: ${block.duration_value} ${block.duration_unit === "seconds" ? "sec" : block.duration_unit === "minutes" ? "min" : block.duration_unit === "meters" ? "m" : block.duration_unit ?? ""}`.trim());
   if (block.repetitions !== null) details.push(`Herhalingen: ${block.repetitions}`);
   if (block.sets !== null) details.push(`${normalizedCategory === "uithouding" ? "Sets" : "Sets/sessies"}: ${block.sets}`);
@@ -297,5 +308,11 @@ function workloadDetails(block: { progression_step: number | null; match_format:
 }
 
 function formatSeconds(seconds: number) { const minutes = Math.floor(seconds / 60); const remainder = seconds % 60; return minutes && remainder ? `${minutes} min ${remainder} sec` : minutes ? `${minutes} min` : `${remainder} sec`; }
+function formatMinuteValue(value: unknown) {
+  if (typeof value === "string" && /^\d+:\d{2}$/.test(value.trim())) { const [minutes, seconds] = value.trim().split(":").map(Number); return `${formatNumber(minutes + seconds / 60)} min`; }
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? `${formatNumber(numeric)} min` : `${String(value)} min`;
+}
+function formatNumber(value: number) { return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2))).replace(".", ","); }
 function workloadCategoryOrder(category: string) { const order = ["opwarming", "kracht", "uithouding", "explosiviteit"]; const index = order.indexOf(category.toLocaleLowerCase("nl-BE")); return index < 0 ? order.length : index; }
 function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
