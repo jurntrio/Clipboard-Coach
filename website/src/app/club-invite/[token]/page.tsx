@@ -14,6 +14,22 @@ type Invite = {
 };
 const normalize = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase("nl-BE");
 
+function readableSignupError(reason: unknown) {
+  const message = reason instanceof Error ? reason.message : typeof reason === "string" ? reason : "";
+  const normalized = message.toLowerCase();
+  if (normalized.includes("already registered") || normalized.includes("already exists")) {
+    return "Dit e-mailadres is al geregistreerd. Meld je aan of gebruik ‘Wachtwoord vergeten’.";
+  }
+  if (normalized.includes("password")) return "Kies een sterker wachtwoord van minstens 6 tekens.";
+  if (normalized.includes("rate") || normalized.includes("too many")) {
+    return "Er waren te veel registratiepogingen. Wacht enkele minuten en probeer opnieuw.";
+  }
+  if (normalized.includes("database") || normalized.includes("invite") || !message || message === "{}") {
+    return "De registratie kon niet worden voltooid. Controleer de uitnodiging of vraag de clubbeheerder om een nieuwe link.";
+  }
+  return message;
+}
+
 export default function ClubInvitePage() {
   const { token } = useParams<{ token: string }>();
   const [invite, setInvite] = useState<Invite | null>(null);
@@ -51,7 +67,7 @@ export default function ClubInvitePage() {
           privacy_version: PRIVACY_VERSION, legal_statement_version: LEGAL_STATEMENT_VERSION, legal_locale: "nl" } }
     });
     setLoading(false);
-    if (signupError) return setError(signupError.message.includes("Database error") ? "De naam komt niet overeen, de link is verlopen of werd al gebruikt." : signupError.message);
+    if (signupError) return setError(readableSignupError(signupError));
     setSubmitted(true);
   }
 
