@@ -63,7 +63,7 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
       admin.from("club_match_options").select("id, label").eq("club_id", clubTeam.club_id).eq("active", true)
     ]);
     const sessionIds = (sessions ?? []).map(session => session.id);
-    const workloadsByTraining = new Map<string, Array<{ category: string; modality: string; color: string; details: string[] }>>();
+    const workloadsByTraining = new Map<string, Array<{ category: string; modality: string; color: string; matchFormat: string; details: string[] }>>();
     const workloadNotesByTraining = new Map<string, string>();
     if (access && sessionIds.length) {
       const { data: assignments } = await admin.from("team_training_session_workloads")
@@ -74,14 +74,14 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
             .select("scheme_session_id, display_order, progression_step, match_format, duration_value, duration_unit, repetitions, sets, rest_between_repetitions_seconds, rest_between_sets_seconds, parameters, note, club_workload_categories(name,color), club_workload_modalities(name,color)")
             .in("scheme_session_id", schemeSessionIds).order("display_order"), admin.from("club_workload_scheme_sessions").select("id,note").in("id", schemeSessionIds)])
         : [{ data: [] }, { data: [] }];
-      const blocksBySchemeSession = new Map<string, Array<{ category: string; modality: string; color: string; details: string[] }>>();
+      const blocksBySchemeSession = new Map<string, Array<{ category: string; modality: string; color: string; matchFormat: string; details: string[] }>>();
       const notesBySchemeSession = new Map<string, string>();
       for (const block of blocks ?? []) {
         const category = block.club_workload_categories as unknown as { name: string; color: string } | null;
         const modality = block.club_workload_modalities as unknown as { name: string; color: string } | null;
         const values = blocksBySchemeSession.get(block.scheme_session_id) ?? [];
         const categoryName = category?.name ?? "Workload";
-        values.push({ category: categoryName, modality: modality?.name ?? block.note?.trim() ?? "–", color: modality?.color ?? category?.color ?? "#22c55e", details: workloadDetails(block, categoryName) });
+        values.push({ category: categoryName, modality: modality?.name ?? block.note?.trim() ?? "–", color: modality?.color ?? category?.color ?? "#22c55e", matchFormat: block.match_format?.trim() ?? "", details: workloadDetails(block, categoryName) });
         values.sort((a, b) => workloadCategoryOrder(a.category) - workloadCategoryOrder(b.category));
         blocksBySchemeSession.set(block.scheme_session_id, values);
         if (categoryName.toLocaleLowerCase("nl-BE") === "explosiviteit" && block.note?.trim()) notesBySchemeSession.set(block.scheme_session_id, block.note.trim());
@@ -280,7 +280,6 @@ function workloadDetails(block: { progression_step: number | null; match_format:
   const normalizedCategory = category.toLocaleLowerCase("nl-BE");
   if (["opwarming", "kracht"].includes(normalizedCategory)) return [];
   const details: string[] = [];
-  if (block.match_format?.trim()) details.push(`${normalizedCategory === "uithouding" ? "WV" : "Wedstrijdvorm"}: ${block.match_format.trim()}`);
   if (normalizedCategory === "uithouding") {
     const parameters = block.parameters && typeof block.parameters === "object" && !Array.isArray(block.parameters) ? block.parameters as Record<string, unknown> : {};
     if (parameters.targetTime !== "" && parameters.targetTime !== null && parameters.targetTime !== undefined) details.push(`A(min): ${formatMinuteValue(parameters.targetTime)}`);
@@ -309,9 +308,9 @@ function workloadDetails(block: { progression_step: number | null; match_format:
 
 function formatSeconds(seconds: number) { const minutes = Math.floor(seconds / 60); const remainder = seconds % 60; return minutes && remainder ? `${minutes} min ${remainder} sec` : minutes ? `${minutes} min` : `${remainder} sec`; }
 function formatMinuteValue(value: unknown) {
-  if (typeof value === "string" && /^\d+:\d{2}$/.test(value.trim())) { const [minutes, seconds] = value.trim().split(":").map(Number); return `${formatNumber(minutes + seconds / 60)} min`; }
+  if (typeof value === "string" && /^\d+:\d{2}$/.test(value.trim())) { const [minutes, seconds] = value.trim().split(":").map(Number); return formatNumber(minutes + seconds / 60); }
   const numeric = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(numeric) ? `${formatNumber(numeric)} min` : `${String(value)} min`;
+  return Number.isFinite(numeric) ? formatNumber(numeric) : String(value);
 }
 function formatNumber(value: number) { return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2))).replace(".", ","); }
 function workloadCategoryOrder(category: string) { const order = ["opwarming", "kracht", "uithouding", "explosiviteit"]; const index = order.indexOf(category.toLocaleLowerCase("nl-BE")); return index < 0 ? order.length : index; }
