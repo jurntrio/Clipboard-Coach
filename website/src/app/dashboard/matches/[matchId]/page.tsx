@@ -1246,12 +1246,9 @@ export default function MatchViewerPage() {
           {canManageSources && blocks.length > 0 && <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
             <summary className="cursor-pointer text-sm font-semibold text-textBright">{t("match.manageSources")}</summary>
             <div className="mt-3 space-y-2">
-              {[...externalRecordingGroups.entries()].map(([recordingId, group]) => <div key={`external-${recordingId}`} className="rounded-lg border border-border bg-cardAlt px-2 py-1.5 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 text-textPrimary"><strong>360SI · {t("match.recordingId")} {recordingId}</strong><span className="mt-0.5 block text-[11px] text-textMuted">{t("match.camerasUsed")}: {group.map((item) => item.videos.camera_number).filter(Boolean).sort((a, b) => Number(a) - Number(b)).join(", ")}</span></span>
-                  <button type="button" onClick={() => beginEditExternalRecording(recordingId)} className="text-accent hover:text-textBright">{t("common.edit")}</button>
-                </div>
-              </div>)}
+              {[...externalRecordingGroups.entries()].map(([recordingId, group]) => <button key={`external-${recordingId}`} type="button" onClick={() => beginEditExternalRecording(recordingId)} className="block w-full rounded-lg border border-border bg-cardAlt px-2 py-2 text-left text-xs transition hover:border-accent hover:bg-cardHover focus:border-accent focus:outline-none">
+                <span className="block min-w-0 text-textPrimary"><strong>360SI · {t("match.recordingId")} {recordingId}</strong><span className="mt-0.5 block text-[11px] text-textMuted">{t("match.camerasUsed")}: {group.map((item) => item.videos.camera_number).filter(Boolean).sort((a, b) => Number(a) - Number(b)).join(", ")}</span></span>
+              </button>)}
               {standaloneSourceBlocks.map((block) => block.videos && <div key={block.id} className="rounded-lg border border-border bg-cardAlt px-2 py-1.5 text-xs">
                 {editingVideoId === block.videos.id ? <div className="space-y-2">
                   <label className="block text-textMuted">{t("match.sourceName")}<input value={sourceDraft.label} onChange={(event) => setSourceDraft((current) => ({ ...current, label: event.target.value }))} className="mt-1 w-full rounded border border-border bg-input px-2 py-1.5 text-textPrimary" /></label>
