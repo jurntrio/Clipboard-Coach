@@ -166,7 +166,7 @@ export function ProfileOverview({ name, email, clubName, contexts, activities }:
 function ActivityRow({ item, labels, compact = false }: { item: ProfileActivity; labels: Map<string, string>; compact?: boolean }) {
   const subjects = item.contextIds.map(id => labels.get(id)).filter(Boolean).join(", ");
   return <Link href={item.href} className="flex min-w-0 max-w-full items-center gap-3 overflow-hidden rounded-xl border border-borderSubtle bg-cardDeep p-3 transition hover:border-accent">
-    <Image src={item.kind === "match" ? "/branding/games.png" : "/branding/training.png"} alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain" />
+    <Image src={item.kind === "match" ? "/branding/games.webp" : "/branding/training.webp"} alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain" />
     <span className="min-w-0 flex-1">
       <strong className="block truncate text-sm text-textBright">{item.title}</strong>
       <span className="block text-xs text-textMuted">{formatDate(item.date)}{item.time ? ` · ${item.time}` : ""}{subjects ? ` · ${subjects}` : ""}</span>

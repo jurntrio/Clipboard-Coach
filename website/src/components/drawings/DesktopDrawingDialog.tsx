@@ -6,16 +6,6 @@ import { useI18n } from "@/i18n/client";
 import { formatTime } from "@/lib/utils";
 export type WebDrawingShape = Shape;
 
-export function captureVideoFrame(video: HTMLVideoElement, notReadyMessage = "The current video frame is not ready yet."): string {
-  const canvas = document.createElement("canvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const context = canvas.getContext("2d");
-  if (!context || !canvas.width || !canvas.height) throw new Error(notReadyMessage);
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/png");
-}
-
 function dataUrlToBlob(dataUrl: string) {
   const [header, encoded] = dataUrl.split(",");
   const mimeType = header.match(/data:(.*?);base64/)?.[1] ?? "image/png";

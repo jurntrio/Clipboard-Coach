@@ -17,7 +17,7 @@ export default async function AdminVideosPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <SectionHeader title={t("admin.videos")} subtitle={t("admin.allVideosSubtitle")} artworkSrc="/branding/video-viewer.png" />
+      <SectionHeader title={t("admin.videos")} subtitle={t("admin.allVideosSubtitle")} artworkSrc="/branding/video-viewer.webp" />
 
       <div className="flex justify-end mb-3">
         <Link href="/dashboard/admin" className="text-accent text-sm hover:underline">

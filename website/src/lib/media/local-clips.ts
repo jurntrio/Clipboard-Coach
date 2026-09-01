@@ -1,16 +1,14 @@
-import {
-  ALL_FORMATS,
-  BlobSource,
-  BufferTarget,
-  EncodedAudioPacketSource,
-  EncodedPacketSink,
-  EncodedVideoPacketSource,
-  Input,
-  Mp4OutputFormat,
-  Output,
-  StreamTarget,
-  type StreamTargetChunk
-} from "mediabunny";
+import type { StreamTargetChunk } from "mediabunny";
+
+// mediabunny is a sizeable video-muxing library only needed for local (non-R2) video
+// handling, which is an edge case. Loading it lazily keeps it out of the initial bundle
+// of every page that imports from this module.
+type Mediabunny = typeof import("mediabunny");
+let mediabunnyPromise: Promise<Mediabunny> | null = null;
+function loadMediabunny(): Promise<Mediabunny> {
+  mediabunnyPromise ??= import("mediabunny");
+  return mediabunnyPromise;
+}
 
 export type LocalVideoInfo = {
   duration: number;
@@ -33,13 +31,26 @@ export const defaultLocalMediaMessages: LocalMediaMessages = {
   incompatibleClip: "This clip cannot be copied without converting it. Use H.264 or HEVC video with AAC audio.", noKeyframe: "No usable keyframe was found before this tag."
 };
 
-function createInput(file: File) {
+async function createInput(file: File) {
+  const { Input, ALL_FORMATS, BlobSource } = await loadMediabunny();
   return new Input({ formats: ALL_FORMATS, source: new BlobSource(file) });
 }
 
 export async function mergeMp4Segments(blobs: Blob[]): Promise<Blob> {
   if (!blobs.length) throw new Error("Deze clip bevat geen downloadbare videosegmenten.");
   if (blobs.length === 1) return new Blob([blobs[0]], { type: "video/mp4" });
+
+  const {
+    Input,
+    ALL_FORMATS,
+    BlobSource,
+    BufferTarget,
+    Output,
+    Mp4OutputFormat,
+    EncodedVideoPacketSource,
+    EncodedAudioPacketSource,
+    EncodedPacketSink
+  } = await loadMediabunny();
 
   const inputs = blobs.map((blob) => new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) }));
   const target = new BufferTarget();
@@ -110,7 +121,7 @@ export async function mergeMp4Segments(blobs: Blob[]): Promise<Blob> {
 }
 
 export async function inspectLocalVideo(file: File, messages = defaultLocalMediaMessages): Promise<LocalVideoInfo> {
-  const input = createInput(file);
+  const input = await createInput(file);
   try {
     if (!(await input.canRead())) throw new Error(messages.unreadable);
     const videoTrack = await input.getPrimaryVideoTrack();
@@ -148,7 +159,8 @@ export async function remuxLocalSegment(
     throw new Error(messages.largeClipsUnsupported);
   }
 
-  const input = createInput(file);
+  const { Output, Mp4OutputFormat, StreamTarget, EncodedVideoPacketSource, EncodedAudioPacketSource, EncodedPacketSink } = await loadMediabunny();
+  const input = await createInput(file);
   const root = await navigator.storage.getDirectory();
   const tempName = `clipboard-coach-${crypto.randomUUID()}.mp4`;
   const outputHandle = await root.getFileHandle(tempName, { create: true });

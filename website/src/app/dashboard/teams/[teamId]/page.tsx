@@ -191,7 +191,7 @@ export default function TeamDetailPage() {
   if (!team) return <div className="mx-auto max-w-6xl p-5 sm:p-7"><Link href="/dashboard/teams" className="text-accent">← {t("common.back")}</Link><p className="mt-5 text-textMuted">{t("team.notFound")}</p></div>;
 
   return <div className="mx-auto max-w-6xl p-5 sm:p-7">
-    <SectionHeader title={team.name} artworkSrc="/branding/teams.png" showHome={false} />
+    <SectionHeader title={team.name} artworkSrc="/branding/teams.webp" showHome={false} />
     <TeamContextPanel
       teams={teamOptions.flatMap(option => option.club_team_id ? [{ id: option.club_team_id, name: option.name }] : [])}
       activeTeamId={teamOptions.find(option => option.id === teamId)?.club_team_id ?? null}

@@ -28,7 +28,7 @@ export default async function AdminCoachDetailPage({ params }: { params: { id: s
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <SectionHeader title={t("admin.coach")} artworkSrc="/branding/teams.png" backHref="/dashboard/admin" />
+      <SectionHeader title={t("admin.coach")} artworkSrc="/branding/teams.webp" backHref="/dashboard/admin" />
 
       <div className="bg-card border border-border rounded-xl p-5 mb-6 flex items-center justify-between gap-4 flex-wrap">
         <div>

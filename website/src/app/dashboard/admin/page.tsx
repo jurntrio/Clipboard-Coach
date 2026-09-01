@@ -43,7 +43,7 @@ export default async function AdminOverviewPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <SectionHeader title={t("common.admin")} subtitle={t("admin.subtitle")} artworkSrc="/branding/admin.png" />
+      <SectionHeader title={t("common.admin")} subtitle={t("admin.subtitle")} artworkSrc="/branding/admin.webp" />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3 mb-8">
         <StatTile label={t("admin.coaches")} value={coaches.length} />

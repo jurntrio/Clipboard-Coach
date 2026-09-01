@@ -77,7 +77,7 @@ export default async function TrainingPage() {
   const canManage = !!access && !access.readOnly && hasClubPermission(access, "training.manage");
 
   return <div className="mx-auto max-w-6xl p-4 sm:p-8">
-    <SectionHeader title="Trainingen" artworkSrc="/branding/training.png" showHome={false} />
+    <SectionHeader title="Trainingen" artworkSrc="/branding/training.webp" showHome={false} />
     <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
       <nav className="flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label="Trainingstool">
         <Link href="/dashboard/training" className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Overzicht</Link>

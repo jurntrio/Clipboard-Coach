@@ -30,9 +30,9 @@ export function HomeView() {
     else setSwitchingAccount(false);
   }
   const features = [
-    { icon: "/branding/video-viewer.png", title: t("common.videoViewer"), body: t("home.videoBody") },
-    { icon: "/branding/teams.png", title: t("common.teams"), body: t("home.teamsBody") },
-    { icon: "/branding/training.png", title: t("home.trainingFeatureTitle"), body: t("home.trainingFeatureBody") },
+    { icon: "/branding/video-viewer.webp", title: t("common.videoViewer"), body: t("home.videoBody") },
+    { icon: "/branding/teams.webp", title: t("common.teams"), body: t("home.teamsBody") },
+    { icon: "/branding/training.webp", title: t("home.trainingFeatureTitle"), body: t("home.trainingFeatureBody") },
     { icon: "/branding/intradesk.png", title: t("home.intradeskFeatureTitle"), body: t("home.intradeskFeatureBody") }
   ];
   const productStories = [
@@ -210,7 +210,7 @@ function HeroProductPreview() {
 
 function TrainingPreview() {
   return <ProductScreenshot
-    src="/branding/landing-training-drawing.png"
+    src="/branding/landing-training-drawing.webp"
     alt="SVS trainingstekentool met een uitgewerkte warming-up op het voetbalveld"
     width={1872}
     height={1239}
@@ -219,7 +219,7 @@ function TrainingPreview() {
 
 function VideoPreview() {
   return <ProductScreenshot
-    src="/branding/landing-video-viewer.png"
+    src="/branding/landing-video-viewer.webp"
     alt="SVS video viewer met wedstrijdbeeld, tijdlijn, cliptags en tagoverzicht"
     width={2559}
     height={1167}
@@ -232,7 +232,7 @@ function IntradeskPreview() {
 
 function StatisticsPreview() {
   return <ProductScreenshot
-    src="/branding/landing-training-statistics.png"
+    src="/branding/landing-training-statistics.webp"
     alt="SVS trainingsstatistieken met aanwezigheden per speler"
     width={1556}
     height={1016}

@@ -124,5 +124,5 @@ export default async function AdminClubsPage() {
       club_trainer_teams: { club_teams: { name: string } | { name: string }[] | null }[];
     }[]
   }));
-  return <div className="mx-auto max-w-7xl p-8"><SectionHeader title="Clubs" subtitle="Beheer modules, rollen en het gebruik per club." artworkSrc="/branding/admin.png" backHref="/dashboard/admin" /><ClubAdminManager clubs={rows} profiles={profiles ?? []} readOnly={!isFullAdmin} /></div>;
+  return <div className="mx-auto max-w-7xl p-8"><SectionHeader title="Clubs" subtitle="Beheer modules, rollen en het gebruik per club." artworkSrc="/branding/admin.webp" backHref="/dashboard/admin" /><ClubAdminManager clubs={rows} profiles={profiles ?? []} readOnly={!isFullAdmin} /></div>;
 }

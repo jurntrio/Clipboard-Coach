@@ -119,7 +119,7 @@ export default async function NewTrainingPage({ searchParams }: { searchParams?:
     <SectionHeader
       title={searchParams?.personal || searchParams?.edit ? "Training bewerken" : searchParams?.source ? "Nieuwe training op basis van bestaande" : "Nieuwe training"}
       subtitle={searchParams?.source ? "Pas de kopie aan en bewaar ze als een nieuwe training in Intradesk." : "Maak een training met oefeningen en tekeningen."}
-      artworkSrc="/branding/training.png" backHref={searchParams?.edit || searchParams?.source ? `/dashboard/intradesk/${searchParams.edit ?? searchParams.source}` : "/dashboard/training"} showHome={false}
+      artworkSrc="/branding/training.webp" backHref={searchParams?.edit || searchParams?.source ? `/dashboard/intradesk/${searchParams.edit ?? searchParams.source}` : "/dashboard/training"} showHome={false}
     />
     <TrainingBuilder initialTrainer={trainerName} teamOptions={teamOptions} trainerOptions={trainerOptions}
       clubOptions={clubOptions} initialTraining={initialTraining} editingTrainingId={editingTrainingId} sessionId={searchParams?.sessionId} />

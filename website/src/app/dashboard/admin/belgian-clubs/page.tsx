@@ -37,7 +37,7 @@ export default async function BelgianClubsAdminPage() {
       <SectionHeader
         title="Belgische clublogo's"
         subtitle="Centrale referentielijst van alle Belgische clubs op stamnummer. Small logo's komen uit de bulk-import; large logo's upload je hier."
-        artworkSrc="/branding/admin.png"
+        artworkSrc="/branding/admin.webp"
         backHref="/dashboard/admin"
       />
       <BelgianClubLogoManager rows={rows} readOnly={!isFullAdmin} />

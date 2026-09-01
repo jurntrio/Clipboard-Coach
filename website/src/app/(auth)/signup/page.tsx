@@ -172,7 +172,7 @@ export default function SignupPage() {
           onClick={() => setShowHelp((current) => !current)}
           className="w-full mt-4 flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-accent transition text-left"
         >
-          <Image src="/branding/help.png" alt="" width={36} height={36} />
+          <Image src="/branding/help.webp" alt="" width={36} height={36} />
           <span className="text-textPrimary font-semibold">{t("auth.needHelp")}</span>
         </button>
 

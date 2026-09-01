@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Player, StandardTag, Tag, TagDrawing, Video } from "@/types/database";
@@ -15,7 +16,8 @@ import { getTagColor, formatTime } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
 import { useI18n } from "@/i18n/client";
 import { ActiveTagOverlay } from "@/components/video-player/ActiveTagOverlay";
-import { captureVideoFrame, FrameDrawingDialog, type WebDrawingShape } from "@/components/drawings/DesktopDrawingDialog";
+import { captureVideoFrame } from "@/lib/media/capture-video-frame";
+import type { WebDrawingShape } from "@/components/drawings/DesktopDrawingDialog";
 import { ActiveDrawingOverlay } from "@/components/video-player/ActiveDrawingOverlay";
 import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
 import {
@@ -24,6 +26,10 @@ import {
   localVideoFingerprint,
   rememberLocalVideo
 } from "@/lib/local-video-store";
+
+// Pulls in the canvas drawing tool only once the drawing dialog actually opens,
+// instead of shipping it in this page's initial bundle.
+const FrameDrawingDialog = dynamic(() => import("@/components/drawings/DesktopDrawingDialog").then((mod) => mod.FrameDrawingDialog), { ssr: false });
 
 export default function VideoViewerPage() {
   const { t } = useI18n();

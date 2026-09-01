@@ -72,7 +72,7 @@ export default async function ClubMatchingAdminPage() {
       <SectionHeader
         title="Clubnaam-matching"
         subtitle="Namen uit wedstrijden die niet automatisch aan een Belgische club gekoppeld konden worden. Bevestig de juiste club om een alias te bewaren en meteen alle bestaande wedstrijden met deze naam te koppelen."
-        artworkSrc="/branding/admin.png"
+        artworkSrc="/branding/admin.webp"
         backHref="/dashboard/admin"
       />
       <ClubNameMatchReview rows={unresolved} clubs={clubs} existingMappings={existingMappings} readOnly={!isFullAdmin} />

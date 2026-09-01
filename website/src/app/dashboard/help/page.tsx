@@ -15,7 +15,7 @@ export default function HelpPage() {
   ];
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <SectionHeader title={t("common.help")} artworkSrc="/branding/help.png" showHome={false} />
+      <SectionHeader title={t("common.help")} artworkSrc="/branding/help.webp" showHome={false} />
 
       <section className="mb-5 rounded-xl border border-accent/40 bg-card p-5">
         <p className="text-xs font-black uppercase tracking-[.16em] text-accent">Startgids voor trainers</p>

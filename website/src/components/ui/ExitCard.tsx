@@ -22,7 +22,7 @@ export function ExitCard() {
       title={t("common.exit")}
       className="flex items-center justify-center p-6 bg-card rounded-xl border border-border hover:bg-cardHover hover:border-accent transition"
     >
-      <Image src="/branding/exit.png" alt={t("common.exit")} width={96} height={96} />
+      <Image src="/branding/exit.webp" alt={t("common.exit")} width={96} height={96} />
     </button>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
@@ -18,7 +19,8 @@ import { MatchDetailsCard } from "@/components/matches/MatchDetailsCard";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { inspectLocalVideo } from "@/lib/media/local-clips";
 import { ActiveTagOverlay } from "@/components/video-player/ActiveTagOverlay";
-import { captureVideoFrame, FrameDrawingDialog, type WebDrawingShape } from "@/components/drawings/DesktopDrawingDialog";
+import { captureVideoFrame } from "@/lib/media/capture-video-frame";
+import type { WebDrawingShape } from "@/components/drawings/DesktopDrawingDialog";
 import { ActiveDrawingOverlay } from "@/components/video-player/ActiveDrawingOverlay";
 import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
 import { useI18n } from "@/i18n/client";
@@ -32,6 +34,10 @@ type MatchBlock = { id: string; sequence_order: number; label: string; is_primar
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
 
 const MAX_CLIP_SECONDS = 180;
+
+// Pulls in the canvas drawing tool only once the drawing dialog actually opens,
+// instead of shipping it in this page's initial bundle.
+const FrameDrawingDialog = dynamic(() => import("@/components/drawings/DesktopDrawingDialog").then((mod) => mod.FrameDrawingDialog), { ssr: false });
 
 // Same offset logic as the `offsets` useMemo below, but self-contained so it can run inside
 // loadMatch() right after a fetch, before `match` state (and the memo derived from it) exists yet.

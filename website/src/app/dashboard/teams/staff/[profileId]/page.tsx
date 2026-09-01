@@ -35,7 +35,7 @@ export default async function SharedStaffPage({ params }: { params: { profileId:
 
   const name: string = profile.full_name?.trim() || trainer.display_name?.trim() || "Stafflid";
   return <main className="mx-auto max-w-4xl p-5 sm:p-7">
-    <SectionHeader title={name} artworkSrc="/branding/teams.png" showHome={false} />
+    <SectionHeader title={name} artworkSrc="/branding/teams.webp" showHome={false} />
     <Link href="/dashboard/teams" className="mb-5 inline-flex text-sm font-semibold text-accent hover:underline">← Terug naar Teams</Link>
     <section className="rounded-xl border border-border bg-card p-5">
       <div className="flex items-center gap-4"><span className="grid h-16 w-16 place-items-center rounded-full bg-avatar text-xl font-bold text-accent">{name.split(/\s+/).map(part => part[0]).slice(0, 2).join("").toUpperCase()}</span><div><h2 className="text-xl font-bold text-textBright">{name}</h2><p className="text-sm text-textMuted">Staffprofiel via gedeelde ploegtoegang</p></div></div>

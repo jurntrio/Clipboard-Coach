@@ -232,7 +232,7 @@ export function ClubDashboard() {
         </div>
       </section>
 
-      {fullAdmin && <ModuleAccordion title="Clubgegevens & infrastructuur" icon="/branding/clubadmin.png">
+      {fullAdmin && <ModuleAccordion title="Clubgegevens & infrastructuur" icon="/branding/clubadmin.webp">
         <div className="mb-5">
           <h2 className="text-xl font-semibold text-textBright">Locaties en wedstrijdopties</h2>
           <p className="mt-1 text-sm text-textMuted">Beheer de vaste velden, kleedkamers, verzamelplaatsen en andere infrastructuur van de club.</p>
@@ -240,16 +240,16 @@ export function ClubDashboard() {
         <ClubMatchOptionsManager clubId={selectedClubId} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} readOnly={readOnly} onChanged={load} />
       </ModuleAccordion>}
 
-      {moduleEnabled("teams") && canManageTeams && <ModuleAccordion title="Teams & spelers" icon="/branding/teams.png">
+      {moduleEnabled("teams") && canManageTeams && <ModuleAccordion title="Teams & spelers" icon="/branding/teams.webp">
         <ClubTeamsManager clubId={selectedClubId} teams={teams} trainers={trainers} coordinatorTrainerIds={youthCoordinatorTrainerIds} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} migrationIssues={migrationIssues} onChanged={load}
           readOnly={readOnly || !canManageTeams || !moduleEnabled("teams_manage")} allowImport={moduleEnabled("teams_import") && data.currentAccess?.permissions.includes("teams.import") === true} allowReorder={!readOnly && ["club_admin", "platform_admin"].includes(data.currentAccess?.role ?? "")} />
       </ModuleAccordion>}
 
-      {fullAdmin && !readOnly && <ModuleAccordion title="Seizoenen & overgang" icon="/branding/teams.png">
+      {fullAdmin && !readOnly && <ModuleAccordion title="Seizoenen & overgang" icon="/branding/teams.webp">
         <SeasonManager />
       </ModuleAccordion>}
 
-      {fullAdmin && moduleEnabled("matches") && <ModuleAccordion id="imports-koppelingen" title="Imports & koppelingen" icon="/branding/games.png" badgeCount={pendingOfficialImportCount}>
+      {fullAdmin && moduleEnabled("matches") && <ModuleAccordion id="imports-koppelingen" title="Imports & koppelingen" icon="/branding/games.webp" badgeCount={pendingOfficialImportCount}>
         <div className="space-y-5">
           <div>
             <h2 className="text-xl font-semibold text-textBright">Wedstrijdkalenders</h2>
@@ -260,11 +260,11 @@ export function ClubDashboard() {
         </div>
       </ModuleAccordion>}
 
-      {fullAdmin && moduleEnabled("matches") && <ModuleAccordion title="Live tagging" icon="/branding/games.png">
+      {fullAdmin && moduleEnabled("matches") && <ModuleAccordion title="Live tagging" icon="/branding/games.webp">
         <ClubLiveTagsManager clubId={selectedClubId} readOnly={readOnly} />
       </ModuleAccordion>}
 
-      {fullAdmin && moduleEnabled("training") && <ModuleAccordion title="Trainingen beheren" icon="/branding/training.png">
+      {fullAdmin && moduleEnabled("training") && <ModuleAccordion title="Trainingen beheren" icon="/branding/training.webp">
         <TrainingManagement
           teams={teams.filter(team => team.status === "active").map(team => ({ id: team.id, name: team.name }))}
           trainers={trainers}
@@ -274,7 +274,7 @@ export function ClubDashboard() {
       </ModuleAccordion>}
 
       {fullAdmin && (moduleEnabled("training") || moduleEnabled("intradesk")) && trainingSettings && (
-        <ModuleAccordion title="Modules & beleid" icon="/branding/training.png">
+        <ModuleAccordion title="Modules & beleid" icon="/branding/training.webp">
           <div className="space-y-5">
           {moduleEnabled("training") && <div>
             <TrainingModuleSettings settings={trainingSettings} saving={saving === "training-settings"} readOnly={readOnly} onSave={saveTrainingSettings} />
@@ -320,7 +320,7 @@ export function ClubDashboard() {
         </section>
       </ModuleAccordion>}
 
-      {fullAdmin && !isPersonalClub && moduleEnabled("matches") && <ModuleAccordion title="Wedstrijdtoegang" icon="/branding/games.png">
+      {fullAdmin && !isPersonalClub && moduleEnabled("matches") && <ModuleAccordion title="Wedstrijdtoegang" icon="/branding/games.webp">
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold text-textBright">Wedstrijden toewijzen</h2>
         <p className="mt-1 text-sm text-textMuted">Wijzig de ploeg van een wedstrijd en bepaal welke gebruikers toegang krijgen.</p>
@@ -331,7 +331,7 @@ export function ClubDashboard() {
       </section>
       </ModuleAccordion>}
 
-      {fullAdmin && !isPersonalClub && <ModuleAccordion title="Personen & toegang" icon="/branding/clubadmin.png">
+      {fullAdmin && !isPersonalClub && <ModuleAccordion title="Personen & toegang" icon="/branding/clubadmin.webp">
         <div className="space-y-6">
         <ClubPeopleManager clubId={selectedClubId}
           teams={teams.map((team) => ({ id: team.id, name: team.name }))}
@@ -357,7 +357,7 @@ export function ClubDashboard() {
         </div>
       </ModuleAccordion>}
 
-      {moduleEnabled("teams") && fullAdmin && !readOnly && <ModuleAccordion title="Extra groepen" icon="/branding/training.png">
+      {moduleEnabled("teams") && fullAdmin && !readOnly && <ModuleAccordion title="Extra groepen" icon="/branding/training.webp">
         <PlayerGroupsManager teams={teams} trainers={trainers} options={data.matchOptions.filter(option => option.club_id === selectedClubId)} />
       </ModuleAccordion>}
     </div>
