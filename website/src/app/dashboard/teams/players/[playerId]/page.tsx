@@ -16,6 +16,7 @@ import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/messages";
 import { MenuIcon } from "@/components/ui/MenuIcon";
 import { PlayerInjuries } from "@/components/teams/PlayerInjuries";
+import { hasScheduledEventEnded } from "@/lib/schedule-status";
 
 type PlayerWithTeam = Player & { teams: { name: string; club_team_id: string | null } | null };
 type Guardian = { id: string; profile_id: string; access_scope: string; valid_from: string; valid_until: string | null; revoked_at: string | null; created_at: string; profiles: { email: string; full_name: string | null } | null };
@@ -335,6 +336,8 @@ export default function PlayerClipsPage() {
   };
   const orderedTrainings = [...teamTrainings].sort((a, b) => upcomingFirst(scheduleTimestamp(a.training_date, a.start_time), scheduleTimestamp(b.training_date, b.start_time)));
   const orderedMatches = [...teamMatches].sort((a, b) => upcomingFirst(scheduleTimestamp(a.match_date, a.start_time), scheduleTimestamp(b.match_date, b.start_time)));
+  const upcomingMatches = orderedMatches.filter((match) => !hasScheduledEventEnded(match.match_date, match.start_time));
+  const pastMatches = orderedMatches.filter((match) => hasScheduledEventEnded(match.match_date, match.start_time));
   const trainingWeekGroups = orderedTrainings.reduce((groups, training) => {
     const date = new Date(`${training.training_date}T12:00:00`);
     const dayFromMonday = (date.getDay() + 6) % 7;
@@ -438,7 +441,7 @@ export default function PlayerClipsPage() {
         <button type="button" onClick={() => setEditing(true)} disabled={!player} title={t("team.editPlayer")} aria-label={t("team.editPlayer")} className="ml-auto grid h-14 w-14 flex-shrink-0 place-items-center rounded-xl border border-borderButton bg-button transition hover:border-accent hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-40"><MenuIcon src="/branding/Menu/edit.svg" /></button>
       </header>
       <nav aria-label="Spelersprofiel" className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5">
-        {["Contact", "Planning", "Trainingen", "Wedstrijden", "Evaluaties", "Medisch", "Clips", "Vragenlijsten"].map((tab) => <button key={tab} type="button" onClick={() => setActiveTab(tab.toLowerCase())} className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${activeTab === tab.toLowerCase() ? "bg-accent text-page" : "text-textSecondary hover:bg-cardHover hover:text-textPrimary"}`}>{tab}</button>)}
+        {["Contact", "Planning", "Trainingen", "Wedstrijden", "Evaluaties", "Testen", "Medisch", "Clips", "Vragenlijsten"].map((tab) => <button key={tab} type="button" onClick={() => setActiveTab(tab.toLowerCase())} className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${activeTab === tab.toLowerCase() ? "bg-accent text-page" : "text-textSecondary hover:bg-cardHover hover:text-textPrimary"}`}>{tab}</button>)}
       </nav>
       {inviteError && <p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{inviteError}</p>}
       {inviteLink && (
@@ -666,19 +669,15 @@ export default function PlayerClipsPage() {
             <span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{teamMatches.length}</span>
           </div>
           {loading ? <p className="text-sm text-textMuted">Wedstrijden laden…</p> : teamMatches.length ? (
-            <div className="space-y-3">
-              {orderedMatches.map((match) => (
-                <Link key={match.id} href={`/dashboard/games/${match.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-borderSubtle bg-card p-4 transition hover:border-accent hover:bg-cardHover">
-                  <div>
-                    <p className="font-semibold text-textBright">{currentTeamMatchNames(match)}</p>
-                    <p className="mt-1 text-sm text-textMuted">{match.match_date ? new Date(`${match.match_date}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB") : "Datum nog niet bepaald"}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {match.score_a !== null && match.score_b !== null && <strong className="text-lg text-textBright">{match.score_a}–{match.score_b}</strong>}
-                    <span className="rounded-full bg-accentDim px-2.5 py-1 text-xs font-semibold capitalize text-accent">{match.status}</span>
-                  </div>
-                </Link>
-              ))}
+            <div className="space-y-6">
+              <div>
+                <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-textMuted">Komende wedstrijden</h3>
+                {upcomingMatches.length ? <div className="space-y-3">{upcomingMatches.map((match) => <PlayerMatchRow key={match.id} match={match} locale={locale} names={currentTeamMatchNames(match)} />)}</div> : <p className="text-sm text-textMuted">Geen komende wedstrijden gepland.</p>}
+              </div>
+              <div>
+                <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-textMuted">Afgelopen wedstrijden</h3>
+                {pastMatches.length ? <div className="space-y-3">{pastMatches.map((match) => <PlayerMatchRow key={match.id} match={match} locale={locale} names={currentTeamMatchNames(match)} />)}</div> : <p className="text-sm text-textMuted">Nog geen afgelopen wedstrijden gevonden.</p>}
+              </div>
             </div>
           ) : <p className="text-sm text-textMuted">Voor deze ploeg zijn nog geen wedstrijden gevonden.</p>}
         </section>
@@ -743,6 +742,21 @@ export default function PlayerClipsPage() {
       {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} tvUrl={shareDialog.tvUrl} onClose={() => setShareDialog(null)} />}
       {editing && player && <EditPlayerModal player={player} onClose={() => setEditing(false)} onSaved={() => void loadPlayerAndClips()} />}
     </div>
+  );
+}
+
+function PlayerMatchRow({ match, locale, names }: { match: TeamMatch; locale: string; names: string }) {
+  return (
+    <Link href={`/dashboard/games/${match.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-borderSubtle bg-card p-4 transition hover:border-accent hover:bg-cardHover">
+      <div>
+        <p className="font-semibold text-textBright">{names}</p>
+        <p className="mt-1 text-sm text-textMuted">{match.match_date ? new Date(`${match.match_date}T12:00:00`).toLocaleDateString(locale === "nl" ? "nl-BE" : "en-GB") : "Datum nog niet bepaald"}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p>
+      </div>
+      <div className="flex items-center gap-3">
+        {match.score_a !== null && match.score_b !== null && <strong className="text-lg text-textBright">{match.score_a}–{match.score_b}</strong>}
+        <span className="rounded-full bg-accentDim px-2.5 py-1 text-xs font-semibold capitalize text-accent">{match.status}</span>
+      </div>
+    </Link>
   );
 }
 

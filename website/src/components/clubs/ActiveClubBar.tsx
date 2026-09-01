@@ -139,7 +139,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
   }
   function handleNavigation(event: MouseEvent<HTMLAnchorElement>, href: string) {
     const teamTab = teamTabForHref(href);
-    if (!teamTab || !/^\/dashboard\/teams\/[^/]+/.test(pathname)) return;
+    if (!teamTab || !/^\/dashboard\/teams\/(?!players\/|staff\/)[^/]+$/.test(pathname)) return;
     event.preventDefault();
     const nextUrl = teamTab === "overview" ? pathname : `${pathname}?tab=${teamTab}`;
     window.history.replaceState(null, "", nextUrl);
