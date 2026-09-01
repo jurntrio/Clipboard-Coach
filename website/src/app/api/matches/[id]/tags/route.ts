@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { canAccessTeam, getClubAccess } from "@/lib/auth/club-access";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getTagColor } from "@/lib/utils";
@@ -15,7 +15,7 @@ async function authorizedMatch(matchId: string) {
   if (!match?.club_id) return { error: NextResponse.json({ error: "Wedstrijd niet gevonden." }, { status: 404 }) };
   const access = await getClubAccess(match.club_id, user);
   const canManage = !access.readOnly && canAccessTeam(access, match.club_team_id)
-    && (match.coach_id === user.id || access.role === "club_admin" || access.role === "platform_admin");
+    && (match.coach_id === user.id || access.role === "club_admin" || access.role === "platform_admin" || hasClubPermission(access, "games.tag"));
   if (!canManage) return { error: NextResponse.json({ error: "Geen recht om tags te beheren." }, { status: 403 }) };
   return { admin, user, match };
 }
