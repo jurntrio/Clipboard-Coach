@@ -189,6 +189,7 @@ export default function MatchViewerPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [liveTags, setLiveTags] = useState<LiveMatchTag[]>([]);
   const [hiddenLiveTaggers, setHiddenLiveTaggers] = useState<string[]>([]);
+  const [hiddenTagNames, setHiddenTagNames] = useState<string[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [activePhaseTag, setActivePhaseTag] = useState<{ videoId: string; startTime: number } | null>(null);
   const [pendingPhaseTag, setPendingPhaseTag] = useState<{ videoId: string; startTime: number; endTime: number } | null>(null);
@@ -457,10 +458,18 @@ export default function MatchViewerPage() {
     }
     return [...byKey].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [liveTags, t]);
+  const filterableTagNames = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const name of [...displayTags.map((tag) => tag.name), ...liveTags.map((tag) => tag.tag_name)]) {
+      const trimmed = name.trim();
+      if (trimmed && !isPeriodMarker(trimmed)) byKey.set(trimmed.toLocaleLowerCase(), trimmed);
+    }
+    return [...byKey].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [displayTags, liveTags]);
   const visibleLiveTags = useMemo(() => sortedLiveTags.filter((liveTag) => {
-    const key = (liveTag.tagger_name?.trim() || t("liveTags.unknownTagger")).toLocaleLowerCase();
-    return !hiddenLiveTaggers.includes(key);
-  }), [hiddenLiveTaggers, sortedLiveTags, t]);
+    const taggerKey = (liveTag.tagger_name?.trim() || t("liveTags.unknownTagger")).toLocaleLowerCase();
+    return !hiddenLiveTaggers.includes(taggerKey) && !hiddenTagNames.includes(liveTag.tag_name.trim().toLocaleLowerCase());
+  }), [hiddenLiveTaggers, hiddenTagNames, sortedLiveTags, t]);
   const visibleLiveTagByMaterializedId = useMemo(() => new Map(
     visibleLiveTags.filter((liveTag) => liveTag.tag_id).map((liveTag) => [liveTag.tag_id as string, liveTag])
   ), [visibleLiveTags]);
@@ -469,8 +478,12 @@ export default function MatchViewerPage() {
   ), [liveTags]);
   const rightColumnTags = useMemo(() => displayTags.filter((tag) =>
     !isPeriodMarker(tag.name)
+    && !hiddenTagNames.includes(tag.name.trim().toLocaleLowerCase())
     && (!allLiveMaterializedTagIds.has(tag.id) || visibleLiveTagByMaterializedId.has(tag.id))
-  ), [allLiveMaterializedTagIds, displayTags, visibleLiveTagByMaterializedId]);
+  ), [allLiveMaterializedTagIds, displayTags, hiddenTagNames, visibleLiveTagByMaterializedId]);
+  const filteredTimelineTags = useMemo(() => displayTags.filter((tag) =>
+    isPeriodMarker(tag.name) || rightColumnTags.some((visible) => visible.id === tag.id)
+  ), [displayTags, rightColumnTags]);
   const liveTagMetaById = useMemo(() => Object.fromEntries(
     [...visibleLiveTagByMaterializedId].map(([tagId, liveTag]) => [tagId, {
       badge: liveTag.tagger_name?.trim()
@@ -1082,6 +1095,12 @@ export default function MatchViewerPage() {
       : [...current, key]);
   }
 
+  function toggleTagName(key: string) {
+    setHiddenTagNames((current) => current.includes(key)
+      ? current.filter((item) => item !== key)
+      : [...current, key]);
+  }
+
   async function toggleLiveTagReviewed(liveTag: LiveMatchTag) {
     const reviewedAt = liveTag.reviewed_at ? null : new Date().toISOString();
     setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, reviewed_at: reviewedAt } : item));
@@ -1352,7 +1371,7 @@ export default function MatchViewerPage() {
                 </div>
               ) : <p className="text-textMuted">{t("video.noVideo")}</p>}
             </div>
-          ) : currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">{t("match.reconnect", { number: currentIndex + 1 })}</h2><p className="text-textMuted text-sm mt-2">{t("match.reconnectHelp")}</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">{t("match.browserReconnect")}</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("match.reconnectAll")}</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">{t("match.onlyVideo", { number: currentIndex + 1 })}</button></div></div></div> : <div className="match-viewer-stage relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={playNext} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={displayTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /><button type="button" onClick={() => void toggleFocusMode()} className="match-viewer-focus-button absolute left-3 top-3 z-20 rounded-lg border border-white/30 bg-black/70 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/85" aria-label={isFocusMode ? "Volledig scherm sluiten" : "Volledig scherm openen"}>{isFocusMode ? "⤢ Sluiten" : "⛶ Volledig scherm"}</button></div>}
+          ) : currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">{t("match.reconnect", { number: currentIndex + 1 })}</h2><p className="text-textMuted text-sm mt-2">{t("match.reconnectHelp")}</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">{t("match.browserReconnect")}</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("match.reconnectAll")}</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">{t("match.onlyVideo", { number: currentIndex + 1 })}</button></div></div></div> : <div className="match-viewer-stage relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={playNext} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={filteredTimelineTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /><button type="button" onClick={() => void toggleFocusMode()} className="match-viewer-focus-button absolute left-3 top-3 z-20 rounded-lg border border-white/30 bg-black/70 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/85" aria-label={isFocusMode ? "Volledig scherm sluiten" : "Volledig scherm openen"}>{isFocusMode ? "⤢ Sluiten" : "⛶ Volledig scherm"}</button></div>}
           <div className="match-viewer-bottom-chrome contents">
           <div className="flex min-h-12 overflow-hidden rounded-lg border border-border bg-cardDeep" aria-label={t("match.videoSequence")}>
             {videos.map((video, index) => (
@@ -1388,7 +1407,7 @@ export default function MatchViewerPage() {
               })}
             </div>
           )}
-          <Timeline duration={offsets.total} currentTime={combinedTime} tags={displayTags} onSeek={seekTo} />
+          <Timeline duration={offsets.total} currentTime={combinedTime} tags={filteredTimelineTags} onSeek={seekTo} />
           </div>
           {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
         </main>
@@ -1397,16 +1416,21 @@ export default function MatchViewerPage() {
           <section className="min-h-0">
             <div className="mb-2 flex items-start justify-between gap-3">
               <h3 className="font-semibold text-textBright">{t("tag.tagsTitle")}</h3>
-              {!!liveTaggers.length && <details className="relative">
-                <summary className="cursor-pointer list-none rounded-lg border border-borderButton bg-button px-2.5 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.taggersFilter")}</summary>
-                <div className="absolute right-0 z-20 mt-1 w-56 rounded-xl border border-border bg-cardDeep p-3 shadow-xl">
-                  <p className="mb-2 text-xs text-textMuted">{t("liveTags.taggersFilterHelp")}</p>
-                  <div className="space-y-2">
+              {!!(liveTaggers.length || filterableTagNames.length) && <details className="relative">
+                <summary className="cursor-pointer list-none rounded-lg border border-borderButton bg-button px-2.5 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.filters")}</summary>
+                <div className="absolute right-0 z-20 mt-1 max-h-[70vh] w-64 overflow-y-auto rounded-xl border border-border bg-cardDeep p-3 shadow-xl">
+                  {!!liveTaggers.length && <><p className="mb-2 text-xs font-semibold text-textSecondary">{t("liveTags.taggersFilter")}</p><div className="space-y-2">
                     {liveTaggers.map((tagger) => <label key={tagger.key} className="flex cursor-pointer items-center gap-2 text-sm text-textPrimary">
                       <input type="checkbox" checked={!hiddenLiveTaggers.includes(tagger.key)} onChange={() => toggleLiveTagger(tagger.key)} className="accent-accent" />
                       <span className="truncate">{tagger.name}</span>
                     </label>)}
-                  </div>
+                  </div></>}
+                  {!!filterableTagNames.length && <><p className="mb-2 mt-4 border-t border-borderSubtle pt-3 text-xs font-semibold text-textSecondary">{t("liveTags.tagTypesFilter")}</p><div className="space-y-2">
+                    {filterableTagNames.map((tagName) => <label key={tagName.key} className="flex cursor-pointer items-center gap-2 text-sm text-textPrimary">
+                      <input type="checkbox" checked={!hiddenTagNames.includes(tagName.key)} onChange={() => toggleTagName(tagName.key)} className="accent-accent" />
+                      <span className="truncate">{tagName.name}</span>
+                    </label>)}
+                  </div></>}
                 </div>
               </details>}
             </div>
