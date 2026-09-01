@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { canAccessTeam, getClubAccess } from "@/lib/auth/club-access";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 type Body = {
   liveTagId?: string;
@@ -26,7 +26,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const access = await getClubAccess(match.club_id, user);
   const canManage = !access.readOnly && canAccessTeam(access, match.club_team_id)
-    && (match.coach_id === user.id || access.role === "club_admin" || access.role === "platform_admin");
+    && (match.coach_id === user.id || access.role === "club_admin" || access.role === "platform_admin" || hasClubPermission(access, "games.tag"));
   if (!canManage) return NextResponse.json({ error: "Geen recht om tags te beheren." }, { status: 403 });
 
   const body = await request.json().catch(() => null) as Body | null;
@@ -50,17 +50,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   const video = Array.isArray(matchVideo.videos) ? matchVideo.videos[0] : matchVideo.videos;
-  const maximum = typeof video?.duration === "number" ? video.duration : Number.POSITIVE_INFINITY;
-  const safeOccurred = Math.min(maximum, occurredAtSeconds);
-  const safeStart = Math.min(maximum, startTime);
-  const safeEnd = Math.min(maximum, Math.max(safeStart, endTime));
   const playerIds = body.playerIds?.length ? body.playerIds : liveTag.player_ids?.length ? liveTag.player_ids : video?.active_player_ids ?? [];
   const { data: createdTag, error: tagError } = await admin.from("tags").insert({
     video_id: body.videoId,
     name: liveTag.tag_name,
-    occurred_at_seconds: safeOccurred,
-    start_time: safeStart,
-    end_time: safeEnd,
+    occurred_at_seconds: occurredAtSeconds,
+    start_time: startTime,
+    end_time: endTime,
     color: body.color || "#22c55e",
     player_ids: playerIds
   }).select("*").single();

@@ -352,6 +352,8 @@ export default function MatchViewerPage() {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [canManageSources, setCanManageSources] = useState(false);
   const [removingVideoId, setRemovingVideoId] = useState<string | null>(null);
+  const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
+  const [sourceDraft, setSourceDraft] = useState({ label: "", url: "", cameraNumber: "" });
   const [replacing, setReplacing] = useState(false);
   const [confirmDeleteMatch, setConfirmDeleteMatch] = useState(false);
   const [deletingMatch, setDeletingMatch] = useState(false);
@@ -654,6 +656,42 @@ export default function MatchViewerPage() {
     setAttachCameras((current) => current.includes(cameraNumber) ? current.filter((n) => n !== cameraNumber) : [...current, cameraNumber]);
   }
 
+  function beginEditVideoSource(block: MatchBlock & { videos: Video }) {
+    setEditingVideoId(block.videos.id);
+    setSourceDraft({
+      label: block.label || block.videos.title || "",
+      url: isLocalVideoUrl(block.videos.video_url) ? "" : block.videos.video_url,
+      cameraNumber: block.videos.camera_number ? String(block.videos.camera_number) : ""
+    });
+  }
+
+  async function saveVideoSource(video: Video) {
+    const label = sourceDraft.label.trim();
+    if (!label) return;
+    setAttaching(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/matches/${matchId}/videos/${video.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: label,
+          label,
+          ...(isLocalVideoUrl(video.video_url) ? {} : { video_url: sourceDraft.url.trim() }),
+          camera_number: sourceDraft.cameraNumber ? Number(sourceDraft.cameraNumber) : null
+        })
+      });
+      const body = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(body?.error || t("match.updateSourceFailed"));
+      setEditingVideoId(null);
+      await loadMatch();
+    } catch (updateError) {
+      setError(messageFrom(updateError, t("match.updateSourceFailed")));
+    } finally {
+      setAttaching(false);
+    }
+  }
+
   async function createMatchVideoSource(source: {
     video_url: string;
     video_key: string;
@@ -681,7 +719,9 @@ export default function MatchViewerPage() {
     setAttaching(true);
     setError("");
     try {
-      const cameras = [...attachCameras].sort((a, b) => a - b);
+      const existingCameraNumbers = new Set(allVideos.map((video) => video.camera_number).filter((number): number is number => number !== null));
+      const cameras = [...attachCameras].filter((number) => !existingCameraNumbers.has(number)).sort((a, b) => a - b);
+      if (!cameras.length) throw new Error(t("match.camerasAlreadyAdded"));
       for (let index = 0; index < cameras.length; index += 1) {
         const cameraNumber = cameras[index];
         await createMatchVideoSource({
@@ -999,11 +1039,9 @@ export default function MatchViewerPage() {
 
     const materializedTagIds = new Set(liveTags.filter((item) => item.tag_id).map((item) => item.tag_id as string));
     for (const tag of tags.filter((item) => materializedTagIds.has(item.id))) {
-      const sourceVideo = videos.find((video) => video.id === tag.video_id);
-      const maximum = sourceVideo?.duration ?? Number.POSITIVE_INFINITY;
-      const newStart = Math.min(maximum, Math.max(0, tag.start_time + delta));
-      const newEnd = Math.min(maximum, Math.max(newStart, tag.end_time + delta));
-      const newOccurred = Math.min(maximum, Math.max(0, tag.occurred_at_seconds + delta));
+      const newStart = Math.max(0, tag.start_time + delta);
+      const newEnd = Math.max(newStart, tag.end_time + delta);
+      const newOccurred = Math.max(0, tag.occurred_at_seconds + delta);
       await supabase.from("tags").update({ start_time: newStart, end_time: newEnd, occurred_at_seconds: newOccurred }).eq("id", tag.id);
     }
     await loadMatch();
@@ -1022,21 +1060,18 @@ export default function MatchViewerPage() {
       try {
         const elapsed = liveTagElapsedSeconds(liveTag, match);
         if (elapsed === null) continue;
-        let targetIndex = videos.length - 1;
-        for (let index = 0; index < videos.length; index += 1) {
-          const start = offsets.map.get(videos[index].id) ?? 0;
-          const end = start + (videos[index].duration ?? 0);
-          if (elapsed < end || index === videos.length - 1) { targetIndex = index; break; }
-        }
-        const targetVideo = videos[targetIndex];
-        const localTime = Math.max(0, elapsed - (offsets.map.get(targetVideo.id) ?? 0));
+        // Live-tag timestamps are match-relative and must remain unchanged even
+        // when the currently linked recording is shorter. A longer/replacement
+        // source can be linked later, and the coach chooses the camera while
+        // building the clip.
+        const targetVideo = videos[0];
+        const localTime = Math.max(0, elapsed);
         const clubProfile = clubLiveTagProfiles.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
         const personalProfile = standardTags.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
         const startOffset = clubProfile?.live_start_offset_seconds ?? personalProfile?.live_start_offset_seconds ?? personalProfile?.start_offset_seconds ?? -5;
         const endOffset = clubProfile?.live_end_offset_seconds ?? personalProfile?.live_end_offset_seconds ?? personalProfile?.end_offset_seconds ?? 5;
-        const maxDuration = targetVideo.duration ?? Number.POSITIVE_INFINITY;
         const startTime = Math.max(0, localTime + startOffset);
-        const endTime = Math.min(maxDuration, Math.max(startTime, localTime + endOffset));
+        const endTime = Math.max(startTime, localTime + endOffset);
         const playerIds = liveTag.player_ids?.length ? liveTag.player_ids : targetVideo.active_player_ids;
         const response = await fetch(`/api/matches/${matchId}/live-tags/materialize`, {
           method: "POST",
@@ -1145,20 +1180,29 @@ export default function MatchViewerPage() {
           {canManageSources && blocks.length > 0 && <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
             <summary className="cursor-pointer text-sm font-semibold text-textBright">{t("match.manageSources")}</summary>
             <div className="mt-3 space-y-2">
-              {blocks.map((block) => block.videos && <div key={block.id} className="flex items-center gap-2 rounded-lg border border-border bg-cardAlt px-2 py-1.5 text-xs">
-                <span className="min-w-0 flex-1 truncate text-textPrimary">{block.label || block.videos.title}</span>
-                <button type="button" disabled={removingVideoId === block.videos.id} onClick={() => void removeVideoSource(block.videos!)} className="text-red-300 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50">{t("common.remove")}</button>
+              {blocks.map((block) => block.videos && <div key={block.id} className="rounded-lg border border-border bg-cardAlt px-2 py-1.5 text-xs">
+                {editingVideoId === block.videos.id ? <div className="space-y-2">
+                  <label className="block text-textMuted">{t("match.sourceName")}<input value={sourceDraft.label} onChange={(event) => setSourceDraft((current) => ({ ...current, label: event.target.value }))} className="mt-1 w-full rounded border border-border bg-input px-2 py-1.5 text-textPrimary" /></label>
+                  {!isLocalVideoUrl(block.videos.video_url) && <label className="block text-textMuted">{t("match.sourceLink")}<input type="url" value={sourceDraft.url} onChange={(event) => setSourceDraft((current) => ({ ...current, url: event.target.value }))} className="mt-1 w-full rounded border border-border bg-input px-2 py-1.5 text-textPrimary" /></label>}
+                  <label className="block text-textMuted">{t("match.cameraNumber")}<input type="number" min="1" value={sourceDraft.cameraNumber} onChange={(event) => setSourceDraft((current) => ({ ...current, cameraNumber: event.target.value }))} className="mt-1 w-full rounded border border-border bg-input px-2 py-1.5 text-textPrimary" /></label>
+                  <div className="flex gap-2"><button type="button" disabled={attaching} onClick={() => setEditingVideoId(null)} className="flex-1 rounded bg-button px-2 py-1.5 text-textPrimary">{t("common.cancel")}</button><button type="button" disabled={attaching || !sourceDraft.label.trim() || (!isLocalVideoUrl(block.videos.video_url) && !sourceDraft.url.trim())} onClick={() => void saveVideoSource(block.videos!)} className="flex-1 rounded bg-accent px-2 py-1.5 font-semibold text-page disabled:opacity-50">{t("common.save")}</button></div>
+                </div> : <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-textPrimary">{block.label || block.videos.title}{block.videos.camera_number ? ` · ${t("match.cameraLabel", { number: block.videos.camera_number })}` : ""}</span>
+                  <button type="button" onClick={() => beginEditVideoSource(block as MatchBlock & { videos: Video })} className="text-accent hover:text-textBright">{t("common.edit")}</button>
+                  <button type="button" disabled={removingVideoId === block.videos.id} onClick={() => void removeVideoSource(block.videos!)} className="text-red-300 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50">{t("common.remove")}</button>
+                </div>}
               </div>)}
               <button type="button" disabled={attaching} onClick={() => void chooseLocalFilesToAttach()} className="w-full rounded-lg bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary">+ {t("match.sourceFile")}</button>
               {recordingConfig && <div className="rounded-lg border border-border bg-cardAlt p-2">
                 <label className="block text-[11px] text-textMuted">{t("match.recordingId")}</label>
                 <input type="text" inputMode="numeric" value={attachRecordingId} onChange={(event) => setAttachRecordingId(event.target.value)} placeholder="1391450" className="mt-1 w-full rounded-lg border border-border bg-input px-2 py-1.5 text-xs text-textPrimary" />
                 <div className="mt-2 grid grid-cols-4 gap-1">
-                  {externalRecordingCameras(recordingConfig).map((cameraNumber) => <button key={cameraNumber} type="button" onClick={() => toggleAttachCamera(cameraNumber)} className={`rounded border py-1 text-xs ${attachCameras.includes(cameraNumber) ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary"}`}>{cameraNumber}</button>)}
+                  {externalRecordingCameras(recordingConfig).map((cameraNumber) => { const alreadyAdded = allVideos.some((video) => video.camera_number === cameraNumber); return <button key={cameraNumber} type="button" disabled={alreadyAdded} title={alreadyAdded ? t("match.cameraAlreadyAdded") : undefined} onClick={() => toggleAttachCamera(cameraNumber)} className={`rounded border py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${attachCameras.includes(cameraNumber) ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary"}`}>{cameraNumber}</button>; })}
                 </div>
                 <button type="button" disabled={attaching || !attachRecordingId.trim() || !attachCameras.length} onClick={() => void attachExternalRecording()} className="mt-2 w-full rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">+ 360SI</button>
               </div>}
               <div className="flex gap-2"><input type="url" value={attach360Url} onChange={(event) => setAttach360Url(event.target.value)} placeholder="https://360si..." className="min-w-0 flex-1 rounded-lg border border-border bg-input px-2 py-1.5 text-xs text-textPrimary" /><button type="button" disabled={attaching || !attach360Url.trim()} onClick={() => void attach360Recording()} className="rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">+ 360SI</button></div>
+              <div className="flex gap-2"><input type="url" value={attachVeoUrl} onChange={(event) => setAttachVeoUrl(event.target.value)} placeholder="https://app.veo.co/matches/..." className="min-w-0 flex-1 rounded-lg border border-border bg-input px-2 py-1.5 text-xs text-textPrimary" /><button type="button" disabled={attaching || !attachVeoUrl.trim()} onClick={() => void attachVeoRecording()} className="rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">+ Veo</button></div>
             </div>
           </details>}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
