@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
+import { getRememberedLocalVideo, isLocalVideoUrl } from "@/lib/local-video-store";
 import { formatTime, getTagColor } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
 import type { LiveMatchTag, Match, Player, StandardTag, Tag, TagDrawing, Video } from "@/types/database";
@@ -16,20 +16,17 @@ import { QuickTagCreator } from "@/components/tags/QuickTagCreator";
 import { PhaseTagDialog } from "@/components/tags/PhaseTagDialog";
 import { MatchDetailsCard } from "@/components/matches/MatchDetailsCard";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { inspectLocalVideo } from "@/lib/media/local-clips";
 import { ActiveTagOverlay } from "@/components/video-player/ActiveTagOverlay";
-import { captureVideoFrame } from "@/lib/media/capture-video-frame";
-import type { WebDrawingShape } from "@/components/drawings/DesktopDrawingDialog";
 import { ActiveDrawingOverlay } from "@/components/video-player/ActiveDrawingOverlay";
-import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
 import { useI18n } from "@/i18n/client";
-import { localMediaMessages } from "@/i18n/local-media";
 import { getTagEventKind } from "@/lib/tag-events";
 import { GoalTagDialog, type GoalTagDetails } from "@/components/tags/GoalTagDialog";
-import { externalRecordingCameras, externalRecordingConfig, externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
-import { resolveVeoLink } from "@/lib/veo-browser";
+import { externalRecordingCameras, externalRecordingConfig } from "@/lib/external-recording";
+import { useFocusMode } from "@/hooks/useFocusMode";
+import { useMatchVideoSources, type MatchBlock } from "@/hooks/useMatchVideoSources";
+import { useDrawingTool } from "@/hooks/useDrawingTool";
+import { useLiveTagSync } from "@/hooks/useLiveTagSync";
 
-type MatchBlock = { id: string; sequence_order: number; label: string; is_primary: boolean; videos: Video | null };
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
 
 const MAX_CLIP_SECONDS = 180;
@@ -169,30 +166,17 @@ function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleRevie
   );
 }
 
-function messageFrom(error: unknown, fallback: string) {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
-  return fallback;
-}
-
 export default function MatchViewerPage() {
   const { t } = useI18n();
   const { matchId } = useParams<{ matchId: string }>();
   const router = useRouter();
   const supabase = createClient();
+  const { viewerRef, isFocusMode, focusChromeVisible, focusPanel, revealFocusControls, toggleFocusMode } = useFocusMode();
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const viewerRef = useRef<HTMLDivElement | null>(null);
-  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectInputRef = useRef<HTMLInputElement | null>(null);
-  const replaceInputRef = useRef<HTMLInputElement | null>(null);
-  const reconnectVideoRef = useRef<Video | null>(null);
-  const reconnectAllRef = useRef(false);
-  const attachInputRef = useRef<HTMLInputElement | null>(null);
   const pendingSeekRef = useRef<number | null>(null);
   const autoPlayRef = useRef(false);
   const [match, setMatch] = useState<MatchWithBlocks | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [files, setFiles] = useState<Record<string, File>>({});
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [tags, setTags] = useState<Tag[]>([]);
   const [liveTags, setLiveTags] = useState<LiveMatchTag[]>([]);
@@ -201,71 +185,19 @@ export default function MatchViewerPage() {
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [activePhaseTag, setActivePhaseTag] = useState<{ videoId: string; startTime: number } | null>(null);
   const [pendingPhaseTag, setPendingPhaseTag] = useState<{ videoId: string; startTime: number; endTime: number } | null>(null);
-  const [clubLiveTagProfiles, setClubLiveTagProfiles] = useState<Array<{ name: string; live_start_offset_seconds: number; live_end_offset_seconds: number }>>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [combinedTime, setCombinedTime] = useState(0);
   const [error, setError] = useState("");
   const [supportsPersistentFileAccess, setSupportsPersistentFileAccess] = useState<boolean | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isFocusMode, setIsFocusMode] = useState(false);
-  const [focusChromeVisible, setFocusChromeVisible] = useState(true);
-  const [focusPanel, setFocusPanel] = useState<"left" | "right" | null>(null);
-  const [drawingFrame, setDrawingFrame] = useState<{ image: string; time: number; videoId?: string; tagId: string | null; drawingId: string | null; key?: string; initialShapes?: WebDrawingShape[]; durationSeconds?: number } | null>(null);
   const [playingDrawing, setPlayingDrawing] = useState<TagDrawing | null>(null);
   const [pendingGoal, setPendingGoal] = useState<{ video: Video; label: string; localTime: number } | null>(null);
-  const [attachSource, setAttachSource] = useState<"file" | "external" | "360" | "veo">("file");
-  const [attachRecordingId, setAttachRecordingId] = useState("");
-  const [attach360Url, setAttach360Url] = useState("");
-  const [attachVeoUrl, setAttachVeoUrl] = useState("");
-  const [attachCameras, setAttachCameras] = useState<number[]>([]);
-  const [recordingConfig, setRecordingConfig] = useState<ExternalRecordingConfig | null>(null);
-  const [attaching, setAttaching] = useState(false);
-  const [calibratingLiveTagId, setCalibratingLiveTagId] = useState<string | null>(null);
   const lastPlaybackTimeRef = useRef(0);
   const handledDrawingIdsRef = useRef(new Set<string>());
   const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const materializingLiveTagIdsRef = useRef(new Set<string>());
 
   useEffect(() => () => { if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current); }, []);
-
-  useEffect(() => {
-    const onFullscreenChange = () => {
-      const active = document.fullscreenElement === viewerRef.current;
-      setIsFocusMode(active);
-      setFocusChromeVisible(true);
-      setFocusPanel(null);
-      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-      focusTimerRef.current = active ? setTimeout(() => setFocusChromeVisible(false), 3000) : null;
-    };
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
-      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-    };
-  }, []);
-
-  function revealFocusControls(clientX: number) {
-    if (!isFocusMode) return;
-    setFocusChromeVisible(true);
-    const edge = Math.min(72, window.innerWidth * 0.08);
-    const panelWidth = Math.min(384, window.innerWidth * 0.38);
-    setFocusPanel((current) => {
-      if (clientX <= edge || (current === "left" && clientX <= panelWidth)) return "left";
-      if (clientX >= window.innerWidth - edge || (current === "right" && clientX >= window.innerWidth - panelWidth)) return "right";
-      return null;
-    });
-    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-    focusTimerRef.current = setTimeout(() => {
-      setFocusChromeVisible(false);
-      setFocusPanel(null);
-    }, 3000);
-  }
-
-  async function toggleFocusMode() {
-    if (document.fullscreenElement === viewerRef.current) await document.exitFullscreen();
-    else await viewerRef.current?.requestFullscreen();
-  }
 
   function handleViewerTimeUpdate(localTime: number) {
     const offset = offsets.map.get(currentVideo?.id ?? "") ?? 0;
@@ -296,75 +228,10 @@ export default function MatchViewerPage() {
     }, candidate.drawing.duration_seconds * 1000);
   }
 
-  function drawOnCurrentFrame(requestedTag?: Tag) {
-    const player = videoRef.current;
-    if (!player || !currentVideo) return;
-    const activeTag = requestedTag ?? displayTags.find((tag) => !isPeriodMarker(tag.name) && combinedTime >= tag.start_time && combinedTime <= tag.end_time);
-    if (!activeTag) { setError(t("match.drawInsideTag")); return; }
-    player.pause();
-    try {
-      setDrawingFrame({ image: captureVideoFrame(player, t("drawing.frameNotReady")), time: player.currentTime, videoId: currentVideo.id, tagId: activeTag.id, drawingId: null });
-    } catch (captureError) {
-      setError(messageFrom(captureError, "Could not capture this video frame."));
-    }
-  }
-
-  function drawDownloadOnly() {
-    const player = videoRef.current;
-    if (!player) return;
-    player.pause();
-    try {
-      setDrawingFrame({ image: captureVideoFrame(player, t("drawing.frameNotReady")), time: combinedTime, videoId: currentVideo?.id, tagId: null, drawingId: null });
-    } catch (captureError) {
-      setError(messageFrom(captureError, "Could not capture this video frame."));
-    }
-  }
-
-  async function saveDrawing(blob: Blob, durationSeconds: number, shapes: WebDrawingShape[]) {
-    if (!drawingFrame?.tagId) return;
-    const tag = tags.find((item) => item.id === drawingFrame.tagId);
-    if (!tag) throw new Error(t("tag.noLongerExists"));
-    const id = drawingFrame.drawingId ?? crypto.randomUUID();
-    const key = drawingFrame.key ?? `drawings/${match?.coach_id}/${tag.id}/${id}.png`;
-    const url = await uploadBlobToR2(blob, key, "image/png", () => undefined);
-    let baseFrameUrl = drawingFrame.image;
-    if (!drawingFrame.drawingId) {
-      const baseBlob = await fetch(drawingFrame.image).then((response) => response.blob());
-      baseFrameUrl = await uploadBlobToR2(baseBlob, `drawings/${match?.coach_id}/${tag.id}/${id}-base.png`, "image/png", () => undefined);
-    }
-    const savedDrawing = { id, key, url, video_id: drawingFrame.videoId ?? tag.video_id, video_time: drawingFrame.time, duration_seconds: durationSeconds, base_frame_url: baseFrameUrl, shapes, created_at: new Date().toISOString() };
-    const drawings = drawingFrame.drawingId ? (tag.drawings ?? []).map((drawing) => drawing.id === id ? savedDrawing : drawing) : [...(tag.drawings ?? []), savedDrawing];
-    if (tag.end_time - tag.start_time + drawingsSeconds(drawings) > MAX_CLIP_SECONDS) throw new Error(t("tag.tooLong"));
-    const { error: saveError } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
-    if (saveError) throw saveError.message.includes("CLIP_TOO_LONG") ? new Error(t("tag.tooLong")) : saveError;
-    setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
-    setDrawingFrame(null);
-  }
-
-  function openSavedDrawing(displayTag: Tag, drawing: TagDrawing) {
-    const tag = tags.find((item) => item.id === displayTag.id);
-    if (!tag) return;
-    setDrawingFrame({ image: drawing.base_frame_url ?? drawing.url, time: drawing.video_time, videoId: drawing.video_id ?? tag.video_id, tagId: tag.id, drawingId: drawing.id, key: drawing.key, initialShapes: (drawing.shapes ?? []) as WebDrawingShape[], durationSeconds: drawing.duration_seconds });
-  }
-
-  async function changeDrawingDuration(displayTag: Tag, drawingId: string, durationSeconds: number) {
-    const tag = tags.find((item) => item.id === displayTag.id);
-    if (!tag) return;
-    const drawings = (tag.drawings ?? []).map((drawing) => drawing.id === drawingId ? { ...drawing, duration_seconds: durationSeconds } : drawing);
-    if (tag.end_time - tag.start_time + drawingsSeconds(drawings) > MAX_CLIP_SECONDS) { setError(t("tag.tooLong")); return; }
-    const { error: updateError } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
-    if (updateError) { setError(updateError.message.includes("CLIP_TOO_LONG") ? t("tag.tooLong") : updateError.message); return; }
-    setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
-  }
   const [playbackRate, setPlaybackRate] = useState(1);
   const [currentUserId, setCurrentUserId] = useState("");
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [canManageSources, setCanManageSources] = useState(false);
-  const [removingVideoId, setRemovingVideoId] = useState<string | null>(null);
-  const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
-  const [editingRecordingId, setEditingRecordingId] = useState<string | null>(null);
-  const [sourceDraft, setSourceDraft] = useState({ label: "", url: "", cameraNumber: "" });
-  const [replacing, setReplacing] = useState(false);
   const [confirmDeleteMatch, setConfirmDeleteMatch] = useState(false);
   const [deletingMatch, setDeletingMatch] = useState(false);
 
@@ -385,6 +252,31 @@ export default function MatchViewerPage() {
     return groups;
   }, [blocks]);
   const standaloneSourceBlocks = useMemo(() => blocks.filter((block) => !block.videos || !/^external\/(.+)\/ch\d+$/.test(block.videos.video_key)), [blocks]);
+  const {
+    files, setFiles,
+    recordingConfig, setRecordingConfig,
+    attachSource, setAttachSource,
+    attachRecordingId, setAttachRecordingId,
+    attach360Url, setAttach360Url,
+    attachVeoUrl, setAttachVeoUrl,
+    attachCameras, setAttachCameras,
+    attaching,
+    editingVideoId, setEditingVideoId,
+    editingRecordingId, setEditingRecordingId,
+    sourceDraft, setSourceDraft,
+    replacing,
+    removingVideoId,
+    reconnectInputRef, replaceInputRef, attachInputRef,
+    reconnect, reconnectAllVideos, handleFallbackSelection,
+    replaceSelectedVideos, chooseReplacementVideos,
+    toggleAttachCamera, beginEditVideoSource, beginEditExternalRecording,
+    saveExternalRecording, saveVideoSource,
+    attachExternalRecording, attachVeoRecording, attach360Recording,
+    attachLocalFiles, chooseLocalFilesToAttach, removeVideoSource
+  } = useMatchVideoSources({
+    matchId, videos, allVideos, blocks, externalRecordingGroups, currentUserId,
+    loadMatch: () => loadMatch(), setError, setCurrentIndex, setCombinedTime
+  });
   const camerasByBlockOrder = useMemo(() => {
     const map = new Map<number, MatchBlock[]>();
     for (const block of blocks) {
@@ -448,6 +340,13 @@ export default function MatchViewerPage() {
       return true;
     });
   }, [liveTags, offsets, tags]);
+  const { drawingFrame, setDrawingFrame, drawOnCurrentFrame, drawDownloadOnly, saveDrawing, openSavedDrawing, changeDrawingDuration } = useDrawingTool({
+    videoRef, currentVideo, displayTags, combinedTime, tags, setTags, coachId: match?.coach_id, setError
+  });
+  const { clubLiveTagProfiles, setClubLiveTagProfiles, calibratingLiveTagId, setCalibratingLiveTagId, confirmLiveTagCalibration } = useLiveTagSync({
+    matchId, match, canManageSources, currentUserId, videos, liveTags, setLiveTags,
+    tags, setTags, standardTags, offsets, combinedTime, setMatch, setError, loadMatch: () => loadMatch()
+  });
   const sortedLiveTags = useMemo(() => {
     const displayedTagById = new Map(displayTags.map((tag) => [tag.id, tag]));
     return [...liveTags].sort((a, b) => {
@@ -559,361 +458,6 @@ export default function MatchViewerPage() {
     if (response.ok) {
       const body = await response.json() as { tags?: Array<{ name: string; live_start_offset_seconds: number; live_end_offset_seconds: number }> };
       setClubLiveTagProfiles(body.tags ?? []);
-    }
-  }
-
-  async function attachFile(video: Video, file: File, handle?: FileSystemFileHandle | null) {
-    try {
-      const info = await inspectLocalVideo(file, localMediaMessages(t));
-      if (!await matchesLocalVideo(file, video, info.duration)) throw new Error(t("match.wrongOriginal"));
-      await rememberLocalVideo(video.id, file, handle);
-      setFiles((current) => ({ ...current, [video.id]: file }));
-      setError("");
-    } catch (attachError) {
-      setError(messageFrom(attachError, "The local video could not be opened."));
-    }
-  }
-
-  async function reconnect(video: Video) {
-    const remembered = await getRememberedLocalVideo(video.id, true);
-    if (remembered) { setFiles((current) => ({ ...current, [video.id]: remembered })); return; }
-    const picker = (window as unknown as { showOpenFilePicker?: (options: unknown) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker;
-    if (!picker) { reconnectAllRef.current = false; reconnectVideoRef.current = video; reconnectInputRef.current?.click(); return; }
-    try {
-      const [handle] = await picker({ multiple: false, types: [{ description: "Match video", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
-      if (handle) await attachFile(video, await handle.getFile(), handle);
-    } catch (pickerError) {
-      if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) setError(messageFrom(pickerError, "The local video could not be opened."));
-    }
-  }
-
-  async function reconnectAllVideos() {
-    setError("");
-    const missing: Video[] = [];
-    const restored: Record<string, File> = {};
-    for (const video of videos.filter((item) => isLocalVideoUrl(item.video_url))) {
-      const file = await getRememberedLocalVideo(video.id, true);
-      if (file) restored[video.id] = file;
-      else missing.push(video);
-    }
-    if (Object.keys(restored).length) setFiles((current) => ({ ...current, ...restored }));
-    if (!missing.length) return;
-
-    const picker = (window as unknown as { showOpenFilePicker?: (options: unknown) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker;
-    if (!picker) {
-      reconnectAllRef.current = true;
-      reconnectVideoRef.current = null;
-      reconnectInputRef.current?.click();
-      return;
-    }
-    try {
-      const handles = await picker({ multiple: true, types: [{ description: "Match videos", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
-      const unmatched = [...missing];
-      for (const handle of handles) {
-        const file = await handle.getFile();
-        const info = await inspectLocalVideo(file, localMediaMessages(t));
-        let matchIndex = -1;
-        for (let index = 0; index < unmatched.length; index += 1) {
-          if (await matchesLocalVideo(file, unmatched[index], info.duration)) { matchIndex = index; break; }
-        }
-        if (matchIndex >= 0) {
-          const [video] = unmatched.splice(matchIndex, 1);
-          await rememberLocalVideo(video.id, file, handle);
-          setFiles((current) => ({ ...current, [video.id]: file }));
-        }
-      }
-    } catch (pickerError) {
-      if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) setError(messageFrom(pickerError, "The local videos could not be reconnected."));
-    }
-  }
-
-  async function handleFallbackSelection(selectedFiles: File[]) {
-    if (!reconnectAllRef.current) {
-      const video = reconnectVideoRef.current;
-      if (selectedFiles[0] && video) await attachFile(video, selectedFiles[0]);
-      return;
-    }
-    const unmatched = videos.filter((video) => isLocalVideoUrl(video.video_url) && !files[video.id]);
-    for (const file of selectedFiles) {
-      const info = await inspectLocalVideo(file, localMediaMessages(t));
-      let matchIndex = -1;
-      for (let index = 0; index < unmatched.length; index += 1) {
-        if (await matchesLocalVideo(file, unmatched[index], info.duration)) { matchIndex = index; break; }
-      }
-      if (matchIndex >= 0) {
-        const [video] = unmatched.splice(matchIndex, 1);
-        await rememberLocalVideo(video.id, file);
-        setFiles((current) => ({ ...current, [video.id]: file }));
-      }
-    }
-    reconnectAllRef.current = false;
-  }
-
-  async function replaceSelectedVideos(selections: { file: File; handle: FileSystemFileHandle | null }[]) {
-    if (selections.length !== videos.length) {
-      setError(`Select exactly ${videos.length} replacement video${videos.length === 1 ? "" : "s"}, in playback order.`);
-      return;
-    }
-    setReplacing(true);
-    setError("");
-    try {
-      for (let index = 0; index < videos.length; index += 1) {
-        const video = videos[index];
-        const selection = selections[index];
-        const [info, fingerprint] = await Promise.all([inspectLocalVideo(selection.file, localMediaMessages(t)), localVideoFingerprint(selection.file)]);
-        const changes = { video_url: `local://${fingerprint}`, video_key: `local/${fingerprint}`, file_size: selection.file.size, duration: Math.round(info.duration), processing_status: "ready", title: selection.file.name.replace(/\.[^/.]+$/, "") };
-        const { error: updateError } = await supabase.from("videos").update(changes).eq("id", video.id);
-        if (updateError) throw updateError;
-        await rememberLocalVideo(video.id, selection.file, selection.handle);
-      }
-      setCurrentIndex(0);
-      setCombinedTime(0);
-      await loadMatch();
-    } catch (replaceError) {
-      setError(messageFrom(replaceError, "The match videos could not be replaced."));
-    } finally {
-      setReplacing(false);
-    }
-  }
-
-  async function chooseReplacementVideos() {
-    const picker = (window as unknown as { showOpenFilePicker?: (options: unknown) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker;
-    if (!picker) { replaceInputRef.current?.click(); return; }
-    try {
-      const handles = await picker({ multiple: videos.length > 1, types: [{ description: "Replacement match videos", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
-      await replaceSelectedVideos(await Promise.all(handles.map(async (handle) => ({ file: await handle.getFile(), handle }))));
-    } catch (pickerError) {
-      if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) setError(messageFrom(pickerError, "The replacement videos could not be opened."));
-    }
-  }
-
-  function toggleAttachCamera(cameraNumber: number) {
-    setAttachCameras((current) => current.includes(cameraNumber) ? current.filter((n) => n !== cameraNumber) : [...current, cameraNumber]);
-  }
-
-  function beginEditVideoSource(block: MatchBlock & { videos: Video }) {
-    setEditingVideoId(block.videos.id);
-    setSourceDraft({
-      label: block.label || block.videos.title || "",
-      url: isLocalVideoUrl(block.videos.video_url) ? "" : block.videos.video_url,
-      cameraNumber: block.videos.camera_number ? String(block.videos.camera_number) : ""
-    });
-  }
-
-  function beginEditExternalRecording(recordingId: string) {
-    const group = externalRecordingGroups.get(recordingId) ?? [];
-    setEditingRecordingId(recordingId);
-    setAttachSource("external");
-    setAttachRecordingId(recordingId);
-    setAttachCameras(group.map((block) => block.videos.camera_number).filter((camera): camera is number => camera !== null));
-  }
-
-  async function saveExternalRecording() {
-    const nextRecordingId = attachRecordingId.trim();
-    if (!recordingConfig || !editingRecordingId || !nextRecordingId || !attachCameras.length) return;
-    const group = externalRecordingGroups.get(editingRecordingId) ?? [];
-    const existingByCamera = new Map(group.map((block) => [block.videos.camera_number, block]));
-    const sequenceOrder = group[0]?.sequence_order ?? 0;
-    setAttaching(true);
-    setError("");
-    try {
-      for (const cameraNumber of [...attachCameras].sort((a, b) => a - b)) {
-        const existing = existingByCamera.get(cameraNumber);
-        const source = {
-          video_url: externalRecordingUrl(recordingConfig, nextRecordingId, cameraNumber),
-          video_key: `external/${nextRecordingId}/ch${cameraNumber}`,
-          camera_number: cameraNumber,
-          title: t("match.cameraLabel", { number: cameraNumber }),
-          label: t("match.cameraLabel", { number: cameraNumber })
-        };
-        if (existing) {
-          const response = await fetch(`/api/matches/${matchId}/videos/${existing.videos.id}`, {
-            method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(source)
-          });
-          const body = await response.json().catch(() => null) as { error?: string } | null;
-          if (!response.ok) throw new Error(body?.error || t("match.updateSourceFailed"));
-        } else {
-          await createMatchVideoSource({ ...source, sequence_order: sequenceOrder, is_primary: false });
-        }
-      }
-      for (const block of group.filter((item) => item.videos.camera_number === null || !attachCameras.includes(item.videos.camera_number))) {
-        const response = await fetch(`/api/matches/${matchId}/videos/${block.videos.id}`, { method: "DELETE" });
-        const body = await response.json().catch(() => null) as { error?: string } | null;
-        if (!response.ok) throw new Error(body?.error || t("match.removeVideoFailed"));
-      }
-      setEditingRecordingId(null);
-      setAttachRecordingId("");
-      setAttachCameras([]);
-      await loadMatch();
-    } catch (updateError) {
-      setError(messageFrom(updateError, t("match.updateSourceFailed")));
-    } finally {
-      setAttaching(false);
-    }
-  }
-
-  async function saveVideoSource(video: Video) {
-    const label = sourceDraft.label.trim();
-    if (!label) return;
-    setAttaching(true);
-    setError("");
-    try {
-      const response = await fetch(`/api/matches/${matchId}/videos/${video.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: label,
-          label,
-          ...(isLocalVideoUrl(video.video_url) ? {} : { video_url: sourceDraft.url.trim() }),
-          camera_number: sourceDraft.cameraNumber ? Number(sourceDraft.cameraNumber) : null
-        })
-      });
-      const body = await response.json().catch(() => null) as { error?: string } | null;
-      if (!response.ok) throw new Error(body?.error || t("match.updateSourceFailed"));
-      setEditingVideoId(null);
-      await loadMatch();
-    } catch (updateError) {
-      setError(messageFrom(updateError, t("match.updateSourceFailed")));
-    } finally {
-      setAttaching(false);
-    }
-  }
-
-  async function createMatchVideoSource(source: {
-    video_url: string;
-    video_key: string;
-    title: string;
-    camera_number?: number | null;
-    file_size?: number | null;
-    duration?: number | null;
-    sequence_order: number;
-    is_primary: boolean;
-    label: string;
-  }): Promise<Video> {
-    const response = await fetch(`/api/matches/${matchId}/videos`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(source)
-    });
-    const body = await response.json().catch(() => null) as { video?: Video; error?: string } | null;
-    if (!response.ok || !body?.video) throw new Error(body?.error || t("match.createFailed"));
-    return body.video;
-  }
-
-  async function attachExternalRecording() {
-    const trimmedRecordingId = attachRecordingId.trim();
-    if (!recordingConfig || !trimmedRecordingId || !attachCameras.length || !currentUserId) return;
-    setAttaching(true);
-    setError("");
-    try {
-      const existingCameraNumbers = new Set(allVideos.map((video) => video.camera_number).filter((number): number is number => number !== null));
-      const cameras = [...attachCameras].filter((number) => !existingCameraNumbers.has(number)).sort((a, b) => a - b);
-      if (!cameras.length) throw new Error(t("match.camerasAlreadyAdded"));
-      for (let index = 0; index < cameras.length; index += 1) {
-        const cameraNumber = cameras[index];
-        await createMatchVideoSource({
-          video_url: externalRecordingUrl(recordingConfig, trimmedRecordingId, cameraNumber),
-          video_key: `external/${trimmedRecordingId}/ch${cameraNumber}`,
-          camera_number: cameraNumber,
-          title: t("match.cameraLabel", { number: cameraNumber }),
-          sequence_order: 0,
-          is_primary: !blocks.length && index === 0,
-          label: t("match.cameraLabel", { number: cameraNumber })
-        });
-      }
-      setAttachRecordingId("");
-      setAttachCameras([]);
-      await loadMatch();
-    } catch (attachError) {
-      setError(messageFrom(attachError, t("match.createFailed")));
-    } finally {
-      setAttaching(false);
-    }
-  }
-
-  async function attachVeoRecording() {
-    if (!attachVeoUrl.trim() || !currentUserId) return;
-    setAttaching(true);
-    setError("");
-    try {
-      const veo = await resolveVeoLink(attachVeoUrl);
-      await createMatchVideoSource({
-        video_url: veo.sourceUrl,
-        video_key: `veo/${veo.matchSlug}/standard`,
-        title: t("match.veoFollowCam"),
-        sequence_order: 0,
-        is_primary: !blocks.length,
-        label: t("match.veoFollowCam")
-      });
-      setAttachVeoUrl("");
-      await loadMatch();
-    } catch (attachError) {
-      setError(messageFrom(attachError, t("match.veoResolveFailed")));
-    } finally {
-      setAttaching(false);
-    }
-  }
-
-  async function attach360Recording() {
-    if (!attach360Url.trim() || !currentUserId) return;
-    setAttaching(true);
-    setError("");
-    try {
-      const source = new URL(attach360Url.trim());
-      if (source.protocol !== "https:") throw new Error(t("match.360Invalid"));
-      await createMatchVideoSource({
-        video_url: source.toString(),
-        video_key: `external-link/${crypto.randomUUID()}`,
-        title: t("match.360Video"),
-        sequence_order: 0,
-        is_primary: !blocks.length,
-        label: t("match.360Video")
-      });
-      setAttach360Url("");
-      await loadMatch();
-    } catch (attachError) {
-      setError(messageFrom(attachError, t("match.360Invalid")));
-    } finally {
-      setAttaching(false);
-    }
-  }
-
-  async function attachLocalFiles(selections: { file: File; handle: FileSystemFileHandle | null }[]) {
-    if (!selections.length || !currentUserId) return;
-    setAttaching(true);
-    setError("");
-    try {
-      for (let index = 0; index < selections.length; index += 1) {
-        const selection = selections[index];
-        const [info, fingerprint] = await Promise.all([inspectLocalVideo(selection.file, localMediaMessages(t)), localVideoFingerprint(selection.file)]);
-        const video = await createMatchVideoSource({
-          video_url: `local://${fingerprint}`,
-          video_key: `local/${fingerprint}`,
-          file_size: selection.file.size,
-          duration: Math.round(info.duration),
-          title: selection.file.name.replace(/\.[^/.]+$/, ""),
-          sequence_order: blocks.length > 0 ? 0 : index,
-          is_primary: blocks.length > 0 ? false : true,
-          label: `Video ${index + 1}`
-        });
-        await rememberLocalVideo(video.id, selection.file, selection.handle);
-      }
-      await loadMatch();
-    } catch (attachError) {
-      setError(messageFrom(attachError, t("match.createFailed")));
-    } finally {
-      setAttaching(false);
-    }
-  }
-
-  async function chooseLocalFilesToAttach() {
-    const picker = (window as unknown as { showOpenFilePicker?: (options: unknown) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker;
-    if (!picker) { attachInputRef.current?.click(); return; }
-    try {
-      const handles = await picker({ multiple: true, types: [{ description: "Match videos", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
-      await attachLocalFiles(await Promise.all(handles.map(async (handle) => ({ file: await handle.getFile(), handle }))));
-    } catch (pickerError) {
-      if (!(pickerError instanceof DOMException && pickerError.name === "AbortError")) setError(messageFrom(pickerError, "The local videos could not be opened."));
     }
   }
 
@@ -1079,18 +623,6 @@ export default function MatchViewerPage() {
     setLiveTags((current) => current.filter((item) => item.id !== liveTag.id));
   }
 
-  async function removeVideoSource(video: Video) {
-    if (!window.confirm(t("match.removeVideoConfirm", { name: video.title || t("video.match") }))) return;
-    setRemovingVideoId(video.id);
-    setError("");
-    const response = await fetch(`/api/matches/${matchId}/videos/${video.id}`, { method: "DELETE" });
-    const body = await response.json().catch(() => null) as { error?: string } | null;
-    setRemovingVideoId(null);
-    if (!response.ok) { setError(body?.error || t("match.removeVideoFailed")); return; }
-    setCurrentIndex(0);
-    await loadMatch();
-  }
-
   function deleteDisplayedTag(tagId: string) {
     const liveTag = liveTags.find((item) => item.tag_id === tagId);
     if (liveTag) void deleteLiveTag(liveTag);
@@ -1114,73 +646,6 @@ export default function MatchViewerPage() {
     setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, reviewed_at: reviewedAt } : item));
     const { error: updateError } = await supabase.from("live_match_tags").update({ reviewed_at: reviewedAt }).eq("id", liveTag.id);
     if (updateError) setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, reviewed_at: liveTag.reviewed_at } : item));
-  }
-
-  async function confirmLiveTagCalibration() {
-    const liveTag = liveTags.find((item) => item.id === calibratingLiveTagId);
-    setCalibratingLiveTagId(null);
-    if (!liveTag || !match) return;
-    const currentComputed = liveTagElapsedSeconds(liveTag, match);
-    if (currentComputed === null) return;
-    const delta = combinedTime - currentComputed;
-    if (Math.abs(delta) < 0.01) return;
-    const newOffset = (match.live_tag_offset_seconds ?? 0) + delta;
-    setError("");
-    const { error: matchError } = await supabase.from("matches").update({ live_tag_offset_seconds: newOffset }).eq("id", matchId);
-    if (matchError) { setError(matchError.message); return; }
-    setMatch((current) => current ? { ...current, live_tag_offset_seconds: newOffset } : current);
-
-    const materializedTagIds = new Set(liveTags.filter((item) => item.tag_id).map((item) => item.tag_id as string));
-    for (const tag of tags.filter((item) => materializedTagIds.has(item.id))) {
-      const newStart = Math.max(0, tag.start_time + delta);
-      const newEnd = Math.max(newStart, tag.end_time + delta);
-      const newOccurred = Math.max(0, tag.occurred_at_seconds + delta);
-      await supabase.from("tags").update({ start_time: newStart, end_time: newEnd, occurred_at_seconds: newOccurred }).eq("id", tag.id);
-    }
-    await loadMatch();
-  }
-
-  useEffect(() => {
-    if (!match || !canManageSources || !currentUserId || !videos.length) return;
-    const pending = liveTags.filter((liveTag) => !liveTag.tag_id && !materializingLiveTagIdsRef.current.has(liveTag.id));
-    if (!pending.length) return;
-    void materializeLiveTags(pending);
-  }, [match, currentUserId, videos, liveTags]);
-
-  async function materializeLiveTags(pending: LiveMatchTag[]) {
-    for (const liveTag of pending) {
-      materializingLiveTagIdsRef.current.add(liveTag.id);
-      try {
-        const elapsed = liveTagElapsedSeconds(liveTag, match);
-        if (elapsed === null) continue;
-        // Live-tag timestamps are match-relative and must remain unchanged even
-        // when the currently linked recording is shorter. A longer/replacement
-        // source can be linked later, and the coach chooses the camera while
-        // building the clip.
-        const targetVideo = videos[0];
-        const localTime = Math.max(0, elapsed);
-        const clubProfile = clubLiveTagProfiles.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
-        const personalProfile = standardTags.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
-        const startOffset = clubProfile?.live_start_offset_seconds ?? personalProfile?.live_start_offset_seconds ?? personalProfile?.start_offset_seconds ?? -5;
-        const endOffset = clubProfile?.live_end_offset_seconds ?? personalProfile?.live_end_offset_seconds ?? personalProfile?.end_offset_seconds ?? 5;
-        const startTime = Math.max(0, localTime + startOffset);
-        const endTime = Math.max(startTime, localTime + endOffset);
-        const playerIds = liveTag.player_ids?.length ? liveTag.player_ids : targetVideo.active_player_ids;
-        const response = await fetch(`/api/matches/${matchId}/live-tags/materialize`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ liveTagId: liveTag.id, videoId: targetVideo.id, occurredAtSeconds: localTime, startTime, endTime, color: getTagColor(liveTag.tag_name), playerIds })
-        });
-        const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
-        const createdTag = body?.tag;
-        if (!response.ok || !createdTag) { setError(body?.error || "Could not create tag from live tag."); continue; }
-        setTags((current) => [...current.filter((tag) => tag.id !== createdTag.id), createdTag]
-          .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
-        setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, tag_id: createdTag.id } : item));
-      } finally {
-        materializingLiveTagIdsRef.current.delete(liveTag.id);
-      }
-    }
   }
 
   function seekTo(time: number) {
