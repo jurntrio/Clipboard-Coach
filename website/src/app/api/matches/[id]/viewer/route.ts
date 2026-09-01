@@ -32,7 +32,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   const canManageSources = canManageMatchVideoSources({
     readOnly: access.readOnly,
     canAccessTeam: canAccessTeam(access, match.club_team_id),
-    canCreateGames: hasClubPermission(access, "games.create"),
+    canManageVideoSources: hasClubPermission(access, "games.video_sources.manage"),
     role: access.role,
     matchCoachId: match.coach_id,
     userId: user.id

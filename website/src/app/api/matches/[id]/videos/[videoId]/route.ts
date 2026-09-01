@@ -6,6 +6,7 @@ import { canManageMatchVideoSources } from "@/lib/auth/match-video-sources";
 
 type UpdateVideoSourceBody = {
   video_url?: string;
+  video_key?: string;
   title?: string;
   label?: string;
   camera_number?: number | null;
@@ -18,7 +19,7 @@ async function getManageableMatch(admin: ReturnType<typeof createAdminClient>, m
   const canManage = canManageMatchVideoSources({
     readOnly: access.readOnly,
     canAccessTeam: canAccessTeam(access, match.club_team_id),
-    canCreateGames: hasClubPermission(access, "games.create"),
+    canManageVideoSources: hasClubPermission(access, "games.video_sources.manage"),
     role: access.role,
     matchCoachId: match.coach_id,
     userId: user.id
@@ -44,6 +45,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const title = body?.title?.trim();
   const label = body?.label?.trim();
   const videoUrl = body?.video_url?.trim();
+  const videoKey = body?.video_key?.trim();
   const cameraNumber = body?.camera_number;
   if (!body || !title || !label || (videoUrl !== undefined && !videoUrl.startsWith("https://"))
     || (cameraNumber !== null && cameraNumber !== undefined && (!Number.isInteger(cameraNumber) || cameraNumber < 1))) {
@@ -52,6 +54,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   const videoChanges: Record<string, string | number | null> = { title, camera_number: cameraNumber ?? null };
   if (videoUrl !== undefined) videoChanges.video_url = videoUrl;
+  if (videoKey) videoChanges.video_key = videoKey;
   const { data: video, error: videoError } = await admin.from("videos").update(videoChanges).eq("id", params.videoId).select("*").single();
   if (videoError || !video) return NextResponse.json({ error: videoError?.message || "Videobron kon niet worden gewijzigd." }, { status: 500 });
   const { error: linkError } = await admin.from("match_videos").update({ label }).eq("id", link.id);

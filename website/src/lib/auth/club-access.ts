@@ -4,8 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { CLUB_PERMISSION_OPTIONS, defaultPermissionsForRole, type ClubPermissionKey, type TeamScope } from "@/lib/club-access-options";
 
 const readDefaults = new Set<ClubPermissionKey>(["teams.view", "games.view", "training.view", "intradesk.view"]);
-const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.create", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.manage", "injuries.view"]);
-const analystDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.view_counts", "games.tag", "clips.share"]);
+const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.create", "games.video_sources.manage", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.manage", "injuries.view"]);
+const analystDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.video_sources.manage", "games.view_counts", "games.tag", "clips.share"]);
 const communicationsDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.communication.manage", "clips.share"]);
 const commercialDefaults = new Set<ClubPermissionKey>(defaultPermissionsForRole("commercial_manager"));
 const sponsorViewerDefaults = new Set<ClubPermissionKey>(defaultPermissionsForRole("sponsor_viewer"));
@@ -31,12 +31,13 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
   if (!clubPerson) return { exists: false, role: "", functionRole: "", teamScope: "none" as TeamScope, readOnly: true, permissions: new Set<ClubPermissionKey>(), teamIds: new Set<string>(), goalkeeperPlayerIds: null as Set<string> | null };
 
   const today = new Date().toISOString().slice(0, 10);
-  const [{ data: roles }, { data: trainer }] = await Promise.all([
+  const [{ data: roles }, { data: trainer }, { data: configuredDefaults }] = await Promise.all([
     admin.from("club_role_assignments")
       .select("id, role_type, club_team_id, team_scope, valid_from, valid_until, club_role_permission_overrides(permission_key, enabled)")
       .eq("club_person_id", clubPerson.id).eq("status", "active")
       .lte("valid_from", today).or(`valid_until.is.null,valid_until.gte.${today}`),
-    admin.from("club_trainers").select("id").eq("club_id", clubId).eq("club_person_id", clubPerson.id).maybeSingle()
+    admin.from("club_trainers").select("id").eq("club_id", clubId).eq("club_person_id", clubPerson.id).maybeSingle(),
+    admin.from("club_role_permission_defaults").select("function_role, permission_key, enabled").eq("club_id", clubId)
   ]);
   if (!roles?.length) return { exists: false, role: "", functionRole: "", teamScope: "none" as TeamScope, readOnly: true, permissions: new Set<ClubPermissionKey>(), teamIds: new Set<string>(), goalkeeperPlayerIds: null as Set<string> | null };
 
@@ -54,7 +55,10 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
   let permissions = new Set<ClubPermissionKey>();
   for (const assignment of roles) {
     const assignmentRole = assignment.role_type;
-    const defaults = assignmentRole === "club_admin" || assignmentRole === "club_admin_viewer"
+    const roleConfiguration = (configuredDefaults ?? []).filter((item) => item.function_role === assignmentRole);
+    const defaults = roleConfiguration.length
+      ? roleConfiguration.filter((item) => item.enabled).map((item) => item.permission_key as ClubPermissionKey)
+      : assignmentRole === "club_admin" || assignmentRole === "club_admin_viewer"
       ? CLUB_PERMISSION_OPTIONS.map(([key]) => key)
       : ["youth_coordinator", "head_youth_development", "technical_director"].includes(assignmentRole)
         ? [...coordinatorDefaults]

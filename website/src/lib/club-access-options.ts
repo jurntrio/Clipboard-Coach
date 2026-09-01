@@ -18,6 +18,7 @@ export const CLUB_PERMISSION_OPTIONS = [
   ["teams.view", "Andere teams buiten de eigen ploeg(en) bekijken"], ["teams.manage", "Teams en spelers beheren"], ["teams.import", "PSD/Excel importeren"],
   ["video.view", "Video Viewer gebruiken"],
   ["games.view", "Games bekijken"], ["games.create", "Wedstrijden aanmaken en aanpassen"],
+  ["games.video_sources.manage", "Wedstrijdbeelden beheren"],
   ["games.communication.manage", "Publieke wedstrijdinfo en sponsoring beheren"],
   ["games.planning.manage", "Praktische wedstrijdplanning beheren"],
   ["games.selection.view", "Volledige wedstrijdselectie bekijken"],
@@ -47,6 +48,7 @@ export const CLUB_PERMISSION_DESCRIPTIONS: Record<ClubPermissionKey, string> = {
   "video.view": "De Video Viewer openen en wedstrijdbeelden binnen de toegankelijke ploegen bekijken.",
   "games.view": "Geeft toegang tot Games: wedstrijden, tags en clips van de eigen/toegewezen of extra toegankelijke ploegen bekijken.",
   "games.create": "Wedstrijden aanmaken en aanpassen voor de eigen/toegewezen en eventueel extra toegankelijke ploegen. Wie toegang tot alle teams heeft, kan dit voor alle clubteams.",
+  "games.video_sources.manage": "Video's, 360SI-opnames, camera's en externe videolinks toevoegen, aanpassen of verwijderen voor toegankelijke wedstrijden.",
   "games.communication.manage": "Publieke wedstrijdinformatie, uitslag, locatie en de sponsor van gedeelde wedstrijdclips beheren.",
   "games.planning.manage": "Per wedstrijd de afspraak, locatie, kleedkamers, het veld en de scheidsrechter selecteren uit de clubinstellingen.",
   "games.selection.view": "De volledige selectie bekijken. Ouders zien hiermee niet automatisch andere spelers.",
@@ -85,13 +87,13 @@ export function defaultPermissionsForRole(role: string): ClubPermissionKey[] {
   if (role === "club_admin") return CLUB_PERMISSION_OPTIONS.map(([key]) => key);
   if (role === "club_admin_viewer") return ["teams.view", "video.view", "games.view", "games.view_counts", "training.view", "intradesk.view"];
   if (role === "trainer") {
-    return ["teams.view", "video.view", "games.view", "games.create", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.view", "training.manage", "intradesk.view", "injuries.view", "clips.share"];
+    return ["teams.view", "video.view", "games.view", "games.create", "games.video_sources.manage", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.view", "training.manage", "intradesk.view", "injuries.view", "clips.share"];
   }
   if (role === "goalkeeper_coach") {
     return ["teams.view", "training.view", "intradesk.view"];
   }
   if (role === "team_manager") return ["teams.view", "games.view", "games.selection.view", "training.view", "intradesk.view"];
-  if (role === "video_analyst") return ["teams.view", "video.view", "games.view", "games.view_counts", "games.tag", "training.view", "intradesk.view", "clips.share"];
+  if (role === "video_analyst") return ["teams.view", "video.view", "games.view", "games.video_sources.manage", "games.view_counts", "games.tag", "training.view", "intradesk.view", "clips.share"];
   if (role === "scout") return ["teams.view", "games.view", "training.view", "intradesk.view", "games.scouting.view", "games.scouting.manage"];
   if (role === "communications") return ["teams.view", "games.view", "training.view", "intradesk.view", "games.communication.manage", "clips.share"];
   if (role === "commercial_manager") return [
@@ -103,6 +105,7 @@ export function defaultPermissionsForRole(role: string): ClubPermissionKey[] {
   if (role === "sponsor_viewer") return ["sponsors.view", "sponsors.scopes.view", "sponsors.matches.view"];
   if (role === "doctor" || role === "physiotherapist") return ["teams.view", "injuries.view", "injuries.manage"];
   if (["youth_coordinator", "head_youth_development", "technical_director"].includes(role)) return ["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "training.manage", "intradesk.view", "injuries.view", "injuries.manage"];
-  if (["trainer", "assistant_trainer", "team_manager"].includes(role)) return ["teams.view", "injuries.view"];
+  if (role === "assistant_trainer") return ["teams.view", "video.view", "games.view", "games.video_sources.manage", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.view", "training.manage", "intradesk.view", "injuries.view", "clips.share"];
+  if (role === "team_manager") return ["teams.view", "injuries.view"];
   return ["teams.view", "games.view", "training.view", "intradesk.view"];
 }

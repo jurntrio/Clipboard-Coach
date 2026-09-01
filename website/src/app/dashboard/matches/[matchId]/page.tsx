@@ -353,6 +353,7 @@ export default function MatchViewerPage() {
   const [canManageSources, setCanManageSources] = useState(false);
   const [removingVideoId, setRemovingVideoId] = useState<string | null>(null);
   const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
+  const [editingRecordingId, setEditingRecordingId] = useState<string | null>(null);
   const [sourceDraft, setSourceDraft] = useState({ label: "", url: "", cameraNumber: "" });
   const [replacing, setReplacing] = useState(false);
   const [confirmDeleteMatch, setConfirmDeleteMatch] = useState(false);
@@ -362,6 +363,19 @@ export default function MatchViewerPage() {
   const primaryBlocks = useMemo(() => blocks.filter((block) => block.is_primary), [blocks]);
   const videos = useMemo(() => primaryBlocks.map((block) => block.videos).filter((video): video is Video => !!video), [primaryBlocks]);
   const allVideos = useMemo(() => blocks.map((block) => block.videos).filter((video): video is Video => !!video), [blocks]);
+  const externalRecordingGroups = useMemo(() => {
+    const groups = new Map<string, Array<MatchBlock & { videos: Video }>>();
+    for (const block of blocks) {
+      if (!block.videos) continue;
+      const match = /^external\/(.+)\/ch\d+$/.exec(block.videos.video_key);
+      if (!match) continue;
+      const values = groups.get(match[1]) ?? [];
+      values.push(block as MatchBlock & { videos: Video });
+      groups.set(match[1], values);
+    }
+    return groups;
+  }, [blocks]);
+  const standaloneSourceBlocks = useMemo(() => blocks.filter((block) => !block.videos || !/^external\/(.+)\/ch\d+$/.test(block.videos.video_key)), [blocks]);
   const camerasByBlockOrder = useMemo(() => {
     const map = new Map<number, MatchBlock[]>();
     for (const block of blocks) {
@@ -663,6 +677,58 @@ export default function MatchViewerPage() {
       url: isLocalVideoUrl(block.videos.video_url) ? "" : block.videos.video_url,
       cameraNumber: block.videos.camera_number ? String(block.videos.camera_number) : ""
     });
+  }
+
+  function beginEditExternalRecording(recordingId: string) {
+    const group = externalRecordingGroups.get(recordingId) ?? [];
+    setEditingRecordingId(recordingId);
+    setAttachSource("external");
+    setAttachRecordingId(recordingId);
+    setAttachCameras(group.map((block) => block.videos.camera_number).filter((camera): camera is number => camera !== null));
+  }
+
+  async function saveExternalRecording() {
+    const nextRecordingId = attachRecordingId.trim();
+    if (!recordingConfig || !editingRecordingId || !nextRecordingId || !attachCameras.length) return;
+    const group = externalRecordingGroups.get(editingRecordingId) ?? [];
+    const existingByCamera = new Map(group.map((block) => [block.videos.camera_number, block]));
+    const sequenceOrder = group[0]?.sequence_order ?? 0;
+    setAttaching(true);
+    setError("");
+    try {
+      for (const cameraNumber of [...attachCameras].sort((a, b) => a - b)) {
+        const existing = existingByCamera.get(cameraNumber);
+        const source = {
+          video_url: externalRecordingUrl(recordingConfig, nextRecordingId, cameraNumber),
+          video_key: `external/${nextRecordingId}/ch${cameraNumber}`,
+          camera_number: cameraNumber,
+          title: t("match.cameraLabel", { number: cameraNumber }),
+          label: t("match.cameraLabel", { number: cameraNumber })
+        };
+        if (existing) {
+          const response = await fetch(`/api/matches/${matchId}/videos/${existing.videos.id}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(source)
+          });
+          const body = await response.json().catch(() => null) as { error?: string } | null;
+          if (!response.ok) throw new Error(body?.error || t("match.updateSourceFailed"));
+        } else {
+          await createMatchVideoSource({ ...source, sequence_order: sequenceOrder, is_primary: false });
+        }
+      }
+      for (const block of group.filter((item) => item.videos.camera_number === null || !attachCameras.includes(item.videos.camera_number))) {
+        const response = await fetch(`/api/matches/${matchId}/videos/${block.videos.id}`, { method: "DELETE" });
+        const body = await response.json().catch(() => null) as { error?: string } | null;
+        if (!response.ok) throw new Error(body?.error || t("match.removeVideoFailed"));
+      }
+      setEditingRecordingId(null);
+      setAttachRecordingId("");
+      setAttachCameras([]);
+      await loadMatch();
+    } catch (updateError) {
+      setError(messageFrom(updateError, t("match.updateSourceFailed")));
+    } finally {
+      setAttaching(false);
+    }
   }
 
   async function saveVideoSource(video: Video) {
@@ -1180,7 +1246,13 @@ export default function MatchViewerPage() {
           {canManageSources && blocks.length > 0 && <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
             <summary className="cursor-pointer text-sm font-semibold text-textBright">{t("match.manageSources")}</summary>
             <div className="mt-3 space-y-2">
-              {blocks.map((block) => block.videos && <div key={block.id} className="rounded-lg border border-border bg-cardAlt px-2 py-1.5 text-xs">
+              {[...externalRecordingGroups.entries()].map(([recordingId, group]) => <div key={`external-${recordingId}`} className="rounded-lg border border-border bg-cardAlt px-2 py-1.5 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 text-textPrimary"><strong>360SI · {t("match.recordingId")} {recordingId}</strong><span className="mt-0.5 block text-[11px] text-textMuted">{t("match.camerasUsed")}: {group.map((item) => item.videos.camera_number).filter(Boolean).sort((a, b) => Number(a) - Number(b)).join(", ")}</span></span>
+                  <button type="button" onClick={() => beginEditExternalRecording(recordingId)} className="text-accent hover:text-textBright">{t("common.edit")}</button>
+                </div>
+              </div>)}
+              {standaloneSourceBlocks.map((block) => block.videos && <div key={block.id} className="rounded-lg border border-border bg-cardAlt px-2 py-1.5 text-xs">
                 {editingVideoId === block.videos.id ? <div className="space-y-2">
                   <label className="block text-textMuted">{t("match.sourceName")}<input value={sourceDraft.label} onChange={(event) => setSourceDraft((current) => ({ ...current, label: event.target.value }))} className="mt-1 w-full rounded border border-border bg-input px-2 py-1.5 text-textPrimary" /></label>
                   {!isLocalVideoUrl(block.videos.video_url) && <label className="block text-textMuted">{t("match.sourceLink")}<input type="url" value={sourceDraft.url} onChange={(event) => setSourceDraft((current) => ({ ...current, url: event.target.value }))} className="mt-1 w-full rounded border border-border bg-input px-2 py-1.5 text-textPrimary" /></label>}
@@ -1193,13 +1265,17 @@ export default function MatchViewerPage() {
                 </div>}
               </div>)}
               <button type="button" disabled={attaching} onClick={() => void chooseLocalFilesToAttach()} className="w-full rounded-lg bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary">+ {t("match.sourceFile")}</button>
-              {recordingConfig && <div className="rounded-lg border border-border bg-cardAlt p-2">
+              {recordingConfig && <div className={`rounded-lg border p-2 ${editingRecordingId ? "border-accent bg-accentDim" : "border-border bg-cardAlt"}`}>
+                {editingRecordingId && <p className="mb-2 text-xs font-semibold text-textBright">{t("match.editRecording")}</p>}
                 <label className="block text-[11px] text-textMuted">{t("match.recordingId")}</label>
                 <input type="text" inputMode="numeric" value={attachRecordingId} onChange={(event) => setAttachRecordingId(event.target.value)} placeholder="1391450" className="mt-1 w-full rounded-lg border border-border bg-input px-2 py-1.5 text-xs text-textPrimary" />
                 <div className="mt-2 grid grid-cols-4 gap-1">
-                  {externalRecordingCameras(recordingConfig).map((cameraNumber) => { const alreadyAdded = allVideos.some((video) => video.camera_number === cameraNumber); return <button key={cameraNumber} type="button" disabled={alreadyAdded} title={alreadyAdded ? t("match.cameraAlreadyAdded") : undefined} onClick={() => toggleAttachCamera(cameraNumber)} className={`rounded border py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${attachCameras.includes(cameraNumber) ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary"}`}>{cameraNumber}</button>; })}
+                  {externalRecordingCameras(recordingConfig).map((cameraNumber) => { const alreadyAddedElsewhere = !editingRecordingId && allVideos.some((video) => video.camera_number === cameraNumber); return <button key={cameraNumber} type="button" disabled={alreadyAddedElsewhere} title={alreadyAddedElsewhere ? t("match.cameraAlreadyAdded") : undefined} onClick={() => toggleAttachCamera(cameraNumber)} className={`rounded border py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${attachCameras.includes(cameraNumber) ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary"}`}>{cameraNumber}</button>; })}
                 </div>
-                <button type="button" disabled={attaching || !attachRecordingId.trim() || !attachCameras.length} onClick={() => void attachExternalRecording()} className="mt-2 w-full rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">+ 360SI</button>
+                <div className="mt-2 flex gap-2">
+                  {editingRecordingId && <button type="button" disabled={attaching} onClick={() => { setEditingRecordingId(null); setAttachRecordingId(""); setAttachCameras([]); }} className="flex-1 rounded-lg bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary">{t("common.cancel")}</button>}
+                  <button type="button" disabled={attaching || !attachRecordingId.trim() || !attachCameras.length} onClick={() => void (editingRecordingId ? saveExternalRecording() : attachExternalRecording())} className="flex-1 rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{editingRecordingId ? t("common.save") : "+ 360SI"}</button>
+                </div>
               </div>}
               <div className="flex gap-2"><input type="url" value={attach360Url} onChange={(event) => setAttach360Url(event.target.value)} placeholder="https://360si..." className="min-w-0 flex-1 rounded-lg border border-border bg-input px-2 py-1.5 text-xs text-textPrimary" /><button type="button" disabled={attaching || !attach360Url.trim()} onClick={() => void attach360Recording()} className="rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">+ 360SI</button></div>
               <div className="flex gap-2"><input type="url" value={attachVeoUrl} onChange={(event) => setAttachVeoUrl(event.target.value)} placeholder="https://app.veo.co/matches/..." className="min-w-0 flex-1 rounded-lg border border-border bg-input px-2 py-1.5 text-xs text-textPrimary" /><button type="button" disabled={attaching || !attachVeoUrl.trim()} onClick={() => void attachVeoRecording()} className="rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">+ Veo</button></div>

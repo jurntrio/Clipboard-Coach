@@ -5,7 +5,7 @@ import { canManageMatchVideoSources } from "../src/lib/auth/match-video-sources.
 const assignedTrainer = {
   readOnly: false,
   canAccessTeam: true,
-  canCreateGames: true,
+  canManageVideoSources: true,
   role: "trainer",
   matchCoachId: "another-user",
   userId: "trainer-user"
@@ -19,8 +19,8 @@ test("a trainer cannot manage sources for an unassigned team", () => {
   assert.equal(canManageMatchVideoSources({ ...assignedTrainer, canAccessTeam: false }), false);
 });
 
-test("a trainer without match creation rights cannot manage another owner's sources", () => {
-  assert.equal(canManageMatchVideoSources({ ...assignedTrainer, canCreateGames: false }), false);
+test("a trainer without video-source rights cannot manage another owner's sources", () => {
+  assert.equal(canManageMatchVideoSources({ ...assignedTrainer, canManageVideoSources: false }), false);
 });
 
 test("read-only club accounts cannot manage sources", () => {
@@ -28,5 +28,5 @@ test("read-only club accounts cannot manage sources", () => {
 });
 
 test("the legacy match owner retains source management", () => {
-  assert.equal(canManageMatchVideoSources({ ...assignedTrainer, canCreateGames: false, matchCoachId: "trainer-user" }), true);
+  assert.equal(canManageMatchVideoSources({ ...assignedTrainer, canManageVideoSources: false, matchCoachId: "trainer-user" }), true);
 });

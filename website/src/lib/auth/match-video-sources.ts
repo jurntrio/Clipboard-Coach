@@ -1,7 +1,7 @@
 export function canManageMatchVideoSources(input: {
   readOnly: boolean;
   canAccessTeam: boolean;
-  canCreateGames: boolean;
+  canManageVideoSources: boolean;
   role: string;
   matchCoachId: string | null;
   userId: string;
@@ -10,5 +10,5 @@ export function canManageMatchVideoSources(input: {
   return input.matchCoachId === input.userId
     || input.role === "club_admin"
     || input.role === "platform_admin"
-    || input.canCreateGames;
+    || input.canManageVideoSources;
 }
