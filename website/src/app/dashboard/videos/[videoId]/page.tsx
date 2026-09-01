@@ -11,7 +11,6 @@ import { Timeline } from "@/components/video-player/Timeline";
 import { TagList } from "@/components/tags/TagList";
 import { QuickTagCreator } from "@/components/tags/QuickTagCreator";
 import { PhaseTagDialog } from "@/components/tags/PhaseTagDialog";
-import { ClipBuilder } from "@/components/clips/ClipBuilder";
 import { getTagColor, formatTime } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
 import { useI18n } from "@/i18n/client";
@@ -30,6 +29,9 @@ import {
 // Pulls in the canvas drawing tool only once the drawing dialog actually opens,
 // instead of shipping it in this page's initial bundle.
 const FrameDrawingDialog = dynamic(() => import("@/components/drawings/DesktopDrawingDialog").then((mod) => mod.FrameDrawingDialog), { ssr: false });
+// Splits the clip-building UI into its own chunk so the video player, tags, and
+// timeline can render and become interactive without waiting on it first.
+const ClipBuilder = dynamic(() => import("@/components/clips/ClipBuilder").then((mod) => mod.ClipBuilder), { ssr: false });
 
 export default function VideoViewerPage() {
   const { t } = useI18n();

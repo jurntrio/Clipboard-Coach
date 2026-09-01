@@ -14,7 +14,6 @@ import { Timeline } from "@/components/video-player/Timeline";
 import { TagList } from "@/components/tags/TagList";
 import { QuickTagCreator } from "@/components/tags/QuickTagCreator";
 import { PhaseTagDialog } from "@/components/tags/PhaseTagDialog";
-import { ClipBuilder } from "@/components/clips/ClipBuilder";
 import { MatchDetailsCard } from "@/components/matches/MatchDetailsCard";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { inspectLocalVideo } from "@/lib/media/local-clips";
@@ -38,6 +37,9 @@ const MAX_CLIP_SECONDS = 180;
 // Pulls in the canvas drawing tool only once the drawing dialog actually opens,
 // instead of shipping it in this page's initial bundle.
 const FrameDrawingDialog = dynamic(() => import("@/components/drawings/DesktopDrawingDialog").then((mod) => mod.FrameDrawingDialog), { ssr: false });
+// Splits the clip-building UI into its own chunk so the video player, tags, and
+// timeline can render and become interactive without waiting on it first.
+const ClipBuilder = dynamic(() => import("@/components/clips/ClipBuilder").then((mod) => mod.ClipBuilder), { ssr: false });
 
 // Same offset logic as the `offsets` useMemo below, but self-contained so it can run inside
 // loadMatch() right after a fetch, before `match` state (and the memo derived from it) exists yet.
