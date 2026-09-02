@@ -16,6 +16,8 @@ import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/messages";
 import { MenuIcon } from "@/components/ui/MenuIcon";
 import { PlayerInjuries } from "@/components/teams/PlayerInjuries";
+import { PlayerTests } from "@/components/teams/PlayerTests";
+import { formatMasKmh, formatTestDuration } from "@/lib/vameval";
 import { hasScheduledEventEnded } from "@/lib/schedule-status";
 
 type PlayerWithTeam = Player & { teams: { name: string; club_team_id: string | null } | null };
@@ -98,6 +100,8 @@ export default function PlayerClipsPage() {
   const [childInfoSaving, setChildInfoSaving] = useState(false);
   const [childInfoSaved, setChildInfoSaved] = useState(false);
   const [activeTab, setActiveTab] = useState("contact");
+  const [testsFocusType, setTestsFocusType] = useState<string | undefined>(undefined);
+  const [latestVameval, setLatestVameval] = useState<{ id: string; tested_on: string; results: { duration_seconds: number; mas_kmh: number } } | null>(null);
   const [currentlyInjured, setCurrentlyInjured] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState("");
@@ -252,6 +256,13 @@ export default function PlayerClipsPage() {
         if (!response.ok) return;
         const body = await response.json() as { injuries?: Array<{ status: string }> };
         setCurrentlyInjured(body.injuries?.some(item => item.status === "injured") ?? false);
+      });
+      void fetch(`/api/players/${playerId}/tests`, { cache: "no-store" }).then(async response => {
+        if (!response.ok) return;
+        const body = await response.json() as { tests?: Array<{ id: string; test_type: string; tested_on: string; results: Record<string, number>; created_at: string }> };
+        const vamevalTests = (body.tests ?? []).filter(test => test.test_type === "vameval");
+        const latest = [...vamevalTests].sort((a, b) => a.tested_on !== b.tested_on ? (a.tested_on < b.tested_on ? 1 : -1) : (a.created_at < b.created_at ? 1 : -1))[0];
+        setLatestVameval(latest ? { id: latest.id, tested_on: latest.tested_on, results: { duration_seconds: latest.results.duration_seconds, mas_kmh: latest.results.mas_kmh } } : null);
       });
       void loadChildInfo(loadedPlayer);
       const clubTeamId = loadedPlayer.teams?.club_team_id;
@@ -435,6 +446,13 @@ export default function PlayerClipsPage() {
               <ProfileFact label="Geboorteplaats" value={clubPlayerContact?.birth_place} />
               <ProfileFact label="Adres" value={clubPlayerContact?.address ? `${clubPlayerContact.address}, ${clubPlayerContact.postal_code ?? ""} ${clubPlayerContact.city ?? ""}`.trim() : null} wide />
             </dl>
+            {latestVameval && (
+              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-borderSubtle bg-card px-3 py-2 text-sm">
+                <span className="text-xs font-bold uppercase tracking-wide text-textMuted">Laatste VAMEVAL</span>
+                <span className="text-textPrimary">{new Date(`${latestVameval.tested_on}T12:00:00`).toLocaleDateString("nl-BE")} · {formatTestDuration(latestVameval.results.duration_seconds)} · MAS {formatMasKmh(latestVameval.results.mas_kmh)} km/u</span>
+                <button type="button" onClick={() => { setActiveTab("testen"); setTestsFocusType("vameval"); }} className="ml-auto rounded-lg border border-borderButton px-3 py-1.5 text-xs font-semibold text-accent transition hover:border-accent">Bekijk zones</button>
+              </div>
+            )}
             {photoError && <p className="mt-2 text-xs text-red-300">{photoError}</p>}
           </div>
         </div>
@@ -685,6 +703,8 @@ export default function PlayerClipsPage() {
 
       {activeTab === "evaluaties" && <section className="rounded-xl border border-border bg-cardDeep p-4"><div className="mb-4 flex items-center gap-2"><h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">Evaluatiehistoriek</h2><span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{groupEvaluations.length}</span></div>{groupEvaluations.length ? <div className="space-y-3">{groupEvaluations.map(evaluation => <div key={evaluation.id} className="grid gap-3 rounded-xl border border-borderSubtle bg-card p-4 sm:grid-cols-[minmax(160px,1fr)_minmax(160px,1fr)_70px]"><div><strong className="text-textBright">{evaluation.player_groups?.icon ?? "＋"} {evaluation.player_groups?.name}</strong><p className="text-xs text-textMuted">{evaluation.profiles?.full_name ? `Keepertrainer ${evaluation.profiles.full_name} · ` : ""}{new Date(evaluation.evaluated_at).toLocaleDateString("nl-BE")}</p></div><div><p className="text-sm font-semibold text-textPrimary">{evaluation.player_group_evaluation_criteria?.name}</p>{evaluation.note && <p className="mt-1 text-xs text-textMuted">{evaluation.note}</p>}</div><span className="grid h-10 w-10 place-items-center rounded-full bg-accentDim text-sm font-black text-accent">{evaluation.score}/5</span></div>)}</div> : <p className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Nog geen evaluaties vanuit Extra groepen.</p>}</section>}
 
+      {activeTab === "testen" && <PlayerTests playerId={playerId} focusType={testsFocusType} />}
+
       {activeTab === "medisch" && <PlayerInjuries playerId={playerId} onStatus={setCurrentlyInjured} />}
 
       {activeTab === "clips" && <>
@@ -733,7 +753,7 @@ export default function PlayerClipsPage() {
       )}
       </>}
 
-      {!['contact', 'planning', 'trainingen', 'wedstrijden', 'evaluaties', 'medisch', 'clips'].includes(activeTab) && <section className="rounded-xl border border-dashed border-border bg-cardDeep p-8 text-center"><h2 className="text-lg font-semibold capitalize text-textBright">{activeTab}</h2><p className="mt-2 text-sm text-textMuted">Voor dit onderdeel zijn nog geen gegevens toegevoegd.</p></section>}
+      {!['contact', 'planning', 'trainingen', 'wedstrijden', 'evaluaties', 'testen', 'medisch', 'clips'].includes(activeTab) && <section className="rounded-xl border border-dashed border-border bg-cardDeep p-8 text-center"><h2 className="text-lg font-semibold capitalize text-textBright">{activeTab}</h2><p className="mt-2 text-sm text-textMuted">Voor dit onderdeel zijn nog geen gegevens toegevoegd.</p></section>}
 
       {selectedClip && selectedClip.videos && (
         <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos.video_url} segments={segmentsFor(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} />

@@ -37,6 +37,7 @@ export const CLUB_PERMISSION_OPTIONS = [
   ["sponsors.matches.view", "Wedstrijdsponsoring bekijken"], ["sponsors.matches.manage", "Wedstrijdsponsoring beheren"],
   ["clips.share", "Clips delen"]
   ,["injuries.view", "Blessurestatus en historiek bekijken"], ["injuries.manage", "Blessures registreren en aanpassen"]
+  ,["tests.view", "Testresultaten bekijken"], ["tests.manage", "Testresultaten toevoegen en verwijderen"]
 ] as const;
 
 export const CLUB_PERMISSION_DESCRIPTIONS: Record<ClubPermissionKey, string> = {
@@ -77,7 +78,9 @@ export const CLUB_PERMISSION_DESCRIPTIONS: Record<ClubPermissionKey, string> = {
   "sponsors.matches.manage": "Speciale thuiswedstrijden selecteren en wedstrijdsponsors of matchbalschenkers beheren.",
   "clips.share": "Clips van de eigen of expliciet toegankelijke ploegen delen."
   ,"injuries.view": "Sportief relevante blessurestatus en historiek van toegankelijke spelers bekijken.",
-  "injuries.manage": "Spelers als geblesseerd registreren, updates toevoegen en opnieuw beschikbaar verklaren."
+  "injuries.manage": "Spelers als geblesseerd registreren, updates toevoegen en opnieuw beschikbaar verklaren.",
+  "tests.view": "Fysieke testresultaten (bv. lengte, gewicht) van toegankelijke spelers bekijken.",
+  "tests.manage": "Fysieke testresultaten van toegankelijke spelers toevoegen en verwijderen."
 };
 
 export type ClubPermissionKey = typeof CLUB_PERMISSION_OPTIONS[number][0];
@@ -87,10 +90,13 @@ export function defaultPermissionsForRole(role: string): ClubPermissionKey[] {
   if (role === "club_admin") return CLUB_PERMISSION_OPTIONS.map(([key]) => key);
   if (role === "club_admin_viewer") return ["teams.view", "video.view", "games.view", "games.view_counts", "training.view", "intradesk.view"];
   if (role === "trainer") {
-    return ["teams.view", "video.view", "games.view", "games.create", "games.video_sources.manage", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.view", "training.manage", "intradesk.view", "injuries.view", "clips.share"];
+    return ["teams.view", "video.view", "games.view", "games.create", "games.video_sources.manage", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.view", "training.manage", "intradesk.view", "injuries.view", "clips.share", "tests.view", "tests.manage"];
   }
   if (role === "goalkeeper_coach") {
     return ["teams.view", "training.view", "intradesk.view"];
+  }
+  if (role === "physical_coach" || role === "performance_coach") {
+    return ["teams.view", "training.view", "intradesk.view", "tests.view", "tests.manage"];
   }
   if (role === "team_manager") return ["teams.view", "games.view", "games.selection.view", "training.view", "intradesk.view"];
   if (role === "video_analyst") return ["teams.view", "video.view", "games.view", "games.video_sources.manage", "games.view_counts", "games.tag", "training.view", "intradesk.view", "clips.share"];
@@ -103,9 +109,9 @@ export function defaultPermissionsForRole(role: string): ClubPermissionKey[] {
     "sponsors.teams.manage", "sponsors.matches.view", "sponsors.matches.manage"
   ];
   if (role === "sponsor_viewer") return ["sponsors.view", "sponsors.scopes.view", "sponsors.matches.view"];
-  if (role === "doctor" || role === "physiotherapist") return ["teams.view", "injuries.view", "injuries.manage"];
-  if (["youth_coordinator", "head_youth_development", "technical_director"].includes(role)) return ["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "training.manage", "intradesk.view", "injuries.view", "injuries.manage"];
-  if (role === "assistant_trainer") return ["teams.view", "video.view", "games.view", "games.video_sources.manage", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.view", "training.manage", "intradesk.view", "injuries.view", "clips.share"];
+  if (role === "doctor" || role === "physiotherapist") return ["teams.view", "injuries.view", "injuries.manage", "tests.view", "tests.manage"];
+  if (["youth_coordinator", "head_youth_development", "technical_director"].includes(role)) return ["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "training.manage", "intradesk.view", "injuries.view", "injuries.manage", "tests.view", "tests.manage"];
+  if (role === "assistant_trainer") return ["teams.view", "video.view", "games.view", "games.video_sources.manage", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.view", "training.manage", "intradesk.view", "injuries.view", "clips.share", "tests.view", "tests.manage"];
   if (role === "team_manager") return ["teams.view", "injuries.view"];
   return ["teams.view", "games.view", "training.view", "intradesk.view"];
 }

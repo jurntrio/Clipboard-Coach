@@ -4,13 +4,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { CLUB_PERMISSION_OPTIONS, defaultPermissionsForRole, type ClubPermissionKey, type TeamScope } from "@/lib/club-access-options";
 
 const readDefaults = new Set<ClubPermissionKey>(["teams.view", "games.view", "training.view", "intradesk.view"]);
-const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.create", "games.video_sources.manage", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.manage", "injuries.view"]);
+const trainerDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.create", "games.video_sources.manage", "games.planning.manage", "games.selection.view", "games.selection.manage", "games.tag_link.create", "games.tag", "training.manage", "injuries.view", "tests.view", "tests.manage"]);
 const analystDefaults = new Set<ClubPermissionKey>([...readDefaults, "video.view", "games.video_sources.manage", "games.view_counts", "games.tag", "clips.share"]);
 const communicationsDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.communication.manage", "clips.share"]);
 const commercialDefaults = new Set<ClubPermissionKey>(defaultPermissionsForRole("commercial_manager"));
 const sponsorViewerDefaults = new Set<ClubPermissionKey>(defaultPermissionsForRole("sponsor_viewer"));
 const scoutDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.scouting.view", "games.scouting.manage"]);
-const coordinatorDefaults = new Set<ClubPermissionKey>(["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "training.manage", "intradesk.view", "injuries.view", "injuries.manage"]);
+const coordinatorDefaults = new Set<ClubPermissionKey>(["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "training.manage", "intradesk.view", "injuries.view", "injuries.manage", "tests.view", "tests.manage"]);
 
 async function loadClubAccess(clubId: string, userId: string, userEmail: string | null) {
   const admin = createAdminClient();
