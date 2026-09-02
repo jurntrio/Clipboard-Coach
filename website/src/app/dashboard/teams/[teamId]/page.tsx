@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TrainingStatistics, type TrainingStatistic } from "@/components/training/TrainingStatistics";
 import { TeamContextPanel } from "@/components/teams/TeamContextPanel";
+import { TeamTests } from "@/components/teams/TeamTests";
 import { useKeyedFetch } from "@/hooks/useKeyedFetch";
 import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/messages";
@@ -216,7 +217,7 @@ export default function TeamDetailPage() {
     </section>}
 
     {tab === "evaluations" && <Empty text={t("team.evaluationsComingSoon")} />}
-    {tab === "tests" && <Empty text={t("team.testsComingSoon")} />}
+    {tab === "tests" && <TeamTests teamId={teamId} />}
     {tab === "statistics" && <section>
       <nav className="mb-6 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2" aria-label="Ga naar statistiekensectie"><a href="#wedstrijdstatistieken" className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Wedstrijdstatistieken</a><a href="#trainingsstatistieken" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Trainingsstatistieken</a></nav>
       <div id="wedstrijdstatistieken" className="scroll-mt-6"><h2 className="mb-3 text-lg font-bold text-textBright">Wedstrijdstatistieken</h2>{matchStatistics === null ? <Loading text="Wedstrijdstatistieken laden…" /> : <><div className="mb-3 flex flex-wrap gap-2">{([['all','Alle wedstrijden'],['friendly','Vriendschappelijk'],['competition','Competitie'], ...(hasCupMatches ? [['cup','Beker'] as const] : [])] as const).map(([value,label]) => <button key={value} type="button" onClick={() => setMatchStatisticsFilter(value)} className={`rounded-lg px-4 py-2 text-sm font-bold ${matchStatisticsFilter === value ? 'bg-accent text-page' : 'border border-borderButton bg-button text-textPrimary hover:border-accent'}`}>{label}</button>)}</div><MatchStatistics rows={matchStatisticsFilter === "friendly" ? friendlyMatchStatistics : matchStatisticsFilter === "competition" ? competitionMatchStatistics : matchStatisticsFilter === "cup" ? cupMatchStatistics : matchStatistics} /></>}</div>
