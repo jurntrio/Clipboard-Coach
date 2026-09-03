@@ -56,7 +56,9 @@ export async function POST(request: Request, { params }: { params: { teamId: str
     rows.push({ club_id: ctx.clubId!, player_id: playerId, test_type: testType, tested_on: testedOn, results: validated.results, note: note || null, created_by: ctx.user!.id });
   }
   if (!rows.length) return NextResponse.json({ error: "Vul minstens één speler in." }, { status: 400 });
-  const { data: inserted, error } = await ctx.admin!.from("player_tests").insert(rows).select("id");
+  const { data: inserted, error } = await ctx.admin!.from("player_tests")
+    .upsert(rows, { onConflict: "club_id,player_id,test_type,tested_on" })
+    .select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ insertedCount: inserted?.length ?? 0 }, { status: 201 });
 }

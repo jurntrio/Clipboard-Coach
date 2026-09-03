@@ -6,6 +6,12 @@ import { isValidSecondsComponent, isValidVamevalDurationSeconds, toDurationSecon
 
 type TestRecord = { id: string; player_id: string; test_type: string; tested_on: string; results: Record<string, number>; note: string | null; created_at: string };
 type RosterPlayer = { id: string; first_name: string; last_name: string };
+const MIN_MEASUREMENT_COLUMNS = 5;
+
+function localDateInputValue(date = new Date()) {
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+}
 
 export function TeamTests({ teamId }: { teamId: string }) {
   const [players, setPlayers] = useState<RosterPlayer[]>([]);
@@ -15,7 +21,7 @@ export function TeamTests({ teamId }: { teamId: string }) {
   const [error, setError] = useState("");
   const [selectedType, setSelectedType] = useState(Object.keys(PLAYER_TEST_TYPES)[0]);
   const [entryOpen, setEntryOpen] = useState(false);
-  const [testedOn, setTestedOn] = useState(new Date().toISOString().slice(0, 10));
+  const [testedOn, setTestedOn] = useState(localDateInputValue());
   const [simpleValues, setSimpleValues] = useState<Record<string, Record<string, string>>>({});
   const [vamevalValues, setVamevalValues] = useState<Record<string, { minutes: string; seconds: string }>>({});
   const [note, setNote] = useState("");
@@ -36,6 +42,11 @@ export function TeamTests({ teamId }: { teamId: string }) {
   const config = PLAYER_TEST_TYPES[selectedType];
   const entries = useMemo(() => tests.filter((test) => test.test_type === selectedType), [tests, selectedType]);
   const dates = useMemo(() => [...new Set(entries.map((entry) => entry.tested_on))].sort(), [entries]);
+  const emptyColumnCount = Math.max(0, MIN_MEASUREMENT_COLUMNS - dates.length);
+  const measurementColumns = [
+    ...dates.map((date) => ({ key: date, date })),
+    ...Array.from({ length: emptyColumnCount }, (_, index) => ({ key: `empty-${index}`, date: null })),
+  ];
   const entryByPlayerAndDate = useMemo(() => {
     const map = new Map<string, TestRecord>();
     for (const entry of entries) map.set(`${entry.player_id}|${entry.tested_on}`, entry);
@@ -46,7 +57,7 @@ export function TeamTests({ teamId }: { teamId: string }) {
     setSimpleValues({});
     setVamevalValues({});
     setNote("");
-    setTestedOn(new Date().toISOString().slice(0, 10));
+    setTestedOn(localDateInputValue());
     setError("");
     setEntryOpen(true);
   }
@@ -121,7 +132,7 @@ export function TeamTests({ teamId }: { teamId: string }) {
         <div className="mb-5 rounded-xl border border-borderSubtle bg-card p-4">
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm text-textSecondary">Datum
-              <input type="date" max={new Date().toISOString().slice(0, 10)} value={testedOn} onChange={(event) => setTestedOn(event.target.value)} className={input} />
+              <input type="date" max={localDateInputValue()} value={testedOn} onChange={(event) => setTestedOn(event.target.value)} className={input} />
               <span className="mt-1 block text-xs font-normal text-textMuted">Ook data van vorige seizoenen kunnen hier ingegeven worden.</span>
             </label>
             <label className="flex-1 text-sm text-textSecondary" style={{ minWidth: 200 }}>Notitie (optioneel)
@@ -179,15 +190,21 @@ export function TeamTests({ teamId }: { teamId: string }) {
 
       {players.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Geen spelers in dit team.</p>
-      ) : dates.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Nog geen resultaten voor {config.label.toLowerCase()}.</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border">
-          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[820px] table-fixed border-collapse text-left text-sm">
             <thead className="bg-accent text-[11px] uppercase tracking-wide text-page">
               <tr>
-                <th className="sticky left-0 z-10 bg-accent px-3 py-2">Speler</th>
-                {dates.map((date) => <th key={date} className="px-3 py-2 text-center">{new Date(`${date}T12:00:00`).toLocaleDateString("nl-BE")}</th>)}
+                <th className="sticky left-0 z-10 w-52 bg-accent px-3 py-2">Speler</th>
+                {measurementColumns.map((column, index) => (
+                  <th key={column.key} className="min-w-28 px-3 py-2 text-center">
+                    {column.date
+                      ? new Date(`${column.date}T12:00:00`).toLocaleDateString("nl-BE")
+                      : canManage
+                        ? <button type="button" onClick={openEntry} className="rounded px-2 py-1 hover:bg-black/10" title="Nieuwe testronde toevoegen">+ Meting {dates.length + index + 1}</button>
+                        : `Meting ${dates.length + index + 1}`}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-borderSubtle">
@@ -196,10 +213,10 @@ export function TeamTests({ teamId }: { teamId: string }) {
                   <td className="sticky left-0 z-10 whitespace-nowrap bg-inherit px-3 py-2 font-semibold">
                     <Link href={`/dashboard/teams/players/${player.id}`} className="text-textPrimary underline decoration-accent/60 underline-offset-2 hover:text-accent">{player.last_name} {player.first_name}</Link>
                   </td>
-                  {dates.map((date) => {
-                    const entry = entryByPlayerAndDate.get(`${player.id}|${date}`);
+                  {measurementColumns.map((column) => {
+                    const entry = column.date ? entryByPlayerAndDate.get(`${player.id}|${column.date}`) : undefined;
                     return (
-                      <td key={date} className="px-3 py-2 text-center text-textSecondary">
+                      <td key={column.key} className={`h-12 border-l border-borderSubtle px-3 py-2 text-center text-textSecondary ${column.date ? "" : "bg-cardDeep/40"}`}>
                         {entry ? (
                           <span className="group relative inline-flex items-center gap-1.5">
                             <span>
@@ -207,7 +224,7 @@ export function TeamTests({ teamId }: { teamId: string }) {
                             </span>
                             {canManage && <button type="button" title="Verwijderen" aria-label="Verwijderen" disabled={busy} onClick={() => void remove(entry.id)} className="hidden text-xs font-bold text-red-400 hover:text-red-300 group-hover:inline disabled:opacity-40">✕</button>}
                           </span>
-                        ) : "–"}
+                        ) : column.date ? "–" : <span className="text-borderButton">—</span>}
                       </td>
                     );
                   })}

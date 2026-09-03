@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, canManagePlayer, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 
 type Admin = ReturnType<typeof createAdminClient>;
-type Scope = { clubPlayerId: string | null; playerId: string };
+type Scope = { clubPlayerId: string | null; playerId: string; canManageInvites: boolean };
 
 // Zelfde autorisatiecheck + club_player_id-resolutie als players/[playerId]/invite/route.ts:
 // een clubbrede speler (membership_id gezet) groepeert guardians/invites via club_player_id
@@ -17,12 +17,14 @@ async function authorizeAndResolveScope(admin: Admin, userId: string, userEmail:
   if (!team) return { error: NextResponse.json({ error: "Team niet gevonden." }, { status: 404 }) };
 
   let allowed = isAdminEmail(userEmail) || team.coach_id === userId;
+  let canManageInvites = isAdminEmail(userEmail) || (!team.club_team_id && team.coach_id === userId);
   if (!allowed && team.club_team_id) {
     const { data: clubTeam } = await admin.from("club_teams").select("club_id, trainers_can_edit_roster").eq("id", team.club_team_id).maybeSingle();
     if (clubTeam) {
       const access = await getClubAccess(clubTeam.club_id, { id: userId, email: userEmail });
       allowed = canAccessTeam(access, team.club_team_id) && hasClubPermission(access, permission)
         && canManagePlayer(access, player.id);
+      canManageInvites = access.role === "platform_admin" || access.functionRole === "club_admin";
     }
   }
   if (!allowed) return { error: NextResponse.json({ error: "Geen toegang tot deze speler." }, { status: 403 }) };
@@ -32,7 +34,7 @@ async function authorizeAndResolveScope(admin: Admin, userId: string, userEmail:
     const { data: membership } = await admin.from("player_team_memberships").select("club_player_id").eq("id", player.membership_id).maybeSingle();
     clubPlayerId = membership?.club_player_id ?? null;
   }
-  return { scope: { clubPlayerId, playerId: player.id } };
+  return { scope: { clubPlayerId, playerId: player.id, canManageInvites } };
 }
 
 export async function GET(request: Request, { params }: { params: { playerId: string } }) {
@@ -49,16 +51,19 @@ export async function GET(request: Request, { params }: { params: { playerId: st
     .order("created_at", { ascending: true });
   const inviteQuery = admin.from("player_invites")
     .select("id, contact_label, contact_phone, contact_email, created_at, expires_at, sent_at, delivery_error, used_at, used_by")
+    .is("used_at", null)
     .order("created_at", { ascending: false });
 
   const { data: guardians } = scope.clubPlayerId
     ? await guardianQuery.eq("club_player_id", scope.clubPlayerId)
     : await guardianQuery.eq("player_id", scope.playerId);
-  const { data: invites } = scope.clubPlayerId
-    ? await inviteQuery.eq("club_player_id", scope.clubPlayerId)
-    : await inviteQuery.eq("player_id", scope.playerId);
+  const { data: invites } = scope.canManageInvites
+    ? scope.clubPlayerId
+      ? await inviteQuery.eq("club_player_id", scope.clubPlayerId)
+      : await inviteQuery.eq("player_id", scope.playerId)
+    : { data: [] };
 
-  return NextResponse.json({ guardians: guardians ?? [], invites: invites ?? [] });
+  return NextResponse.json({ guardians: guardians ?? [], invites: invites ?? [], canManageInvites: scope.canManageInvites });
 }
 
 export async function PATCH(request: Request, { params }: { params: { playerId: string } }) {
@@ -69,6 +74,7 @@ export async function PATCH(request: Request, { params }: { params: { playerId: 
   const authorized = await authorizeAndResolveScope(admin, user.id, user.email, params.playerId, "teams.manage");
   if (authorized.error) return authorized.error;
   const { scope } = authorized;
+  if (!scope.canManageInvites) return NextResponse.json({ error: "Alleen clubbeheerders kunnen uitnodigingen en koppelingen beheren." }, { status: 403 });
 
   const body = await request.json().catch(() => null) as { guardianId?: string; cancelInviteId?: string } | null;
 

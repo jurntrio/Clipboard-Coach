@@ -69,6 +69,8 @@ export default function PlayerClipsPage() {
   const { playerId } = useParams<{ playerId: string }>();
   const [player, setPlayer] = useState<PlayerWithTeam | null>(null);
   const [clips, setClips] = useState<PlayerClip[]>([]);
+  const [clipsLoading, setClipsLoading] = useState(false);
+  const [clipsLoaded, setClipsLoaded] = useState(false);
   const [stats, setStats] = useState({ goals: 0, assists: 0 });
   const [selectedClip, setSelectedClip] = useState<PlayerClip | null>(null);
   const [editing, setEditing] = useState(false);
@@ -81,6 +83,7 @@ export default function PlayerClipsPage() {
   const [inviteCopied, setInviteCopied] = useState(false);
   const [guardians, setGuardians] = useState<Guardian[]>([]);
   const [invites, setInvites] = useState<PlayerInvite[]>([]);
+  const [canManageInvites, setCanManageInvites] = useState(false);
   const [guardiansLoading, setGuardiansLoading] = useState(true);
   const [guardiansError, setGuardiansError] = useState("");
   const [guardiansBusy, setGuardiansBusy] = useState("");
@@ -89,6 +92,8 @@ export default function PlayerClipsPage() {
   const [extraGroups, setExtraGroups] = useState<ExtraGroup[]>([]);
   const [groupEvaluations, setGroupEvaluations] = useState<GroupEvaluation[]>([]);
   const [teamMatches, setTeamMatches] = useState<TeamMatch[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleLoaded, setScheduleLoaded] = useState(false);
   const [optionNames, setOptionNames] = useState<Record<string, string>>({});
   const [attendanceBusy, setAttendanceBusy] = useState("");
   const [attendanceError, setAttendanceError] = useState("");
@@ -201,13 +206,15 @@ export default function PlayerClipsPage() {
     setGuardiansError("");
     try {
       const response = await fetch(`/api/players/${playerId}/guardians`, { cache: "no-store" });
-      const body = await response.json().catch(() => null) as { guardians?: Guardian[]; invites?: PlayerInvite[]; error?: string } | null;
+      const body = await response.json().catch(() => null) as { guardians?: Guardian[]; invites?: PlayerInvite[]; canManageInvites?: boolean; error?: string } | null;
       if (!response.ok) throw new Error(body?.error || "Contactpersonen konden niet geladen worden.");
       setGuardians(body?.guardians ?? []);
       setInvites(body?.invites ?? []);
+      setCanManageInvites(!!body?.canManageInvites);
     } catch (reason) {
       setGuardians([]);
       setInvites([]);
+      setCanManageInvites(false);
       setGuardiansError(reason instanceof Error ? reason.message : "Contactpersonen konden niet geladen worden.");
     } finally {
       setGuardiansLoading(false);
@@ -232,26 +239,47 @@ export default function PlayerClipsPage() {
     await loadGuardians();
   }
 
-  useEffect(() => { void loadPlayerAndClips(); void loadGuardians(); }, [playerId]);
+  async function resendInvite(invite: PlayerInvite) {
+    setGuardiansBusy(invite.id); setGuardiansError(""); setInviteError("");
+    const response = await fetch(`/api/players/${playerId}/invite`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contactLabel: invite.contact_label, contactEmail: invite.contact_email, contactPhone: invite.contact_phone })
+    });
+    const body = await response.json().catch(() => null) as { token?: string; emailSent?: boolean; deliveryError?: string; error?: string } | null;
+    if (!response.ok || !body?.token) {
+      setGuardiansBusy(""); setGuardiansError(body?.error || "Opnieuw uitnodigen mislukt."); return;
+    }
+    setInviteLink(`${window.location.origin}/join/${body.token}`);
+    if (invite.contact_email && !body.emailSent) setInviteError(`De nieuwe link is aangemaakt, maar de e-mail kon niet worden verzonden${body.deliveryError ? `: ${body.deliveryError}` : "."}`);
+    await cancelInvite(invite.id);
+  }
 
-  async function loadPlayerAndClips() {
+  useEffect(() => {
+    setPlayer(null);
+    setClips([]);
+    setClipsLoaded(false);
+    setScheduleLoaded(false);
+    void loadPlayer();
+    void loadGuardians();
+  }, [playerId]);
+
+  useEffect(() => {
+    if (!player) return;
+    if (["planning", "trainingen", "wedstrijden", "evaluaties"].includes(activeTab) && !scheduleLoaded && !scheduleLoading) void loadSchedule(player);
+    if (activeTab === "clips" && !clipsLoaded && !clipsLoading) void loadClips(player);
+  }, [activeTab, player, scheduleLoaded, scheduleLoading, clipsLoaded, clipsLoading]);
+
+  async function loadPlayer() {
     setLoading(true);
-    const [profileResponse, clipResult, statsResult] = await Promise.all([
-      fetch(`/api/players/${playerId}`, { cache: "no-store" }),
-      supabase.from("clips").select(`
-        id, name, created_at, team_id, audience_type, audience_player_ids, render_status, rendered_segments,
-        videos(id, title, video_url, match_videos(match_id, matches(id, team_a_name, team_b_name, match_date, start_time, score_a, score_b))),
-        clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, start_time, end_time, color, player_ids))
-      `).order("created_at", { ascending: false }),
-      supabase.from("player_career_stats").select("goals, assists").eq("player_id", playerId).maybeSingle()
-    ]);
-
+    const profileResponse = await fetch(`/api/players/${playerId}`, { cache: "no-store" });
     const profileBody = await profileResponse.json().catch(() => null) as { player?: PlayerWithTeam } | null;
     const loadedPlayer = profileResponse.ok ? profileBody?.player ?? null : null;
     setPlayer(loadedPlayer);
-    setStats({ goals: statsResult.data?.goals ?? 0, assists: statsResult.data?.assists ?? 0 });
-    const allClips = (clipResult.data as unknown as PlayerClip[] | null) ?? [];
+    setLoading(false);
     if (loadedPlayer) {
+      void supabase.from("player_career_stats").select("goals, assists").eq("player_id", playerId).maybeSingle().then(({ data }) => {
+        setStats({ goals: data?.goals ?? 0, assists: data?.assists ?? 0 });
+      });
       void fetch(`/api/players/${playerId}/injuries`, { cache: "no-store" }).then(async response => {
         if (!response.ok) return;
         const body = await response.json() as { injuries?: Array<{ status: string }> };
@@ -265,35 +293,47 @@ export default function PlayerClipsPage() {
         setLatestVameval(latest ? { id: latest.id, tested_on: latest.tested_on, results: { duration_seconds: latest.results.duration_seconds, mas_kmh: latest.results.mas_kmh } } : null);
       });
       void loadChildInfo(loadedPlayer);
-      const clubTeamId = loadedPlayer.teams?.club_team_id;
-      if (clubTeamId) {
-        const scheduleResponse = await fetch(`/api/players/${playerId}/schedule`);
-        const schedule = await scheduleResponse.json().catch(() => null) as { trainings?: TeamTraining[]; matches?: TeamMatch[]; optionNames?: Record<string, string>; extraGroups?: ExtraGroup[]; evaluations?: GroupEvaluation[] } | null;
-        setTeamTrainings(scheduleResponse.ok ? schedule?.trainings ?? [] : []);
-        setTeamMatches(scheduleResponse.ok ? schedule?.matches ?? [] : []);
-        setOptionNames(scheduleResponse.ok ? schedule?.optionNames ?? {} : {});
-        setExtraGroups(scheduleResponse.ok ? schedule?.extraGroups ?? [] : []);
-        setGroupEvaluations(scheduleResponse.ok ? schedule?.evaluations ?? [] : []);
-      } else {
-        setTeamTrainings([]);
-        setTeamMatches([]);
-        setOptionNames({});
-        setExtraGroups([]);
-        setGroupEvaluations([]);
-      }
-    } else {
-      setTeamTrainings([]);
-      setTeamMatches([]);
-      setOptionNames({});
-      setExtraGroups([]);
-      setGroupEvaluations([]);
     }
-    setClips(allClips.filter((clip) => {
-      if (!loadedPlayer) return false;
-      if (clip.audience_player_ids.includes(playerId) || clip.clip_segments.some((segment) => segment.tags?.player_ids.includes(playerId))) return true;
-      return clip.team_id === loadedPlayer.team_id && clip.audience_type === "full_team";
-    }));
-    setLoading(false);
+  }
+
+  async function loadSchedule(currentPlayer: PlayerWithTeam) {
+    if (!currentPlayer.teams?.club_team_id) { setScheduleLoaded(true); return; }
+    setScheduleLoading(true);
+    const scheduleResponse = await fetch(`/api/players/${playerId}/schedule`, { cache: "no-store" });
+    const schedule = await scheduleResponse.json().catch(() => null) as { trainings?: TeamTraining[]; matches?: TeamMatch[]; optionNames?: Record<string, string>; extraGroups?: ExtraGroup[]; evaluations?: GroupEvaluation[] } | null;
+    setTeamTrainings(scheduleResponse.ok ? schedule?.trainings ?? [] : []);
+    setTeamMatches(scheduleResponse.ok ? schedule?.matches ?? [] : []);
+    setOptionNames(scheduleResponse.ok ? schedule?.optionNames ?? {} : {});
+    setExtraGroups(scheduleResponse.ok ? schedule?.extraGroups ?? [] : []);
+    setGroupEvaluations(scheduleResponse.ok ? schedule?.evaluations ?? [] : []);
+    setScheduleLoading(false);
+    setScheduleLoaded(true);
+  }
+
+  async function loadClips(currentPlayer: PlayerWithTeam) {
+    setClipsLoading(true);
+    const { data: taggedSegments } = await supabase.from("clip_segments")
+      .select("clip_id, tags!inner(player_ids)")
+      .contains("tags.player_ids", [playerId]);
+    const taggedClipIds = [...new Set((taggedSegments ?? []).map((segment) => segment.clip_id))];
+    const clipFilters = [
+      `audience_player_ids.cs.{${playerId}}`,
+      `and(team_id.eq.${currentPlayer.team_id},audience_type.eq.full_team)`,
+      ...(taggedClipIds.length ? [`id.in.(${taggedClipIds.join(",")})`] : []),
+    ];
+    const { data } = await supabase.from("clips").select(`
+      id, name, created_at, team_id, audience_type, audience_player_ids, render_status, rendered_segments,
+      videos(id, title, video_url, match_videos(match_id, matches(id, team_a_name, team_b_name, match_date, start_time, score_a, score_b))),
+      clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, start_time, end_time, color, player_ids))
+    `).or(clipFilters.join(",")).order("created_at", { ascending: false });
+    const candidateClips = (data as unknown as PlayerClip[] | null) ?? [];
+    // Direct player audiences and full-team clips are filtered by PostgREST. Retain
+    // the local tag check for backwards-compatible rows returned by older policies.
+    setClips(candidateClips.filter((clip) => clip.audience_player_ids.includes(playerId)
+      || clip.clip_segments.some((segment) => segment.tags?.player_ids.includes(playerId))
+      || (clip.team_id === currentPlayer.team_id && clip.audience_type === "full_team")));
+    setClipsLoading(false);
+    setClipsLoaded(true);
   }
 
   async function updateTrainingAttendance(trainingId: string, status: TeamTraining["attendance_status"]) {
@@ -435,7 +475,7 @@ export default function PlayerClipsPage() {
             {canEditChildInfo && <><input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => event.target.files?.[0] && void uploadPlayerPhoto(event.target.files[0])} /><button type="button" disabled={photoBusy} onClick={() => photoInputRef.current?.click()} title="Spelersfoto uploaden" className="absolute inset-0 grid place-items-center bg-black/55 text-2xl font-bold text-white opacity-0 transition group-hover/photo:opacity-100">+</button></>}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2"><h1 className="truncate text-xl font-bold text-textBright">{player ? getPlayerDisplayName(player) : t("team.player")}</h1>{currentlyInjured && <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-xs font-bold text-red-300">Geblesseerd</span>}{player?.is_goalkeeper && <span className="rounded-full bg-blue-500/15 px-2.5 py-1 text-xs font-semibold text-blue-300">Doelman</span>}</div>
+             <div className="flex items-center gap-2"><h1 className="truncate text-xl font-bold text-textBright">{loading ? "Speler laden…" : player ? getPlayerDisplayName(player) : t("team.player")}</h1>{currentlyInjured && <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-xs font-bold text-red-300">Geblesseerd</span>}{player?.is_goalkeeper && <span className="rounded-full bg-blue-500/15 px-2.5 py-1 text-xs font-semibold text-blue-300">Doelman</span>}</div>
             <p className="text-sm text-textMuted">{player?.teams?.name || t("team.team")}{player?.position ? ` · ${player.position}` : ""}</p>
             {!!extraGroups.length && <div className="mt-2 flex flex-wrap items-center gap-2"><span className="text-xs font-semibold uppercase text-textMuted">Extra groepen</span>{extraGroups.map(group => <span key={group.id} className="rounded-full border border-dashed border-accent/50 bg-accentDim px-2.5 py-1 text-xs font-semibold text-accent">{group.icon ?? "＋"} {group.name}</span>)}</div>}
             <dl className="mt-3 grid gap-x-5 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -516,7 +556,7 @@ export default function PlayerClipsPage() {
                         : ` · ${t("guardianInvite.since", { date: new Date(guardian.valid_from).toLocaleDateString("nl-BE") })}`}
                     </p>
                   </div>
-                  {!guardian.revoked_at && (
+                  {canManageInvites && !guardian.revoked_at && (
                     <button type="button" disabled={guardiansBusy === guardian.id} onClick={() => void revokeGuardian(guardian.id)} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-40">
                       {t("guardianInvite.revoke")}
                     </button>
@@ -525,12 +565,18 @@ export default function PlayerClipsPage() {
               ))}
             </div>
           )}
-          {!!invites.length && (
+          {canManageInvites && !!invites.length && (
             <div className="mt-3 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-textMuted">Uitnodigingen</p>
-              {invites.map((invite) => {
-                const expired = !invite.used_at && new Date(invite.expires_at).getTime() <= Date.now();
-                const status = invite.used_at ? "Aanvaard" : expired ? "Verlopen" : invite.sent_at ? "E-mail verzonden" : invite.delivery_error ? "Verzending mislukt" : "Link aangemaakt";
+              <p className="text-xs font-semibold uppercase tracking-wide text-textMuted">Uitnodigingsbeheer</p>
+              {([
+                ["Openstaande uitnodigingen", invites.filter((invite) => new Date(invite.expires_at).getTime() > Date.now())],
+                ["Verlopen uitnodigingen", invites.filter((invite) => new Date(invite.expires_at).getTime() <= Date.now())],
+              ] as const).map(([label, group]) => group.length ? (
+                <div key={label} className="space-y-2">
+                  <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-textMuted">{label}</p>
+                  {group.map((invite) => {
+                const expired = new Date(invite.expires_at).getTime() <= Date.now();
+                const status = expired ? "Verlopen" : invite.sent_at ? "E-mail verzonden" : invite.delivery_error ? "Verzending mislukt" : "Link aangemaakt";
                 const statusClass = invite.used_at ? "bg-accentDim text-accent" : expired || invite.delivery_error ? "bg-red-500/15 text-red-300" : invite.sent_at ? "bg-blue-500/15 text-blue-300" : "bg-card text-textMuted";
                 const daysAgo = Math.max(0, Math.floor((Date.now() - new Date(invite.sent_at || invite.created_at).getTime()) / 86400000));
                 return <div key={invite.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${expired ? "border-red-500/40" : "border-borderSubtle"}`}>
@@ -542,12 +588,15 @@ export default function PlayerClipsPage() {
                     {invite.delivery_error && <span className="mt-1 block text-xs text-red-300">{invite.delivery_error}</span>}
                   </span>
                   <div className="flex gap-2">
-                    {!invite.used_at && <button type="button" disabled={guardiansBusy === invite.id} onClick={() => void cancelInvite(invite.id)} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-40">
-                      {t("guardianInvite.cancel")}
+                    {expired && <button type="button" disabled={guardiansBusy === invite.id} onClick={() => void resendInvite(invite)} className="rounded-lg border border-borderButton px-3 py-1.5 text-xs font-semibold text-accent disabled:cursor-not-allowed disabled:opacity-40">Opnieuw uitnodigen</button>}
+                    {!invite.used_at && <button type="button" disabled={guardiansBusy === invite.id} onClick={() => { if (window.confirm("Deze uitnodiging definitief verwijderen?")) void cancelInvite(invite.id); }} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-40">
+                      Definitief verwijderen
                     </button>}
                   </div>
                 </div>;
-              })}
+                  })}
+                </div>
+              ) : null)}
             </div>
           )}
         </section>
@@ -612,7 +661,7 @@ export default function PlayerClipsPage() {
             <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">Planning van {player?.teams?.name || "de ploeg"}</h2>
             <span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{planningItems.length}</span>
           </div>
-          {loading ? <p className="text-sm text-textMuted">Planning laden…</p> : planningItems.length ? (
+          {scheduleLoading || !scheduleLoaded ? <p className="text-sm text-textMuted">Planning laden…</p> : planningItems.length ? (
             <div className="space-y-3">
               {planningItems.map(entry => entry.kind === "training" ? (
                 <Link key={`training:${entry.item.id}`} href={`/dashboard/training/${entry.item.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-borderSubtle bg-card p-4 transition hover:border-accent hover:bg-cardHover">
@@ -637,7 +686,7 @@ export default function PlayerClipsPage() {
             <span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{teamTrainings.length}</span>
           </div>
           {attendanceError && <p className="mb-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{attendanceError}</p>}
-          {loading ? <p className="text-sm text-textMuted">Trainingen laden…</p> : orderedTrainings.length ? (
+          {scheduleLoading || !scheduleLoaded ? <p className="text-sm text-textMuted">Trainingen laden…</p> : orderedTrainings.length ? (
             <div className="space-y-4">
               {trainingWeekGroups.map((group) => {
                 const weekIsPast = group.sunday.getTime() < todayStart.getTime();
@@ -686,7 +735,7 @@ export default function PlayerClipsPage() {
             <h2 className="text-sm font-bold uppercase tracking-wider text-textSecondary">Wedstrijden van {player?.teams?.name || "de ploeg"}</h2>
             <span className="rounded-full bg-accentDim px-2 py-0.5 text-xs text-accent">{teamMatches.length}</span>
           </div>
-          {loading ? <p className="text-sm text-textMuted">Wedstrijden laden…</p> : teamMatches.length ? (
+          {scheduleLoading || !scheduleLoaded ? <p className="text-sm text-textMuted">Wedstrijden laden…</p> : teamMatches.length ? (
             <div className="space-y-6">
               <div>
                 <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-textMuted">Komende wedstrijden</h3>
@@ -721,7 +770,7 @@ export default function PlayerClipsPage() {
         </section>
       )}
 
-      {loading ? (
+      {clipsLoading || !clipsLoaded ? (
         <p className="text-sm text-textMuted">{t("team.loadingClips")}</p>
       ) : clips.length ? (
         <div className="space-y-5">
@@ -760,7 +809,7 @@ export default function PlayerClipsPage() {
       )}
       {shareError && <p className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{shareError}</p>}
       {shareDialog && <ShareClipDialog clipName={shareDialog.clipName} shareUrl={shareDialog.shareUrl} tvUrl={shareDialog.tvUrl} onClose={() => setShareDialog(null)} />}
-      {editing && player && <EditPlayerModal player={player} onClose={() => setEditing(false)} onSaved={() => void loadPlayerAndClips()} />}
+       {editing && player && <EditPlayerModal player={player} onClose={() => setEditing(false)} onSaved={() => void loadPlayer()} />}
     </div>
   );
 }
