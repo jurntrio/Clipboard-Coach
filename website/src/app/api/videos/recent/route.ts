@@ -10,6 +10,15 @@ import { getServerI18n } from "@/i18n/server";
 
 const RECENT_LIMIT = 3;
 const SEARCH_LIMIT = 20;
+type MatchListRow = {
+  id: string;
+  team_a_name: string | null;
+  team_b_name: string | null;
+  match_date: string | null;
+  start_time: string | null;
+  club_team_id: string | null;
+  match_videos: { video_id: string }[] | null;
+};
 
 export async function GET(request: Request) {
   const context = await getClubContext();
@@ -18,9 +27,13 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient();
   const clubId = context.activeClubId;
-  const access = await getClubAccess(clubId, context.user);
+  const [{ data: activeSeason }, access, moduleEnabled] = await Promise.all([
+    admin.from("club_seasons").select("id").eq("club_id", clubId).eq("status", "ACTIVE").maybeSingle(),
+    getClubAccess(clubId, context.user),
+    context.isPlatformAdmin ? Promise.resolve(true) : isClubModuleEnabled(clubId, "video_viewer")
+  ]);
   if (!hasClubPermission(access, "video.view")) return NextResponse.json({ error: "Geen toegang tot Video Viewer." }, { status: 403 });
-  if (!context.isPlatformAdmin && !(await isClubModuleEnabled(clubId, "video_viewer"))) {
+  if (!moduleEnabled) {
     return NextResponse.json({ error: getServerI18n().t("clubModule.videoDisabled") }, { status: 403 });
   }
 
@@ -29,8 +42,6 @@ export async function GET(request: Request) {
   const q = url.searchParams.get("q")?.trim() ?? "";
   const before = url.searchParams.get("before");
 
-  const { data: activeSeason } = await admin.from("club_seasons").select("id")
-    .eq("club_id", clubId).eq("status", "ACTIVE").maybeSingle();
   const { data: clubTeams } = activeSeason
     ? await admin.from("club_teams").select("id, name, display_order")
         .eq("club_id", clubId).eq("season_id", activeSeason.id).neq("status", "merged").order("display_order").order("name")
@@ -47,7 +58,7 @@ export async function GET(request: Request) {
 
   const today = new Date().toISOString().slice(0, 10);
   function baseQuery() {
-    let query = admin.from("matches").select("*, match_videos(video_id)")
+    let query = admin.from("matches").select("id, team_a_name, team_b_name, match_date, start_time, club_team_id, match_videos(video_id)")
       .eq("club_id", clubId)
       .not("match_date", "is", null)
       .lte("match_date", before || today)
@@ -58,7 +69,7 @@ export async function GET(request: Request) {
   }
 
   const limit = searchMode ? SEARCH_LIMIT : RECENT_LIMIT;
-  let matchesResult: Awaited<ReturnType<typeof baseQuery>>;
+  let matchesResult: { data: MatchListRow[] | null; error: { message: string } | null };
   if (q) {
     const pattern = `%${q.replace(/[%_]/g, (char) => `\\${char}`)}%`;
     const [teamAResult, teamBResult] = await Promise.all([
@@ -68,10 +79,11 @@ export async function GET(request: Request) {
     const merged = new Map((teamAResult.data ?? []).concat(teamBResult.data ?? []).map((match) => [match.id, match]));
     const combined = Array.from(merged.values())
       .sort((a, b) => `${b.match_date ?? ""}${b.start_time ?? ""}`.localeCompare(`${a.match_date ?? ""}${a.start_time ?? ""}`));
-    matchesResult = { data: combined, error: teamAResult.error ?? teamBResult.error } as Awaited<ReturnType<typeof baseQuery>>;
+    matchesResult = { data: combined as MatchListRow[], error: teamAResult.error ?? teamBResult.error };
   } else {
-    matchesResult = await baseQuery().limit(limit + 1);
+    matchesResult = await baseQuery().limit(limit + 1) as unknown as typeof matchesResult;
   }
+  if (matchesResult.error) return NextResponse.json({ error: matchesResult.error.message }, { status: 500 });
   const filtered = (matchesResult.data ?? []).filter((match) => canAccessTeam(access, match.club_team_id));
   const hasMore = filtered.length > limit;
   const matches = filtered.slice(0, limit);
@@ -80,7 +92,7 @@ export async function GET(request: Request) {
     (match.match_videos as { video_id: string }[] | null)?.map((link) => link.video_id) ?? []
   )));
   const { data: videos } = videoIds.length
-    ? await admin.from("videos").select("*").in("id", videoIds).eq("status", "active").order("created_at", { ascending: false })
+    ? await admin.from("videos").select("id, video_url, video_key, file_size, duration").in("id", videoIds).eq("status", "active")
     : { data: [] };
 
   const teamOptions = (clubTeams ?? [])

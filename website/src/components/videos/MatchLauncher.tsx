@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { inspectLocalVideo, type LocalVideoInfo } from "@/lib/media/local-clips";
 import { getRememberedLocalVideo, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
-import { externalRecordingCameras, externalRecordingConfig, externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
+import { externalRecordingCameras, externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
 import type { Match, Team, Video } from "@/types/database";
 import { useI18n } from "@/i18n/client";
 import { localMediaMessages } from "@/i18n/local-media";
@@ -26,15 +26,28 @@ type RecentItem =
   | { kind: "match"; id: string; title: string; date: string; openedAt: string; count: number; videoIds: string[] }
   | { kind: "video"; id: string; title: string; date: string; openedAt: string; count: 1; videoIds: string[] };
 
+type RecentPayload = {
+  matches: (Match & { match_videos: { video_id: string }[] })[];
+  videos: Video[];
+  activeTeamId: string | null;
+  teamOptions: Array<{ id: string; name: string }>;
+};
+
+const RECENT_CACHE_TTL_MS = 3 * 60 * 1000;
+const recentCache = new Map<string, { payload: RecentPayload; storedAt: number }>();
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
   return fallback;
 }
 
-export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boolean }) {
+export function MatchLauncher() {
   const { t } = useI18n();
   const { activeClubId } = useActiveClub();
+  // Club members schedule matches through Clubbeheer. Keeping this decision on
+  // the client lets the viewer shell render without another server context wait.
+  const canCreateMatch = !activeClubId;
   const router = useRouter();
   const supabase = createClient();
   const fallbackInputRef = useRef<HTMLInputElement | null>(null);
@@ -44,13 +57,13 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
   const [mode, setMode] = useState<Mode>("recent");
   const [matches, setMatches] = useState<(Match & { match_videos: { video_id: string }[] })[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [teams] = useState<Team[]>([]);
   const [slots, setSlots] = useState<(SelectedVideo | null)[]>([null, null, null, null]);
   const [videoSource, setVideoSource] = useState<"file" | "external" | "veo">("file");
   const [recordingId, setRecordingId] = useState("");
   const [veoUrl, setVeoUrl] = useState("");
   const [selectedCameras, setSelectedCameras] = useState<number[]>([]);
-  const [recordingConfig, setRecordingConfig] = useState<ExternalRecordingConfig | null>(null);
+  const [recordingConfig] = useState<ExternalRecordingConfig | null>(null);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState("");
   const [teamAId, setTeamAId] = useState("");
@@ -70,15 +83,26 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchLoaded, setSearchLoaded] = useState(false);
+  const [recentLoading, setRecentLoading] = useState(true);
 
   useEffect(() => {
-    setMatches([]);
-    setTeams([]);
+    const cached = activeClubId ? recentCache.get(activeClubId) : undefined;
+    const freshCache = cached && Date.now() - cached.storedAt < RECENT_CACHE_TTL_MS ? cached.payload : null;
+    if (freshCache) applyRecentPayload(freshCache);
+    else {
+      setMatches([]);
+      setVideos([]);
+      setTeamOptions([]);
+      setActiveTeamId(null);
+    }
+    setRecentLoading(!freshCache);
     setSearchResults([]);
     setSearchLoaded(false);
-    void loadData();
+    const controller = new AbortController();
+    void loadData(controller.signal);
     const supported = typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === "function";
     setSupportsPersistentFileAccess(supported);
+    return () => controller.abort();
   }, [activeClubId]);
 
   useEffect(() => {
@@ -92,44 +116,31 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
-  async function loadData() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !activeClubId) return;
-    const [recentResponse, activeSeasonResult, clubResult] = await Promise.all([
-      // Platform admins can read every club, so the active club must always be
-      // an explicit query boundary instead of relying on row-level access alone.
-      fetch("/api/videos/recent"),
-      supabase.from("club_seasons").select("id").eq("club_id", activeClubId).eq("status", "ACTIVE").maybeSingle(),
-      supabase.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", activeClubId).maybeSingle()
-    ]);
-    const teamResult = activeSeasonResult.data
-      ? await supabase.from("teams").select("*, club_teams!inner(club_id, season_id, display_order)")
-          .eq("club_teams.club_id", activeClubId)
-          .eq("club_teams.season_id", activeSeasonResult.data.id)
-      : { data: [] };
-    if (!recentResponse.ok) {
-      const body = await recentResponse.json().catch(() => null) as { error?: string } | null;
-      setError(body?.error || t("match.loadFailed"));
-    } else {
-      const body = await recentResponse.json() as {
-        matches: (Match & { match_videos: { video_id: string }[] })[];
-        videos: Video[];
-        activeTeamId: string | null;
-        teamOptions: Array<{ id: string; name: string }>;
-      };
-      setMatches(body.matches ?? []);
-      setVideos((current) => mergeVideos(current, body.videos ?? []));
-      setActiveTeamId(body.activeTeamId ?? null);
-      setTeamOptions(body.teamOptions ?? []);
+  function applyRecentPayload(body: RecentPayload) {
+    setMatches(body.matches ?? []);
+    setVideos((current) => mergeVideos(current, body.videos ?? []));
+    setActiveTeamId(body.activeTeamId ?? null);
+    setTeamOptions(body.teamOptions ?? []);
+  }
+
+  async function loadData(signal?: AbortSignal) {
+    if (!activeClubId) { setRecentLoading(false); return; }
+    try {
+      const recentResponse = await fetch("/api/videos/recent", { signal, cache: "no-store" });
+      if (!recentResponse.ok) {
+        const body = await recentResponse.json().catch(() => null) as { error?: string } | null;
+        setError(body?.error || t("match.loadFailed"));
+      } else {
+        const body = await recentResponse.json() as RecentPayload;
+        applyRecentPayload(body);
+        recentCache.set(activeClubId, { payload: body, storedAt: Date.now() });
+        setError("");
+      }
+    } catch (loadError) {
+      if (!(loadError instanceof DOMException && loadError.name === "AbortError")) setError(t("match.loadFailed"));
+    } finally {
+      if (!signal?.aborted) setRecentLoading(false);
     }
-    setTeams([...(teamResult.data ?? [])].sort((a, b) => {
-      const aOrder = (a.club_teams as unknown as { display_order: number }).display_order;
-      const bOrder = (b.club_teams as unknown as { display_order: number }).display_order;
-      return aOrder - bOrder || a.name.localeCompare(b.name);
-    }));
-    const nextRecordingConfig = externalRecordingConfig(clubResult.data);
-    setRecordingConfig(nextRecordingConfig);
-    if (!nextRecordingConfig) setVideoSource("file");
   }
 
   async function loadSearch(reset: boolean) {
@@ -280,6 +291,7 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
     setDeleting(false);
     if (!response.ok) { setError(body?.error || t("match.deleteFailed")); setDeleteTarget(null); return; }
     setDeleteTarget(null);
+    if (activeClubId) recentCache.delete(activeClubId);
     await loadData();
   }
 
@@ -497,7 +509,7 @@ export function MatchLauncher({ canCreateMatch = false }: { canCreateMatch?: boo
                     <span><strong className="block text-textPrimary">{item.title}</strong><span className="text-xs text-textMuted">{item.date} · {item.count} video{item.count === 1 ? "" : "s"}</span></span>
                     <span className="text-accent">{t("match.open")}</span>
                   </button>{item.kind === "match" && <button type="button" disabled={busy} onClick={() => setDeleteTarget(item)} aria-label={t("match.deleteNamed", { name: item.title })} title={t("match.delete")} className="grid w-12 flex-shrink-0 place-items-center border-l border-border text-lg text-red-400 hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-50">🗑</button>}</div>
-                ) : <div key={index} className="rounded-xl border border-border bg-cardDeep px-4 py-3 text-sm text-textMuted">{t("match.noRecent")}</div>;
+                ) : recentLoading ? <div key={index} className="h-[66px] animate-pulse rounded-xl border border-border bg-cardDeep" /> : <div key={index} className="rounded-xl border border-border bg-cardDeep px-4 py-3 text-sm text-textMuted">{t("match.noRecent")}</div>;
               })}
             </div>
             {status && <div className="mt-3 rounded-lg border border-border bg-cardDeep p-3 text-sm text-textSecondary">{status}</div>}
