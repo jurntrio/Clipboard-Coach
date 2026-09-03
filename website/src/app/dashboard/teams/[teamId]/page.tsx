@@ -58,20 +58,22 @@ export default function TeamDetailPage() {
   // matchesSection/trainingSection/statisticsSection are fresh objects every render,
   // but their fetchKeyed methods are ref-backed and stable (see useKeyedFetch), so it's
   // safe to treat this callback as never needing to change.
-  const preloadTeamSections = useCallback(async (selectedTeamId: string) => {
-    const existingRequest = sectionRequests.current.get(selectedTeamId);
+  const loadTeamSection = useCallback(async (selectedTeamId: string, section: "matches" | "training" | "statistics") => {
+    const requestKey = `${selectedTeamId}:${section}`;
+    const existingRequest = sectionRequests.current.get(requestKey);
     if (existingRequest) return existingRequest;
-    const request = Promise.all([
-      matchesSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=matches`, (body: { matches: Match[] }) => body.matches ?? [])
-        .then((result) => { if (result && activeTeamId.current === selectedTeamId) setMatches(result); }),
-      trainingSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=training`, (body: { trainings: Training[]; training_options: { id: string; label: string }[] }) => ({
+    const request = (section === "matches"
+      ? matchesSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=matches`, (body: { matches: Match[] }) => body.matches ?? [])
+        .then((result) => { if (result && activeTeamId.current === selectedTeamId) setMatches(result); })
+      : section === "training"
+      ? trainingSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=training`, (body: { trainings: Training[]; training_options: { id: string; label: string }[] }) => ({
         trainings: body.trainings ?? [],
         optionNames: Object.fromEntries((body.training_options ?? []).map(option => [option.id, option.label]))
-      })).then((result) => { if (result && activeTeamId.current === selectedTeamId) { setTrainings(result.trainings); setOptionNames(result.optionNames); } }),
-      statisticsSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=statistics`, (body: { statistics: TrainingStatistic[]; match_statistics: MatchStatistic[]; match_statistics_by_type?: { friendly?: MatchStatistic[]; competition?: MatchStatistic[]; cup?: MatchStatistic[] }; has_cup_matches?: boolean }) => ({ training: body.statistics ?? [], matches: body.match_statistics ?? [], friendlyMatches: body.match_statistics_by_type?.friendly ?? [], competitionMatches: body.match_statistics_by_type?.competition ?? [], cupMatches: body.match_statistics_by_type?.cup ?? [], hasCupMatches: body.has_cup_matches === true }))
+      })).then((result) => { if (result && activeTeamId.current === selectedTeamId) { setTrainings(result.trainings); setOptionNames(result.optionNames); } })
+      : statisticsSection.fetchKeyed(selectedTeamId, `/api/teams/${selectedTeamId}?section=statistics`, (body: { statistics: TrainingStatistic[]; match_statistics: MatchStatistic[]; match_statistics_by_type?: { friendly?: MatchStatistic[]; competition?: MatchStatistic[]; cup?: MatchStatistic[] }; has_cup_matches?: boolean }) => ({ training: body.statistics ?? [], matches: body.match_statistics ?? [], friendlyMatches: body.match_statistics_by_type?.friendly ?? [], competitionMatches: body.match_statistics_by_type?.competition ?? [], cupMatches: body.match_statistics_by_type?.cup ?? [], hasCupMatches: body.has_cup_matches === true }))
         .then((result) => { if (result && activeTeamId.current === selectedTeamId) { setStatistics(result.training); setMatchStatistics(result.matches); setFriendlyMatchStatistics(result.friendlyMatches); setCompetitionMatchStatistics(result.competitionMatches); setCupMatchStatistics(result.cupMatches); setHasCupMatches(result.hasCupMatches); } })
-    ]).then(() => undefined).finally(() => sectionRequests.current.delete(selectedTeamId));
-    sectionRequests.current.set(selectedTeamId, request);
+    ).then(() => undefined).finally(() => sectionRequests.current.delete(requestKey));
+    sectionRequests.current.set(requestKey, request);
     return request;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -129,18 +131,18 @@ export default function TeamDetailPage() {
   useEffect(() => {
     if (tab === "matches" && matches === null) {
       setLoadingSection("matches");
-      void preloadTeamSections(teamId).finally(() => {
+      void loadTeamSection(teamId, "matches").finally(() => {
         if (activeTeamId.current === teamId) setLoadingSection(null);
       });
     }
     if ((tab === "training" || tab === "statistics") && trainings === null) {
       setLoadingSection("training");
-      void preloadTeamSections(teamId).finally(() => {
+      void loadTeamSection(teamId, "training").finally(() => {
         if (activeTeamId.current === teamId) setLoadingSection(null);
       });
     }
-    if (tab === "statistics" && (matches === null || statistics === null)) void preloadTeamSections(teamId);
-  }, [matches, tab, teamId, trainings, statistics, preloadTeamSections]);
+    if (tab === "statistics" && statistics === null) void loadTeamSection(teamId, "statistics");
+  }, [matches, tab, teamId, trainings, statistics, loadTeamSection]);
 
   const players = useMemo(() => (team?.players ?? []).filter((player) => player.role !== "staff").sort(sortPeople), [team]);
   const legacyStaff = useMemo(() => (team?.players ?? []).filter((player) => player.role === "staff").sort(sortPeople), [team]);

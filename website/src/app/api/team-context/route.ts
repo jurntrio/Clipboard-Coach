@@ -6,6 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveDefaultTeamId } from "@/lib/auth/default-team";
 import { cookies } from "next/headers";
 
+const LARGE_TEAM_LIST = 6;
+
 export async function GET() {
   const context = await getClubContext();
   if (!context.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -16,7 +18,7 @@ export async function GET() {
   const { data: rows } = activeSeason ? await admin.from("club_teams").select("id, name").eq("club_id", context.activeClubId).eq("season_id", activeSeason.id).neq("status", "merged").order("display_order").order("name") : { data: [] };
   const teams = (rows ?? []).filter(team => canAccessTeam(access, team.id));
   const selection = readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(teams.map(team => team.id)));
-  const activeTeamId = selection.teamId ?? (selection.explicitAll ? null : await resolveDefaultTeamId(admin, context.activeClubId, context.user.id, teams.map(team => team.id)));
+  const activeTeamId = selection.teamId ?? (teams.length >= LARGE_TEAM_LIST || selection.explicitAll ? null : await resolveDefaultTeamId(admin, context.activeClubId, context.user.id, teams.map(team => team.id)));
   const response = NextResponse.json({ teams, activeTeamId });
   if (!selection.teamId && !selection.explicitAll && activeTeamId) response.cookies.set(ACTIVE_TEAM_COOKIE, activeTeamId, {
     httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 365

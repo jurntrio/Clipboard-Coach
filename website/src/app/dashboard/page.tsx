@@ -2,6 +2,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getClubContext } from "@/lib/auth/active-club";
 import { ProfileOverview, type ProfileActivity, type ProfileContext } from "@/components/profile/ProfileOverview";
+import { TeamSelectionGate } from "@/components/teams/TeamSelectionGate";
+import { cookies } from "next/headers";
+import { canAccessTeam, getClubAccess } from "@/lib/auth/club-access";
+import { ACTIVE_TEAM_COOKIE, readActiveTeamSelection } from "@/lib/auth/active-team";
+
+const LARGE_TEAM_LIST = 6;
 
 type GuardianRow = {
   child_key: string;
@@ -98,7 +104,28 @@ export default async function DashboardHomePage() {
       });
     }
   }
+
+  let selectedClubTeamId: string | null = null;
+  if (clubId) {
+    const [access, { data: activeSeason }] = await Promise.all([
+      getClubAccess(clubId, user),
+      admin.from("club_seasons").select("id").eq("club_id", clubId).eq("status", "ACTIVE").maybeSingle()
+    ]);
+    const { data: accessibleRows } = activeSeason
+      ? await admin.from("club_teams").select("id, name").eq("club_id", clubId).eq("season_id", activeSeason.id).neq("status", "merged").order("display_order").order("name")
+      : { data: [] };
+    const accessibleTeams = (accessibleRows ?? []).filter(team => canAccessTeam(access, team.id));
+    const selection = readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(accessibleTeams.map(team => team.id)));
+    selectedClubTeamId = selection.teamId;
+    if (accessibleTeams.length >= LARGE_TEAM_LIST && !selectedClubTeamId) {
+      return <TeamSelectionGate teams={accessibleTeams} />;
+    }
+  }
   contexts.push(...groupedChildren.values());
+  if (selectedClubTeamId) {
+    const selectedContexts = contexts.filter(item => item.clubTeamIds.includes(selectedClubTeamId!));
+    contexts.splice(0, contexts.length, ...selectedContexts);
+  }
 
   const allowedClubTeamIds = [...new Set(contexts.flatMap(context => context.clubTeamIds))];
   const allowedTeamIds = [...new Set(contexts.flatMap(context => context.teamIds))];
