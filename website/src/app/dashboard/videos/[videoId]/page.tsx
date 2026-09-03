@@ -234,12 +234,19 @@ export default function VideoViewerPage() {
   }
 
   function togglePhaseTag() {
+    // Read the media element directly so starting while paused and stopping after
+    // playback resumes never depends on a possibly delayed React time update.
+    const phaseTime = videoRef.current?.currentTime ?? currentTime;
     if (activePhaseTag) {
-      setPendingPhaseTags((current) => [...current, { id: crypto.randomUUID(), startTime: activePhaseTag.startTime, endTime: currentTime }]);
+      setPendingPhaseTags((current) => [...current, {
+        id: crypto.randomUUID(),
+        startTime: Math.min(activePhaseTag.startTime, phaseTime),
+        endTime: Math.max(activePhaseTag.startTime, phaseTime)
+      }]);
       setActivePhaseTag(null);
       videoRef.current?.pause();
     } else {
-      setActivePhaseTag({ startTime: currentTime });
+      setActivePhaseTag({ startTime: phaseTime });
     }
   }
 

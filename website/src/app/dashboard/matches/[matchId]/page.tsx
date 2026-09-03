@@ -529,17 +529,24 @@ export default function MatchViewerPage() {
   }
 
   function togglePhaseTag() {
-    if (!currentVideo) return;
-    const localTime = videoRef.current?.currentTime ?? Math.max(0, combinedTime - (offsets.map.get(currentVideo.id) ?? 0));
     if (!activePhaseTag) {
+      if (!currentVideo) return;
+      const localTime = videoRef.current?.currentTime ?? Math.max(0, combinedTime - (offsets.map.get(currentVideo.id) ?? 0));
       setActivePhaseTag({ videoId: currentVideo.id, startTime: localTime });
       return;
     }
-    if (activePhaseTag.videoId !== currentVideo.id) {
+    if (!currentVideo || activePhaseTag.videoId !== currentVideo.id) {
       setError("Stop de fase binnen dezelfde videobron waarin ze gestart is.");
       return;
     }
-    setPendingPhaseTag({ videoId: currentVideo.id, startTime: Math.min(activePhaseTag.startTime, localTime), endTime: Math.max(activePhaseTag.startTime, localTime) });
+    // Read the media element directly: after starting while paused, React's
+    // combined timeline can briefly trail the resumed video playback.
+    const stopTime = videoRef.current?.currentTime ?? Math.max(0, combinedTime - (offsets.map.get(activePhaseTag.videoId) ?? 0));
+    setPendingPhaseTag({
+      videoId: activePhaseTag.videoId,
+      startTime: Math.min(activePhaseTag.startTime, stopTime),
+      endTime: Math.max(activePhaseTag.startTime, stopTime)
+    });
     setActivePhaseTag(null);
     videoRef.current?.pause();
   }
