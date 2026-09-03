@@ -497,11 +497,6 @@ export function MatchLauncher() {
                 <h2 className="text-sm font-semibold text-textSecondary">{t("match.last")}</h2>
                 <TeamContextHeader teams={teamOptions} activeTeamId={activeTeamId} />
               </div>
-              {supportsPersistentFileAccess === false && (
-                <div className="text-[11px] leading-tight text-amber-300">
-                  {t("match.autoReconnectUnavailable")}
-                </div>
-              )}
               {[0, 1, 2].map((index) => {
                 const item = recentItems[index];
                 return item ? (
