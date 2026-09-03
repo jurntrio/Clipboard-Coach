@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl } from "@/lib/local-video-store";
 import { formatTime, getTagColor } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
+import { createPhaseTagRange } from "@/lib/phase-tags";
 import type { LiveMatchTag, Match, Player, StandardTag, Tag, TagDrawing, Video } from "@/types/database";
 import { VideoPlayer } from "@/components/video-player/VideoPlayer";
 import { PlaybackControls } from "@/components/video-player/PlaybackControls";
@@ -535,20 +536,24 @@ export default function MatchViewerPage() {
       setActivePhaseTag({ videoId: currentVideo.id, startTime: localTime });
       return;
     }
-    if (!currentVideo || activePhaseTag.videoId !== currentVideo.id) {
+    if (!currentVideo || (offsets.map.get(activePhaseTag.videoId) ?? -1) !== (offsets.map.get(currentVideo.id) ?? -2)) {
       setError("Stop de fase binnen dezelfde videobron waarin ze gestart is.");
       return;
     }
     // Read the media element directly: after starting while paused, React's
     // combined timeline can briefly trail the resumed video playback.
     const stopTime = videoRef.current?.currentTime ?? Math.max(0, combinedTime - (offsets.map.get(activePhaseTag.videoId) ?? 0));
-    setPendingPhaseTag({
-      videoId: activePhaseTag.videoId,
-      startTime: Math.min(activePhaseTag.startTime, stopTime),
-      endTime: Math.max(activePhaseTag.startTime, stopTime)
-    });
+    const range = createPhaseTagRange(activePhaseTag.startTime, stopTime);
     setActivePhaseTag(null);
+    if (!range) { setError(t("phaseTag.tooShort")); return; }
+    setPendingPhaseTag({ videoId: activePhaseTag.videoId, ...range });
+    setError("");
     videoRef.current?.pause();
+  }
+
+  function cancelActivePhaseTag() {
+    setActivePhaseTag(null);
+    setError("");
   }
 
   async function savePhaseTag(name: string) {
@@ -557,11 +562,15 @@ export default function MatchViewerPage() {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         videoId: pendingPhaseTag.videoId, name, occurredAtSeconds: pendingPhaseTag.startTime,
         startTime: pendingPhaseTag.startTime, endTime: pendingPhaseTag.endTime,
-        playerIds: match?.player_ids?.length ? match.player_ids : currentVideo?.active_player_ids ?? []
+        playerIds: match?.player_ids?.length ? match.player_ids : videos.find((video) => video.id === pendingPhaseTag.videoId)?.active_player_ids ?? []
       })
     });
     const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
-    if (!response.ok || !body?.tag) { setError(body?.error || "Fase kon niet worden opgeslagen."); return; }
+    if (!response.ok || !body?.tag) {
+      const message = body?.error || t("phaseTag.saveFailed");
+      setError(message);
+      throw new Error(message);
+    }
     setTags((current) => [...current.filter(tag => tag.id !== body.tag!.id), body.tag!]
       .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
     setPendingPhaseTag(null);
@@ -656,6 +665,10 @@ export default function MatchViewerPage() {
   }
 
   function seekTo(time: number) {
+    if (activePhaseTag) {
+      setActivePhaseTag(null);
+      setError(t("phaseTag.cancelledBySeek"));
+    }
     if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current);
     drawingTimerRef.current = null;
     setPlayingDrawing(null);
@@ -703,6 +716,20 @@ export default function MatchViewerPage() {
     pendingSeekRef.current = 0;
     autoPlayRef.current = true;
     setCurrentIndex((index) => index + 1);
+  }
+
+  function handleVideoEnded() {
+    if (activePhaseTag && currentVideo) {
+      const activeOffset = offsets.map.get(activePhaseTag.videoId);
+      const currentOffset = offsets.map.get(currentVideo.id);
+      if (activeOffset !== undefined && activeOffset === currentOffset) {
+        const range = createPhaseTagRange(activePhaseTag.startTime, videoRef.current?.duration ?? currentVideo.duration ?? activePhaseTag.startTime);
+        setActivePhaseTag(null);
+        if (range) setPendingPhaseTag({ videoId: activePhaseTag.videoId, ...range });
+        else setError(t("phaseTag.tooShort"));
+      }
+    }
+    playNext();
   }
 
   function switchCamera(cameraNumber: number | null) {
@@ -778,7 +805,7 @@ export default function MatchViewerPage() {
             </div>
           </details>}
           <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, combinedTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
-          <div className="space-y-2"><h3 className="text-sm font-semibold text-textBright">{t("video.phaseTags")}</h3><button type="button" onClick={togglePhaseTag} className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${activePhaseTag ? "border-red-500 bg-red-500/10 text-red-400 hover:bg-red-500/20" : "border-dashed border-accent bg-accentDim text-accent hover:bg-cardHover"}`}><span className={`h-2.5 w-2.5 rounded-full ${activePhaseTag ? "animate-pulse bg-red-500" : "bg-accent"}`} />{activePhaseTag ? `${t("phaseTag.stop")} · ${formatTime(Math.max(0, (videoRef.current?.currentTime ?? 0) - activePhaseTag.startTime))}` : t("phaseTag.start")}</button></div>
+          <div className="space-y-2"><h3 className="text-sm font-semibold text-textBright">{t("video.phaseTags")}</h3><button type="button" onClick={togglePhaseTag} className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${activePhaseTag ? "border-red-500 bg-red-500/10 text-red-400 hover:bg-red-500/20" : "border-dashed border-accent bg-accentDim text-accent hover:bg-cardHover"}`}><span className={`h-2.5 w-2.5 rounded-full ${activePhaseTag ? "animate-pulse bg-red-500" : "bg-accent"}`} />{activePhaseTag ? `${t("phaseTag.stop")} · ${formatTime(Math.max(0, (videoRef.current?.currentTime ?? 0) - activePhaseTag.startTime))}` : t("phaseTag.start")}</button>{activePhaseTag && <button type="button" onClick={cancelActivePhaseTag} className="w-full rounded-lg border border-borderButton bg-button px-3 py-1.5 text-xs text-textSecondary hover:bg-cardHover">{t("phaseTag.cancel")}</button>}</div>
           <div><h3 className="mb-2 text-sm font-semibold text-textBright">{t("video.periodMarkers")}</h3><div className="space-y-2">{markerTags.map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div></div>
           {displayTags.some((tag) => isPeriodMarker(tag.name)) && (
             <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
@@ -851,7 +878,7 @@ export default function MatchViewerPage() {
                 </div>
               ) : <p className="text-textMuted">{t("video.noVideo")}</p>}
             </div>
-          ) : currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">{t("match.reconnect", { number: currentIndex + 1 })}</h2><p className="text-textMuted text-sm mt-2">{t("match.reconnectHelp")}</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">{t("match.browserReconnect")}</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("match.reconnectAll")}</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">{t("match.onlyVideo", { number: currentIndex + 1 })}</button></div></div></div> : <div className="match-viewer-stage relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={playNext} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={filteredTimelineTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /><button type="button" onClick={() => void toggleFocusMode()} className="match-viewer-focus-button absolute left-3 top-3 z-20 rounded-lg border border-white/30 bg-black/70 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/85" aria-label={isFocusMode ? "Volledig scherm sluiten" : "Volledig scherm openen"}>{isFocusMode ? "⤢ Sluiten" : "⛶ Volledig scherm"}</button></div>}
+          ) : currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">{t("match.reconnect", { number: currentIndex + 1 })}</h2><p className="text-textMuted text-sm mt-2">{t("match.reconnectHelp")}</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">{t("match.browserReconnect")}</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("match.reconnectAll")}</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">{t("match.onlyVideo", { number: currentIndex + 1 })}</button></div></div></div> : <div className="match-viewer-stage relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={handleVideoEnded} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={filteredTimelineTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /><button type="button" onClick={() => void toggleFocusMode()} className="match-viewer-focus-button absolute left-3 top-3 z-20 rounded-lg border border-white/30 bg-black/70 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/85" aria-label={isFocusMode ? "Volledig scherm sluiten" : "Volledig scherm openen"}>{isFocusMode ? "⤢ Sluiten" : "⛶ Volledig scherm"}</button></div>}
           <div className="match-viewer-bottom-chrome contents">
           <div className="flex min-h-12 overflow-hidden rounded-lg border border-border bg-cardDeep" aria-label={t("match.videoSequence")}>
             {videos.map((video, index) => (

@@ -9,6 +9,7 @@ export function PhaseTagDialog({ onCancel, onConfirm }: {
 }) {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const { t } = useI18n();
 
   useEffect(() => {
@@ -21,7 +22,13 @@ export function PhaseTagDialog({ onCancel, onConfirm }: {
     event.preventDefault();
     if (!name.trim() || saving) return;
     setSaving(true);
-    await onConfirm(name.trim());
+    setError("");
+    try {
+      await onConfirm(name.trim());
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : t("phaseTag.saveFailed"));
+      setSaving(false);
+    }
   }
 
   return (
@@ -34,6 +41,7 @@ export function PhaseTagDialog({ onCancel, onConfirm }: {
         <label className="text-sm text-textSecondary">{t("tag.name")}
           <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder={t("phaseTag.namePlaceholder")} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary focus:border-accent focus:outline-none" />
         </label>
+        {error && <p role="alert" className="mt-3 text-sm text-red-300">{error}</p>}
         <div className="mt-4 flex gap-2">
           <button type="button" onClick={onCancel} className="flex-1 rounded-lg bg-button px-3 py-2 text-textPrimary">{t("common.cancel")}</button>
           <button type="submit" disabled={!name.trim() || saving} className="flex-1 rounded-lg bg-accent px-3 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? t("common.saving") : t("phaseTag.save")}</button>

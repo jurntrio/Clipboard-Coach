@@ -25,6 +25,7 @@ import {
   localVideoFingerprint,
   rememberLocalVideo
 } from "@/lib/local-video-store";
+import { createPhaseTagRange } from "@/lib/phase-tags";
 
 // Pulls in the canvas drawing tool only once the drawing dialog actually opens,
 // instead of shipping it in this page's initial bundle.
@@ -212,7 +213,7 @@ export default function VideoViewerPage() {
   async function addTag(label: string, profile?: StandardTag) {
     if (!label.trim() || !video) return;
 
-    const startTime = currentTime;
+    const startTime = videoRef.current?.currentTime ?? currentTime;
     const marker = isPeriodMarker(label);
     const { data, error } = await supabase
       .from("tags")
@@ -228,9 +229,22 @@ export default function VideoViewerPage() {
       .select()
       .single();
 
-    if (!error && data) {
-      setTags((current) => [...current, data].sort((a, b) => a.start_time - b.start_time));
+    if (error || !data) { setLocalError(error?.message || t("phaseTag.saveFailed")); return; }
+    setLocalError("");
+    setTags((current) => [...current, data].sort((a, b) => a.start_time - b.start_time));
+  }
+
+  function finishPhaseTag(stopTime: number) {
+    if (!activePhaseTag) return false;
+    const range = createPhaseTagRange(activePhaseTag.startTime, stopTime);
+    setActivePhaseTag(null);
+    if (!range) {
+      setLocalError(t("phaseTag.tooShort"));
+      return false;
     }
+    setPendingPhaseTags((current) => [...current, { id: crypto.randomUUID(), ...range }]);
+    setLocalError("");
+    return true;
   }
 
   function togglePhaseTag() {
@@ -238,16 +252,21 @@ export default function VideoViewerPage() {
     // playback resumes never depends on a possibly delayed React time update.
     const phaseTime = videoRef.current?.currentTime ?? currentTime;
     if (activePhaseTag) {
-      setPendingPhaseTags((current) => [...current, {
-        id: crypto.randomUUID(),
-        startTime: Math.min(activePhaseTag.startTime, phaseTime),
-        endTime: Math.max(activePhaseTag.startTime, phaseTime)
-      }]);
-      setActivePhaseTag(null);
+      finishPhaseTag(phaseTime);
       videoRef.current?.pause();
     } else {
+      setLocalError("");
       setActivePhaseTag({ startTime: phaseTime });
     }
+  }
+
+  function cancelActivePhaseTag() {
+    setActivePhaseTag(null);
+    setLocalError("");
+  }
+
+  function handleVideoEnded() {
+    if (activePhaseTag) finishPhaseTag(videoRef.current?.duration ?? duration);
   }
 
   function cancelPhaseTag(id: string) {
@@ -272,7 +291,9 @@ export default function VideoViewerPage() {
       })
       .select()
       .single();
-    if (!error && data) setTags((current) => [...current, data].sort((a, b) => a.start_time - b.start_time));
+    if (error || !data) throw new Error(error?.message || t("phaseTag.saveFailed"));
+    setTags((current) => [...current, data].sort((a, b) => a.start_time - b.start_time));
+    setLocalError("");
     cancelPhaseTag(id);
   }
 
@@ -297,6 +318,10 @@ export default function VideoViewerPage() {
   }
 
   function seekTo(time: number) {
+    if (activePhaseTag) {
+      setActivePhaseTag(null);
+      setLocalError(t("phaseTag.cancelledBySeek"));
+    }
     if (drawingTimerRef.current) clearTimeout(drawingTimerRef.current);
     drawingTimerRef.current = null;
     setPlayingDrawing(null);
@@ -368,6 +393,7 @@ export default function VideoViewerPage() {
       <div className="flex flex-1 min-h-0">
       <div className="w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
         <p className="min-w-0 truncate text-sm font-semibold text-textBright">{video?.title || t("video.untitled")}</p>
+        {localError && <p role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-xs text-red-300">{localError}</p>}
         <PlaybackControls isPlaying={isPlaying} playbackRate={playbackRate} onBack={() => seekTo(Math.max(0, currentTime - 5))} onTogglePlay={togglePlayback} onCycleSpeed={cyclePlaybackRate} />
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-textBright">{t("video.phaseTags")}</h3>
@@ -379,6 +405,7 @@ export default function VideoViewerPage() {
             <span className={`h-2.5 w-2.5 rounded-full ${activePhaseTag ? "animate-pulse bg-red-500" : "bg-accent"}`} />
             {activePhaseTag ? `${t("phaseTag.stop")} · ${formatTime(Math.max(0, currentTime - activePhaseTag.startTime))}` : t("phaseTag.start")}
           </button>
+          {activePhaseTag && <button type="button" onClick={cancelActivePhaseTag} className="w-full rounded-lg border border-borderButton bg-button px-3 py-1.5 text-xs text-textSecondary hover:bg-cardHover">{t("phaseTag.cancel")}</button>}
         </div>
         <div className="space-y-2"><h3 className="text-sm font-semibold text-textBright">{t("video.periodMarkers")}</h3>{(["Start", "End"] as const).map((name) => <button key={name} type="button" onClick={() => void addTag(name)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-borderButton bg-button py-2 text-textPrimary hover:bg-cardHover"><span className={`relative inline-block h-4 w-4 border-l-2 ${name === "End" ? "border-white" : "border-accent"}`}><span className={`absolute left-0 top-0 h-2.5 w-3 rounded-r-sm ${name === "End" ? "border border-white" : "bg-accent"}`} style={name === "End" ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} /></span>{name}</button>)}</div>
         {tags.some((tag) => isPeriodMarker(tag.name)) && (
@@ -427,6 +454,7 @@ export default function VideoViewerPage() {
               src={localVideoUrl ?? video?.video_url}
               onTimeUpdate={handleViewerTimeUpdate}
               onDurationChange={(value) => { setDuration(value); if (videoRef.current) videoRef.current.playbackRate = playbackRate; }}
+              onEnded={handleVideoEnded}
               onPlayingChange={setIsPlaying}
             />
             <ActiveTagOverlay tags={tags} currentTime={currentTime} />
