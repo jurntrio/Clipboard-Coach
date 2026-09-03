@@ -24,14 +24,16 @@ export function AddPlayerModal({
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [phoneNumbers, setPhoneNumbers] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const supabase = createClient();
 
   async function handleAdd(event: React.FormEvent) {
     event.preventDefault();
     if (!firstName.trim() || !lastName.trim()) return;
     setSaving(true);
+    setError("");
 
-    await supabase.from("players").insert({
+    const { error: insertError } = await supabase.from("players").insert({
       team_id: teamId,
       first_name: firstName.trim(),
       last_name: lastName.trim(),
@@ -42,6 +44,7 @@ export function AddPlayerModal({
     });
 
     setSaving(false);
+    if (insertError) { setError(insertError.message || t("team.addFailed")); return; }
     onAdded();
     onClose();
   }
@@ -88,6 +91,7 @@ export function AddPlayerModal({
             className="px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm"
           />
           <input type="text" placeholder={t("team.phonePlaceholder")} value={phoneNumbers} onChange={(event) => setPhoneNumbers(event.target.value)} className="col-span-2 px-3 py-2 bg-input text-textPrimary rounded-lg border border-border text-sm" />
+          {error && <p role="alert" className="col-span-2 rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-sm text-red-300">{error}</p>}
           <div className="col-span-2 flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-textSecondary hover:bg-cardHover">
               {t("common.cancel")}

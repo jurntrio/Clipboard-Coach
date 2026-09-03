@@ -135,10 +135,14 @@ export default function VideoViewerPage() {
   }
 
   async function changeDrawingDuration(tag: Tag, drawingId: string, durationSeconds: number) {
+    const previousDrawings = tag.drawings ?? [];
     const drawings = (tag.drawings ?? []).map((drawing) => drawing.id === drawingId ? { ...drawing, duration_seconds: durationSeconds } : drawing);
     setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings } : item));
     const { error } = await supabase.from("tags").update({ drawings }).eq("id", tag.id);
-    if (error) setLocalError(error.message);
+    if (error) {
+      setTags((items) => items.map((item) => item.id === tag.id ? { ...item, drawings: previousDrawings } : item));
+      setLocalError(error.message || t("phaseTag.saveFailed"));
+    }
   }
 
   useEffect(() => {
@@ -147,16 +151,18 @@ export default function VideoViewerPage() {
     let cancelled = false;
 
     async function loadVideo() {
-      const { data } = await supabase.from("videos").select("*").eq("id", videoId).single();
+      const { data, error } = await supabase.from("videos").select("*").eq("id", videoId).single();
+      if (error) { if (!cancelled) setLocalError(error.message || t("video.loadFailed")); return; }
       if (!cancelled) setVideo(data);
     }
 
     async function loadTags() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("tags")
         .select("*")
         .eq("video_id", videoId)
         .order("start_time", { ascending: true });
+      if (error) { if (!cancelled) setLocalError(error.message || t("video.loadFailed")); return; }
       if (!cancelled) setTags(data ?? []);
     }
 
@@ -165,7 +171,8 @@ export default function VideoViewerPage() {
         data: { user }
       } = await supabase.auth.getUser();
       if (!user || cancelled) return;
-      const { data } = await supabase.from("standard_tags").select("*").eq("coach_id", user.id).order("created_at");
+      const { data, error } = await supabase.from("standard_tags").select("*").eq("coach_id", user.id).order("created_at");
+      if (error) { if (!cancelled) setLocalError(error.message || t("video.loadFailed")); return; }
       if (!cancelled) setStandardTags(data ?? []);
     }
 
@@ -182,7 +189,8 @@ export default function VideoViewerPage() {
     const teamId = video.team_id;
 
     async function loadPlayers() {
-      const { data } = await supabase.from("players").select("*").eq("team_id", teamId).neq("role", "staff").order("last_name");
+      const { data, error } = await supabase.from("players").select("*").eq("team_id", teamId).neq("role", "staff").order("last_name");
+      if (error) { if (!cancelled) setLocalError(error.message || t("video.loadFailed")); return; }
       if (!cancelled) setPlayers(data ?? []);
     }
 
@@ -303,16 +311,24 @@ export default function VideoViewerPage() {
     const safeStart = Math.min(duration || Number.POSITIVE_INFINITY, Math.max(0, startTime));
     const safeEnd = isPeriodMarker(tag.name) ? safeStart : Math.min(duration || Number.POSITIVE_INFINITY, Math.max(safeStart, endTime));
     const { error } = await supabase.from("tags").update({ start_time: safeStart, end_time: safeEnd }).eq("id", tagId);
-    if (!error) setTags((current) => current.map((item) => item.id === tagId ? { ...item, start_time: safeStart, end_time: safeEnd } : item).sort((a, b) => a.start_time - b.start_time));
+    if (error) { setLocalError(error.message || t("phaseTag.saveFailed")); return false; }
+    setLocalError("");
+    setTags((current) => current.map((item) => item.id === tagId ? { ...item, start_time: safeStart, end_time: safeEnd } : item).sort((a, b) => a.start_time - b.start_time));
+    return true;
   }
 
   async function renameTag(tagId: string, name: string) {
     const { error } = await supabase.from("tags").update({ name, color: getTagColor(name) }).eq("id", tagId);
-    if (!error) setTags((current) => current.map((tag) => tag.id === tagId ? { ...tag, name, color: getTagColor(name) } : tag));
+    if (error) { setLocalError(error.message || t("phaseTag.saveFailed")); return false; }
+    setLocalError("");
+    setTags((current) => current.map((tag) => tag.id === tagId ? { ...tag, name, color: getTagColor(name) } : tag));
+    return true;
   }
 
   async function deleteTag(tagId: string) {
-    await supabase.from("tags").delete().eq("id", tagId);
+    const { error } = await supabase.from("tags").delete().eq("id", tagId);
+    if (error) { setLocalError(error.message || t("tag.deleteFailed")); return; }
+    setLocalError("");
     setTags((current) => current.filter((tag) => tag.id !== tagId));
     setSelectedTagIds((current) => current.filter((id) => id !== tagId));
   }

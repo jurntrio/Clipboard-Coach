@@ -627,13 +627,16 @@ export default function MatchViewerPage() {
   }
 
   async function deleteTag(tagId: string) {
-    await supabase.from("tags").delete().eq("id", tagId);
+    const { error: deleteError } = await supabase.from("tags").delete().eq("id", tagId);
+    if (deleteError) { setError(deleteError.message || t("tag.deleteFailed")); return false; }
     setTags((current) => current.filter((tag) => tag.id !== tagId));
     setSelectedTagIds((current) => current.filter((id) => id !== tagId));
+    setError("");
+    return true;
   }
 
   async function deleteLiveTag(liveTag: LiveMatchTag) {
-    if (liveTag.tag_id) await deleteTag(liveTag.tag_id);
+    if (liveTag.tag_id && await deleteTag(liveTag.tag_id) === false) return;
     const { error: deleteError } = await supabase.from("live_match_tags").delete().eq("id", liveTag.id);
     if (deleteError) { setError(deleteError.message); return; }
     setLiveTags((current) => current.filter((item) => item.id !== liveTag.id));

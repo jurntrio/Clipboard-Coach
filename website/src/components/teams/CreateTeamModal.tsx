@@ -59,7 +59,12 @@ export function CreateTeamModal({ onClose, onCreated }: { onClose: () => void; o
       { team_id: team.id, user_id: user.id, added_by: user.id },
       { onConflict: "team_id,user_id", ignoreDuplicates: true }
     );
-    if (staffError) { await supabase.from("teams").delete().eq("id", team.id); setError(staffError.message); setSaving(false); return; }
+    if (staffError) {
+      const { error: cleanupError } = await supabase.from("teams").delete().eq("id", team.id);
+      setError(cleanupError ? `${staffError.message} ${t("team.cleanupFailed", { name: team.name })}` : staffError.message);
+      setSaving(false);
+      return;
+    }
 
     const rows = players.filter((row) => row.firstName.trim() && row.lastName.trim()).map((row) => ({
       team_id: team.id,
@@ -71,7 +76,12 @@ export function CreateTeamModal({ onClose, onCreated }: { onClose: () => void; o
     }));
     if (rows.length) {
       const { error: playerError } = await supabase.from("players").insert(rows);
-      if (playerError) { await supabase.from("teams").delete().eq("id", team.id); setError(playerError.message); setSaving(false); return; }
+      if (playerError) {
+        const { error: cleanupError } = await supabase.from("teams").delete().eq("id", team.id);
+        setError(cleanupError ? `${playerError.message} ${t("team.cleanupFailed", { name: team.name })}` : playerError.message);
+        setSaving(false);
+        return;
+      }
     }
 
     setSaving(false);

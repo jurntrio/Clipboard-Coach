@@ -19,6 +19,7 @@ export default function SettingsPage() {
   const [tagNameDraft, setTagNameDraft] = useState("");
   const [mailboxEmailNotifications, setMailboxEmailNotifications] = useState(true);
   const [canManageTags, setCanManageTags] = useState(false);
+  const [notice, setNotice] = useState<{ kind: "error" | "success"; message: string } | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -27,8 +28,8 @@ export default function SettingsPage() {
   }, []);
 
   async function loadCapabilities() {
-    const response = await fetch("/api/settings/capabilities");
-    if (!response.ok) return;
+    const response = await fetch("/api/settings/capabilities").catch(() => null);
+    if (!response?.ok) { setNotice({ kind: "error", message: t("settings.loadFailed") }); return; }
     const capabilities = await response.json() as { canManageTags?: boolean };
     const allowed = capabilities.canManageTags === true;
     setCanManageTags(allowed);
@@ -39,10 +40,12 @@ export default function SettingsPage() {
     const {
       data: { user }
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return false;
 
-    const { data } = await supabase.from("standard_tags").select("*").eq("coach_id", user.id).order("created_at");
+    const { data, error } = await supabase.from("standard_tags").select("*").eq("coach_id", user.id).order("created_at");
+    if (error) { setNotice({ kind: "error", message: error.message || t("settings.loadFailed") }); return false; }
     setStandardTags(data ?? []);
+    return true;
   }
 
   async function loadMailboxPreference() {
@@ -51,17 +54,21 @@ export default function SettingsPage() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data } = await supabase.from("profiles").select("mailbox_email_notifications").eq("id", user.id).maybeSingle();
+    const { data, error } = await supabase.from("profiles").select("mailbox_email_notifications").eq("id", user.id).maybeSingle();
+    if (error) { setNotice({ kind: "error", message: error.message || t("settings.loadFailed") }); return; }
     if (data) setMailboxEmailNotifications(data.mailbox_email_notifications);
   }
 
   async function toggleMailboxEmailNotifications(enabled: boolean) {
+    const previous = mailboxEmailNotifications;
     setMailboxEmailNotifications(enabled);
     const {
       data: { user }
     } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from("profiles").update({ mailbox_email_notifications: enabled }).eq("id", user.id);
+    if (!user) { setMailboxEmailNotifications(previous); setNotice({ kind: "error", message: t("errors.sessionExpired") }); return; }
+    const { error } = await supabase.from("profiles").update({ mailbox_email_notifications: enabled }).eq("id", user.id);
+    if (error) { setMailboxEmailNotifications(previous); setNotice({ kind: "error", message: error.message || t("settings.saveFailed") }); return; }
+    setNotice({ kind: "success", message: t("settings.saved") });
   }
 
   async function addStandardTag(event: React.FormEvent) {
@@ -72,27 +79,32 @@ export default function SettingsPage() {
       data: { user }
     } = await supabase.auth.getUser();
 
-    await supabase.from("standard_tags").insert({ coach_id: user!.id, name: newTagName.trim() });
+    if (!user) { setNotice({ kind: "error", message: t("errors.sessionExpired") }); return; }
+    const { error } = await supabase.from("standard_tags").insert({ coach_id: user.id, name: newTagName.trim() });
+    if (error) { setNotice({ kind: "error", message: error.message || t("settings.saveFailed") }); return; }
     setNewTagName("");
-    loadStandardTags();
+    if (await loadStandardTags()) setNotice({ kind: "success", message: t("settings.saved") });
   }
 
   async function removeStandardTag(tagId: string) {
-    await supabase.from("standard_tags").delete().eq("id", tagId);
-    loadStandardTags();
+    const { error } = await supabase.from("standard_tags").delete().eq("id", tagId);
+    if (error) { setNotice({ kind: "error", message: error.message || t("settings.deleteFailed") }); return; }
+    if (await loadStandardTags()) setNotice({ kind: "success", message: t("settings.saved") });
   }
 
   async function renameStandardTag(tagId: string) {
     const name = tagNameDraft.trim();
     if (!name) return;
-    await supabase.from("standard_tags").update({ name }).eq("id", tagId);
+    const { error } = await supabase.from("standard_tags").update({ name }).eq("id", tagId);
+    if (error) { setNotice({ kind: "error", message: error.message || t("settings.saveFailed") }); return; }
     setEditingTagId(null);
-    await loadStandardTags();
+    if (await loadStandardTags()) setNotice({ kind: "success", message: t("settings.saved") });
   }
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <SectionHeader title={t("common.settings")} artworkSrc="/branding/settings.webp" showHome={false} />
+      {notice && <p role={notice.kind === "error" ? "alert" : "status"} className={`mb-5 rounded-lg border p-3 text-sm ${notice.kind === "error" ? "border-red-500/40 bg-red-500/10 text-red-300" : "border-accent/40 bg-accentDim text-textPrimary"}`}>{notice.message}</p>}
 
       <section className="mb-8">
         <h2 className="text-textBright font-semibold mb-2">{t("settings.appearance")}</h2>
