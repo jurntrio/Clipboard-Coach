@@ -47,11 +47,11 @@ export default function TeamDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadingSection, setLoadingSection] = useState<"matches" | "training" | null>(null);
   const [scheduleNow, setScheduleNow] = useState(() => new Date());
-  const overview = useKeyedFetch<TeamDetail>();
-  const details = useKeyedFetch<TeamDetail>();
-  const matchesSection = useKeyedFetch<Match[]>();
-  const trainingSection = useKeyedFetch<TrainingData>();
-  const statisticsSection = useKeyedFetch<StatisticsData>();
+  const overview = useKeyedFetch<TeamDetail>("team-overview");
+  const details = useKeyedFetch<TeamDetail>("team-details");
+  const matchesSection = useKeyedFetch<Match[]>("team-matches");
+  const trainingSection = useKeyedFetch<TrainingData>("team-training");
+  const statisticsSection = useKeyedFetch<StatisticsData>("team-statistics");
   const activeTeamId = useRef(initialTeamId);
   const sectionRequests = useRef(new Map<string, Promise<void>>());
 
