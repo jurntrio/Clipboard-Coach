@@ -5,6 +5,12 @@ import { createClient } from "@/lib/supabase/client";
 import { getTagColor } from "@/lib/utils";
 import type { LiveMatchTag, Match, StandardTag, Tag, Video } from "@/types/database";
 
+const RECORDING_START_TAG = "start opname";
+
+function isRecordingStartTag(tagName: string) {
+  return tagName.trim().toLocaleLowerCase("nl") === RECORDING_START_TAG;
+}
+
 function liveTagVideoSeconds(liveTag: LiveMatchTag, match: Match) {
   if (!match.match_date || !match.recording_start_time) return null;
   const recordingStartedAt = new Date(`${match.match_date}T${match.recording_start_time}`);
@@ -69,21 +75,32 @@ export function useLiveTagSync<TMatch extends Match>({
   }, [match, currentUserId, videos, liveTags]);
 
   async function materializeLiveTags(pending: LiveMatchTag[]) {
+    const recordingStarts = liveTags
+      .filter((liveTag) => isRecordingStartTag(liveTag.tag_name))
+      .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
     for (const liveTag of pending) {
       materializingLiveTagIdsRef.current.add(liveTag.id);
       try {
-        const elapsed = liveTagElapsedSeconds(liveTag, match);
-        if (elapsed === null) continue;
+        let elapsed = liveTagElapsedSeconds(liveTag, match);
+        let targetVideo = videos[0];
+        if (recordingStarts.length) {
+          const recordingIndex = recordingStarts.findLastIndex((start) => start.occurred_at <= liveTag.occurred_at);
+          if (recordingIndex >= 0) {
+            targetVideo = videos[recordingIndex];
+            if (!targetVideo) continue;
+            elapsed = (new Date(liveTag.occurred_at).getTime() - new Date(recordingStarts[recordingIndex].occurred_at).getTime()) / 1000;
+          }
+        }
+        if (elapsed === null || !targetVideo) continue;
         // Live-tag timestamps are match-relative and must remain unchanged even
         // when the currently linked recording is shorter. A longer/replacement
         // source can be linked later, and the coach chooses the camera while
         // building the clip.
-        const targetVideo = videos[0];
         const localTime = Math.max(0, elapsed);
         const clubProfile = clubLiveTagProfiles.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
         const personalProfile = standardTags.find((item) => item.name.trim().toLowerCase() === liveTag.tag_name.trim().toLowerCase());
-        const startOffset = clubProfile?.live_start_offset_seconds ?? personalProfile?.live_start_offset_seconds ?? personalProfile?.start_offset_seconds ?? -5;
-        const endOffset = clubProfile?.live_end_offset_seconds ?? personalProfile?.live_end_offset_seconds ?? personalProfile?.end_offset_seconds ?? 5;
+        const startOffset = isRecordingStartTag(liveTag.tag_name) ? 0 : clubProfile?.live_start_offset_seconds ?? personalProfile?.live_start_offset_seconds ?? personalProfile?.start_offset_seconds ?? -5;
+        const endOffset = isRecordingStartTag(liveTag.tag_name) ? 0 : clubProfile?.live_end_offset_seconds ?? personalProfile?.live_end_offset_seconds ?? personalProfile?.end_offset_seconds ?? 5;
         const startTime = Math.max(0, localTime + startOffset);
         const endTime = Math.max(startTime, localTime + endOffset);
         const playerIds = liveTag.player_ids?.length ? liveTag.player_ids : targetVideo.active_player_ids;
