@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getTagEventKind } from "@/lib/tag-events";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 
-type PublicMatch = { id: string; team_a_name: string; team_b_name: string; match_date: string | null; start_time: string | null; status: string; live_tag_names: string[] };
+type PublicMatch = { id: string; team_a_name: string; team_b_name: string; is_home_match: boolean; match_date: string | null; start_time: string | null; status: string; live_tag_names: string[] };
 type PublicPlayer = { id: string; first_name: string; last_name: string; jersey_number: number | null };
 
 export default function LiveTagPage() {
@@ -106,16 +106,18 @@ export default function LiveTagPage() {
   }
 
   if (!match) return <main className="grid min-h-screen place-items-center bg-page p-6 text-textPrimary">{message || "Wedstrijd laden…"}</main>;
+  const homeTeamName = match.is_home_match ? match.team_a_name : match.team_b_name;
+  const awayTeamName = match.is_home_match ? match.team_b_name : match.team_a_name;
   return (
     <main className="min-h-screen bg-page px-4 py-4 text-textPrimary lg:px-8 lg:py-6">
       <div className="mx-auto max-w-lg lg:max-w-5xl">
         <header className="mb-3 rounded-xl border border-border bg-card p-3 lg:mb-4">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Live taggen</p>
-          <h1 className="mt-0.5 text-lg font-bold text-textBright lg:text-2xl">{match.team_a_name} – {match.team_b_name}</h1>
+          <h1 className="mt-0.5 text-lg font-bold text-textBright lg:text-2xl">{homeTeamName} – {awayTeamName}</h1>
           <p className="mt-0.5 text-xs text-textMuted">{match.match_date}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}</p>
         </header>
         <div className="lg:grid lg:grid-cols-[1fr_300px] lg:gap-8">
-          <section><h2 className="mb-3 text-sm font-semibold text-textBright">Moment toevoegen</h2><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">{match.live_tag_names.map((name) => <button key={name} type="button" disabled={saving} onClick={() => handleTagPress(name)} className="min-h-20 rounded-2xl border border-accent/40 bg-accentDim px-4 py-4 text-lg font-bold text-textBright transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 lg:min-h-28 lg:text-xl lg:hover:border-accent lg:hover:bg-accentDim/80">{name}</button>)}</div></section>
+          <section><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">{match.live_tag_names.map((name) => <button key={name} type="button" disabled={saving} onClick={() => handleTagPress(name)} className="min-h-20 rounded-2xl border border-accent/40 bg-accentDim px-4 py-4 text-lg font-bold text-textBright transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 lg:min-h-28 lg:text-xl lg:hover:border-accent lg:hover:bg-accentDim/80">{name}</button>)}</div></section>
           <div className="mt-6 lg:mt-0 lg:sticky lg:top-6 lg:self-start">
             {!!players.length && <section className="mb-5 lg:mb-6"><h2 className="mb-2 text-sm font-semibold text-textBright">Speler aanduiden</h2><div className="flex flex-wrap gap-2">{players.map((player) => { const selected = selectedPlayerIds.includes(player.id); return <button key={player.id} type="button" onClick={() => setSelectedPlayerIds((current) => selected ? current.filter((id) => id !== player.id) : [...current, player.id])} className={`rounded-full border px-3 py-2 text-sm ${selected ? "border-accent bg-accentDim text-accent" : "border-borderButton bg-button"}`}>{player.jersey_number ? `${player.jersey_number} · ` : ""}{player.first_name} {player.last_name}</button>; })}</div></section>}
             {!autoName && <label className="block text-sm text-textSecondary">Jouw naam (optioneel)

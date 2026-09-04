@@ -19,7 +19,7 @@ async function loadLink(token: string) {
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("match_tag_links")
-    .select("id, active, matches(id, team_a_name, team_b_name, match_date, start_time, status, live_tag_names, player_ids)")
+    .select("id, active, matches(id, team_a_name, team_b_name, is_home_match, match_date, start_time, status, live_tag_names, player_ids)")
     .eq("token", token)
     .eq("active", true)
     .single();

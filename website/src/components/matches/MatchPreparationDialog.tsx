@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useI18n } from "@/i18n/client";
 import type { Match, Player } from "@/types/database";
 
@@ -26,7 +27,7 @@ function matchHasStarted(match: Match) {
     || (match.match_date === todayInBrussels && !!match.start_time && match.start_time.slice(0, 5) <= timeInBrussels);
 }
 
-export function MatchPreparationDialog({ match, onClose, onSaved, embedded = false }: { match: Match; onClose: () => void; onSaved: () => Promise<void>; embedded?: boolean }) {
+export function MatchPreparationDialog({ match, onClose, onSaved, embedded = false, generalInfoEditor = null }: { match: Match; onClose: () => void; onSaved: () => Promise<void>; embedded?: boolean; generalInfoEditor?: ReactNode }) {
   const { t } = useI18n();
   const [loadedMatch, setLoadedMatch] = useState<Match | null>(null);
   const [options, setOptions] = useState<Option[]>([]);
@@ -239,6 +240,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
             {t("matchPrep.general")}<span className={`text-accent transition ${generalOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
           {generalOpen && <div className="grid gap-3 border-t border-borderSubtle p-4 sm:grid-cols-2 lg:grid-cols-4">
+            {generalInfoEditor && <div className="border-b border-borderSubtle pb-5 sm:col-span-2 lg:col-span-4">{generalInfoEditor}</div>}
             <label className="text-sm text-textSecondary">Start van de opname
               <input type="time" value={recordingStartTime} onChange={event => setRecordingStartTime(event.target.value)} className={`mt-1 ${inputClass}`} />
               <span className="mt-1 block text-xs text-textMuted">Het tijdstip waarop de camera-opname werkelijk gestart is.</span>

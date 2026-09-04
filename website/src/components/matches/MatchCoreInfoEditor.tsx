@@ -11,7 +11,7 @@ type MatchCore = {
   is_home_match: boolean; player_ids: string[]; live_tag_names: string[];
 };
 
-export function MatchCoreInfoEditor({ match, teams }: { match: MatchCore; teams: TeamOption[] }) {
+export function MatchCoreInfoEditor({ match, teams, embedded = false }: { match: MatchCore; teams: TeamOption[]; embedded?: boolean }) {
   const router = useRouter();
   const [teamId, setTeamId] = useState(match.team_a_id ?? "");
   const [teamName, setTeamName] = useState(match.team_a_name);
@@ -20,8 +20,8 @@ export function MatchCoreInfoEditor({ match, teams }: { match: MatchCore; teams:
   const [time, setTime] = useState(match.start_time?.slice(0, 5) ?? "");
   const [recordingTime, setRecordingTime] = useState(match.recording_start_time?.slice(0, 8) ?? "");
   const [status, setStatus] = useState(match.status);
-  const [scoreA, setScoreA] = useState(match.score_a?.toString() ?? "");
-  const [scoreB, setScoreB] = useState(match.score_b?.toString() ?? "");
+  const scoreA = match.score_a?.toString() ?? "";
+  const scoreB = match.score_b?.toString() ?? "";
   const [isHome, setIsHome] = useState(match.is_home_match);
   const [notice, setNotice] = useState("");
 
@@ -42,9 +42,8 @@ export function MatchCoreInfoEditor({ match, teams }: { match: MatchCore; teams:
     router.refresh();
   }
 
-  return <section className="rounded-2xl border border-accent bg-card p-5">
-    <h2 className="font-black text-textBright">Wedstrijdgegevens</h2>
-    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+  const content = <>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <label className="text-sm text-textSecondary">Eigen ploeg<select value={teamId} onChange={event => {
         const id = event.target.value; setTeamId(id); const team = teams.find(item => item.id === id); if (team) setTeamName(team.name);
       }} className={inputClass}><option value="">Andere ploegnaam</option>{teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label>
@@ -55,10 +54,14 @@ export function MatchCoreInfoEditor({ match, teams }: { match: MatchCore; teams:
       <label className="text-sm text-textSecondary">Start van de opname<input type="time" step="1" value={recordingTime} onChange={event => setRecordingTime(event.target.value)} className={inputClass} /></label>
       <label className="text-sm text-textSecondary">Status<select value={status} onChange={event => setStatus(event.target.value as MatchCore["status"])} className={inputClass}><option value="scheduled">Gepland</option><option value="live">Live</option><option value="finished">Afgewerkt</option></select></label>
       <label className="flex items-center gap-2 self-end pb-3 text-sm text-textPrimary"><input type="checkbox" checked={isHome} onChange={event => setIsHome(event.target.checked)} className="h-4 w-4 accent-accent" />Thuiswedstrijd</label>
-      <label className="text-sm text-textSecondary">Score eigen ploeg<input type="number" min="0" value={scoreA} onChange={event => setScoreA(event.target.value)} className={inputClass} /></label>
-      <label className="text-sm text-textSecondary">Score tegenstander<input type="number" min="0" value={scoreB} onChange={event => setScoreB(event.target.value)} className={inputClass} /></label>
     </div>
     <div className="mt-5 flex items-center gap-3"><button type="button" onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-semibold text-page">Wedstrijdgegevens bewaren</button><span className="text-sm text-textMuted">{notice}</span></div>
+  </>;
+
+  if (embedded) return content;
+  return <section className="rounded-2xl border border-accent bg-card p-5">
+    <h2 className="mb-4 font-black text-textBright">Wedstrijdgegevens</h2>
+    {content}
   </section>;
 }
 

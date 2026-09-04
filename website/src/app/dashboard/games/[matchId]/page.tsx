@@ -6,9 +6,7 @@ import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club
 import { PublicMatchInfoEditor } from "@/components/matches/PublicMatchInfoEditor";
 import { MatchDossierTabs } from "@/components/matches/MatchDossierTabs";
 import { MatchPreparationEditor } from "@/components/matches/MatchPreparationEditor";
-import { MatchTagLinkButton } from "@/components/matches/MatchTagLinkButton";
 import { getClubContext } from "@/lib/auth/active-club";
-import { MatchCoreInfoEditor } from "@/components/matches/MatchCoreInfoEditor";
 import { MatchHeaderScoreEditor } from "@/components/matches/MatchHeaderScoreEditor";
 import { deleteObject } from "@/lib/r2/upload";
 import { hasScheduledEventEnded } from "@/lib/schedule-status";
@@ -46,7 +44,6 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   const canManage = staffCanView && hasClubPermission(access, "games.create");
   const canPrepare = staffCanView && (hasClubPermission(access, "games.planning.manage") || hasClubPermission(access, "games.selection.manage")
     || hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.tag_link.create"));
-  const canCreateTagLink = staffCanView && hasClubPermission(access, "games.tag_link.create");
   const canViewSelection = staffCanView && hasClubPermission(access, "games.selection.view");
   const canViewReport = staffCanView && hasClubPermission(access, "games.report.view");
   const canManageReport = staffCanView && hasClubPermission(access, "games.report.manage");
@@ -150,7 +147,6 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     <div className="flex flex-wrap items-center justify-between gap-3">
       <Link href="/dashboard" className="text-sm font-semibold text-accent hover:underline">← Terug naar dashboard</Link>
       <div className="flex flex-wrap gap-2">
-        {canCreateTagLink && !played && <MatchTagLinkButton matchId={match.id} />}
         {canEditAnything && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : played ? "Wedstrijdverslag opmaken" : "Wedstrijdvoorbereiding opmaken"}</Link>}
         {canViewVideo && !!videoCount && <Link href={`/dashboard/matches/${match.id}`} className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page">Open videoviewer</Link>}
       </div>
@@ -163,7 +159,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       </div>
       <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
         <h1 className="text-xl font-black text-textBright sm:text-3xl">{homeTeamName}</h1>
-        {editing && canEditScore
+        {editing && canEditScore && played
           ? <MatchHeaderScoreEditor matchId={match.id} homeTeamName={homeTeamName} awayTeamName={awayTeamName} homeScore={homeScore} awayScore={awayScore} />
           : <div className="min-w-20 rounded-xl border border-borderSubtle bg-cardDeep px-3 py-2 text-2xl font-black text-textBright">{scoreKnown ? `${homeScore} – ${awayScore}` : "–"}</div>}
         <h2 className="text-xl font-black text-textBright sm:text-3xl">{awayTeamName}</h2>
@@ -174,8 +170,6 @@ export default async function GameOverviewPage({ params, searchParams }: { param
         Wedstrijd afgewerkt door {completedByProfile?.full_name?.trim() || completedByProfile?.email?.split("@")[0] || "onbekend"} · {new Date(match.completed_at).toLocaleString("nl-BE")}
       </p>}
     </header>
-
-    {editing && canManage && <MatchCoreInfoEditor match={match} teams={(editableTeams ?? []).map(team => ({ id: team.id, name: team.name }))} />}
 
     {!editing && <section className="grid gap-4">
       <PublicMatchInfoEditor
@@ -202,7 +196,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       </PublicMatchInfoEditor>
     </section>}
 
-    {editing && canPrepare && <MatchPreparationEditor match={match} />}
+    {editing && canPrepare && <MatchPreparationEditor match={match} teams={(editableTeams ?? []).map(team => ({ id: team.id, name: team.name }))} canManage={canManage} />}
 
     {staffCanView && <MatchDossierTabs
       matchId={match.id}
