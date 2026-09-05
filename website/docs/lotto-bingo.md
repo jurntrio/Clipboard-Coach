@@ -4,7 +4,8 @@ Public route: `/clubboys/lottobingo`. It uses its own styling adapted from the
 supplied `clubboys_lotto_bingo_v2.html`, outside the dashboard layout. The supplied
 Clubboys logo is served locally. No iframe, separate login, or localStorage data.
 
-Apply `supabase/migrations/0197_lotto_bingo.sql` before deploying the web code.
+Apply `supabase/migrations/0197_lotto_bingo.sql` and
+`supabase/migrations/0198_lotto_bingo_rpc_convention.sql` before deploying the web code.
 The module owns three tables and four narrowly scoped database functions. The
 public snapshot function runs as the invoker and respects RLS; it returns a
 consistent complete snapshot without the normal REST row limit. The page fetches
