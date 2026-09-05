@@ -88,7 +88,6 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       ? admin.from("profiles").select("full_name, email").eq("id", match.completed_by).maybeSingle()
       : Promise.resolve({ data: null })
   ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: null }, { data: [] }, { data: null }];
-  const videoCount = videoIds.length;
   const selectionNumberByPlayer = new Map((matchSelections ?? []).map(selection => [selection.player_id, selection.jersey_number]));
   const selectedPlayersWithMatchNumbers = (selectedPlayers ?? []).map(player => ({
     ...player, jersey_number: selectionNumberByPlayer.get(player.id) ?? player.jersey_number
@@ -148,7 +147,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       <Link href="/dashboard" className="text-sm font-semibold text-accent hover:underline">← Terug naar dashboard</Link>
       <div className="flex flex-wrap gap-2">
         {canEditAnything && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : played ? "Wedstrijdverslag opmaken" : "Wedstrijdvoorbereiding opmaken"}</Link>}
-        {canViewVideo && !!videoCount && <Link href={`/dashboard/matches/${match.id}`} className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page">Open videoviewer</Link>}
+        {canViewVideo && <Link href={`/dashboard/matches/${match.id}`} className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page">Open videoviewer</Link>}
       </div>
     </div>
 
