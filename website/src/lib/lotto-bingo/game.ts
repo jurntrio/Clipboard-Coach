@@ -9,14 +9,20 @@ export const dateLabel = (value: string) => new Date(`${value}T12:00:00Z`).toLoc
 
 export function validNumbers(value: unknown, count: number): value is number[] {
   return Array.isArray(value) && value.length === count && new Set(value).size === count
-    && value.every(n => Number.isInteger(n) && n >= 1 && n <= 46);
+    && value.every(n => Number.isInteger(n) && n >= 1 && n <= 45);
 }
 export function parseNumbers(text: string, count: number): number[] {
   const parts = text.trim().split(/[\s,;]+/);
-  if (parts.some(part => !/^\d{1,2}$/.test(part))) throw new Error(`Geef exact ${count} unieke gehele nummers van 1 t.e.m. 46 in.`);
+  if (parts.some(part => !/^\d{1,2}$/.test(part))) throw new Error(`Geef exact ${count} unieke gehele nummers van 1 t.e.m. 45 in.`);
   const numbers = parts.map(Number);
-  if (!validNumbers(numbers, count)) throw new Error(`Geef exact ${count} unieke nummers van 1 t.e.m. 46 in.`);
+  if (!validNumbers(numbers, count)) throw new Error(`Geef exact ${count} unieke nummers van 1 t.e.m. 45 in.`);
   return numbers.sort((a, b) => a - b);
+}
+export function parseNumberSlots(values: string[], count: number): number[] {
+  if (values.length !== count || values.some(value => !/^\d{1,2}$/.test(value))) {
+    throw new Error(`Vul alle ${count} vakjes in met één nummer van 1 t.e.m. 45.`);
+  }
+  return parseNumbers(values.join(","), count);
 }
 export function validSaturday(date: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;

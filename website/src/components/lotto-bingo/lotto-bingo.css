@@ -103,6 +103,14 @@
 .clubboys-bingo .public-area.wrap { padding:26px 18px 50px; }
 .clubboys-bingo .admin.wrap { padding:28px 18px 60px; }
 .clubboys-bingo .form-card h3 { font-size:19px; }
+.clubboys-bingo .number-inputs { min-width:0; margin-top:12px; padding:0; border:0; }
+.clubboys-bingo .number-inputs legend { padding:0; margin-bottom:6px; font-size:13px; font-weight:850; }
+.clubboys-bingo .number-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; max-width:320px; }
+.clubboys-bingo .number-grid-six { grid-template-columns:repeat(6,minmax(0,1fr)); max-width:380px; }
+.clubboys-bingo .number-grid input { min-width:0; height:52px; padding:8px 4px; text-align:center; font-size:22px; font-weight:800; }
+.clubboys-bingo .number-grid input[aria-invalid="true"] { border-color:var(--danger); background:#fff3f2; }
+.clubboys-bingo .number-error { color:var(--danger); }
+@media(max-width:420px) { .clubboys-bingo .number-grid-six { grid-template-columns:repeat(3,minmax(0,1fr)); max-width:200px; } }
 .clubboys-bingo .form-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
 .clubboys-bingo .notice.error { background:#fff3f2; color:#a61b1b; border-color:#f2c6c2; }
 .clubboys-bingo .last-draw { padding:16px 20px; margin-bottom:18px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }

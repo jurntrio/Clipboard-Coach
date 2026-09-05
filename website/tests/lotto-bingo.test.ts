@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateGame, defaultSettings, parseNumbers, validNumbers, validSaturday, type BingoData } from "../src/lib/lotto-bingo/game.ts";
+import { calculateGame, defaultSettings, parseNumbers, parseNumberSlots, validNumbers, validSaturday, type BingoData } from "../src/lib/lotto-bingo/game.ts";
 
 const participant = (id: string, numbers = [1,2,3,4,5,6,7,8,9,10]) => ({ id, name: id, numbers });
 const first = { id: "d1", draw_date: "2026-10-03", numbers: [1,2,3,4,5,6] };
 const second = { id: "d2", draw_date: "2026-10-10", numbers: [5,6,7,8,9,10] };
 const state = (): BingoData => ({ participants: [participant("Anna"), participant("Bert")], draws: [first, second], settings: defaultSettings });
+
+test("individual boxes require every slot and accept 45 but reject 46 and duplicates", () => {
+  assert.deepEqual(parseNumberSlots(["45","2","3","4","5","1"],6),[1,2,3,4,5,45]);
+  assert.deepEqual(parseNumberSlots(["1","2","3","4","5","6","7","8","9","45"],10),[1,2,3,4,5,6,7,8,9,45]);
+  for (const slots of [["1","2","3","4","5","46"],["1","2","3","4","5",""],["1","2","3","4","5","01"],["1","2","3","4","5","0"],["1","2","3","4","5","6,7"],["1","2","3","4","5","1.5"],["1","2","3","4","5"]]) assert.throws(()=>parseNumberSlots(slots,6));
+  assert.equal(validNumbers([1,2,3,4,5,46],6),false);
+});
 
 test("accepts exactly ten or six distinct integers, rejects duplicates and loose parsing", () => {
   assert.deepEqual(parseNumbers("10,9,8,7,6,5,4,3,2,1",10), [1,2,3,4,5,6,7,8,9,10]);

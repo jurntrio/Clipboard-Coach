@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { dateLabel, parseNumbers, validSaturday, type BingoData, type Participant, type Draw } from "@/lib/lotto-bingo/game";
+import { dateLabel, parseNumberSlots, validSaturday, type BingoData, type Participant, type Draw } from "@/lib/lotto-bingo/game";
+import { NumberInputs } from "./NumberInputs";
 import { Balls } from "./LottoBingo";
 import { generateStandImages, type StandImage } from "@/lib/lotto-bingo/export";
 
@@ -18,9 +19,9 @@ export default function BingoAdmin({ data, refresh }: { data: BingoData; refresh
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [draw, setDraw] = useState<Draw | null>(null);
   const [name, setName] = useState("");
-  const [numbers, setNumbers] = useState("");
+  const [numbers, setNumbers] = useState<string[]>(Array(10).fill(""));
   const [drawDate, setDrawDate] = useState("");
-  const [drawNumbers, setDrawNumbers] = useState("");
+  const [drawNumbers, setDrawNumbers] = useState<string[]>(Array(6).fill(""));
   const [tab, setTab] = useState("participants");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -42,15 +43,15 @@ export default function BingoAdmin({ data, refresh }: { data: BingoData; refresh
     if (result.error) throw new Error(databaseMessage(result.error));
     if (!result.data?.length) throw new Error("Niet opgeslagen: de gegevens of je rechten zijn gewijzigd. Vernieuw de pagina en probeer opnieuw.");
   }
-  function resetParticipant() { setParticipant(null); setName(""); setNumbers(""); }
-  function resetDraw() { setDraw(null); setDrawDate(""); setDrawNumbers(""); }
-  function editParticipant(p: Participant) { setParticipant(p); setName(p.name); setNumbers(p.numbers.join(", ")); document.getElementById("bingo-participant-form")?.scrollIntoView({ behavior: "smooth", block: "center" }); }
-  function editDraw(d: Draw) { setDraw(d); setDrawDate(d.draw_date); setDrawNumbers(d.numbers.join(", ")); document.getElementById("bingo-draw-form")?.scrollIntoView({ behavior: "smooth", block: "center" }); }
+  function resetParticipant() { setParticipant(null); setName(""); setNumbers(Array(10).fill("")); }
+  function resetDraw() { setDraw(null); setDrawDate(""); setDrawNumbers(Array(6).fill("")); }
+  function editParticipant(p: Participant) { setParticipant(p); setName(p.name); setNumbers(p.numbers.map(String)); document.getElementById("bingo-participant-form")?.scrollIntoView({ behavior: "smooth", block: "center" }); }
+  function editDraw(d: Draw) { setDraw(d); setDrawDate(d.draw_date); setDrawNumbers(d.numbers.map(String)); document.getElementById("bingo-draw-form")?.scrollIntoView({ behavior: "smooth", block: "center" }); }
   function saveParticipant(event: FormEvent) {
     event.preventDefault();
     if (participant && !window.confirm("Deze deelnemer aanpassen? Het klassement en eventuele winnaars worden opnieuw berekend.")) return;
     void perform(async () => {
-      const value = { name: name.trim(), numbers: parseNumbers(numbers, 10) };
+      const value = { name: name.trim(), numbers: parseNumberSlots(numbers, 10) };
       if (!value.name || value.name.length > 100) throw new Error("Vul een naam van 1 tot 100 tekens in.");
       const table = supabase.from("lotto_bingo_participants");
       checkResult(await (participant ? table.update(value).eq("id", participant.id).eq("name", participant.name).eq("numbers", `{${participant.numbers.join(",")}}`) : table.insert(value)).select("id"));
@@ -62,7 +63,7 @@ export default function BingoAdmin({ data, refresh }: { data: BingoData; refresh
     if (draw && !window.confirm("Deze trekking aanpassen? Het klassement en eventuele winnaars worden opnieuw berekend.")) return;
     void perform(async () => {
       if (!validSaturday(drawDate) || drawDate < data.settings.start_date) throw new Error("Kies een zaterdag op of na de startdatum.");
-      const value = { draw_date: drawDate, numbers: parseNumbers(drawNumbers, 6) };
+      const value = { draw_date: drawDate, numbers: parseNumberSlots(drawNumbers, 6) };
       const table = supabase.from("lotto_bingo_draws");
       checkResult(await (draw ? table.update(value).eq("id", draw.id).eq("draw_date", draw.draw_date).eq("numbers", `{${draw.numbers.join(",")}}`) : table.insert(value)).select("id"));
       resetDraw();
@@ -106,8 +107,8 @@ export default function BingoAdmin({ data, refresh }: { data: BingoData; refresh
     {message && <div role={error ? "alert" : "status"} className={`notice status-message ${error ? "error" : ""}`}>{message}</div>}
     {!!images.length && <section className="card form-card"><h3>Download voor Facebook</h3><p>Alle deelnemers staan erop, verdeeld over {images.length} pagina{images.length === 1 ? "" : "’s"}.</p><div className="export-previews">{images.map((image, index) => <div key={image.url}>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={image.url} alt={`Voorbeeld klassement, pagina ${index + 1}`} /><a className="btn btn-green" href={image.url} download={image.filename}>Download pagina {index + 1}</a></div>)}</div></section>}
     <div className="grid" style={{ marginTop: 16 }}>
-      <form className="card form-card" id="bingo-participant-form" onSubmit={saveParticipant}><h3>{participant ? "Deelnemer aanpassen" : "Deelnemer toevoegen"}</h3><label htmlFor="bingo-name">Naam</label><input id="bingo-name" value={name} onChange={e => setName(e.target.value)} required maxLength={100} disabled={busy} placeholder="bv. Jan Peeters" /><label htmlFor="bingo-numbers">10 verschillende nummers</label><input id="bingo-numbers" value={numbers} onChange={e => setNumbers(e.target.value)} required disabled={busy} placeholder="3, 7, 12, 18, 21, 27, 31, 35, 40, 46" /><p className="help">Exact 10 unieke gehele nummers van 1 t.e.m. 46. Scheid ze met komma’s of spaties.</p><div className="form-actions"><button className="btn btn-green" disabled={busy}>{participant ? "Wijzigingen opslaan" : "Deelnemer toevoegen"}</button>{participant && <button type="button" className="btn btn-light" disabled={busy} onClick={resetParticipant}>Annuleren</button>}</div></form>
-      <form className="card form-card" id="bingo-draw-form" onSubmit={saveDraw}><h3>{draw ? "Trekking aanpassen" : "Lotto-trekking toevoegen"}</h3><label htmlFor="bingo-date">Datum</label><input id="bingo-date" type="date" min={data.settings.start_date} value={drawDate} onChange={e => setDrawDate(e.target.value)} required disabled={busy} /><label htmlFor="bingo-draw-numbers">6 hoofdnummers</label><input id="bingo-draw-numbers" value={drawNumbers} onChange={e => setDrawNumbers(e.target.value)} required disabled={busy} placeholder="4, 9, 16, 22, 34, 41" /><p className="help">Alleen zaterdag, vanaf {dateLabel(data.settings.start_date)}. Het reserve- of bonusnummer telt niet mee.</p><div className="form-actions"><button className="btn btn-green" disabled={busy}>{draw ? "Wijzigingen opslaan" : "Trekking toevoegen"}</button>{draw && <button type="button" className="btn btn-light" disabled={busy} onClick={resetDraw}>Annuleren</button>}</div></form>
+      <form className="card form-card" id="bingo-participant-form" onSubmit={saveParticipant}><h3>{participant ? "Deelnemer aanpassen" : "Deelnemer toevoegen"}</h3><label htmlFor="bingo-name">Naam</label><input id="bingo-name" value={name} onChange={e => setName(e.target.value)} required maxLength={100} disabled={busy} placeholder="bv. Jan Peeters" /><NumberInputs id="bingo-numbers" legend="10 verschillende nummers" label="Deelnemernummer" values={numbers} onChange={setNumbers} disabled={busy} /><div className="form-actions"><button className="btn btn-green" disabled={busy}>{participant ? "Wijzigingen opslaan" : "Deelnemer toevoegen"}</button>{participant && <button type="button" className="btn btn-light" disabled={busy} onClick={resetParticipant}>Annuleren</button>}</div></form>
+      <form className="card form-card" id="bingo-draw-form" onSubmit={saveDraw}><h3>{draw ? "Trekking aanpassen" : "Lotto-trekking toevoegen"}</h3><label htmlFor="bingo-date">Datum</label><input id="bingo-date" type="date" min={data.settings.start_date} value={drawDate} onChange={e => setDrawDate(e.target.value)} required disabled={busy} /><NumberInputs id="bingo-draw-numbers" legend="6 hoofdnummers" label="Hoofdnummer" values={drawNumbers} onChange={setDrawNumbers} disabled={busy} /><p className="help">Alleen zaterdag, vanaf {dateLabel(data.settings.start_date)}. Het reserve- of bonusnummer telt niet mee.</p><div className="form-actions"><button className="btn btn-green" disabled={busy}>{draw ? "Wijzigingen opslaan" : "Trekking toevoegen"}</button>{draw && <button type="button" className="btn btn-light" disabled={busy} onClick={resetDraw}>Annuleren</button>}</div></form>
     </div>
     <div className="admin-tabs" role="group" aria-label="Beheergedeelte">{[["participants", "Deelnemers"], ["draws", "Trekkingen"], ["settings", "Instellingen"]].map(([key, label]) => <button key={key} type="button" className={`btn ${tab === key ? "btn-green" : "btn-light"}`} aria-pressed={tab === key} onClick={() => setTab(key)}>{label}</button>)}</div>
     {tab === "participants" && <section className="card"><div className="card-head"><h2>Deelnemers beheren</h2></div>{data.participants.length ? <div className="table-wrap"><table><thead><tr><th>Naam</th><th>Nummers</th><th>Acties</th></tr></thead><tbody>{data.participants.map(p => <tr key={p.id}><td className="name">{p.name}</td><td><Balls numbers={p.numbers} /></td><td><div className="actions"><button className="small-btn" disabled={busy} onClick={() => editParticipant(p)}>Aanpassen</button><button className="small-btn danger" disabled={busy} onClick={() => remove("participants", p)}>Verwijderen</button></div></td></tr>)}</tbody></table></div> : <p className="empty">Nog geen deelnemers.</p>}</section>}

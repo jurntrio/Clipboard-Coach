@@ -5,7 +5,9 @@ supplied `clubboys_lotto_bingo_v2.html`, outside the dashboard layout. The suppl
 Clubboys logo is served locally. No iframe, separate login, or localStorage data.
 
 Apply `supabase/migrations/0197_lotto_bingo.sql` and
-`supabase/migrations/0198_lotto_bingo_rpc_convention.sql` before deploying the web code.
+`supabase/migrations/0198_lotto_bingo_rpc_convention.sql`, then
+`supabase/migrations/0199_lotto_bingo_45_numbers.sql` before deploying the web code.
+Admin entry uses ten individual number boxes for participants and six for draws.
 The module owns three tables and four narrowly scoped database functions. The
 public snapshot function runs as the invoker and respects RLS; it returns a
 consistent complete snapshot without the normal REST row limit. The page fetches
@@ -20,7 +22,7 @@ No service-role key is used. The legacy emergency email allowlist and
 `admin_viewer` do not bypass the database role requirement. Check that the
 intended General Admin has the canonical platform role before rollout.
 
-Participants have a name and exactly ten distinct integers from 1 through 46.
+Participants have a name and exactly ten distinct integers from 1 through 45.
 Draws have one unique Saturday date, on or after the configured start, and six
 distinct main numbers. Constraints and triggers enforce these rules even for
 direct requests. Settings contain one protected singleton row. Its start cannot

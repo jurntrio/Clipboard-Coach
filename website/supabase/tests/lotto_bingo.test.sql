@@ -13,7 +13,8 @@ update public.profiles set account_role = 'club_admin' where id = 'bc194700-0000
 update public.profiles set account_role = 'admin_viewer' where id = 'bc194700-0000-4000-8000-000000000003';
 update public.profiles set account_role = 'coach' where id = 'bc194700-0000-4000-8000-000000000004';
 
-select ok(public.lotto_bingo_valid_numbers(array[1,2,3,4,5,6,7,8,9,46],10),'ten unique integers accepted');
+select ok(public.lotto_bingo_valid_numbers(array[1,2,3,4,5,6,7,8,9,45],10),'ten unique integers including 45 accepted');
+select ok(not public.lotto_bingo_valid_numbers(array[1,2,3,4,5,46],6),'46 rejected');
 select ok(not public.lotto_bingo_valid_numbers(array[1,2,3,4,5,5],6),'duplicate rejected');
 select ok(not public.lotto_bingo_valid_numbers(array[1,2,3,4,5,null],6),'null rejected');
 select ok(not public.lotto_bingo_valid_numbers(array[1,2,3,4,5,47],6),'out of range rejected');
@@ -21,6 +22,8 @@ select ok(not public.lotto_bingo_valid_numbers(array[1,2,3,4,5,47],6),'out of ra
 set local role authenticated;
 select set_config('request.jwt.claim.sub','bc194700-0000-4000-8000-000000000001',true);
 select ok(public.lotto_bingo_is_admin(),'General Admin qualifies');
+select throws_ok($$insert into public.lotto_bingo_participants(name,numbers) values ('Invalid 46',array[1,2,3,4,5,6,7,8,9,46])$$,'23514',null,'participant 46 rejected by DB');
+select throws_ok($$insert into public.lotto_bingo_draws(draw_date,numbers) values ('2026-10-03',array[1,2,3,4,5,46])$$,'23514',null,'draw 46 rejected by DB');
 select lives_ok($$insert into public.lotto_bingo_participants(id,name,numbers) values ('bc194700-0000-4000-8000-000000000010','Bingo fixture',array[1,2,3,4,5,6,7,8,9,10])$$,'admin inserts participant');
 select lives_ok($$update public.lotto_bingo_participants set name='Edited fixture' where id='bc194700-0000-4000-8000-000000000010'$$,'admin updates participant');
 select is((select name from public.lotto_bingo_participants where id='bc194700-0000-4000-8000-000000000010'),'Edited fixture','update persisted');
