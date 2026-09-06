@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { inspectLocalVideo, type LocalVideoInfo } from "@/lib/media/local-clips";
+import { inspectLocalVideo, recordingStartTimeFromLocalVideos, sortLocalVideosByRecordingTime, type LocalVideoInfo } from "@/lib/media/local-clips";
 import { getRememberedLocalVideo, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
 import { externalRecordingCameras, externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
 import type { Match, Team, Video } from "@/types/database";
@@ -367,6 +367,8 @@ export function MatchLauncher() {
       setStatus(t("match.creating"));
       const selectedTeamA = teams.find((team) => team.id === teamAId);
       const selectedTeamB = teams.find((team) => team.id === teamBId);
+      const orderedLocalVideos = videoSource === "file" ? sortLocalVideosByRecordingTime(selected) : selected;
+      const inferredRecordingStartTime = videoSource === "file" ? recordingStartTimeFromLocalVideos(orderedLocalVideos) : null;
       const { data: match, error: matchError } = await supabase.from("matches").insert({
         coach_id: user.id,
         club_id: activeClubId,
@@ -377,6 +379,7 @@ export function MatchLauncher() {
         team_b_name: selectedTeamB?.name || teamBName.trim() || t("match.teamB"),
         match_date: date || null,
         start_time: startTime || null,
+        recording_start_time: inferredRecordingStartTime,
         last_opened_at: new Date().toISOString()
       }).select("id").single();
       if (matchError) throw matchError;
@@ -428,9 +431,9 @@ export function MatchLauncher() {
           if (linkError) throw linkError;
         }
       } else {
-        for (let index = 0; index < selected.length; index += 1) {
-          const selection = selected[index];
-          setStatus(t("match.savingVideo", { current: index + 1, total: selected.length }));
+        for (let index = 0; index < orderedLocalVideos.length; index += 1) {
+          const selection = orderedLocalVideos[index];
+          setStatus(t("match.savingVideo", { current: index + 1, total: orderedLocalVideos.length }));
           const fingerprint = await localVideoFingerprint(selection.file);
           const { data: existing } = await supabase.from("videos").select("id")
             .eq("coach_id", user.id).eq("video_key", `local/${fingerprint}`).eq("status", "active").maybeSingle();
