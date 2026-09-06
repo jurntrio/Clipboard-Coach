@@ -6,11 +6,11 @@ import { useHlsSource } from "../video-player/useHlsSource";
 import { ActiveDrawingOverlay } from "../video-player/ActiveDrawingOverlay";
 import { useI18n } from "@/i18n/client";
 
-export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segments: ClipSegmentPlayback[] }) {
+export function ShareClipPlayer({ videoUrl, segments, autoStart = false }: { videoUrl: string; segments: ClipSegmentPlayback[]; autoStart?: boolean }) {
   const { t } = useI18n();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const continuePlayingRef = useRef(false);
+  const continuePlayingRef = useRef(autoStart);
   const pendingLocalTimeRef = useRef<number | null>(null);
   const changingSegmentRef = useRef(false);
   const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -3,12 +3,16 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/client";
 import { SvsBrand } from "@/components/branding/SvsBrand";
+import { ClipIntroEditor } from "./ClipIntroEditor";
 
 export function ShareClipDialog({ clipName, shareUrl, tvUrl, onClose }: { clipName: string; shareUrl: string; tvUrl?: string; onClose: () => void }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [canNativeShare, setCanNativeShare] = useState(false);
   const [reviewed, setReviewed] = useState(false);
+  const [introReady, setIntroReady] = useState(false);
+  const introToken = new URL(shareUrl, "https://app.sportvisualsystems.com").pathname.split("/").filter(Boolean).pop() || "";
+  const readyToShare = reviewed && introReady;
   const isAutomaticClipName = /^Clip \(\d+ tags?\)$/i.test(clipName.trim());
   const publicClipName = isAutomaticClipName ? t("share.thisClip") : `“${clipName.trim()}”`;
   const shareText = t("share.watch", { clip: publicClipName });
@@ -41,7 +45,7 @@ export function ShareClipDialog({ clipName, shareUrl, tvUrl, onClose }: { clipNa
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/80 p-3 backdrop-blur-sm sm:items-center" onClick={onClose}>
-      <section className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-accent/40 bg-cardAlt shadow-2xl shadow-black/60" role="dialog" aria-modal="true" aria-labelledby="share-dialog-title" onClick={(event) => event.stopPropagation()}>
+      <section className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-accent/40 bg-cardAlt shadow-2xl shadow-black/60" role="dialog" aria-modal="true" aria-labelledby="share-dialog-title" onClick={(event) => event.stopPropagation()}>
         <div className="absolute inset-x-0 top-0 h-1 bg-accent" />
         <div className="border-b border-border bg-cardDeep px-5 pb-4 pt-6">
           <button type="button" onClick={onClose} className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full text-xl text-textMuted hover:bg-button hover:text-textBright" aria-label={t("share.close")}>×</button>
@@ -59,10 +63,11 @@ export function ShareClipDialog({ clipName, shareUrl, tvUrl, onClose }: { clipNa
 
         <div className="p-5">
           <p className="text-sm text-textSecondary">{t("share.anyone")}</p>
+          <ClipIntroEditor token={introToken} onReady={setIntroReady} />
 
-          <div className={`mt-4 flex items-center gap-2 rounded-xl border border-borderButton bg-input p-2 ${reviewed ? "" : "opacity-50"}`}>
+          <div className={`mt-4 flex items-center gap-2 rounded-xl border border-borderButton bg-input p-2 ${readyToShare ? "" : "opacity-50"}`}>
             <span className="min-w-0 flex-1 truncate px-2 font-mono text-xs text-textPrimary">{shareUrl}</span>
-            <button type="button" disabled={!reviewed} onClick={() => void copyLink()} className="flex-shrink-0 rounded-lg bg-accent px-3 py-2 text-sm font-bold text-page hover:opacity-90 disabled:cursor-not-allowed">
+            <button type="button" disabled={!readyToShare} onClick={() => void copyLink()} className="flex-shrink-0 rounded-lg bg-accent px-3 py-2 text-sm font-bold text-page hover:opacity-90 disabled:cursor-not-allowed">
               {copied ? t("share.copied") : t("share.copyLink")}
             </button>
           </div>
@@ -72,7 +77,7 @@ export function ShareClipDialog({ clipName, shareUrl, tvUrl, onClose }: { clipNa
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">Korte link voor tv</p>
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 <span className="min-w-0 flex-1 font-mono text-lg font-black text-textBright">{tvUrl.replace(/^https?:\/\//, "")}</span>
-                <button type="button" onClick={() => void copyTvLink()} className="rounded-lg border border-accent bg-cardDeep px-3 py-2 text-sm font-bold text-accent hover:bg-cardHover">
+                <button type="button" disabled={!readyToShare} onClick={() => void copyTvLink()} className="rounded-lg border border-accent bg-cardDeep px-3 py-2 text-sm font-bold text-accent hover:bg-cardHover">
                   {copied ? t("share.copied") : t("share.copy")}
                 </button>
               </div>
@@ -83,10 +88,10 @@ export function ShareClipDialog({ clipName, shareUrl, tvUrl, onClose }: { clipNa
           <label className="mt-5 flex items-start gap-3 rounded-xl border border-accent/40 bg-accentDim p-3 text-xs font-semibold leading-5 text-textPrimary"><input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} className="mt-1" /><span>{t("share.review")}</span></label>
 
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {canNativeShare && <button type="button" disabled={!reviewed} onClick={() => void nativeShare()} className="col-span-2 flex items-center justify-center gap-2 rounded-xl border border-accent bg-accentDim px-4 py-3 font-semibold text-accent hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-3"><span aria-hidden="true">↗</span> {t("share.phone")}</button>}
-            {reviewed ? <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover"><span className="grid h-6 w-6 place-items-center rounded-full bg-[#25D366] font-bold text-black" aria-hidden="true">W</span> WhatsApp</a> : <span className="flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textMuted opacity-50">WhatsApp</span>}
-            {reviewed ? <a href={emailUrl} className="flex items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover"><span className="text-lg text-accent" aria-hidden="true">✉</span> {t("share.email")}</a> : <span className="flex cursor-not-allowed items-center justify-center rounded-xl border border-borderButton bg-button px-3 py-3 text-sm text-textMuted opacity-50">{t("share.email")}</span>}
-            <button type="button" disabled={!reviewed} onClick={() => void copyLink()} className="col-span-2 flex items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1"><span className="text-accent" aria-hidden="true">⧉</span> {copied ? t("share.copied") : t("share.copy")}</button>
+            {canNativeShare && <button type="button" disabled={!readyToShare} onClick={() => void nativeShare()} className="col-span-2 flex items-center justify-center gap-2 rounded-xl border border-accent bg-accentDim px-4 py-3 font-semibold text-accent hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-3"><span aria-hidden="true">↗</span> {t("share.phone")}</button>}
+            {readyToShare ? <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover"><span className="grid h-6 w-6 place-items-center rounded-full bg-[#25D366] font-bold text-black" aria-hidden="true">W</span> WhatsApp</a> : <span className="flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textMuted opacity-50">WhatsApp</span>}
+            {readyToShare ? <a href={emailUrl} className="flex items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover"><span className="text-lg text-accent" aria-hidden="true">✉</span> {t("share.email")}</a> : <span className="flex cursor-not-allowed items-center justify-center rounded-xl border border-borderButton bg-button px-3 py-3 text-sm text-textMuted opacity-50">{t("share.email")}</span>}
+            <button type="button" disabled={!readyToShare} onClick={() => void copyLink()} className="col-span-2 flex items-center justify-center gap-2 rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1"><span className="text-accent" aria-hidden="true">⧉</span> {copied ? t("share.copied") : t("share.copy")}</button>
           </div>
 
           <div className="mt-5 flex items-center gap-2 border-t border-border pt-4 text-xs text-textMuted">

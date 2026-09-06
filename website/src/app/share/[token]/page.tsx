@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ShareClipPlayer } from "@/components/clips/ShareClipPlayer";
+import { ShareClipWithIntro } from "@/components/clips/ShareClipWithIntro";
+import { getIntroContext } from "@/lib/clip-intro-storage";
+import { defaultClipIntro } from "@/lib/clip-intro";
 import type { ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { getServerI18n } from "@/i18n/server";
 import { LegalLinks } from "@/components/legal/LegalLinks";
@@ -46,7 +48,7 @@ type ShareVideo = Pick<Video, "video_url" | "title" | "home_team" | "away_team">
   match_videos: { match_id: string; matches: ShareMatch | null }[];
 };
 
-type ShareClip = Pick<Clip, "name" | "team_id" | "render_status" | "rendered_segments"> & {
+type ShareClip = Pick<Clip, "id" | "video_id" | "name" | "team_id" | "render_status" | "rendered_segments"> & {
   videos: ShareVideo | null;
   clip_segments: ShareClipSegment[] | null;
 };
@@ -64,7 +66,7 @@ export default async function SharePage({ params }: { params: { token: string } 
     .select(
       `id, view_count, expires_at,
        clips (
-         name, team_id, render_status, rendered_segments,
+         id, video_id, name, team_id, render_status, rendered_segments,
          videos ( video_url, title, home_team, away_team,
            match_videos ( match_id, matches ( id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, score_a, score_b, public_location, show_public_location, sponsor_source, sponsor_caption ) )
          ),
@@ -90,6 +92,10 @@ export default async function SharePage({ params }: { params: { token: string } 
   }
 
   const clip = shareLink.clips;
+  const intro = await getIntroContext(clip).catch(error => {
+    console.error("Could not load clip intro", { clipId: clip.id, error: error instanceof Error ? error.message : "Storage error" });
+    return { settings: defaultClipIntro, matchCard: { teamA: "", teamB: "", logoA: null, logoB: null, score: "" } };
+  });
   const match = clip.videos?.match_videos?.[0]?.matches ?? null;
   const sourceSegments: ClipSegmentPlayback[] = (clip.clip_segments ?? [])
     .sort((a, b) => a.sequence_order - b.sequence_order)
@@ -159,7 +165,7 @@ export default async function SharePage({ params }: { params: { token: string } 
         </section>}
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           {hasOnlineSegments ? (
-            <ShareClipPlayer videoUrl={clip.videos?.video_url ?? ""} segments={segments} />
+            <ShareClipWithIntro settings={intro.settings} match={intro.matchCard} videoUrl={clip.videos?.video_url ?? ""} segments={segments} />
           ) : (
             <div className="grid min-h-72 place-items-center bg-black p-8 text-center">
               <div><h2 className="font-semibold text-textBright">{t("public.unavailable")}</h2><p className="mt-2 text-sm text-textMuted">{t("public.unavailableBody")}</p></div>
