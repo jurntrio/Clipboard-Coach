@@ -26,6 +26,7 @@ export async function cleanupExpiredClips() {
 
     for (const clip of clips) {
       const keys = Array.from(new Set((clip.rendered_segments ?? []).map((segment) => segment.key).filter((key): key is string => !!key)));
+      keys.push(`clip-intros/renders/${clip.id}.json`, `clip-intros/render-assets/${clip.id}/opening.png`);
       for (const key of keys) {
         await deleteObject(key);
         deletedObjects += 1;
