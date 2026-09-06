@@ -18,6 +18,13 @@ export async function downloadToFile(key: string, destPath: string) {
   await pipeline(res.Body as NodeJS.ReadableStream, fs.createWriteStream(destPath));
 }
 
+export async function readJsonObject(key: string): Promise<unknown | null> {
+  try {
+    const result = await client.send(new GetObjectCommand({ Bucket: env.r2BucketName, Key: key }));
+    return JSON.parse(await result.Body!.transformToString());
+  } catch (error) { if ((error as { name?: string }).name === "NoSuchKey") return null; throw error; }
+}
+
 export async function uploadFile(key: string, filePath: string, contentType: string) {
   await client.send(
     new PutObjectCommand({

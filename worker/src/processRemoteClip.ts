@@ -5,7 +5,9 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { randomUUID } from "node:crypto";
 import { buildMobileMp4WithDrawings, probeDurationSeconds } from "./hlsPipeline";
-import { deleteObject, downloadToFile, uploadFile } from "./r2";
+import { deleteObject, downloadToFile, uploadFile, readJsonObject } from "./r2";
+import { parseImageManifest } from "./clipImagePlan";
+import { prependClipImages } from "./clipImagePipeline";
 import { supabase } from "./supabase";
 import { createRemoteRangeProxy, type RemoteRangeProxy } from "./remoteRangeProxy";
 
@@ -89,6 +91,9 @@ export async function processRemoteClip(clipId: string) {
     if (segmentsError) throw segmentsError;
     const segments = ((segmentRows ?? []) as unknown as RemoteSegmentRow[]).filter((segment) => !!segment.tags);
     if (!segments.length) throw new Error("Clip has no segments");
+    const imageData = await readJsonObject(`clip-intros/renders/${clipId}.json`);
+    const imagePlan = imageData ? parseImageManifest(imageData) : null;
+    if (imagePlan && Object.keys(imagePlan.segments).some(id => !segments.some(segment => segment.id === id))) throw new Error("Intro image refers to a different clip segment");
 
     async function rangeSource(sourceUrl: string) {
       const cached = rangeProxiesByUrl.get(sourceUrl);
@@ -167,6 +172,17 @@ export async function processRemoteClip(clipId: string) {
       }
 
       const key = `clips/${clip.coach_id}/${clipId}/${index}-${randomUUID()}-mobile.mp4`;
+      if (imagePlan) {
+        const images = [];
+        for (const [imageIndex, image] of (imagePlan.segments[segment.id] ?? []).entries()) {
+          const imagePath = path.join(workDir, `${index}-intro-${imageIndex}.png`);
+          await downloadToFile(image.key, imagePath);
+          images.push({ imagePath, duration: image.duration });
+        }
+        const withImagesPath = path.join(workDir, `${index}-with-intros.mp4`);
+        await prependClipImages(outputPath, withImagesPath, images, path.join(workDir, `${index}-intro-parts`));
+        await fsp.copyFile(withImagesPath, outputPath);
+      }
       const url = await uploadFile(key, outputPath, "video/mp4");
       const stat = await fsp.stat(outputPath);
       const duration = await probeDurationSeconds(outputPath);
