@@ -17,6 +17,35 @@ export type LocalVideoInfo = {
   audioCodec: string | null;
 };
 
+export function inferRecordingStartMs(file: File, durationSeconds: number) {
+  if (!Number.isFinite(file.lastModified) || file.lastModified <= 0 || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return null;
+  }
+  return file.lastModified - durationSeconds * 1000;
+}
+
+export function sortLocalVideosByRecordingTime<T extends { file: File; info: Pick<LocalVideoInfo, "duration"> }>(items: T[]) {
+  return [...items].sort((a, b) => {
+    const aStart = inferRecordingStartMs(a.file, a.info.duration);
+    const bStart = inferRecordingStartMs(b.file, b.info.duration);
+    if (aStart !== null && bStart !== null) return aStart - bStart;
+    if (aStart !== null) return -1;
+    if (bStart !== null) return 1;
+    return 0;
+  });
+}
+
+export function recordingStartTimeFromLocalVideos(items: Array<{ file: File; info: Pick<LocalVideoInfo, "duration"> }>) {
+  const firstStart = sortLocalVideosByRecordingTime(items)
+    .map((item) => inferRecordingStartMs(item.file, item.info.duration))
+    .find((start): start is number => start !== null);
+  if (firstStart === undefined) return null;
+
+  const date = new Date(firstStart);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 export type LocalMediaMessages = {
   unreadable: string; noVideoTrack: string; unsupportedVideoCodec: (codec: string) => string;
   unsupportedAudioCodec: (codec: string) => string; durationUnknown: string; largeClipsUnsupported: string;

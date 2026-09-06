@@ -3,7 +3,7 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
-import { inspectLocalVideo } from "@/lib/media/local-clips";
+import { inspectLocalVideo, sortLocalVideosByRecordingTime } from "@/lib/media/local-clips";
 import { localMediaMessages } from "@/i18n/local-media";
 import { useI18n } from "@/i18n/client";
 import { externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
@@ -16,6 +16,12 @@ function messageFrom(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
   return fallback;
+}
+
+function primarySequenceOrderAfter(blocks: MatchBlock[]) {
+  const primaryOrders = blocks.filter((block) => block.is_primary).map((block) => block.sequence_order);
+  if (!primaryOrders.length) return 0;
+  return Math.max(...primaryOrders) + 1;
 }
 
 /**
@@ -390,17 +396,23 @@ export function useMatchVideoSources({
     setAttaching(true);
     setError("");
     try {
-      for (let index = 0; index < selections.length; index += 1) {
-        const selection = selections[index];
+      const inspected = [];
+      for (const selection of selections) {
         const [info, fingerprint] = await Promise.all([inspectLocalVideo(selection.file, localMediaMessages(t)), localVideoFingerprint(selection.file)]);
+        inspected.push({ ...selection, info, fingerprint });
+      }
+      const orderedSelections = sortLocalVideosByRecordingTime(inspected);
+      const nextSequenceOrder = primarySequenceOrderAfter(blocks);
+      for (let index = 0; index < orderedSelections.length; index += 1) {
+        const selection = orderedSelections[index];
         const video = await createMatchVideoSource({
-          video_url: `local://${fingerprint}`,
-          video_key: `local/${fingerprint}`,
+          video_url: `local://${selection.fingerprint}`,
+          video_key: `local/${selection.fingerprint}`,
           file_size: selection.file.size,
-          duration: Math.round(info.duration),
+          duration: Math.round(selection.info.duration),
           title: selection.file.name.replace(/\.[^/.]+$/, ""),
-          sequence_order: blocks.length > 0 ? 0 : index,
-          is_primary: blocks.length > 0 ? false : true,
+          sequence_order: nextSequenceOrder + index,
+          is_primary: true,
           label: `Video ${index + 1}`
         });
         await rememberLocalVideo(video.id, selection.file, selection.handle);
