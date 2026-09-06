@@ -1,20 +1,38 @@
-# Introbeeld bij gedeelde clips
+# Beelden in het opgeslagen clipbestand
 
-In het deelvenster kan een bevoegde gebruiker een wedstrijdkaart, sponsorkaart of eigen afbeelding kiezen. De duur is instelbaar van 0,5 tot 60 seconden. De score is optioneel: leeg betekent de opgeslagen wedstrijdstand, of vul zelf een stand in. De bestaande Belgische clublogo's worden gebruikt. Afbeeldingen: PNG/JPEG/WebP, maximaal 5 MB.
+## Gebruikerspad
 
-Het introbeeld speelt na een bewuste klik vóór de clip op de openbare deellink (ook via de korte tv-link). Downloads en originele video-/tagtijden veranderen niet. Bij geblokkeerd automatisch afspelen kan de kijker de gewone afspeelknop gebruiken. Bij een opslagstoring blijft de clip beschikbaar zonder intro.
+1. Clubbeheer → Teams & spelers → Bewerken bij een ploeg → **Introbeelden bij clips toestaan**. Wijzigingen worden onmiddellijk bewaard. Alleen beheerders met `teams.manage`, ploegtoegang en een bewerkbaar seizoen kunnen deze toestemming wijzigen.
+2. Bij **Clip maken** in de videoviewer verschijnt voor een toegelaten ploeg **Beelden bij deze clip**. Een beeld is nooit verplicht; alles staat bij een nieuwe clip uit.
+3. Optioneel één openingsbeeld: wedstrijdkaart, wedstrijdkaart met sponsor (vrije benaming, bijvoorbeeld Wedstrijdsponsor of Balsponsor), of eigen upload. Score optioneel; een eigen stand kan worden ingevuld. Duur 0,5–60 seconden.
+4. Optioneel een eigen afbeelding vóór iedere geselecteerde tag, met eigen duur. Bij meerdere camera’s verschijnt het tagbeeld eenmaal vóór de eerste camera van die tag. De gekozen tagvolgorde wordt gevolgd.
+5. De worker verwerkt de beelden in de MP4-segmenten. Preview, download en deellink gebruiken deze zelfde bestanden. Delen maakt geen nieuwe video en heeft geen aparte beeldinstelling meer.
 
-Instellingen worden duurzaam in de bestaande R2-opslag bewaard onder `clip-intros/clip/{clipId}.json`, `clip-intros/match/{matchId}.json` en `clip-intros/team/{clubTeamId}.json`. Voorrang: clip, wedstrijd, ploeg, uit. Deze JSON-bestanden bevatten alleen publieke presentatiegegevens. Afbeeldingen krijgen unieke sleutels onder `clip-intros/assets/{clipId}/`. Serverreads gebruiken de S3-API, zodat gewijzigde instellingen niet afhankelijk zijn van de publieke CDN-cache. Geen databasemigratie of extra dienst vereist.
+Toestemming volgt de **ploeg van de bronwedstrijd**, niet de gekozen ontvangers. KMT A/B zijn initieel toegelaten. Jeugd, inclusief IP U13 Groen, blijft uit tenzij een beheerder toestemming geeft. Het uitschakelen van een ploeg verandert reeds gemaakte videobestanden niet. Bestaande clips worden niet automatisch opnieuw opgebouwd; oude virtuele intro-instellingen bij deellinks worden niet meer afgespeeld.
 
-De bestaande rechten voor het delen van clips gelden voor bewerken en uploaden. Ploeg- en wedstrijdstandaarden vereisen daarnaast `sponsors.manage` en toegang tot de ploeg. De ploegstandaard bewaart alleen aan/uit en duur voor een gewone wedstrijdkaart: wedstrijdsponsors worden nooit automatisch overgedragen naar andere wedstrijden. De wedstrijdoptie bewaart de volledige kaart voor clips zonder eigen instelling. Alle links naar dezelfde clip gebruiken dezelfde clipinstelling.
+## Opslag en verwerking
 
-Voor KM Torhout zijn alleen de gecontroleerde KMT A/B-ploegrecords ingeschakeld. Andere ploegen, inclusief jeugd, blijven standaard uit en kunnen de functie zelf activeren. De operationele initialisatie staat in `scripts/configure-kmt-clip-intros.mjs` en is veilig opnieuw uit te voeren: bestaande instellingen worden behouden.
+- `clip-intros/permissions/{clubTeamId}.json`: `{allowed: boolean}`. Ontbrekend betekent uit, met alleen als overgang de eerder expliciet opgeslagen ploegstandaard. `scripts/configure-kmt-clip-intros.mjs` initialiseert KMT A/B zonder bestaande toestemmingen te overschrijven.
+- `clip-intros/creation/{userId}/{videoId}/{uuid}.png`: gevalideerde, genormaliseerde uploads (PNG/JPEG/WebP, maximaal 5 MB, maximaal 40 miljoen bronpixels). Deze beelden zijn herbruikbaar bij clips van die video.
+- `clip-intros/render-assets/{clipId}/opening.png`: de vastgelegde wedstrijd-/sponsorkaart, gemaakt met de wedstrijdgegevens en clublogo’s bij het aanmaken.
+- `clip-intros/renders/{clipId}.json`: versie 1, per werkelijk clipsegment maximaal twee voorafgaande afbeeldingen. Server controleert eigenaar, ploegtoestemming, geselecteerde tags, uploadscope en duur. De worker accepteert alleen de genoemde afbeeldingssleutels, nooit willekeurige paden/URLs.
+- De manifesten en gegenereerde openingskaarten worden met de clip verwijderd. Originele video’s en tagtijden veranderen niet.
 
-Validatie vanuit `website`:
+De remote clipworker ondersteunt zowel lokale uploads als online bronvideo’s. Bij clips met beelden worden alle outputsegmenten naar dezelfde 1280×720 H.264/AAC-instellingen genormaliseerd zodat samengestelde downloads compatibele tracks hebben. Afbeeldingen worden met behoud van verhouding geplaatst, met zwarte randen waar nodig, en hebben stilte. De matchaudio blijft behouden. Reeds voltooide segmenten worden bij een herstart hergebruikt; beelden worden niet dubbel ingevoegd.
+
+Geen databasemigratie of nieuwe dependency vereist. Publiceer **website én worker**. De website controleert voor beeldclips de worker-capability `clipImageIntros: 1` via `/health` en weigert verwerking als de nieuwe worker nog ontbreekt, zodat gekozen beelden nooit stilzwijgend wegvallen.
+
+De bestaande productiehosting gebruikt twee branches: Netlify volgt `main` voor de website; Railway volgt `master` voor de worker. Publiceer workerwijzigingen ook op die workerbranch en controleer de capability vóór de websitepublicatie. Neem daarbij geen niet-gerelateerde wijzigingen uit de andere branch mee.
+
+## Verificatie
+
+Vanuit `website`:
 
 ```powershell
-npx.cmd tsc tests/clip-intro.test.ts src/lib/clip-intro.ts --outDir ../.codex-clip-intro-checks --module commonjs --target es2022 --esModuleInterop --skipLibCheck
-node --test ../.codex-clip-intro-checks/tests/clip-intro.test.js
+npx.cmd tsc tests/clip-images.test.ts tests/clip-intro.test.ts src/lib/clip-images.ts src/lib/clip-intro.ts --outDir ../.codex-clip-images-checks --module commonjs --target es2022 --esModuleInterop --skipLibCheck
+node --test ../.codex-clip-images-checks/tests/clip-images.test.js ../.codex-clip-images-checks/tests/clip-intro.test.js
 npm.cmd run typecheck
 npm.cmd run build
 ```
+
+Vanuit `worker`: `npm.cmd test` en `npm.cmd run build`. De FFmpeg-test controleert werkelijk gecodeerde frames, duur, audio, verschillende beeldverhoudingen en compatibele segmenten met en zonder voorafgaand beeld.

@@ -3,16 +3,13 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/client";
 import { SvsBrand } from "@/components/branding/SvsBrand";
-import { ClipIntroEditor } from "./ClipIntroEditor";
 
 export function ShareClipDialog({ clipName, shareUrl, tvUrl, onClose }: { clipName: string; shareUrl: string; tvUrl?: string; onClose: () => void }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [canNativeShare, setCanNativeShare] = useState(false);
   const [reviewed, setReviewed] = useState(false);
-  const [introReady, setIntroReady] = useState(false);
-  const introToken = new URL(shareUrl, "https://app.sportvisualsystems.com").pathname.split("/").filter(Boolean).pop() || "";
-  const readyToShare = reviewed && introReady;
+  const readyToShare = reviewed;
   const isAutomaticClipName = /^Clip \(\d+ tags?\)$/i.test(clipName.trim());
   const publicClipName = isAutomaticClipName ? t("share.thisClip") : `“${clipName.trim()}”`;
   const shareText = t("share.watch", { clip: publicClipName });
@@ -63,7 +60,6 @@ export function ShareClipDialog({ clipName, shareUrl, tvUrl, onClose }: { clipNa
 
         <div className="p-5">
           <p className="text-sm text-textSecondary">{t("share.anyone")}</p>
-          <ClipIntroEditor token={introToken} onReady={setIntroReady} />
 
           <div className={`mt-4 flex items-center gap-2 rounded-xl border border-borderButton bg-input p-2 ${readyToShare ? "" : "opacity-50"}`}>
             <span className="min-w-0 flex-1 truncate px-2 font-mono text-xs text-textPrimary">{shareUrl}</span>

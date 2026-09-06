@@ -1,9 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ShareClipWithIntro } from "@/components/clips/ShareClipWithIntro";
-import { getIntroContext } from "@/lib/clip-intro-storage";
-import { defaultClipIntro } from "@/lib/clip-intro";
+import { ShareClipPlayer } from "@/components/clips/ShareClipPlayer";
 import type { ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { getServerI18n } from "@/i18n/server";
 import { LegalLinks } from "@/components/legal/LegalLinks";
@@ -92,10 +90,6 @@ export default async function SharePage({ params }: { params: { token: string } 
   }
 
   const clip = shareLink.clips;
-  const intro = await getIntroContext(clip).catch(error => {
-    console.error("Could not load clip intro", { clipId: clip.id, error: error instanceof Error ? error.message : "Storage error" });
-    return { settings: defaultClipIntro, matchCard: { teamA: "", teamB: "", logoA: null, logoB: null, score: "" } };
-  });
   const match = clip.videos?.match_videos?.[0]?.matches ?? null;
   const sourceSegments: ClipSegmentPlayback[] = (clip.clip_segments ?? [])
     .sort((a, b) => a.sequence_order - b.sequence_order)
@@ -165,7 +159,7 @@ export default async function SharePage({ params }: { params: { token: string } 
         </section>}
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           {hasOnlineSegments ? (
-            <ShareClipWithIntro settings={intro.settings} match={intro.matchCard} videoUrl={clip.videos?.video_url ?? ""} segments={segments} />
+            <ShareClipPlayer videoUrl={clip.videos?.video_url ?? ""} segments={segments} />
           ) : (
             <div className="grid min-h-72 place-items-center bg-black p-8 text-center">
               <div><h2 className="font-semibold text-textBright">{t("public.unavailable")}</h2><p className="mt-2 text-sm text-textMuted">{t("public.unavailableBody")}</p></div>

@@ -55,6 +55,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
   if (loadError || !clip || (!platformAdmin && clip.coach_id !== user.id)) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
 
   const keys = ((clip.rendered_segments ?? []) as StoredSegment[]).map((segment) => segment.key).filter((key): key is string => !!key);
+  keys.push(`clip-intros/renders/${clip.id}.json`, `clip-intros/render-assets/${clip.id}/opening.png`);
   try {
     await Promise.all(keys.map((key) => deleteObject(key)));
   } catch (error) {
