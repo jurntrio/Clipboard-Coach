@@ -21,7 +21,13 @@ export async function writeImageObject(key: string, body: Buffer | string, conte
 export async function clipImagesAllowed(teamId: string | null): Promise<boolean> {
   if (!teamId) return false;
   const policy = await readImageObject(`clip-intros/permissions/${teamId}.json`);
-  if (policy) return JSON.parse(policy.toString()).allowed === true;
+  if (policy) {
+    try {
+      return JSON.parse(policy.toString()).allowed === true;
+    } catch {
+      return false;
+    }
+  }
   // Initial rollout: preserve only the explicitly configured KMT A/B defaults.
   return (await readIntro("team", teamId))?.enabled === true;
 }

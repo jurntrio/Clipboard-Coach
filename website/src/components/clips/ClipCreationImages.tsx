@@ -9,6 +9,16 @@ import { ClipIntroCard } from "./ClipIntroCard";
 const input = "mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-textPrimary";
 type Source = { allowed: boolean; teamName: string | null; matchCard: IntroMatch };
 
+async function readJsonResponse(response: Response) {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error("De server gaf geen geldig antwoord terug. Probeer opnieuw.");
+  }
+}
+
 export function ClipCreationImages({ videoId, tags, value, onChange, onReady, disabled }: {
   videoId: string; tags: Array<{ id: string; name: string }>; value: ClipImages; onChange: (value: ClipImages) => void; onReady: (ready: boolean) => void; disabled: boolean;
 }) {
@@ -20,7 +30,7 @@ export function ClipCreationImages({ videoId, tags, value, onChange, onReady, di
     let active = true;
     onReady(false); setSource(null); setError("");
     fetch(`/api/videos/${videoId}/clip-images`, { cache: "no-store" }).then(async response => {
-      const body = await response.json(); if (!response.ok) throw new Error(body.error);
+      const body = await readJsonResponse(response); if (!response.ok) throw new Error(body?.error || "De ploeginstelling kon niet worden geladen.");
       if (active) { setSource(body); if (!body.allowed) onChange(emptyClipImages()); onReady(true); }
     }).catch(reason => { if (active) setError(reason.message || "De ploeginstelling kon niet worden geladen."); });
     return () => { active = false; };
@@ -35,7 +45,7 @@ export function ClipCreationImages({ videoId, tags, value, onChange, onReady, di
       if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024) throw new Error("Kies PNG, JPEG of WebP, maximaal 5 MB.");
       const form = new FormData(); form.set("image", file);
       const response = await fetch(`/api/videos/${videoId}/clip-images`, { method: "POST", body: form });
-      const body = await response.json(); if (!response.ok) throw new Error(body.error);
+      const body = await readJsonResponse(response); if (!response.ok) throw new Error(body?.error || "Upload mislukt.");
       if (target === "opening") opening({ imageUrl: body.url });
       else if (target === "sponsor") opening({ sponsorLogoUrl: body.url });
       else onChange({ ...value, tags: { ...value.tags, [target]: { key: body.key, url: body.url, duration: value.tags[target]?.duration ?? 2 } } });

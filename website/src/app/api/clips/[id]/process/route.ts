@@ -18,7 +18,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
   try {
     const text = await request.text();
     if (text.length > 100_000) return NextResponse.json({ error: "Te veel clipbeelden." }, { status: 413 });
-    const body = text ? JSON.parse(text) : {};
+    let body: { images?: unknown } = {};
+    try {
+      body = text ? JSON.parse(text) : {};
+    } catch {
+      return NextResponse.json({ error: "Clipbeelden konden niet worden gelezen. Probeer de afbeeldingen opnieuw toe te voegen." }, { status: 400 });
+    }
     const images = body.images ? parseClipImages(body.images) : null;
     if (images && (images.opening || Object.keys(images.tags).length)) {
       const source = await clipImageSource(clip.video_id, user);
