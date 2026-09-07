@@ -9,6 +9,8 @@ import { uploadBlobToR2 } from "@/lib/r2/browser-upload";
 import { isPeriodMarker } from "@/lib/tags";
 import { useI18n } from "@/i18n/client";
 import { localMediaMessages } from "@/i18n/local-media";
+import { ClipCreationImages } from "./ClipCreationImages";
+import { emptyClipImages, parseClipImages } from "@/lib/clip-images";
 
 export function ClipBuilder({
   videoId,
@@ -54,6 +56,8 @@ export function ClipBuilder({
   const [status, setStatus] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [open, setOpen] = useState(false);
+  const [clipImages, setClipImages] = useState(emptyClipImages);
+  const [imagesReady, setImagesReady] = useState(false);
   const [teamPlayers, setTeamPlayers] = useState<Player[]>(players);
   const [availableTeams, setAvailableTeams] = useState<Team[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState(teamId ?? "");
@@ -79,6 +83,7 @@ export function ClipBuilder({
   }
 
   useEffect(() => setTeamPlayers(players), [players]);
+  useEffect(() => setClipImages(emptyClipImages()), [videoId]);
   useEffect(() => setSelectedTeamId(teamId ?? ""), [teamId]);
   useEffect(() => {
     setOrderedClipTagIds((current) => [
@@ -100,6 +105,10 @@ export function ClipBuilder({
   }, []);
 
   async function handleCreateClip() {
+    if (!imagesReady) return;
+    let chosenImages;
+    try { chosenImages = parseClipImages({ ...clipImages, tags: Object.fromEntries(Object.entries(clipImages.tags).filter(([id]) => clipTagIds.includes(id))) }); }
+    catch (error) { setErrorMessage(error instanceof Error ? error.message : "Controleer de clipbeelden."); return; }
     if (clipTagIds.length === 0) return;
     if (clipLimitReached) {
       setErrorMessage(t("clip.freeLimit"));
@@ -246,7 +255,7 @@ export function ClipBuilder({
             render_error: null
           }).eq("id", clip.id);
           if (updateError) throw updateError;
-          const processResponse = await fetch(`/api/clips/${clip.id}/process`, { method: "POST" });
+          const processResponse = await fetch(`/api/clips/${clip.id}/process`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ images: chosenImages }) });
           if (!processResponse.ok) {
             const body = await processResponse.json().catch(() => null) as { error?: string } | null;
             throw new Error(body?.error || t("clip.conversionFailed"));
@@ -257,6 +266,7 @@ export function ClipBuilder({
           setAudiencePlayerIds([]);
           setAudienceType("full_team");
           setCameraSelectionByTag({});
+          setClipImages(emptyClipImages());
           onClipCreated();
           setOpen(false);
         } catch (renderError) {
@@ -358,6 +368,8 @@ export function ClipBuilder({
               <input type="text" placeholder={clipTagIds.length === 1 ? tags.find((tag) => tag.id === clipTagIds[0])?.name || t("tag.name") : `Clip 01 ${matchLabel?.trim() || t("clip.match")}`} value={clipName} onChange={(event) => setClipName(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
             </label>
 
+            <ClipCreationImages videoId={videoId} tags={clipCandidateTags} value={clipImages} onChange={setClipImages} onReady={setImagesReady} disabled={saving} />
+
             <div className="mt-4 rounded-lg border border-border bg-cardDeep p-3">
               <h3 className="text-sm font-semibold text-textPrimary">{t("clip.segmentOrder")}</h3>
               <p className="mb-2 mt-1 text-[11px] text-textMuted">{t("clip.segmentOrderHelp")}</p>
@@ -415,7 +427,7 @@ export function ClipBuilder({
               <div className="mt-4" role="status" aria-live="polite"><div className="mb-1 flex justify-between text-xs text-textSecondary"><span>{status}</span><span>{Math.round(progress * 100)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-button"><div className="h-full bg-accent transition-[width]" style={{ width: `${progress * 100}%` }} /></div><p className="mt-2 text-xs text-textMuted">{t("clip.keepOpen")}</p></div>
             )}
             {errorMessage && <p className="mt-3 text-sm text-red-300">{errorMessage}</p>}
-            <div className="mt-5 flex gap-3"><button type="button" disabled={saving} onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">{t("common.cancel")}</button><button type="button" onClick={() => void handleCreateClip()} disabled={saving || clipLimitReached} className="flex-1 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? (localFile ? t("clip.making") : t("clip.creating")) : t("clip.create")}</button></div>
+            <div className="mt-5 flex gap-3"><button type="button" disabled={saving} onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">{t("common.cancel")}</button><button type="button" onClick={() => void handleCreateClip()} disabled={saving || clipLimitReached || !imagesReady} className="flex-1 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? (localFile ? t("clip.making") : t("clip.creating")) : t("clip.create")}</button></div>
           </div>
         </div>
       )}

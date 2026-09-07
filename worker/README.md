@@ -35,6 +35,16 @@ individually, so interrupted jobs resume from the first unfinished segment.
 If a source does not support byte ranges or range extraction fails, the worker falls back once per
 camera to the original full-file download path.
 
+## Clip intro images
+
+When requested during clip creation, the website saves a validated image manifest
+under `clip-intros/renders/{clipId}.json`. The remote clip pipeline inserts those
+images before the corresponding segments, with silent audio and matching H.264/AAC
+tracks. All segments in that clip are normalized to 1280×720 with preserved aspect
+ratio so previews, share links and merged MP4 downloads use the same encoded video.
+Existing ready segments are reused on retries. `/health` advertises
+`clipImageIntros: 1`; publish the worker with the website for this feature.
+
 ## Clip retention
 
 Shared clips are retained for 365 days. The worker runs a cleanup on startup

@@ -241,10 +241,10 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
           </button>
           {generalOpen && <div className="grid gap-3 border-t border-borderSubtle p-4 sm:grid-cols-2 lg:grid-cols-4">
             {generalInfoEditor && <div className="border-b border-borderSubtle pb-5 sm:col-span-2 lg:col-span-4">{generalInfoEditor}</div>}
-            <label className="text-sm text-textSecondary">Start van de opname
+            {!generalInfoEditor && <label className="text-sm text-textSecondary">Start van de opname
               <input type="time" value={recordingStartTime} onChange={event => setRecordingStartTime(event.target.value)} className={`mt-1 ${inputClass}`} />
               <span className="mt-1 block text-xs text-textMuted">Het tijdstip waarop de camera-opname werkelijk gestart is.</span>
-            </label>
+            </label>}
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-textPrimary"><input type="checkbox" checked={meetingTimeEnabled} onChange={event => setMeetingTimeEnabled(event.target.checked)} className="accent-accent" />{t("matchPrep.meetingTime")}</label>
               {meetingTimeEnabled && <input type="time" value={meetingTime} onChange={event => setMeetingTime(event.target.value)} className={inputClass} />}

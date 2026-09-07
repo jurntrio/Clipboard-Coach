@@ -11,7 +11,7 @@ import { syncRbfaZipMatches } from "./syncRbfaZipMatches";
 const app = express();
 app.use(express.json({ limit: "32kb" }));
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/health", (_req, res) => res.json({ ok: true, clipImageIntros: 1, release: process.env.RAILWAY_GIT_COMMIT_SHA ?? null }));
 
 app.post("/process", async (req, res) => {
   const auth = req.header("authorization");
