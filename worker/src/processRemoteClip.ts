@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { randomUUID } from "node:crypto";
-import { buildMobileMp4WithDrawings, probeDurationSeconds } from "./hlsPipeline";
+import { buildMobileMp4WithDrawings, concatenateMp4Files, probeDurationSeconds } from "./hlsPipeline";
 import { deleteObject, downloadToFile, uploadFile, readJsonObject } from "./r2";
 import { parseImageManifest } from "./clipImagePlan";
 import { prependClipImages } from "./clipImagePipeline";
@@ -64,6 +64,22 @@ type RenderedRemoteSegment = {
   sequence_order: number;
 };
 
+type RenderedRemoteClip = {
+  id: string;
+  url: string;
+  key: string;
+  file_size: number;
+  duration: number;
+  segment_count: number;
+  video_codec: "avc";
+  mobile_compatible: true;
+};
+
+type ClipRow = {
+  coach_id: string;
+  rendered_clip: { key?: string | null } | null;
+};
+
 /**
  * Renders a clip whose segments live on a remote source (not previously uploaded to R2 by the
  * browser) from each source video's URL. A localhost proxy preserves the source's HTTP byte-range
@@ -79,7 +95,7 @@ export async function processRemoteClip(clipId: string) {
 
   try {
     workDir = await fsp.mkdtemp(path.join(os.tmpdir(), `cc-remote-clip-${clipId}-`));
-    const { data: clip, error: clipError } = await supabase.from("clips").select("coach_id").eq("id", clipId).single();
+    const { data: clip, error: clipError } = await supabase.from("clips").select("coach_id, rendered_clip").eq("id", clipId).single<ClipRow>();
     if (clipError || !clip) throw clipError ?? new Error("Clip not found");
     await supabase.from("clips").update({ render_status: "rendering", render_error: null }).eq("id", clipId);
 
@@ -216,11 +232,36 @@ export async function processRemoteClip(clipId: string) {
       activeSegmentId = null;
     }
 
+    const sortedRendered = rendered.sort((a, b) => a.sequence_order - b.sequence_order);
+    const finalInputPaths: string[] = [];
+    for (let index = 0; index < sortedRendered.length; index += 1) {
+      const finalInputPath = path.join(workDir, `${index}-final-source.mp4`);
+      await downloadToFile(sortedRendered[index].key, finalInputPath);
+      finalInputPaths.push(finalInputPath);
+    }
+    const finalOutputPath = path.join(workDir, "final-mobile.mp4");
+    await concatenateMp4Files(finalInputPaths, finalOutputPath, workDir);
+    const finalKey = `clips/${clip.coach_id}/${clipId}/final-${randomUUID()}-mobile.mp4`;
+    const finalUrl = await uploadFile(finalKey, finalOutputPath, "video/mp4");
+    const finalStat = await fsp.stat(finalOutputPath);
+    const finalDuration = await probeDurationSeconds(finalOutputPath);
+    const renderedClip: RenderedRemoteClip = {
+      id: randomUUID(),
+      url: finalUrl,
+      key: finalKey,
+      file_size: finalStat.size,
+      duration: finalDuration,
+      segment_count: sortedRendered.length,
+      video_codec: "avc",
+      mobile_compatible: true
+    };
+
     const { error: updateError } = await supabase
       .from("clips")
-      .update({ rendered_segments: rendered.sort((a, b) => a.sequence_order - b.sequence_order), render_status: "ready", render_error: null })
+      .update({ rendered_segments: sortedRendered, rendered_clip: renderedClip, render_status: "ready", render_error: null })
       .eq("id", clipId);
     if (updateError) throw updateError;
+    if (clip.rendered_clip?.key && clip.rendered_clip.key !== finalKey) await deleteObject(clip.rendered_clip.key).catch(() => undefined);
     for (const proxy of rangeProxiesByUrl.values()) {
       console.log(`[worker] clip ${clipId} range source complete: ${proxy.stats.requestCount} requests, ${Math.round(proxy.stats.transferredBytes / 1048576)} MiB`);
     }

@@ -643,9 +643,19 @@ export default function MatchViewerPage() {
   }
 
   function deleteDisplayedTag(tagId: string) {
+    const tag = tags.find((item) => item.id === tagId);
+    if (!window.confirm(t("tag.deleteConfirm", { name: tag?.name ?? t("tag.name") }))) return;
     const liveTag = liveTags.find((item) => item.tag_id === tagId);
     if (liveTag) void deleteLiveTag(liveTag);
     else void deleteTag(tagId);
+  }
+
+  function toggleAllRightColumnTags(tagIds: string[]) {
+    setSelectedTagIds((current) => {
+      const allSelected = tagIds.every((id) => current.includes(id));
+      if (allSelected) return current.filter((id) => !tagIds.includes(id));
+      return [...current, ...tagIds.filter((id) => !current.includes(id))];
+    });
   }
 
   function toggleLiveTagger(key: string) {
@@ -814,7 +824,7 @@ export default function MatchViewerPage() {
             <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
               <summary className="cursor-pointer text-sm font-semibold text-textBright">{t("video.periodTimes")}</summary>
               <div className="mt-2">
-              <TagList tags={displayTags.filter((tag) => isPeriodMarker(tag.name))} selectedTagIds={[]} onToggleSelect={() => undefined} onSeek={seekTo} onDelete={(id) => void deleteTag(id)} onUpdate={updateTag} />
+              <TagList tags={displayTags.filter((tag) => isPeriodMarker(tag.name))} selectedTagIds={[]} onToggleSelect={() => undefined} onSeek={seekTo} onDelete={(id) => { if (window.confirm(t("tag.deleteConfirm", { name: tags.find((tag) => tag.id === id)?.name ?? t("tag.name") }))) void deleteTag(id); }} onUpdate={updateTag} />
               </div>
             </details>
           )}
@@ -953,7 +963,7 @@ export default function MatchViewerPage() {
                 </div>
               </div>
             )}
-            <TagList tags={rightColumnTags} tagMetaById={liveTagMetaById} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSeek={seekTo} onDelete={deleteDisplayedTag} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={combinedTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
+            <TagList tags={rightColumnTags} tagMetaById={liveTagMetaById} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onToggleAll={toggleAllRightColumnTags} onSeek={seekTo} onDelete={deleteDisplayedTag} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={combinedTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
             {!!visibleLiveTags.some((liveTag) => !liveTag.tag_id) && <div className="mt-1 space-y-1">
               {visibleLiveTags.filter((liveTag) => !liveTag.tag_id).map((liveTag) => {
                 const elapsed = liveTagElapsedSeconds(liveTag, match);
@@ -973,7 +983,7 @@ export default function MatchViewerPage() {
               })}
             </div>}
           </section>
-          {videos[0] && <ClipBuilder videoId={videos[0].id} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo={allVideos.some((video) => isLocalVideoUrl(video.video_url))} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={`${match?.team_a_name || t("match.teamA")} - ${match?.team_b_name || t("match.teamB")}`} onClipCreated={() => setSelectedTagIds([])} />}
+          {videos[0] && <ClipBuilder videoId={videos[0].id} videoIds={allVideos.map((video) => video.id)} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo={allVideos.some((video) => isLocalVideoUrl(video.video_url))} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={`${match?.team_a_name || t("match.teamA")} - ${match?.team_b_name || t("match.teamB")}`} onClipCreated={() => setSelectedTagIds([])} />}
         </aside>
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}

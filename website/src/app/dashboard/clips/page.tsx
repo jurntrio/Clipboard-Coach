@@ -57,6 +57,10 @@ export default function MatchesHubPage() {
   const [deletingMatch, setDeletingMatch] = useState(false);
   const [preparationMatch, setPreparationMatch] = useState<HubMatch | null>(null);
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
+  const [hasMoreUpcoming, setHasMoreUpcoming] = useState(false);
+  const [loadingMoreUpcoming, setLoadingMoreUpcoming] = useState(false);
+  const [hasMoreFinished, setHasMoreFinished] = useState(false);
+  const [loadingOlderFinished, setLoadingOlderFinished] = useState(false);
   const [canManageMatches, setCanManageMatches] = useState(false);
   const [canPrepareMatches, setCanPrepareMatches] = useState(false);
   const [canCreateTagLink, setCanCreateTagLink] = useState(false);
@@ -77,6 +81,8 @@ export default function MatchesHubPage() {
     setMatches((matchData as HubMatch[] | null) ?? []);
     setTeams(teamData ?? []); setPlayers(playerData ?? []); setStandardTags(tagData ?? []);
     setClips(clipData ?? []);
+    setHasMoreFinished(hub.hasMoreFinished === true);
+    setHasMoreUpcoming(hub.hasMoreUpcoming === true);
     setActiveTeamId(hub.activeTeamId ?? null);
     setTeamOptions(hub.teamOptions ?? []);
     setIsPlatformAdmin(hub.isPlatformAdmin === true);
@@ -95,12 +101,99 @@ export default function MatchesHubPage() {
   }
 
   useEffect(() => { void load(); }, [activeClubId]);
-  const hasProcessingClips = clips.some((clip) => clip.render_status === "rendering");
+  const processingClipIds = clips.filter((clip) => clip.render_status === "rendering").map((clip) => clip.id);
+  const processingClipKey = processingClipIds.join(",");
   useEffect(() => {
-    if (!hasProcessingClips) return;
-    const refreshTimer = window.setInterval(() => void load(), 3000);
-    return () => window.clearInterval(refreshTimer);
-  }, [hasProcessingClips]);
+    if (!processingClipKey) return;
+    let stopped = false;
+    let timer: number | undefined;
+    let attempt = 0;
+    let polling = false;
+    const delays = [2000, 4000, 8000, 10000];
+
+    const schedule = () => {
+      if (stopped) return;
+      timer = window.setTimeout(() => void poll(), delays[Math.min(attempt, delays.length - 1)]);
+    };
+    const poll = async () => {
+      if (stopped || polling) return;
+      if (document.hidden) { schedule(); return; }
+      polling = true;
+      try {
+        const params = new URLSearchParams();
+        for (const id of processingClipIds) params.append("id", id);
+        const response = await fetch(`/api/clips/status?${params.toString()}`, { cache: "no-store" });
+        if (!response.ok) { attempt += 1; schedule(); return; }
+        const body = await response.json() as { clips?: Array<{ id: string; render_status: string; clip_segments: Array<{ id: string; render_status: HubClip["clip_segments"][number]["render_status"] }> }> };
+        const statuses = new Map((body.clips ?? []).map((clip) => [clip.id, clip]));
+        const completed = processingClipIds.some((id) => statuses.get(id)?.render_status !== "rendering");
+        if (completed) { await load(); return; }
+        setClips((current) => current.map((clip) => {
+          const status = statuses.get(clip.id);
+          if (!status) return clip;
+          const segmentStatuses = new Map(status.clip_segments.map((segment) => [segment.id, segment.render_status]));
+          return { ...clip, clip_segments: clip.clip_segments.map((segment) => ({ ...segment, render_status: segmentStatuses.get(segment.id) ?? segment.render_status })) };
+        }));
+        attempt += 1;
+        schedule();
+      } catch {
+        attempt += 1;
+        schedule();
+      } finally {
+        polling = false;
+      }
+    };
+    const handleVisibility = () => {
+      if (document.hidden || stopped) return;
+      if (timer !== undefined) window.clearTimeout(timer);
+      attempt = 0;
+      void poll();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    schedule();
+    return () => {
+      stopped = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [processingClipKey]);
+
+  async function loadOlderFinished() {
+    setLoadingOlderFinished(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const finishedCount = matches.filter((match) => match.status === "finished" || !!match.match_date && match.match_date < today).length;
+      const response = await fetch(`/api/matches/hub?finishedOffset=${finishedCount}`, { cache: "no-store" });
+      const hub = await response.json();
+      if (!response.ok) { setNotice(hub.error || "Oudere wedstrijden konden niet geladen worden."); return; }
+      const incomingMatches = (hub.matches as HubMatch[]).filter((match) => match.status === "finished" || !!match.match_date && match.match_date < today);
+      const incomingClips = hub.clips as HubClip[];
+      setMatches((current) => [...new Map([...current, ...incomingMatches].map((match) => [match.id, match])).values()]);
+      setClips((current) => [...new Map([...current, ...incomingClips].map((clip) => [clip.id, clip])).values()]);
+      setHasMoreFinished(hub.hasMoreFinished === true);
+    } finally {
+      setLoadingOlderFinished(false);
+    }
+  }
+
+  async function loadMoreUpcoming() {
+    setLoadingMoreUpcoming(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const upcomingCount = matches.filter((match) => match.status !== "finished" && (!match.match_date || match.match_date >= today)).length;
+      const response = await fetch(`/api/matches/hub?upcomingOffset=${upcomingCount}`, { cache: "no-store" });
+      const hub = await response.json();
+      if (!response.ok) { setNotice(hub.error || "Volgende wedstrijden konden niet geladen worden."); return; }
+      const incomingMatches = (hub.matches as HubMatch[]).filter((match) => match.status !== "finished" && (!match.match_date || match.match_date >= today));
+      const incomingClips = hub.clips as HubClip[];
+      setMatches((current) => [...new Map([...current, ...incomingMatches].map((match) => [match.id, match])).values()]);
+      setClips((current) => [...new Map([...current, ...incomingClips].map((clip) => [clip.id, clip])).values()]);
+      setHasMoreUpcoming(hub.hasMoreUpcoming === true);
+      setShowAllUpcoming(true);
+    } finally {
+      setLoadingMoreUpcoming(false);
+    }
+  }
 
   const videoToMatch = useMemo(() => {
     const map = new Map<string, string>();
@@ -224,7 +317,9 @@ export default function MatchesHubPage() {
 
       <MatchSection title={t("matchHub.upcoming")} matches={showAllUpcoming ? upcoming : upcoming.slice(0, 3)} empty={t("matchHub.noUpcoming")} allowTagging={canCreateTagLink} canPrepare={canPrepareMatches} optionNames={matchOptionNames} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onPrepare={setPreparationMatch} onDeleteMatch={setDeleteMatchTarget} onDeleteClip={setDeleteClipTarget} onTagLink={createTagLink} onClip={setSelectedClip} />
       {upcoming.length > 3 && <button type="button" onClick={() => setShowAllUpcoming(value => !value)} className="mt-3 rounded-lg border border-borderButton px-4 py-2 text-sm font-semibold text-accent">{showAllUpcoming ? t("matchHub.showFirstThree") : t("matchHub.showAllUpcoming")}</button>}
+      {showAllUpcoming && hasMoreUpcoming && <button type="button" disabled={loadingMoreUpcoming} onClick={() => void loadMoreUpcoming()} className="ml-2 mt-3 rounded-lg border border-borderButton px-4 py-2 text-sm font-semibold text-accent disabled:opacity-50">{loadingMoreUpcoming ? "Laden…" : "Meer geplande wedstrijden laden"}</button>}
       <div className="mt-8"><MatchSection title={t("matchHub.finished")} matches={finished} empty={t("matchHub.noFinished")} allowTagging={false} canPrepare={canPrepareMatches} optionNames={matchOptionNames} canManage={canManageMatches} currentUserId={currentUserId} isPlatformAdmin={isPlatformAdmin} expandedId={expandedId} setExpandedId={setExpandedId} clipsByMatch={clipsByMatch} players={players} sharingPlayerId={sharingPlayerId} onSharePlayer={sharePlayerClips} onPrepare={setPreparationMatch} onDeleteMatch={setDeleteMatchTarget} onDeleteClip={setDeleteClipTarget} onTagLink={createTagLink} onClip={setSelectedClip} /></div>
+      {hasMoreFinished && <button type="button" disabled={loadingOlderFinished} onClick={() => void loadOlderFinished()} className="mt-3 rounded-lg border border-borderButton px-4 py-2 text-sm font-semibold text-accent disabled:opacity-50">{loadingOlderFinished ? "Laden…" : "Oudere wedstrijden laden"}</button>}
 
       {createOpen && <MatchEditor match={null} teams={teams} allPlayers={players} standardTags={standardTags} onClose={() => setCreateOpen(false)} onSaved={async () => { setCreateOpen(false); await load(); }} />}
       {selectedClip && <ClipPreviewModal clipName={selectedClip.name} videoUrl={selectedClip.videos?.video_url ?? ""} segments={playbackSegments(selectedClip)} onClose={() => setSelectedClip(null)} onShare={() => void shareClip(selectedClip)} />}

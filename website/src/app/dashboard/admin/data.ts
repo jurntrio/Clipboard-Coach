@@ -17,7 +17,8 @@ export type CoachOverview = Profile & {
 };
 
 type StoredClipSegment = { file_size?: number | null };
-type StoredClip = { coach_id: string; rendered_segments?: StoredClipSegment[] | null };
+type StoredClipFile = { file_size?: number | null };
+type StoredClip = { coach_id: string; rendered_segments?: StoredClipSegment[] | null; rendered_clip?: StoredClipFile | null };
 
 function relatedName(value: unknown): string | null {
   const relation = relatedRecord(value);
@@ -35,8 +36,8 @@ export function cloudVideoBytes(video: Pick<Video, "video_url" | "file_size">) {
   return video.video_url.startsWith("local://") ? 0 : (video.file_size ?? 0);
 }
 
-export function renderedClipBytes(clip: Pick<StoredClip, "rendered_segments">) {
-  return (clip.rendered_segments ?? []).reduce((sum, segment) => sum + (segment.file_size ?? 0), 0);
+export function renderedClipBytes(clip: Pick<StoredClip, "rendered_segments" | "rendered_clip">) {
+  return (clip.rendered_segments ?? []).reduce((sum, segment) => sum + (segment.file_size ?? 0), 0) + (clip.rendered_clip?.file_size ?? 0);
 }
 
 export function isBanned(bannedUntil: string | null): boolean {
@@ -55,7 +56,7 @@ export async function getCoachOverviews(): Promise<CoachOverview[]> {
       admin.from("teams").select("id, coach_id, name"),
       admin.from("players").select("id, team_id"),
       admin.from("videos").select("id, coach_id, video_url, file_size, processing_status").eq("status", "active"),
-      admin.from("clips").select("id, coach_id, rendered_segments"),
+      admin.from("clips").select("id, coach_id, rendered_segments, rendered_clip"),
       admin.from("club_memberships").select("profile_id, role, function_role, custom_role_name, clubs(name, club_teams:club_teams!club_teams_club_id_fkey(id, name, teams(players(id))))"),
       admin.from("club_trainers").select("profile_id, clubs(name), club_trainer_teams(club_teams(id, name, teams(players(id))))").not("profile_id", "is", null)
     ]);
@@ -194,7 +195,7 @@ export async function getCoachDetail(coachId: string): Promise<CoachDetail | nul
     admin.auth.admin.getUserById(coachId),
     admin.from("profiles").select("*").eq("id", coachId).maybeSingle(),
     admin.from("teams").select("*, players(*)").eq("coach_id", coachId).order("created_at", { ascending: false }),
-    admin.from("clips").select("id, rendered_segments").eq("coach_id", coachId),
+    admin.from("clips").select("id, rendered_segments, rendered_clip").eq("coach_id", coachId),
     admin.from("clubs").select("id, name, club_teams:club_teams!club_teams_club_id_fkey(id, name)").order("name"),
     admin.from("club_memberships").select("club_id, role, function_role, custom_role_name").eq("profile_id", coachId),
     admin.from("club_trainers").select("club_id, phone_number, club_trainer_teams(club_team_id)").eq("profile_id", coachId)
@@ -217,7 +218,7 @@ export async function getCoachDetail(coachId: string): Promise<CoachDetail | nul
     teams: (teams as (Team & { players: Player[] })[] | null) ?? [],
     videos: videos ?? [],
     clipCount: clips?.length ?? 0,
-    clipStorageBytes: ((clips ?? []) as Pick<StoredClip, "rendered_segments">[]).reduce(
+    clipStorageBytes: ((clips ?? []) as Pick<StoredClip, "rendered_segments" | "rendered_clip">[]).reduce(
       (sum, clip) => sum + renderedClipBytes(clip),
       0
     ),

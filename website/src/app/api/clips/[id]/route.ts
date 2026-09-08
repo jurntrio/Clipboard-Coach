@@ -6,6 +6,26 @@ import { createClient } from "@/lib/supabase/server";
 import { deleteObject } from "@/lib/r2/upload";
 
 type StoredSegment = { key?: string | null };
+type StoredClipFile = { key?: string | null };
+
+export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await request.json().catch(() => null) as { name?: string } | null;
+  const name = body?.name?.trim();
+  if (!name) return NextResponse.json({ error: "Clipnaam is verplicht." }, { status: 400 });
+
+  const platformAdmin = isAdminEmail(user.email);
+  const database = platformAdmin ? createAdminClient() : supabase;
+  const { data: clip, error: loadError } = await database.from("clips").select("id, coach_id").eq("id", params.id).single();
+  if (loadError || !clip || (!platformAdmin && clip.coach_id !== user.id)) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
+
+  const { data: updated, error } = await database.from("clips").update({ name }).eq("id", clip.id).select("*").single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ clip: updated });
+}
 
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -51,10 +71,12 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
 
   const platformAdmin = isAdminEmail(user.email);
   const database = platformAdmin ? createAdminClient() : supabase;
-  const { data: clip, error: loadError } = await database.from("clips").select("id, coach_id, rendered_segments").eq("id", params.id).single();
+  const { data: clip, error: loadError } = await database.from("clips").select("id, coach_id, rendered_segments, rendered_clip").eq("id", params.id).single();
   if (loadError || !clip || (!platformAdmin && clip.coach_id !== user.id)) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
 
   const keys = ((clip.rendered_segments ?? []) as StoredSegment[]).map((segment) => segment.key).filter((key): key is string => !!key);
+  const renderedClipKey = (clip.rendered_clip as StoredClipFile | null)?.key;
+  if (renderedClipKey) keys.push(renderedClipKey);
   keys.push(`clip-intros/renders/${clip.id}.json`, `clip-intros/render-assets/${clip.id}/opening.png`);
   try {
     await Promise.all(keys.map((key) => deleteObject(key)));

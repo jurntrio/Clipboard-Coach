@@ -51,6 +51,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (clubContext.isPlatformAdmin || profile?.account_role === "admin_viewer") {
     navigation.push({ href: "/dashboard/admin", label: "Algemene Admin", icon: `${iconRoot}/algemene-admin.png`, primary: true });
   }
+  if (profile?.account_role === "platform_admin") {
+    navigation.push({ href: "/clubboys/lottobingo", label: "Clubboys", icon: "/clubboys/icon.png", primary: true });
+  }
 
   const hasOtherAccess = clubContext.isPlatformAdmin || (Array.isArray(guardianRows) && guardianRows.length > 0);
   const showPendingNotice = !clubId && !hasOtherAccess && clubContext.pendingClubs.length > 0;

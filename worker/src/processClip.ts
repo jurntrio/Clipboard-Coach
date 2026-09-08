@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { buildMobileMp4WithDrawings, probeDurationSeconds } from "./hlsPipeline";
+import { randomUUID } from "node:crypto";
+import { buildMobileMp4WithDrawings, concatenateMp4Files, probeDurationSeconds } from "./hlsPipeline";
 import { deleteObject, downloadToFile, uploadFile } from "./r2";
 import { supabase } from "./supabase";
 
@@ -21,13 +22,30 @@ type RenderedSegment = {
   [key: string]: unknown;
 };
 
+type RenderedClip = {
+  id: string;
+  key: string;
+  url: string;
+  file_size: number;
+  duration: number;
+  segment_count: number;
+  video_codec: "avc";
+  mobile_compatible: true;
+};
+
+type ClipRow = {
+  coach_id: string;
+  rendered_segments: RenderedSegment[] | null;
+  rendered_clip: { key?: string | null } | null;
+};
+
 export async function processClip(clipId: string) {
   let workDir: string | null = null;
   let activeSegmentId: string | null = null;
 
   try {
     workDir = await fs.mkdtemp(path.join(os.tmpdir(), `cc-clip-${clipId}-`));
-    const { data: clip, error } = await supabase.from("clips").select("rendered_segments").eq("id", clipId).single();
+    const { data: clip, error } = await supabase.from("clips").select("coach_id, rendered_segments, rendered_clip").eq("id", clipId).single<ClipRow>();
     if (error || !clip) throw error ?? new Error("Clip not found");
     const segments = (clip.rendered_segments ?? []) as RenderedSegment[];
     if (!segments.length) throw new Error("Clip has no uploaded segments");
@@ -127,11 +145,35 @@ export async function processClip(clipId: string) {
       activeSegmentId = null;
     }
 
+    const finalInputPaths: string[] = [];
+    for (let index = 0; index < optimized.length; index += 1) {
+      const finalInputPath = path.join(workDir, `${index}-final-source.mp4`);
+      await downloadToFile(optimized[index].key, finalInputPath);
+      finalInputPaths.push(finalInputPath);
+    }
+    const finalOutputPath = path.join(workDir, "final-mobile.mp4");
+    await concatenateMp4Files(finalInputPaths, finalOutputPath, workDir);
+    const finalKey = `clips/${clip.coach_id}/${clipId}/final-${randomUUID()}-mobile.mp4`;
+    const finalUrl = await uploadFile(finalKey, finalOutputPath, "video/mp4");
+    const finalStat = await fs.stat(finalOutputPath);
+    const finalDuration = await probeDurationSeconds(finalOutputPath);
+    const renderedClip: RenderedClip = {
+      id: clipId,
+      key: finalKey,
+      url: finalUrl,
+      file_size: finalStat.size,
+      duration: finalDuration,
+      segment_count: optimized.length,
+      video_codec: "avc",
+      mobile_compatible: true
+    };
+
     const { error: updateError } = await supabase
       .from("clips")
-      .update({ rendered_segments: optimized, render_status: "ready", render_error: null })
+      .update({ rendered_segments: optimized, rendered_clip: renderedClip, render_status: "ready", render_error: null })
       .eq("id", clipId);
     if (updateError) throw updateError;
+    if (clip.rendered_clip?.key && clip.rendered_clip.key !== finalKey) sourceKeysToDelete.push(clip.rendered_clip.key);
     await Promise.all(sourceKeysToDelete.map((key) => deleteObject(key).catch(() => undefined)));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { makeClipImageManifest, parseClipImages } from "@/lib/clip-images";
-import { clipImageSource, creationImageKey, readImageObject, renderOpeningCard, writeImageObject } from "@/lib/clip-images-server";
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -26,6 +25,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
     const images = body.images ? parseClipImages(body.images) : null;
     if (images && (images.opening || Object.keys(images.tags).length)) {
+      const { clipImageSource, creationImageKey, readImageObject, renderOpeningCard, writeImageObject } = await import("@/lib/clip-images-server");
       const source = await clipImageSource(clip.video_id, user);
       if (!source?.allowed) return NextResponse.json({ error: "Introbeelden zijn niet toegestaan voor de ploeg van deze wedstrijd." }, { status: 403 });
       const health = await fetch(`${workerUrl}/health`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
@@ -50,11 +50,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
   // uploaded and renders only the remaining remote camera segments. This also supports clips that
   // deliberately mix 360SI cameras and the coach's own local footage.
   const mode = "remote";
-  const response = await fetch(`${workerUrl}/process-clip`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${workerSecret}` },
-    body: JSON.stringify({ clipId: clip.id, mode })
-  });
-  if (!response.ok) return NextResponse.json({ error: "Video worker rejected the clip" }, { status: 502 });
-  return NextResponse.json({ triggered: true });
+  try {
+    const response = await fetch(`${workerUrl}/process-clip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${workerSecret}` },
+      body: JSON.stringify({ clipId: clip.id, mode }),
+      signal: AbortSignal.timeout(15_000)
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { error?: string } | null;
+      return NextResponse.json({ error: body?.error || "De videodienst kon de clip niet starten." }, { status: 502 });
+    }
+    return NextResponse.json({ triggered: true });
+  } catch (error) {
+    console.error("Could not start clip worker", { clipId: clip.id, error });
+    return NextResponse.json({ error: "De videodienst is tijdelijk niet bereikbaar. Probeer de clip opnieuw." }, { status: 503 });
+  }
 }

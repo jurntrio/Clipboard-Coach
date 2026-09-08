@@ -5,7 +5,8 @@ const RETENTION_DAYS = 365;
 const BATCH_SIZE = 100;
 
 type StoredSegment = { key?: string | null };
-type ExpiredClip = { id: string; rendered_segments: StoredSegment[] | null };
+type StoredClipFile = { key?: string | null };
+type ExpiredClip = { id: string; rendered_segments: StoredSegment[] | null; rendered_clip: StoredClipFile | null };
 
 export async function cleanupExpiredClips() {
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -15,7 +16,7 @@ export async function cleanupExpiredClips() {
   while (true) {
     const { data, error } = await supabase
       .from("clips")
-      .select("id, rendered_segments")
+      .select("id, rendered_segments, rendered_clip")
       .lt("created_at", cutoff)
       .order("created_at", { ascending: true })
       .limit(BATCH_SIZE);
@@ -26,6 +27,7 @@ export async function cleanupExpiredClips() {
 
     for (const clip of clips) {
       const keys = Array.from(new Set((clip.rendered_segments ?? []).map((segment) => segment.key).filter((key): key is string => !!key)));
+      if (clip.rendered_clip?.key) keys.push(clip.rendered_clip.key);
       keys.push(`clip-intros/renders/${clip.id}.json`, `clip-intros/render-assets/${clip.id}/opening.png`);
       for (const key of keys) {
         await deleteObject(key);

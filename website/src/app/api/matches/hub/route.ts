@@ -8,13 +8,23 @@ import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club
 import { resolveClubLogoById } from "@/lib/belgian-clubs/resolve-club-logo";
 import { deleteObject } from "@/lib/r2/upload";
 
-export async function GET() {
+const FINISHED_PAGE_SIZE = 20;
+const UPCOMING_PAGE_SIZE = 20;
+const MATCH_HUB_COLUMNS = "id, coach_id, team_a_id, team_a_name, team_b_name, team_a_belgian_club_id, team_b_belgian_club_id, match_date, start_time, status, score_a, score_b, player_ids, live_tag_names, club_team_id, external_source, is_home_match, meeting_time_enabled, meeting_time, field_option_id, locker_room_option_id, visitor_locker_room_option_id, referee_option_id, official_referee_name, official_assistant_referee_1_name, official_assistant_referee_2_name, meeting_place_option_id, meeting_place_custom, match_videos(video_id)";
+const TEAM_HUB_COLUMNS = "id, coach_id, club_team_id, name";
+const PLAYER_HUB_COLUMNS = "id, team_id, first_name, last_name, initials, jersey_number, role";
+
+export async function GET(request: Request) {
   const context = await getClubContext();
   if (!context.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!context.activeClubId) return NextResponse.json({ matches: [], teams: [], activeTeamId: null, teamOptions: [], players: [], clips: [] });
 
   const admin = createAdminClient();
   const clubId = context.activeClubId;
+  const requestedOffset = Number(new URL(request.url).searchParams.get("finishedOffset") ?? 0);
+  const finishedOffset = Number.isSafeInteger(requestedOffset) && requestedOffset > 0 ? Math.min(requestedOffset, 500) : 0;
+  const requestedUpcomingOffset = Number(new URL(request.url).searchParams.get("upcomingOffset") ?? 0);
+  const upcomingOffset = Number.isSafeInteger(requestedUpcomingOffset) && requestedUpcomingOffset > 0 ? Math.min(requestedUpcomingOffset, 500) : 0;
   const membership = context.clubs.find((club) => club.id === clubId);
   if (!membership) return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
   const access = await getClubAccess(clubId, context.user);
@@ -46,19 +56,39 @@ export async function GET() {
   }
   // null = no team restriction (full club access, or explicit "alle ploegen"); mirrors canAccessTeam's own semantics.
   const teamScope = activeTeamId ? [activeTeamId] : access.teamIds !== null ? clubTeamIds : null;
-  let matchesQuery = admin.from("matches").select("*, match_videos(video_id)")
+  const today = new Date().toISOString().slice(0, 10);
+  let upcomingMatchesQuery = admin.from("matches").select(MATCH_HUB_COLUMNS)
     .eq("club_id", clubId)
+    .or("external_source.is.null,external_source.not.in.(foot24,voetbal_vlaanderen)")
+    .neq("status", "finished")
+    .or(`match_date.is.null,match_date.gte.${today}`)
     .order("match_date", { ascending: true, nullsFirst: false })
-    .order("start_time", { ascending: true });
-  if (teamScope) matchesQuery = matchesQuery.in("club_team_id", teamScope);
+    .order("start_time", { ascending: true })
+    .range(upcomingOffset, upcomingOffset + UPCOMING_PAGE_SIZE);
+  let finishedMatchesQuery = admin.from("matches").select(MATCH_HUB_COLUMNS)
+    .eq("club_id", clubId)
+    .or("external_source.is.null,external_source.not.in.(foot24,voetbal_vlaanderen)")
+    .or(`status.eq.finished,match_date.lt.${today}`)
+    .order("match_date", { ascending: false, nullsFirst: false })
+    .order("start_time", { ascending: false })
+    .range(finishedOffset, finishedOffset + FINISHED_PAGE_SIZE);
+  if (teamScope) {
+    upcomingMatchesQuery = upcomingMatchesQuery.in("club_team_id", teamScope);
+    finishedMatchesQuery = finishedMatchesQuery.in("club_team_id", teamScope);
+  }
   const scopedTeamIds = activeTeamId ? [activeTeamId] : clubTeamIds;
-  const [{ data: matches }, { data: teams }] = await Promise.all([
-    teamScope === null || teamScope.length ? matchesQuery : Promise.resolve({ data: [] }),
+  const [{ data: upcomingMatches }, { data: finishedPageWithSentinel }, { data: teams }] = await Promise.all([
+    teamScope === null || teamScope.length ? upcomingMatchesQuery : Promise.resolve({ data: [] }),
+    teamScope === null || teamScope.length ? finishedMatchesQuery : Promise.resolve({ data: [] }),
     scopedTeamIds.length
-      ? admin.from("teams").select("*").in("club_team_id", scopedTeamIds).not("name", "ilike", "EXTRA")
+      ? admin.from("teams").select(TEAM_HUB_COLUMNS).in("club_team_id", scopedTeamIds).not("name", "ilike", "EXTRA")
       : Promise.resolve({ data: [] })
   ]);
 
+  const hasMoreFinished = (finishedPageWithSentinel?.length ?? 0) > FINISHED_PAGE_SIZE;
+  const finishedMatches = (finishedPageWithSentinel ?? []).slice(0, FINISHED_PAGE_SIZE);
+  const hasMoreUpcoming = (upcomingMatches?.length ?? 0) > UPCOMING_PAGE_SIZE;
+  const matches = [...(upcomingMatches ?? []).slice(0, UPCOMING_PAGE_SIZE), ...finishedMatches];
   const officialDownloadMatches = (matches ?? []).filter(match => !["foot24", "voetbal_vlaanderen"].includes(match.external_source ?? ""));
   const visibleMatches = officialDownloadMatches.filter((match) => canAccessTeam(access, match.club_team_id))
     .map(match => canViewSelection ? match : { ...match, player_ids: [] });
@@ -68,7 +98,7 @@ export async function GET() {
   )));
   const [{ data: players }, { data: clips }] = await Promise.all([
     canViewSelection && teamIds.length
-      ? admin.from("players").select("*").in("team_id", teamIds).neq("role", "staff").order("last_name")
+      ? admin.from("players").select(PLAYER_HUB_COLUMNS).in("team_id", teamIds).neq("role", "staff").order("last_name")
       : Promise.resolve({ data: [] }),
     canViewClips && videoIds.length
       ? admin.from("clips").select(`id, coach_id, video_id, name, display_number, render_status, created_at, audience_type, audience_player_ids, rendered_segments, share_links(token, short_code${canSeeViewCounts ? ", view_count" : ""}), videos(title, video_url), clip_segments(id, sequence_order, video_id, render_status, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))`)
@@ -99,6 +129,12 @@ export async function GET() {
     .map((team) => ({ id: team.id, name: team.name }));
   const response = NextResponse.json({
     matches: matchesWithLogos,
+    hasMoreFinished,
+    hasMoreUpcoming,
+    finishedOffset,
+    upcomingOffset,
+    finishedPageSize: FINISHED_PAGE_SIZE,
+    upcomingPageSize: UPCOMING_PAGE_SIZE,
     teams: orderedTeams,
     activeTeamId,
     teamOptions,

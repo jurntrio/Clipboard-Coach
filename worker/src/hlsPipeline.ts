@@ -236,3 +236,15 @@ export async function buildMobileMp4WithDrawings(
   await fs.writeFile(listPath, partPaths.map((partPath) => `file '${partPath.replace(/'/g, "'\\''")}'`).join("\n"), "utf8");
   await run(ffmpegPath, ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", "-movflags", "+faststart", outputPath]);
 }
+
+export async function concatenateMp4Files(inputPaths: string[], outputPath: string, workDir: string) {
+  if (inputPaths.length === 0) throw new Error("Cannot concatenate an empty clip");
+  if (inputPaths.length === 1) {
+    await fs.copyFile(inputPaths[0], outputPath);
+    return;
+  }
+
+  const listPath = path.join(workDir, "final-concat.txt");
+  await fs.writeFile(listPath, inputPaths.map((inputPath) => `file '${inputPath.replace(/'/g, "'\\''")}'`).join("\n"), "utf8");
+  await run(ffmpegPath, ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", "-movflags", "+faststart", outputPath]);
+}

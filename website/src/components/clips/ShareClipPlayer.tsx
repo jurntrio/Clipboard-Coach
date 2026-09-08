@@ -3,14 +3,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ClipSegmentPlayback } from "./ClipPreviewModal";
 import { useHlsSource } from "../video-player/useHlsSource";
-import { ActiveDrawingOverlay } from "../video-player/ActiveDrawingOverlay";
-import { useI18n } from "@/i18n/client";
 
-export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segments: ClipSegmentPlayback[] }) {
-  const { t } = useI18n();
+const labels = {
+  play: "Afspelen",
+  pause: "Pauzeren",
+  position: "Clippositie",
+  fullscreen: "Volledig scherm",
+  playFailed: "Afspelen lukt niet automatisch. Probeer opnieuw.",
+  formatUnsupported: "Deze clip kan niet in deze browser worden afgespeeld.",
+  openDirectly: "Open rechtstreeks"
+};
+
+function isHlsSource(src: string | null | undefined) {
+  return !!src && src.includes(".m3u8");
+}
+
+export function ShareClipPlayer({ videoUrl, segments, autoStart = false }: { videoUrl: string; segments: ClipSegmentPlayback[]; autoStart?: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const continuePlayingRef = useRef(false);
+  const continuePlayingRef = useRef(autoStart);
   const pendingLocalTimeRef = useRef<number | null>(null);
   const changingSegmentRef = useRef(false);
   const drawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -29,6 +40,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
   );
   const totalDuration = segmentDurations.reduce((total, duration) => total + duration, 0);
   const elapsedBeforeSegment = segmentDurations.slice(0, segmentIndex).reduce((total, duration) => total + duration, 0);
+  const segmentStart = segment?.start_time;
   useHlsSource(videoRef, currentSource);
 
   useEffect(() => () => {
@@ -48,18 +60,18 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
     changingSegmentRef.current = false;
 
     if (player.readyState >= 1) {
-      player.currentTime = pendingLocalTimeRef.current ?? segment.start_time;
+      player.currentTime = pendingLocalTimeRef.current ?? segmentStart ?? 0;
       pendingLocalTimeRef.current = null;
-      if (continuePlayingRef.current) player.play().catch(() => { setPlaying(false); setPlaybackError(t("clip.playFailed")); });
+      if (continuePlayingRef.current) player.play().catch(() => { setPlaying(false); setPlaybackError(labels.playFailed); });
     }
-  }, [segmentIndex, segment?.id, segment?.start_time, currentSource]);
+  }, [segment, segmentStart, currentSource]);
 
   function handleLoadedMetadata() {
     const player = videoRef.current;
     if (!player || !segment) return;
     player.currentTime = pendingLocalTimeRef.current ?? segment.start_time;
     pendingLocalTimeRef.current = null;
-    if (continuePlayingRef.current) player.play().catch(() => { setPlaying(false); setPlaybackError(t("clip.playFailed")); });
+    if (continuePlayingRef.current) player.play().catch(() => { setPlaying(false); setPlaybackError(labels.playFailed); });
   }
 
   function moveToNextSegment() {
@@ -92,7 +104,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
       drawingTimerRef.current = setTimeout(() => {
         setActiveDrawing(null);
         drawingActiveRef.current = false;
-        if (shouldResume) videoRef.current?.play().catch(() => setPlaybackError(t("clip.playFailed")));
+        if (shouldResume) videoRef.current?.play().catch(() => setPlaybackError(labels.playFailed));
       }, drawing.duration_seconds * 1000);
       return;
     }
@@ -129,7 +141,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
       if (segmentIndex === 0) {
         player.currentTime = pendingLocalTimeRef.current;
         pendingLocalTimeRef.current = null;
-        player.play().catch(() => { setPlaying(false); setPlaybackError(t("clip.playFailed")); });
+        player.play().catch(() => { setPlaying(false); setPlaybackError(labels.playFailed); });
       } else {
         setSegmentIndex(0);
       }
@@ -138,7 +150,7 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
 
     continuePlayingRef.current = true;
     setPlaybackError("");
-    player.play().catch(() => { setPlaying(false); setPlaybackError(t("clip.formatUnsupported")); });
+    player.play().catch(() => { setPlaying(false); setPlaybackError(labels.formatUnsupported); });
   }
 
   function seekTo(globalTime: number) {
@@ -179,11 +191,14 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
     return <video ref={videoRef} src={videoUrl} controls playsInline className="aspect-video w-full bg-black object-contain" />;
   }
 
+  const nativeVideoSource = isHlsSource(currentSource) ? undefined : currentSource;
+
   return (
     <div ref={containerRef} className="bg-black">
       <div className="relative aspect-video bg-black">
         <video
           ref={videoRef}
+          src={nativeVideoSource}
           playsInline
           preload="auto"
           className="h-full w-full cursor-pointer bg-black object-contain"
@@ -195,12 +210,17 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
           onPause={() => setPlaying(false)}
           onEnded={moveToNextSegment}
           onCanPlay={() => setPlaybackError("")}
-          onError={() => setPlaybackError(t("clip.formatUnsupported"))}
+          onError={() => setPlaybackError(labels.formatUnsupported)}
         />
-        <ActiveDrawingOverlay drawing={activeDrawing} alt="" />
+        {activeDrawing && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/10">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={activeDrawing.url} alt="" className="max-h-full max-w-full object-contain" />
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-3 border-t border-white/10 px-3 py-2 text-white">
-        <button type="button" onClick={togglePlayback} className="grid h-9 w-9 place-items-center rounded-full bg-accent font-bold text-page" aria-label={playing ? t("clip.pause") : t("clip.play")}>
+        <button type="button" onClick={togglePlayback} className="grid h-9 w-9 place-items-center rounded-full bg-accent font-bold text-page" aria-label={playing ? labels.pause : labels.play}>
           {playing ? "Ⅱ" : "▶"}
         </button>
         <span className="min-w-[76px] text-xs tabular-nums">{formatPlayerTime(position)} / {formatPlayerTime(totalDuration)}</span>
@@ -212,12 +232,12 @@ export function ShareClipPlayer({ videoUrl, segments }: { videoUrl: string; segm
           value={Math.min(position, Math.max(totalDuration, 0.1))}
           onChange={(event) => seekTo(Number(event.target.value))}
           className="min-w-0 flex-1 accent-accent"
-          aria-label={t("clip.position")}
+          aria-label={labels.position}
         />
         {segments.length > 1 && <span className="hidden text-xs text-white/60 sm:inline">{segmentIndex + 1}/{segments.length}</span>}
-        <button type="button" onClick={() => containerRef.current?.requestFullscreen?.()} className="grid h-9 w-9 place-items-center rounded text-lg text-white/80 hover:bg-white/10 hover:text-white" aria-label={t("clip.fullscreen")}>⛶</button>
+        <button type="button" onClick={() => containerRef.current?.requestFullscreen?.()} className="grid h-9 w-9 place-items-center rounded text-lg text-white/80 hover:bg-white/10 hover:text-white" aria-label={labels.fullscreen}>⛶</button>
       </div>
-      {playbackError && <div className="border-t border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"><p>{playbackError}</p>{currentSource && <a href={currentSource} target="_blank" rel="noreferrer" className="mt-2 inline-block text-accent underline">{t("clip.openDirectly")}</a>}</div>}
+      {playbackError && <div className="border-t border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"><p>{playbackError}</p>{currentSource && <a href={currentSource} target="_blank" rel="noreferrer" className="mt-2 inline-block text-accent underline">{labels.openDirectly}</a>}</div>}
     </div>
   );
 }

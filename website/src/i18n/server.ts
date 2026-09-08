@@ -1,6 +1,9 @@
 import { cookies } from "next/headers";
 import { defaultLocale, isLocale, localeCookieName } from "./config";
-import { messages, type MessageKey } from "./messages";
+import { nl, type MessageKey } from "./messages/nl";
+import { en } from "./messages/en";
+
+const messages = { nl, en };
 
 export function getServerI18n() {
   const requestedLocale = cookies().get(localeCookieName)?.value;

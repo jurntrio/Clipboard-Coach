@@ -120,11 +120,12 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
   );
 }
 
-export function TagList({ tags, tagMetaById, selectedTagIds, onToggleSelect, onSeek, onDelete, onUpdate, onRename, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
+export function TagList({ tags, tagMetaById, selectedTagIds, onToggleSelect, onToggleAll, onSeek, onDelete, onUpdate, onRename, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
   tags: Tag[];
   tagMetaById?: Record<string, TagListMeta>;
   selectedTagIds: string[];
   onToggleSelect: (tagId: string) => void;
+  onToggleAll?: (tagIds: string[]) => void;
   onSeek: (time: number) => void;
   onDelete: (tagId: string) => void;
   onUpdate?: (tagId: string, startTime: number, endTime: number) => boolean | void | Promise<boolean | void>;
@@ -141,9 +142,19 @@ export function TagList({ tags, tagMetaById, selectedTagIds, onToggleSelect, onS
     a.end_time - b.end_time ||
     a.created_at.localeCompare(b.created_at)
   );
+  const selectableTagIds = sortedTags.filter((tag) => !isPeriodMarker(tag.name)).map((tag) => tag.id);
+  const selectedCount = selectableTagIds.filter((id) => selectedTagIds.includes(id)).length;
+  const allSelected = selectableTagIds.length > 0 && selectedCount === selectableTagIds.length;
 
   return (
     <div className="flex flex-col gap-1 overflow-y-auto">
+      {onToggleAll && selectableTagIds.length > 1 && (
+        <label className="mb-1 flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-cardDeep px-2 py-2 text-xs font-semibold text-textPrimary hover:bg-cardHover">
+          <input type="checkbox" checked={allSelected} onChange={() => onToggleAll(selectableTagIds)} className="accent-accent" />
+          <span>{allSelected ? t("tag.deselectAll") : t("tag.selectAll")}</span>
+          <span className="ml-auto text-[11px] font-normal text-textMuted">{selectedCount}/{selectableTagIds.length}</span>
+        </label>
+      )}
       {sortedTags.map((tag) => <TagRow key={tag.id} tag={tag} meta={tagMetaById?.[tag.id]} selected={selectedTagIds.includes(tag.id)} onToggleSelect={onToggleSelect} onSeek={onSeek} onDelete={onDelete} onUpdate={onUpdate} onRename={onRename} onDraw={onDraw} currentTime={currentTime} onDrawingDurationChange={onDrawingDurationChange} onOpenDrawing={onOpenDrawing} />)}
     </div>
   );

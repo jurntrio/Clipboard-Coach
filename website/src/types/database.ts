@@ -449,6 +449,7 @@ export type Clip = {
   audience_type: ClipAudienceType;
   audience_player_ids: string[];
   rendered_segments: RenderedClipSegment[];
+  rendered_clip: RenderedClip | null;
   render_status: "metadata_only" | "rendering" | "ready" | "failed";
   render_error: string | null;
   created_at: string;
@@ -475,6 +476,17 @@ export type RenderedClipSegment = {
     at_seconds: number;
     duration_seconds: number;
   }>;
+};
+
+export type RenderedClip = {
+  id: string;
+  url: string;
+  key: string;
+  file_size: number;
+  duration: number;
+  segment_count: number;
+  video_codec?: "avc";
+  mobile_compatible?: boolean;
 };
 
 export type ClipSegment = {

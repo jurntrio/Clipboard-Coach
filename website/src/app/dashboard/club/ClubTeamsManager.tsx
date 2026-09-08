@@ -6,6 +6,7 @@ import { useI18n } from "@/i18n/client";
 import { createClient } from "@/lib/supabase/client";
 import { TeamTrainingScheduler } from "@/components/teams/TeamTrainingScheduler";
 import { TeamMatchScheduler } from "@/components/teams/TeamMatchScheduler";
+import { TeamClipImagesToggle } from "@/components/clubs/TeamClipImagesToggle";
 import type { ClubMatchOption } from "@/components/clubs/ClubMatchOptionsManager";
 import { AGE_CATEGORIES, defaultsForAgeCategory, type MatchFormat } from "@/lib/match-defaults";
 
@@ -181,7 +182,7 @@ export function ClubTeamsManager({ clubId, teams, trainers, coordinatorTrainerId
             {t("common.edit")}<span className={`transition ${editing === team.id ? "rotate-90" : ""}`}>▶</span>
           </button>
         </div>
-        {editing === team.id && <TeamEditor clubId={clubId} team={team} trainers={trainers} coordinatorTrainerIds={coordinatorTrainerIds} options={options} busy={busy === team.id} request={request} onChanged={onChanged} readOnly={readOnly} allowImport={allowImport} />}
+        {editing === team.id && <><TeamClipImagesToggle teamId={team.id} readOnly={readOnly} /><TeamEditor clubId={clubId} team={team} trainers={trainers} coordinatorTrainerIds={coordinatorTrainerIds} options={options} busy={busy === team.id} request={request} onChanged={onChanged} readOnly={readOnly} allowImport={allowImport} /></>}
       </article>;
     })}</div>
     {!teams.length && <div className="mt-4 rounded-xl border border-dashed border-border p-8 text-center text-textMuted">{t("clubTeams.noTeamsYet")}</div>}

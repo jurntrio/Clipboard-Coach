@@ -30,6 +30,7 @@ export const config = {
     "/share/:path*",
     "/tag/:path*",
     "/club-tv/:path*",
+    "/clubboys/:path*",
     "/privacy",
     "/terms",
     "/children-and-images"

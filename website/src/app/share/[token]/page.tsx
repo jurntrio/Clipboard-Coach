@@ -4,9 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ShareClipPlayer } from "@/components/clips/ShareClipPlayer";
 import type { ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { getServerI18n } from "@/i18n/server";
-import { LegalLinks } from "@/components/legal/LegalLinks";
 import type { Metadata } from "next";
-import { SvsBrand } from "@/components/branding/SvsBrand";
 import type { Clip, ClipSegment, Match, ShareLink, Tag, Video } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +44,7 @@ type ShareVideo = Pick<Video, "video_url" | "title" | "home_team" | "away_team">
   match_videos: { match_id: string; matches: ShareMatch | null }[];
 };
 
-type ShareClip = Pick<Clip, "name" | "team_id" | "render_status" | "rendered_segments"> & {
+type ShareClip = Pick<Clip, "id" | "video_id" | "name" | "team_id" | "render_status" | "rendered_segments" | "rendered_clip"> & {
   videos: ShareVideo | null;
   clip_segments: ShareClipSegment[] | null;
 };
@@ -64,7 +62,7 @@ export default async function SharePage({ params }: { params: { token: string } 
     .select(
       `id, view_count, expires_at,
        clips (
-         name, team_id, render_status, rendered_segments,
+         id, video_id, name, team_id, render_status, rendered_segments, rendered_clip,
          videos ( video_url, title, home_team, away_team,
            match_videos ( match_id, matches ( id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, score_a, score_b, public_location, show_public_location, sponsor_source, sponsor_caption ) )
          ),
@@ -113,7 +111,11 @@ export default async function SharePage({ params }: { params: { token: string } 
         source_end: segment.source_end
       }))
     : sourceSegments;
+  const firstSegmentUrl = segments.find((segment) => typeof segment.url === "string" && /^https?:\/\//.test(segment.url))?.url ?? null;
+  const renderedClipUrl = clip.render_status === "ready" && /^https?:\/\//.test(clip.rendered_clip?.url ?? "") ? clip.rendered_clip!.url : null;
   const hasOnlineSegments = clip.render_status === "ready" && segments.length > 0 && segments.every((segment) => typeof segment.url === "string" && /^https?:\/\//.test(segment.url));
+  const canPlayOnline = !!renderedClipUrl || hasOnlineSegments;
+  const firstVideoUrl = renderedClipUrl ?? firstSegmentUrl ?? (/^https?:\/\//.test(clip.videos?.video_url ?? "") ? clip.videos?.video_url ?? null : null);
   let sponsorUrl: string | null = null;
   let sponsorCaption: string | null = null;
   if (match?.club_id && match.sponsor_source !== "none") {
@@ -140,10 +142,20 @@ export default async function SharePage({ params }: { params: { token: string } 
   }
 
   return (
+    <>
+    {firstVideoUrl && !firstVideoUrl.includes(".m3u8") && <link rel="preload" as="video" href={firstVideoUrl} type="video/mp4" />}
     <div className="flex min-h-screen flex-col bg-page">
       <header className="border-b border-border bg-black/80 px-4 py-5">
         <div className="mx-auto flex max-w-6xl justify-center">
-          <SvsBrand className="w-full max-w-md" priority />
+          <Image
+            src="/branding/svs-banner-dark.png"
+            alt="Sport Visual Systems"
+            width={640}
+            height={160}
+            priority
+            unoptimized
+            className="h-auto w-full max-w-md"
+          />
         </div>
       </header>
 
@@ -158,8 +170,8 @@ export default async function SharePage({ params }: { params: { token: string } 
           <p className="mt-3 text-sm text-textMuted">{match.match_date ? new Intl.DateTimeFormat("nl-BE", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${match.match_date}T12:00:00`)) : ""}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}{match.show_public_location && match.public_location ? ` · ${match.public_location}` : ""}</p>
         </section>}
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          {hasOnlineSegments ? (
-            <ShareClipPlayer videoUrl={clip.videos?.video_url ?? ""} segments={segments} />
+          {canPlayOnline ? (
+            <ShareClipPlayer videoUrl={renderedClipUrl ?? clip.videos?.video_url ?? ""} segments={renderedClipUrl ? [] : segments} />
           ) : (
             <div className="grid min-h-72 place-items-center bg-black p-8 text-center">
               <div><h2 className="font-semibold text-textBright">{t("public.unavailable")}</h2><p className="mt-2 text-sm text-textMuted">{t("public.unavailableBody")}</p></div>
@@ -183,15 +195,28 @@ export default async function SharePage({ params }: { params: { token: string } 
 
       <footer className="mt-auto border-t border-border bg-black px-4 py-8 text-center">
         <div className="mx-auto flex max-w-6xl flex-col items-center">
-          <SvsBrand format="square" width={48} height={48} className="mb-3 h-12 w-12 rounded-lg" />
+          <Image
+            src="/branding/svs-square-dark.png"
+            alt="Sport Visual Systems"
+            width={48}
+            height={48}
+            unoptimized
+            className="mb-3 h-12 w-12 rounded-lg"
+          />
           <p className="text-sm font-semibold text-textPrimary">{t("public.madeWith")}</p>
           <p className="mt-1 text-xs text-textMuted">{t("public.tagline")}</p>
           <a href="/signup" className="mt-4 inline-block rounded-lg bg-accent px-6 py-2 font-semibold text-page">
             {t("public.start")}
           </a>
-          <div className="mt-5"><LegalLinks includeReport /></div>
+          <nav className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-textMuted">
+            <a href="/privacy" className="hover:text-accent">{t("legal.privacy")}</a>
+            <a href="/terms" className="hover:text-accent">{t("legal.terms")}</a>
+            <a href="/children-and-images" className="hover:text-accent">{t("legal.children")}</a>
+            <a href="mailto:info@sportvisualsystems.com?subject=Sport%20Visual%20Systems%20privacy%20report" className="hover:text-accent">{t("legal.report")}</a>
+          </nav>
         </div>
       </footer>
     </div>
+    </>
   );
 }

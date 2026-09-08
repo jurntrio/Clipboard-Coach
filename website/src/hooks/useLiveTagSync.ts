@@ -3,16 +3,13 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getTagColor } from "@/lib/utils";
+import { canUseRecordingStartTagsAsVideoStarts } from "@/lib/match-video-source";
 import type { LiveMatchTag, Match, StandardTag, Tag, Video } from "@/types/database";
 
 const RECORDING_START_TAG = "start opname";
 
 function isRecordingStartTag(tagName: string) {
   return tagName.trim().toLocaleLowerCase("nl") === RECORDING_START_TAG;
-}
-
-function isExternalRecordingVideo(video: Video) {
-  return video.video_key.startsWith("external/") || video.video_key.startsWith("external-link/");
 }
 
 function liveTagVideoSeconds(liveTag: LiveMatchTag, match: Match) {
@@ -96,7 +93,7 @@ export function useLiveTagSync<TMatch extends Match>({
     const recordingStarts = liveTags
       .filter((liveTag) => isRecordingStartTag(liveTag.tag_name))
       .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
-    const canUseRecordingStarts = !videos.every(isExternalRecordingVideo) && recordingStarts.length === videos.length;
+    const canUseRecordingStarts = canUseRecordingStartTagsAsVideoStarts(videos, recordingStarts.length);
     for (const liveTag of pending) {
       materializingLiveTagIdsRef.current.add(liveTag.id);
       try {
