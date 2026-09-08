@@ -115,10 +115,15 @@ export default async function DashboardHomePage() {
       ? await admin.from("club_teams").select("id, name").eq("club_id", clubId).eq("season_id", activeSeason.id).neq("status", "merged").order("display_order").order("name")
       : { data: [] };
     const accessibleTeams = (accessibleRows ?? []).filter(team => canAccessTeam(access, team.id));
-    const selection = readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(accessibleTeams.map(team => team.id)));
-    selectedClubTeamId = selection.teamId;
-    if (accessibleTeams.length >= LARGE_TEAM_LIST && !selectedClubTeamId && !selection.explicitAll) {
-      return <TeamSelectionGate teams={accessibleTeams} />;
+    // Only clubs at/above the large-list threshold force a single-team focus; smaller
+    // clubs must keep showing every team, even if a team-scoped cookie is lingering
+    // from switching teams on another page (e.g. /dashboard/training).
+    if (accessibleTeams.length >= LARGE_TEAM_LIST) {
+      const selection = readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(accessibleTeams.map(team => team.id)));
+      if (!selection.teamId && !selection.explicitAll) {
+        return <TeamSelectionGate teams={accessibleTeams} />;
+      }
+      selectedClubTeamId = selection.teamId;
     }
   }
   contexts.push(...groupedChildren.values());
