@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getTagColor } from "@/lib/utils";
+import { liveTagVideoSeconds } from "@/lib/match-timeline";
 import type { LiveMatchTag, Match, StandardTag, Tag, Video } from "@/types/database";
 
 const RECORDING_START_TAG = "start opname";
@@ -13,14 +14,6 @@ function isRecordingStartTag(tagName: string) {
 
 function isExternalRecordingVideo(video: Video) {
   return video.video_key.startsWith("external/") || video.video_key.startsWith("external-link/");
-}
-
-function liveTagVideoSeconds(liveTag: LiveMatchTag, match: Match) {
-  if (!match.match_date || !match.recording_start_time) return null;
-  const recordingStartedAt = new Date(`${match.match_date}T${match.recording_start_time}`);
-  if (Number.isNaN(recordingStartedAt.getTime())) return null;
-  const seconds = (new Date(liveTag.occurred_at).getTime() - recordingStartedAt.getTime()) / 1000;
-  return Math.max(0, seconds + (match.live_tag_offset_seconds ?? 0));
 }
 
 function liveTagElapsedSeconds(liveTag: LiveMatchTag, match: Match | null) {

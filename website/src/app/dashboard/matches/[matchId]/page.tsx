@@ -27,6 +27,7 @@ import { useFocusMode } from "@/hooks/useFocusMode";
 import { useMatchVideoSources, type MatchBlock } from "@/hooks/useMatchVideoSources";
 import { useDrawingTool } from "@/hooks/useDrawingTool";
 import { useLiveTagSync } from "@/hooks/useLiveTagSync";
+import { liveTagVideoSeconds, matchTimelineStartMs } from "@/lib/match-timeline";
 
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
 
@@ -38,14 +39,6 @@ const FrameDrawingDialog = dynamic(() => import("@/components/drawings/DesktopDr
 // Splits the clip-building UI into its own chunk so the video player, tags, and
 // timeline can render and become interactive without waiting on it first.
 const ClipBuilder = dynamic(() => import("@/components/clips/ClipBuilder").then((mod) => mod.ClipBuilder), { ssr: false });
-
-function matchTimelineStartMs(match: Pick<Match, "match_date" | "recording_start_time" | "start_time"> | null) {
-  if (!match?.match_date) return null;
-  const time = match.recording_start_time || match.start_time;
-  if (!time) return null;
-  const date = new Date(`${match.match_date}T${time}`);
-  return Number.isNaN(date.getTime()) ? null : date.getTime();
-}
 
 // Same offset logic as the `offsets` useMemo below, but self-contained so it can run inside
 // loadMatch() right after a fetch, before `match` state (and the memo derived from it) exists yet.
@@ -128,14 +121,6 @@ function matchTitle(match: Pick<Match, "team_a_name" | "team_b_name" | "is_home_
   const teamA = match?.team_a_name || fallbackA;
   const teamB = match?.team_b_name || fallbackB;
   return match?.is_home_match === false ? `${teamB} - ${teamA}` : `${teamA} - ${teamB}`;
-}
-
-function liveTagVideoSeconds(liveTag: LiveMatchTag, match: Match) {
-  if (!match.match_date || !match.recording_start_time) return null;
-  const recordingStartedAt = new Date(`${match.match_date}T${match.recording_start_time}`);
-  if (Number.isNaN(recordingStartedAt.getTime())) return null;
-  const seconds = (new Date(liveTag.occurred_at).getTime() - recordingStartedAt.getTime()) / 1000;
-  return Math.max(0, seconds + (match.live_tag_offset_seconds ?? 0));
 }
 
 function liveTagElapsedSeconds(liveTag: LiveMatchTag, match: Match | null) {
@@ -932,7 +917,11 @@ export default function MatchViewerPage() {
             </div>
           ) : currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">{t("match.reconnect", { number: currentIndex + 1 })}</h2><p className="text-textMuted text-sm mt-2">{t("match.reconnectHelp")}</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">{t("match.browserReconnect")}</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("match.reconnectAll")}</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">{t("match.onlyVideo", { number: currentIndex + 1 })}</button></div></div></div> : <div className="match-viewer-stage relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={handleVideoEnded} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={filteredTimelineTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /><button type="button" onClick={() => void toggleFocusMode()} className="match-viewer-focus-button absolute left-3 top-3 z-20 rounded-lg border border-white/30 bg-black/70 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/85" aria-label={isFocusMode ? "Volledig scherm sluiten" : "Volledig scherm openen"}>{isFocusMode ? "⤢ Sluiten" : "⛶ Volledig scherm"}</button></div>}
           <div className="match-viewer-bottom-chrome contents">
-          <div className="relative min-h-12 overflow-hidden rounded-lg border border-border bg-cardDeep" aria-label={t("match.videoSequence")}>
+          <div
+            className="relative min-h-12 overflow-hidden rounded-lg border border-border bg-cardDeep"
+            style={{ backgroundImage: "repeating-linear-gradient(135deg, rgba(128,128,128,0.16) 0, rgba(128,128,128,0.16) 5px, transparent 5px, transparent 11px)" }}
+            aria-label={t("match.videoSequence")}
+          >
             {videos.map((video, index) => (
               <button
                 key={video.id}
@@ -942,7 +931,7 @@ export default function MatchViewerPage() {
                   left: `${((offsets.map.get(video.id) ?? 0) / Math.max(1, offsets.total)) * 100}%`,
                   width: `${Math.max(2, ((video.duration ?? 0) / Math.max(1, offsets.total)) * 100)}%`
                 }}
-                className={`absolute inset-y-0 min-w-[72px] border-r border-border px-2 py-1 text-center text-xs ${index === currentIndex ? "bg-accentDim text-textBright" : "text-textSecondary hover:bg-cardHover"}`}
+                className={`absolute inset-y-0 min-w-[72px] border-l-4 border-r border-r-border px-2 py-1 text-center text-xs ${index === currentIndex ? "border-l-accent bg-accentDim text-textBright" : "border-l-textMuted/50 bg-cardHover text-textSecondary hover:brightness-110"}`}
                 title={`${video.title || `Video ${index + 1}`} · ${formatTime(video.duration ?? 0)}`}
               >
                 <span className="block truncate font-semibold">{t("match.videoNumber", { number: index + 1 })}</span>
