@@ -3,14 +3,14 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
-import { inferRecordingStartMs, inspectLocalVideo, sortLocalVideosByRecordingTime } from "@/lib/media/local-clips";
+import { inspectLocalVideo, sortLocalVideosByRecordingTime } from "@/lib/media/local-clips";
 import { localMediaMessages } from "@/i18n/local-media";
 import { useI18n } from "@/i18n/client";
 import { externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
 import { resolveVeoLink } from "@/lib/veo-browser";
 import type { Video } from "@/types/database";
 
-export type MatchBlock = { id: string; sequence_order: number; label: string; is_primary: boolean; recording_started_at: string | null; videos: Video | null };
+export type MatchBlock = { id: string; sequence_order: number; label: string; is_primary: boolean; recording_started_at?: string | null; videos: Video | null };
 
 function messageFrom(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -80,7 +80,6 @@ export function useMatchVideoSources({
       const info = await inspectLocalVideo(file, localMediaMessages(t));
       if (!await matchesLocalVideo(file, video, info.duration)) throw new Error(t("match.wrongOriginal"));
       await rememberLocalVideo(video.id, file, handle);
-      await saveLocalRecordingStart(video, file, info.duration);
       setFiles((current) => ({ ...current, [video.id]: file }));
       setError("");
     } catch (attachError) {
@@ -133,7 +132,6 @@ export function useMatchVideoSources({
         if (matchIndex >= 0) {
           const [video] = unmatched.splice(matchIndex, 1);
           await rememberLocalVideo(video.id, file, handle);
-          await saveLocalRecordingStart(video, file, info.duration);
           setFiles((current) => ({ ...current, [video.id]: file }));
         }
       }
@@ -158,7 +156,6 @@ export function useMatchVideoSources({
       if (matchIndex >= 0) {
         const [video] = unmatched.splice(matchIndex, 1);
         await rememberLocalVideo(video.id, file);
-        await saveLocalRecordingStart(video, file, info.duration);
         setFiles((current) => ({ ...current, [video.id]: file }));
       }
     }
@@ -305,7 +302,6 @@ export function useMatchVideoSources({
     sequence_order: number;
     is_primary: boolean;
     label: string;
-    recording_started_at?: string | null;
   }): Promise<Video> {
     const response = await fetch(`/api/matches/${matchId}/videos`, {
       method: "POST",
@@ -417,8 +413,7 @@ export function useMatchVideoSources({
           title: selection.file.name.replace(/\.[^/.]+$/, ""),
           sequence_order: nextSequenceOrder + index,
           is_primary: true,
-          label: `Video ${index + 1}`,
-          recording_started_at: recordingStartedAt(selection.file, selection.info.duration)
+          label: `Video ${index + 1}`
         });
         await rememberLocalVideo(video.id, selection.file, selection.handle);
       }
@@ -453,18 +448,6 @@ export function useMatchVideoSources({
     await loadMatch();
   }
 
-  async function saveLocalRecordingStart(video: Video, file: File, durationSeconds: number) {
-    const block = blocks.find((item) => item.videos?.id === video.id);
-    if (!block || block.recording_started_at) return;
-    const recording_started_at = recordingStartedAt(file, durationSeconds);
-    if (!recording_started_at) return;
-    await fetch(`/api/matches/${matchId}/videos/${video.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recording_started_at })
-    });
-  }
-
   return {
     files, setFiles,
     recordingConfig, setRecordingConfig,
@@ -487,9 +470,4 @@ export function useMatchVideoSources({
     attachExternalRecording, attachVeoRecording, attach360Recording,
     attachLocalFiles, chooseLocalFilesToAttach, removeVideoSource
   };
-}
-
-function recordingStartedAt(file: File, durationSeconds: number) {
-  const startMs = inferRecordingStartMs(file, durationSeconds);
-  return startMs === null ? null : new Date(startMs).toISOString();
 }

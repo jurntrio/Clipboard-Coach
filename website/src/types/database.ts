@@ -388,7 +388,7 @@ export type MatchVideo = {
   sequence_order: number;
   is_primary: boolean;
   label: string;
-  recording_started_at: string | null;
+  recording_started_at?: string | null;
   created_at: string;
 };
 

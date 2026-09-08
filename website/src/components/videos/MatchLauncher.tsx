@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { inferRecordingStartMs, inspectLocalVideo, recordingStartTimeFromLocalVideos, sortLocalVideosByRecordingTime, type LocalVideoInfo } from "@/lib/media/local-clips";
+import { inspectLocalVideo, recordingStartTimeFromLocalVideos, sortLocalVideosByRecordingTime, type LocalVideoInfo } from "@/lib/media/local-clips";
 import { getRememberedLocalVideo, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
 import { externalRecordingCameras, externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
 import type { Match, Team, Video } from "@/types/database";
@@ -33,7 +33,7 @@ type RecentItem =
   | { kind: "video"; id: string; title: string; date: string; openedAt: string; count: 1; videoIds: string[] };
 
 type RecentPayload = {
-  matches: (Match & { match_videos: { video_id: string; recording_started_at: string | null }[] })[];
+  matches: (Match & { match_videos: { video_id: string }[] })[];
   videos: Video[];
   activeTeamId: string | null;
   teamOptions: Array<{ id: string; name: string }>;
@@ -61,7 +61,7 @@ export function MatchLauncher() {
   const pendingRecentItemRef = useRef<RecentItem | null>(null);
   const pendingSlotRef = useRef(0);
   const [mode, setMode] = useState<Mode>("recent");
-  const [matches, setMatches] = useState<(Match & { match_videos: { video_id: string; recording_started_at: string | null }[] })[]>([]);
+  const [matches, setMatches] = useState<(Match & { match_videos: { video_id: string }[] })[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [teams] = useState<Team[]>([]);
   const [slots, setSlots] = useState<(SelectedVideo | null)[]>([null, null, null, null]);
@@ -85,7 +85,7 @@ export function MatchLauncher() {
   const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
   const [teamOptions, setTeamOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<(Match & { match_videos: { video_id: string; recording_started_at: string | null }[] })[]>([]);
+  const [searchResults, setSearchResults] = useState<(Match & { match_videos: { video_id: string }[] })[]>([]);
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchLoaded, setSearchLoaded] = useState(false);
@@ -165,7 +165,7 @@ export function MatchLauncher() {
       return;
     }
     const body = await response.json() as {
-      matches: (Match & { match_videos: { video_id: string; recording_started_at: string | null }[] })[];
+      matches: (Match & { match_videos: { video_id: string }[] })[];
       videos: Video[];
       hasMore: boolean;
     };
@@ -204,9 +204,7 @@ export function MatchLauncher() {
     const localVideos = videosForItem(item);
     const missing: Video[] = [];
     for (const video of localVideos) {
-      const remembered = await getRememberedLocalVideo(video.id, true);
-      if (remembered) await saveRecordingStart(item.id, video.id, remembered);
-      else missing.push(video);
+      if (!await getRememberedLocalVideo(video.id, true)) missing.push(video);
     }
 
     if (missing.length) {
@@ -255,20 +253,8 @@ export function MatchLauncher() {
       if (matchIndex >= 0) {
         const [video] = unmatched.splice(matchIndex, 1);
         await rememberLocalVideo(video.id, selection.file, selection.handle);
-        await saveRecordingStart(matchId, video.id, selection.file, info.duration);
       }
     }
-  }
-
-  async function saveRecordingStart(matchId: string, videoId: string, file: File, knownDuration?: number) {
-    const info = knownDuration === undefined ? await inspectLocalVideo(file, localMediaMessages(t)) : { duration: knownDuration };
-    const startedAt = recordingStartedAt(file, info.duration);
-    if (!startedAt) return;
-    await fetch(`/api/matches/${matchId}/videos/${videoId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recording_started_at: startedAt })
-    });
   }
 
   async function allVideosRemembered(expected: Video[]) {
@@ -477,8 +463,7 @@ export function MatchLauncher() {
             match_id: match.id,
             video_id: videoId,
             sequence_order: index,
-            label: `Video ${index + 1}`,
-            recording_started_at: recordingStartedAt(selection.file, selection.info.duration)
+            label: `Video ${index + 1}`
           });
           if (linkError) throw linkError;
         }
@@ -627,9 +612,4 @@ export function MatchLauncher() {
       <ConfirmDialog open={!!deleteTarget} title={t("match.deleteTitle")} message={t("match.deleteNamedMessage", { name: deleteTarget?.title ?? t("video.match") })} busy={deleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void deleteMatch()} />
     </div>
   );
-}
-
-function recordingStartedAt(file: File, durationSeconds: number) {
-  const startMs = inferRecordingStartMs(file, durationSeconds);
-  return startMs === null ? null : new Date(startMs).toISOString();
 }
