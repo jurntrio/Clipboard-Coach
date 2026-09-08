@@ -14,6 +14,7 @@ type VideoSourceBody = {
   sequence_order?: number;
   is_primary?: boolean;
   label?: string;
+  recording_started_at?: string | null;
 };
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -42,6 +43,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!(body.video_url.startsWith("https://") || body.video_url.startsWith("local://"))) {
     return NextResponse.json({ error: "Ongeldige video-URL." }, { status: 400 });
   }
+  const recordingStartedAt = parseIsoTimestamp(body.recording_started_at);
 
   const { data: video, error: videoError } = await admin.from("videos").insert({
     coach_id: match.coach_id,
@@ -61,11 +63,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
     video_id: video.id,
     sequence_order: body.sequence_order,
     is_primary: body.is_primary,
-    label: body.label
+    label: body.label,
+    recording_started_at: recordingStartedAt
   });
   if (linkError) {
     await admin.from("videos").delete().eq("id", video.id);
     return NextResponse.json({ error: linkError.message }, { status: 500 });
   }
   return NextResponse.json({ video }, { status: 201 });
+}
+
+function parseIsoTimestamp(value: string | null | undefined) {
+  if (value === null || value === undefined || value === "") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }

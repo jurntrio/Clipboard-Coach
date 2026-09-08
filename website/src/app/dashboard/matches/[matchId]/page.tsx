@@ -51,15 +51,48 @@ function computeVideoOffsets(matchVideos: MatchBlock[]): Map<string, number> {
     list.push(block);
     camerasByBlockOrder.set(block.sequence_order, list);
   }
+  const knownStarts = primaryBlocks
+    .map((block) => block.recording_started_at ? new Date(block.recording_started_at).getTime() : null)
+    .filter((value): value is number => value !== null && !Number.isNaN(value));
+  const firstRecordingStart = knownStarts.length ? Math.min(...knownStarts) : null;
   const map = new Map<string, number>();
   let offset = 0;
   for (const block of primaryBlocks) {
     if (!block.videos) continue;
+    const startedAt = block.recording_started_at ? new Date(block.recording_started_at).getTime() : null;
+    const recordingOffset = firstRecordingStart !== null && startedAt !== null && !Number.isNaN(startedAt)
+      ? Math.max(0, (startedAt - firstRecordingStart) / 1000)
+      : null;
+    if (recordingOffset !== null) offset = Math.max(offset, recordingOffset);
     const cameras = camerasByBlockOrder.get(block.sequence_order) ?? [block];
     for (const cameraBlock of cameras) if (cameraBlock.videos) map.set(cameraBlock.videos.id, offset);
     offset += block.videos.duration ?? 0;
   }
   return map;
+}
+
+function computeOffsetPlan(primaryBlocks: MatchBlock[], camerasByBlockOrder: Map<number, MatchBlock[]>) {
+  const map = new Map<string, number>();
+  const knownStarts = primaryBlocks
+    .map((block) => block.recording_started_at ? new Date(block.recording_started_at).getTime() : null)
+    .filter((value): value is number => value !== null && !Number.isNaN(value));
+  const firstRecordingStart = knownStarts.length ? Math.min(...knownStarts) : null;
+  let cursor = 0;
+  let total = 0;
+  for (const block of primaryBlocks) {
+    if (!block.videos) continue;
+    const startedAt = block.recording_started_at ? new Date(block.recording_started_at).getTime() : null;
+    const recordingOffset = firstRecordingStart !== null && startedAt !== null && !Number.isNaN(startedAt)
+      ? Math.max(0, (startedAt - firstRecordingStart) / 1000)
+      : null;
+    const start = recordingOffset === null ? cursor : Math.max(cursor, recordingOffset);
+    const duration = Math.max(0, block.videos.duration ?? 0);
+    const cameras = camerasByBlockOrder.get(block.sequence_order) ?? [block];
+    for (const cameraBlock of cameras) if (cameraBlock.videos) map.set(cameraBlock.videos.id, start);
+    cursor = start + duration;
+    total = Math.max(total, cursor);
+  }
+  return { map, total };
 }
 
 function drawingsSeconds(drawings: TagDrawing[] | undefined) {
@@ -290,15 +323,7 @@ export default function MatchViewerPage() {
     return map;
   }, [blocks]);
   const offsets = useMemo(() => {
-    const map = new Map<string, number>();
-    let offset = 0;
-    for (const block of primaryBlocks) {
-      if (!block.videos) continue;
-      const cameras = camerasByBlockOrder.get(block.sequence_order) ?? [block];
-      for (const cameraBlock of cameras) if (cameraBlock.videos) map.set(cameraBlock.videos.id, offset);
-      offset += block.videos.duration ?? 0;
-    }
-    return { map, total: offset };
+    return computeOffsetPlan(primaryBlocks, camerasByBlockOrder);
   }, [primaryBlocks, camerasByBlockOrder]);
   const siblingCamerasByVideoId = useMemo(() => {
     const map: Record<string, { id: string; camera_number: number | null; label: string }[]> = {};
@@ -893,14 +918,17 @@ export default function MatchViewerPage() {
             </div>
           ) : currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">{t("match.reconnect", { number: currentIndex + 1 })}</h2><p className="text-textMuted text-sm mt-2">{t("match.reconnectHelp")}</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">{t("match.browserReconnect")}</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("match.reconnectAll")}</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">{t("match.onlyVideo", { number: currentIndex + 1 })}</button></div></div></div> : <div className="match-viewer-stage relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={handleVideoEnded} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={filteredTimelineTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /><button type="button" onClick={() => void toggleFocusMode()} className="match-viewer-focus-button absolute left-3 top-3 z-20 rounded-lg border border-white/30 bg-black/70 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/85" aria-label={isFocusMode ? "Volledig scherm sluiten" : "Volledig scherm openen"}>{isFocusMode ? "⤢ Sluiten" : "⛶ Volledig scherm"}</button></div>}
           <div className="match-viewer-bottom-chrome contents">
-          <div className="flex min-h-12 overflow-hidden rounded-lg border border-border bg-cardDeep" aria-label={t("match.videoSequence")}>
+          <div className="relative min-h-12 overflow-hidden rounded-lg border border-border bg-cardDeep" aria-label={t("match.videoSequence")}>
             {videos.map((video, index) => (
               <button
                 key={video.id}
                 type="button"
                 onClick={() => seekTo(offsets.map.get(video.id) ?? 0)}
-                style={{ flexGrow: Math.max(1, video.duration ?? 0), flexBasis: 0 }}
-                className={`min-w-[72px] border-r border-border px-2 py-1 text-center text-xs last:border-r-0 ${index === currentIndex ? "bg-accentDim text-textBright" : "text-textSecondary hover:bg-cardHover"}`}
+                style={{
+                  left: `${((offsets.map.get(video.id) ?? 0) / Math.max(1, offsets.total)) * 100}%`,
+                  width: `${Math.max(2, ((video.duration ?? 0) / Math.max(1, offsets.total)) * 100)}%`
+                }}
+                className={`absolute inset-y-0 min-w-[72px] border-r border-border px-2 py-1 text-center text-xs ${index === currentIndex ? "bg-accentDim text-textBright" : "text-textSecondary hover:bg-cardHover"}`}
                 title={`${video.title || `Video ${index + 1}`} · ${formatTime(video.duration ?? 0)}`}
               >
                 <span className="block truncate font-semibold">{t("match.videoNumber", { number: index + 1 })}</span>

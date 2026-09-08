@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { inspectLocalVideo, recordingStartTimeFromLocalVideos, sortLocalVideosByRecordingTime, type LocalVideoInfo } from "@/lib/media/local-clips";
+import { inferRecordingStartMs, inspectLocalVideo, recordingStartTimeFromLocalVideos, sortLocalVideosByRecordingTime, type LocalVideoInfo } from "@/lib/media/local-clips";
 import { getRememberedLocalVideo, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
 import { externalRecordingCameras, externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
 import type { Match, Team, Video } from "@/types/database";
@@ -457,7 +457,8 @@ export function MatchLauncher() {
             match_id: match.id,
             video_id: videoId,
             sequence_order: index,
-            label: `Video ${index + 1}`
+            label: `Video ${index + 1}`,
+            recording_started_at: recordingStartedAt(selection.file, selection.info.duration)
           });
           if (linkError) throw linkError;
         }
@@ -606,4 +607,9 @@ export function MatchLauncher() {
       <ConfirmDialog open={!!deleteTarget} title={t("match.deleteTitle")} message={t("match.deleteNamedMessage", { name: deleteTarget?.title ?? t("video.match") })} busy={deleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void deleteMatch()} />
     </div>
   );
+}
+
+function recordingStartedAt(file: File, durationSeconds: number) {
+  const startMs = inferRecordingStartMs(file, durationSeconds);
+  return startMs === null ? null : new Date(startMs).toISOString();
 }

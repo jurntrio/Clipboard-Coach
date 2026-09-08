@@ -3,14 +3,14 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
-import { inspectLocalVideo, sortLocalVideosByRecordingTime } from "@/lib/media/local-clips";
+import { inferRecordingStartMs, inspectLocalVideo, sortLocalVideosByRecordingTime } from "@/lib/media/local-clips";
 import { localMediaMessages } from "@/i18n/local-media";
 import { useI18n } from "@/i18n/client";
 import { externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
 import { resolveVeoLink } from "@/lib/veo-browser";
 import type { Video } from "@/types/database";
 
-export type MatchBlock = { id: string; sequence_order: number; label: string; is_primary: boolean; videos: Video | null };
+export type MatchBlock = { id: string; sequence_order: number; label: string; is_primary: boolean; recording_started_at: string | null; videos: Video | null };
 
 function messageFrom(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -302,6 +302,7 @@ export function useMatchVideoSources({
     sequence_order: number;
     is_primary: boolean;
     label: string;
+    recording_started_at?: string | null;
   }): Promise<Video> {
     const response = await fetch(`/api/matches/${matchId}/videos`, {
       method: "POST",
@@ -413,7 +414,8 @@ export function useMatchVideoSources({
           title: selection.file.name.replace(/\.[^/.]+$/, ""),
           sequence_order: nextSequenceOrder + index,
           is_primary: true,
-          label: `Video ${index + 1}`
+          label: `Video ${index + 1}`,
+          recording_started_at: recordingStartedAt(selection.file, selection.info.duration)
         });
         await rememberLocalVideo(video.id, selection.file, selection.handle);
       }
@@ -470,4 +472,9 @@ export function useMatchVideoSources({
     attachExternalRecording, attachVeoRecording, attach360Recording,
     attachLocalFiles, chooseLocalFilesToAttach, removeVideoSource
   };
+}
+
+function recordingStartedAt(file: File, durationSeconds: number) {
+  const startMs = inferRecordingStartMs(file, durationSeconds);
+  return startMs === null ? null : new Date(startMs).toISOString();
 }
