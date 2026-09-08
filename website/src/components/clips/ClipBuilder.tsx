@@ -10,27 +10,10 @@ import { isPeriodMarker } from "@/lib/tags";
 import { useI18n } from "@/i18n/client";
 import { localMediaMessages } from "@/i18n/local-media";
 import { ClipCreationImages } from "./ClipCreationImages";
-import { ClipPreviewModal, type ClipSegmentPlayback } from "./ClipPreviewModal";
 import { emptyClipImages, parseClipImages } from "@/lib/clip-images";
-
-type MatchClip = {
-  id: string;
-  name: string;
-  video_id: string;
-  render_status: string;
-  rendered_segments: Array<{ id: string; url: string; name: string; color: string; duration: number; play_start?: number }>;
-  clip_segments: Array<{
-    id: string;
-    sequence_order: number;
-    video_id: string | null;
-    videos: { video_url: string } | null;
-    tags: { name: string; color: string; start_time: number; end_time: number } | null;
-  }>;
-};
 
 export function ClipBuilder({
   videoId,
-  videoIds,
   teamId,
   selectedTagIds,
   tags,
@@ -83,11 +66,6 @@ export function ClipBuilder({
   const [addingPerson, setAddingPerson] = useState(false);
   const [clipAllowance, setClipAllowance] = useState<{ plan: "free" | "pro"; used: number; exempt: boolean } | null>(null);
   const [cameraSelectionByTag, setCameraSelectionByTag] = useState<Record<string, string[]>>({});
-  const [matchClips, setMatchClips] = useState<MatchClip[]>([]);
-  const [previewClip, setPreviewClip] = useState<MatchClip | null>(null);
-  const [editingClipId, setEditingClipId] = useState<string | null>(null);
-  const [clipNameDraft, setClipNameDraft] = useState("");
-  const [renamingClipId, setRenamingClipId] = useState<string | null>(null);
   const supabase = createClient();
   const { t } = useI18n();
   const freeClipLimit = 20;
@@ -126,60 +104,6 @@ export function ClipBuilder({
     void loadClipAllowance();
     return () => { active = false; };
   }, []);
-  useEffect(() => { void loadMatchClips(); }, [videoId, (videoIds ?? []).join(",")]);
-
-  async function loadMatchClips() {
-    const sourceVideoIds = videoIds?.length ? videoIds : [videoId];
-    const { data } = await supabase.from("clips")
-      .select("id, name, video_id, render_status, rendered_segments, created_at, clip_segments(id, sequence_order, video_id, videos(video_url), tags(name, color, start_time, end_time))")
-      .in("video_id", sourceVideoIds)
-      .order("created_at", { ascending: false });
-    setMatchClips(((data ?? []) as unknown as MatchClip[]));
-  }
-
-  function playbackSegments(clip: MatchClip): ClipSegmentPlayback[] {
-    if (clip.render_status === "ready" && clip.rendered_segments?.length) {
-      return clip.rendered_segments.map((segment) => ({
-        id: segment.id,
-        name: segment.name,
-        color: segment.color,
-        start_time: segment.play_start ?? 0,
-        end_time: segment.duration,
-        url: segment.url
-      }));
-    }
-    return [...(clip.clip_segments ?? [])]
-      .sort((a, b) => a.sequence_order - b.sequence_order)
-      .filter((segment) => !!segment.tags)
-      .map((segment) => ({
-        id: segment.id,
-        name: segment.tags!.name,
-        color: segment.tags!.color,
-        start_time: segment.tags!.start_time,
-        end_time: segment.tags!.end_time,
-        url: segment.videos?.video_url
-      }));
-  }
-
-  async function renameClip(clip: MatchClip) {
-    const name = clipNameDraft.trim();
-    if (!name) { setClipNameDraft(clip.name); setEditingClipId(null); return; }
-    setRenamingClipId(clip.id);
-    setErrorMessage("");
-    const response = await fetch(`/api/clips/${clip.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name })
-    });
-    const body = await response.json().catch(() => null) as { clip?: MatchClip; error?: string } | null;
-    setRenamingClipId(null);
-    if (!response.ok || !body?.clip) {
-      setErrorMessage(body?.error || t("clip.renameFailed"));
-      return;
-    }
-    setMatchClips((current) => current.map((item) => item.id === clip.id ? { ...item, name: body.clip!.name } : item));
-    setEditingClipId(null);
-  }
 
   async function handleCreateClip() {
     if (!imagesReady) return;
@@ -344,7 +268,6 @@ export function ClipBuilder({
           setAudienceType("full_team");
           setCameraSelectionByTag({});
           setClipImages(emptyClipImages());
-          await loadMatchClips();
           onClipCreated();
           setOpen(false);
         } catch (renderError) {
@@ -434,41 +357,6 @@ export function ClipBuilder({
       {localVideo && !canUseLocalSources && <p className="mt-2 text-xs text-textMuted">{t("clip.reconnectAll")}</p>}
       {clipLimitReached && <p className="mt-2 text-xs text-red-300">{t("clip.freeLimit")}</p>}
 
-      <div className="mt-4 border-t border-border pt-3">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <h4 className="text-sm font-semibold text-textBright">{t("clip.existing")}</h4>
-          <span className="text-xs text-textMuted">{matchClips.length}</span>
-        </div>
-        {matchClips.length ? (
-          <div className="space-y-2">
-            {matchClips.map((clip) => (
-              <div key={clip.id} className="rounded-lg border border-border bg-cardDeep px-2.5 py-2">
-                <div className="flex items-center gap-2">
-                  {editingClipId === clip.id ? (
-                    <input
-                      autoFocus
-                      disabled={renamingClipId === clip.id}
-                      value={clipNameDraft}
-                      onChange={(event) => setClipNameDraft(event.target.value)}
-                      onBlur={() => void renameClip(clip)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") event.currentTarget.blur();
-                        if (event.key === "Escape" && renamingClipId !== clip.id) { setClipNameDraft(clip.name); setEditingClipId(null); }
-                      }}
-                      className="min-w-0 flex-1 rounded border border-accent bg-input px-2 py-1 text-xs text-textPrimary outline-none disabled:opacity-60"
-                    />
-                  ) : (
-                    <button type="button" onClick={() => setPreviewClip(clip)} className="min-w-0 flex-1 truncate text-left text-xs font-semibold text-textPrimary hover:text-accent">{clip.name}</button>
-                  )}
-                  <button type="button" disabled={clip.render_status === "rendering"} onClick={() => setPreviewClip(clip)} className="rounded border border-borderButton bg-button px-2 py-1 text-[11px] font-semibold text-textPrimary hover:bg-cardHover disabled:cursor-wait disabled:opacity-50">{clip.render_status === "rendering" ? t("clip.processing") : t("clip.view")}</button>
-                  <button type="button" onClick={() => { setEditingClipId(clip.id); setClipNameDraft(clip.name); }} className="rounded border border-borderButton bg-button px-2 py-1 text-[11px] font-semibold text-textPrimary hover:bg-cardHover">{t("clip.rename")}</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <p className="text-xs text-textMuted">{t("clip.noneForMatch")}</p>}
-      </div>
-
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" onClick={() => { if (!saving) setOpen(false); }}>
           <div className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-xl border border-borderButton bg-cardAlt p-5 shadow-2xl" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("clip.create")}>
@@ -544,7 +432,6 @@ export function ClipBuilder({
           </div>
         </div>
       )}
-      {previewClip && <ClipPreviewModal clipName={previewClip.name} videoUrl={playbackSegments(previewClip)[0]?.url ?? ""} segments={playbackSegments(previewClip)} onClose={() => setPreviewClip(null)} />}
     </div>
   );
 }

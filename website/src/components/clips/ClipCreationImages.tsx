@@ -25,20 +25,16 @@ export function ClipCreationImages({ videoId, tags, value, onChange, onReady, di
   const [source, setSource] = useState<Source | null>(null);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
     onReady(false); setSource(null); setError("");
     fetch(`/api/videos/${videoId}/clip-images`, { cache: "no-store" }).then(async response => {
       const body = await readJsonResponse(response); if (!response.ok) throw new Error(body?.error || "De ploeginstelling kon niet worden geladen.");
       if (active) { setSource(body); if (!body.allowed) onChange(emptyClipImages()); onReady(true); }
-    }).catch(() => {
-      if (!active) return;
-      onChange(emptyClipImages());
-      onReady(true);
-      setSource({ allowed: false, teamName: null, matchCard: { teamA: "", teamB: "", logoA: null, logoB: null, score: "" } });
-    });
+    }).catch(reason => { if (active) setError(reason.message || "De ploeginstelling kon niet worden geladen."); });
     return () => { active = false; };
-  }, [videoId, onReady, onChange]);
+  }, [videoId, attempt, onReady, onChange]);
 
   function opening(patch: Partial<ClipIntro>) {
     onChange({ ...value, opening: { ...defaultClipIntro, ...value.opening, ...patch, enabled: true } });
@@ -60,7 +56,8 @@ export function ClipCreationImages({ videoId, tags, value, onChange, onReady, di
     return <input type="file" accept="image/png,image/jpeg,image/webp" className="mt-2 block w-full text-xs" onChange={event => { const file = event.target.files?.[0]; if (file) void upload(file, target); event.target.value = ""; }} />;
   }
 
-  if (!source?.allowed) return null;
+  if (!source) return <div className="mt-4 text-sm text-textMuted"><p>{error || "Ploeginstelling voor clipbeelden laden…"}</p>{error && <div className="mt-2 flex gap-3"><button type="button" className="text-accent" onClick={() => setAttempt(value => value + 1)}>Opnieuw proberen</button><button type="button" className="text-accent" onClick={() => { onChange(emptyClipImages()); onReady(true); setSource({ allowed: false, teamName: null, matchCard: { teamA: "", teamB: "", logoA: null, logoB: null, score: "" } }); }}>Verder zonder beelden</button></div>}</div>;
+  if (!source.allowed) return <p className="mt-4 text-xs text-textMuted">Introbeelden zijn uitgeschakeld voor {source.teamName || "deze ploeg"}. Een beheerder kan ze toestaan via Clubbeheer → Teams & spelers → Bewerken.</p>;
   return <fieldset disabled={disabled || uploading} className="mt-4 space-y-4 rounded-xl border border-accent/30 bg-cardDeep p-4 disabled:opacity-60">
     <legend className="px-2 font-semibold text-accent">Beelden bij deze clip · {source.teamName}</legend>
     <p className="text-xs text-textMuted">Optioneel. De gekozen beelden komen in het videobestand en zijn zichtbaar in de preview, download en deellink.</p>
