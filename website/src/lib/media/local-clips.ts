@@ -17,7 +17,33 @@ export type LocalVideoInfo = {
   audioCodec: string | null;
 };
 
+// Many action/drone cameras (DJI, GoPro, Insta360, ...) stamp the recording start
+// time straight into the filename. Prefer that over the file's mtime: mtime only
+// approximates the recording *end* time and can be altered by copying the file
+// between drives, while the filename survives any transfer untouched.
+const FILENAME_TIMESTAMP_PATTERNS = [
+  // DJI: DJI_20260905101604_0002_D.MP4 -> 2026-09-05 10:16:04
+  /(?:^|[_-])(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:[_-]|\.)/,
+  // GoPro/Insta360 style: 2026-09-05_10-16-04 or 2026-09-05 10.16.04
+  /(\d{4})-(\d{2})-(\d{2})[ _](\d{2})[.:-](\d{2})[.:-](\d{2})/
+];
+
+function inferRecordingStartFromFilename(fileName: string) {
+  for (const pattern of FILENAME_TIMESTAMP_PATTERNS) {
+    const match = fileName.match(pattern);
+    if (!match) continue;
+    const [, year, month, day, hour, minute, second] = match.map(Number) as unknown as number[];
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 || second > 59) continue;
+    const date = new Date(year, month - 1, day, hour, minute, second);
+    if (Number.isNaN(date.getTime())) continue;
+    return date.getTime();
+  }
+  return null;
+}
+
 export function inferRecordingStartMs(file: File, durationSeconds: number) {
+  const fromFilename = inferRecordingStartFromFilename(file.name);
+  if (fromFilename !== null) return fromFilename;
   if (!Number.isFinite(file.lastModified) || file.lastModified <= 0 || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
     return null;
   }

@@ -14,6 +14,7 @@ type VideoSourceBody = {
   sequence_order?: number;
   is_primary?: boolean;
   label?: string;
+  recording_started_at?: string | null;
 };
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -42,6 +43,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!(body.video_url.startsWith("https://") || body.video_url.startsWith("local://"))) {
     return NextResponse.json({ error: "Ongeldige video-URL." }, { status: 400 });
   }
+  const recordingStartedAt = body.recording_started_at ? new Date(body.recording_started_at) : null;
+  if (recordingStartedAt && Number.isNaN(recordingStartedAt.getTime())) {
+    return NextResponse.json({ error: "Ongeldige opnametijd." }, { status: 400 });
+  }
   const { data: video, error: videoError } = await admin.from("videos").insert({
     coach_id: match.coach_id,
     team_id: match.team_a_id,
@@ -60,7 +65,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
     video_id: video.id,
     sequence_order: body.sequence_order,
     is_primary: body.is_primary,
-    label: body.label
+    label: body.label,
+    recording_started_at: recordingStartedAt ? recordingStartedAt.toISOString() : null
   });
   if (linkError) {
     await admin.from("videos").delete().eq("id", video.id);

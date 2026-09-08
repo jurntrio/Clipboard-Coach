@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { inspectLocalVideo, recordingStartTimeFromLocalVideos, sortLocalVideosByRecordingTime, type LocalVideoInfo } from "@/lib/media/local-clips";
+import { inferRecordingStartMs, inspectLocalVideo, recordingStartTimeFromLocalVideos, sortLocalVideosByRecordingTime, type LocalVideoInfo } from "@/lib/media/local-clips";
 import { getRememberedLocalVideo, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
 import { externalRecordingCameras, externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
 import type { Match, Team, Video } from "@/types/database";
@@ -459,11 +459,13 @@ export function MatchLauncher() {
             videoId = video.id;
           }
           await rememberLocalVideo(videoId, selection.file, selection.handle);
+          const startMs = inferRecordingStartMs(selection.file, selection.info.duration);
           const { error: linkError } = await supabase.from("match_videos").insert({
             match_id: match.id,
             video_id: videoId,
             sequence_order: index,
-            label: `Video ${index + 1}`
+            label: `Video ${index + 1}`,
+            recording_started_at: startMs !== null ? new Date(startMs).toISOString() : null
           });
           if (linkError) throw linkError;
         }

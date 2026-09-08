@@ -3,7 +3,7 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
-import { inspectLocalVideo, sortLocalVideosByRecordingTime } from "@/lib/media/local-clips";
+import { inferRecordingStartMs, inspectLocalVideo, sortLocalVideosByRecordingTime } from "@/lib/media/local-clips";
 import { localMediaMessages } from "@/i18n/local-media";
 import { useI18n } from "@/i18n/client";
 import { externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
@@ -302,6 +302,7 @@ export function useMatchVideoSources({
     sequence_order: number;
     is_primary: boolean;
     label: string;
+    recording_started_at?: string | null;
   }): Promise<Video> {
     const response = await fetch(`/api/matches/${matchId}/videos`, {
       method: "POST",
@@ -405,6 +406,7 @@ export function useMatchVideoSources({
       const nextSequenceOrder = primarySequenceOrderAfter(blocks);
       for (let index = 0; index < orderedSelections.length; index += 1) {
         const selection = orderedSelections[index];
+        const startMs = inferRecordingStartMs(selection.file, selection.info.duration);
         const video = await createMatchVideoSource({
           video_url: `local://${selection.fingerprint}`,
           video_key: `local/${selection.fingerprint}`,
@@ -413,7 +415,8 @@ export function useMatchVideoSources({
           title: selection.file.name.replace(/\.[^/.]+$/, ""),
           sequence_order: nextSequenceOrder + index,
           is_primary: true,
-          label: `Video ${index + 1}`
+          label: `Video ${index + 1}`,
+          recording_started_at: startMs !== null ? new Date(startMs).toISOString() : null
         });
         await rememberLocalVideo(video.id, selection.file, selection.handle);
       }

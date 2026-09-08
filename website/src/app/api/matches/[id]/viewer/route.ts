@@ -11,7 +11,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 
   const admin = createAdminClient();
   const { data: match } = await admin.from("matches")
-    .select("*, match_videos(id, sequence_order, label, is_primary, videos(*))")
+    .select("*, match_videos(id, sequence_order, label, is_primary, recording_started_at, videos(*))")
     .eq("id", params.id)
     .maybeSingle();
   if (!match?.club_id) return NextResponse.json({ error: "Wedstrijd niet gevonden." }, { status: 404 });
