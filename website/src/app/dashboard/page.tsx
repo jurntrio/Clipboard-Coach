@@ -117,7 +117,7 @@ export default async function DashboardHomePage() {
     const accessibleTeams = (accessibleRows ?? []).filter(team => canAccessTeam(access, team.id));
     const selection = readActiveTeamSelection(cookies().get(ACTIVE_TEAM_COOKIE)?.value, new Set(accessibleTeams.map(team => team.id)));
     selectedClubTeamId = selection.teamId;
-    if (accessibleTeams.length >= LARGE_TEAM_LIST && !selectedClubTeamId) {
+    if (accessibleTeams.length >= LARGE_TEAM_LIST && !selectedClubTeamId && !selection.explicitAll) {
       return <TeamSelectionGate teams={accessibleTeams} />;
     }
   }
