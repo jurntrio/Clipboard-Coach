@@ -20,6 +20,12 @@ function mergeVideos(current: Video[], incoming: Video[]): Video[] {
   return Array.from(map.values());
 }
 
+function matchTitle(match: Pick<Match, "team_a_name" | "team_b_name" | "is_home_match">, fallbackA: string, fallbackB: string) {
+  const teamA = match.team_a_name || fallbackA;
+  const teamB = match.team_b_name || fallbackB;
+  return match.is_home_match === false ? `${teamB} – ${teamA}` : `${teamA} – ${teamB}`;
+}
+
 type Mode = "recent" | "all" | "create";
 type SelectedVideo = { file: File; handle: FileSystemFileHandle | null; info: LocalVideoInfo };
 type RecentItem =
@@ -27,7 +33,7 @@ type RecentItem =
   | { kind: "video"; id: string; title: string; date: string; openedAt: string; count: 1; videoIds: string[] };
 
 type RecentPayload = {
-  matches: (Match & { match_videos: { video_id: string }[] })[];
+  matches: (Match & { match_videos: { video_id: string; recording_started_at: string | null }[] })[];
   videos: Video[];
   activeTeamId: string | null;
   teamOptions: Array<{ id: string; name: string }>;
@@ -55,7 +61,7 @@ export function MatchLauncher() {
   const pendingRecentItemRef = useRef<RecentItem | null>(null);
   const pendingSlotRef = useRef(0);
   const [mode, setMode] = useState<Mode>("recent");
-  const [matches, setMatches] = useState<(Match & { match_videos: { video_id: string }[] })[]>([]);
+  const [matches, setMatches] = useState<(Match & { match_videos: { video_id: string; recording_started_at: string | null }[] })[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [teams] = useState<Team[]>([]);
   const [slots, setSlots] = useState<(SelectedVideo | null)[]>([null, null, null, null]);
@@ -79,7 +85,7 @@ export function MatchLauncher() {
   const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
   const [teamOptions, setTeamOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<(Match & { match_videos: { video_id: string }[] })[]>([]);
+  const [searchResults, setSearchResults] = useState<(Match & { match_videos: { video_id: string; recording_started_at: string | null }[] })[]>([]);
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchLoaded, setSearchLoaded] = useState(false);
@@ -159,7 +165,7 @@ export function MatchLauncher() {
       return;
     }
     const body = await response.json() as {
-      matches: (Match & { match_videos: { video_id: string }[] })[];
+      matches: (Match & { match_videos: { video_id: string; recording_started_at: string | null }[] })[];
       videos: Video[];
       hasMore: boolean;
     };
@@ -173,7 +179,7 @@ export function MatchLauncher() {
     ...matches.filter(match => !!match.match_date && match.match_date <= today).map((match): RecentItem => ({
       kind: "match",
       id: match.id,
-      title: `${match.team_a_name || t("match.teamA")} – ${match.team_b_name || t("match.teamB")}`,
+      title: matchTitle(match, t("match.teamA"), t("match.teamB")),
       date: match.match_date || t("match.noDate"),
       openedAt: `${match.match_date}T${match.start_time || "00:00:00"}`,
       count: match.match_videos.length,
@@ -184,7 +190,7 @@ export function MatchLauncher() {
   const searchItems: RecentItem[] = searchResults.map((match): RecentItem => ({
     kind: "match",
     id: match.id,
-    title: `${match.team_a_name || t("match.teamA")} – ${match.team_b_name || t("match.teamB")}`,
+    title: matchTitle(match, t("match.teamA"), t("match.teamB")),
     date: match.match_date || t("match.noDate"),
     openedAt: `${match.match_date}T${match.start_time || "00:00:00"}`,
     count: match.match_videos.length,
@@ -198,7 +204,9 @@ export function MatchLauncher() {
     const localVideos = videosForItem(item);
     const missing: Video[] = [];
     for (const video of localVideos) {
-      if (!await getRememberedLocalVideo(video.id, true)) missing.push(video);
+      const remembered = await getRememberedLocalVideo(video.id, true);
+      if (remembered) await saveRecordingStart(item.id, video.id, remembered);
+      else missing.push(video);
     }
 
     if (missing.length) {
@@ -212,7 +220,7 @@ export function MatchLauncher() {
       }
       try {
         const handles = await picker({ multiple: missing.length > 1, types: [{ description: "Match videos", accept: { "video/mp4": [".mp4", ".m4v"], "video/quicktime": [".mov"] } }] });
-        await rememberSelectedFiles(missing, await Promise.all(handles.map(async (handle) => ({ file: await handle.getFile(), handle }))));
+        await rememberSelectedFiles(item.id, missing, await Promise.all(handles.map(async (handle) => ({ file: await handle.getFile(), handle }))));
       } catch (pickerError) {
         setBusy(false);
         setStatus("");
@@ -233,7 +241,7 @@ export function MatchLauncher() {
     return item.videoIds.map((id) => videos.find((video) => video.id === id)).filter((video): video is Video => !!video && video.video_url.startsWith("local://"));
   }
 
-  async function rememberSelectedFiles(expected: Video[], selections: { file: File; handle: FileSystemFileHandle | null }[]) {
+  async function rememberSelectedFiles(matchId: string, expected: Video[], selections: { file: File; handle: FileSystemFileHandle | null }[]) {
     const unmatched = [...expected];
     for (const selection of selections) {
       const info = await inspectLocalVideo(selection.file, localMediaMessages(t));
@@ -247,8 +255,20 @@ export function MatchLauncher() {
       if (matchIndex >= 0) {
         const [video] = unmatched.splice(matchIndex, 1);
         await rememberLocalVideo(video.id, selection.file, selection.handle);
+        await saveRecordingStart(matchId, video.id, selection.file, info.duration);
       }
     }
+  }
+
+  async function saveRecordingStart(matchId: string, videoId: string, file: File, knownDuration?: number) {
+    const info = knownDuration === undefined ? await inspectLocalVideo(file, localMediaMessages(t)) : { duration: knownDuration };
+    const startedAt = recordingStartedAt(file, info.duration);
+    if (!startedAt) return;
+    await fetch(`/api/matches/${matchId}/videos/${videoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recording_started_at: startedAt })
+    });
   }
 
   async function allVideosRemembered(expected: Video[]) {
@@ -262,7 +282,7 @@ export function MatchLauncher() {
     setBusy(true);
     setError("");
     const expected = videosForItem(item);
-    await rememberSelectedFiles(expected, files.map((file) => ({ file, handle: null })));
+    await rememberSelectedFiles(item.id, expected, files.map((file) => ({ file, handle: null })));
     if (!(await allVideosRemembered(expected))) {
       setError(t("match.originalsMissing"));
       setStatus("");

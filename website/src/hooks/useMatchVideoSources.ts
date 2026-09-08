@@ -80,6 +80,7 @@ export function useMatchVideoSources({
       const info = await inspectLocalVideo(file, localMediaMessages(t));
       if (!await matchesLocalVideo(file, video, info.duration)) throw new Error(t("match.wrongOriginal"));
       await rememberLocalVideo(video.id, file, handle);
+      await saveLocalRecordingStart(video, file, info.duration);
       setFiles((current) => ({ ...current, [video.id]: file }));
       setError("");
     } catch (attachError) {
@@ -132,6 +133,7 @@ export function useMatchVideoSources({
         if (matchIndex >= 0) {
           const [video] = unmatched.splice(matchIndex, 1);
           await rememberLocalVideo(video.id, file, handle);
+          await saveLocalRecordingStart(video, file, info.duration);
           setFiles((current) => ({ ...current, [video.id]: file }));
         }
       }
@@ -156,6 +158,7 @@ export function useMatchVideoSources({
       if (matchIndex >= 0) {
         const [video] = unmatched.splice(matchIndex, 1);
         await rememberLocalVideo(video.id, file);
+        await saveLocalRecordingStart(video, file, info.duration);
         setFiles((current) => ({ ...current, [video.id]: file }));
       }
     }
@@ -448,6 +451,18 @@ export function useMatchVideoSources({
     if (!response.ok) { setError(body?.error || t("match.removeVideoFailed")); return; }
     setCurrentIndex(0);
     await loadMatch();
+  }
+
+  async function saveLocalRecordingStart(video: Video, file: File, durationSeconds: number) {
+    const block = blocks.find((item) => item.videos?.id === video.id);
+    if (!block || block.recording_started_at) return;
+    const recording_started_at = recordingStartedAt(file, durationSeconds);
+    if (!recording_started_at) return;
+    await fetch(`/api/matches/${matchId}/videos/${video.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recording_started_at })
+    });
   }
 
   return {

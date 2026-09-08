@@ -39,9 +39,17 @@ const FrameDrawingDialog = dynamic(() => import("@/components/drawings/DesktopDr
 // timeline can render and become interactive without waiting on it first.
 const ClipBuilder = dynamic(() => import("@/components/clips/ClipBuilder").then((mod) => mod.ClipBuilder), { ssr: false });
 
+function matchTimelineStartMs(match: Pick<Match, "match_date" | "recording_start_time" | "start_time"> | null) {
+  if (!match?.match_date) return null;
+  const time = match.recording_start_time || match.start_time;
+  if (!time) return null;
+  const date = new Date(`${match.match_date}T${time}`);
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
 // Same offset logic as the `offsets` useMemo below, but self-contained so it can run inside
 // loadMatch() right after a fetch, before `match` state (and the memo derived from it) exists yet.
-function computeVideoOffsets(matchVideos: MatchBlock[]): Map<string, number> {
+function computeVideoOffsets(matchVideos: MatchBlock[], match: Match | null): Map<string, number> {
   const sortedBlocks = [...matchVideos].sort((a, b) => a.sequence_order - b.sequence_order);
   const primaryBlocks = sortedBlocks.filter((block) => block.is_primary);
   const camerasByBlockOrder = new Map<number, MatchBlock[]>();
@@ -54,14 +62,14 @@ function computeVideoOffsets(matchVideos: MatchBlock[]): Map<string, number> {
   const knownStarts = primaryBlocks
     .map((block) => block.recording_started_at ? new Date(block.recording_started_at).getTime() : null)
     .filter((value): value is number => value !== null && !Number.isNaN(value));
-  const firstRecordingStart = knownStarts.length ? Math.min(...knownStarts) : null;
+  const timelineStart = matchTimelineStartMs(match) ?? (knownStarts.length ? Math.min(...knownStarts) : null);
   const map = new Map<string, number>();
   let offset = 0;
   for (const block of primaryBlocks) {
     if (!block.videos) continue;
     const startedAt = block.recording_started_at ? new Date(block.recording_started_at).getTime() : null;
-    const recordingOffset = firstRecordingStart !== null && startedAt !== null && !Number.isNaN(startedAt)
-      ? Math.max(0, (startedAt - firstRecordingStart) / 1000)
+    const recordingOffset = timelineStart !== null && startedAt !== null && !Number.isNaN(startedAt)
+      ? Math.max(0, (startedAt - timelineStart) / 1000)
       : null;
     if (recordingOffset !== null) offset = Math.max(offset, recordingOffset);
     const cameras = camerasByBlockOrder.get(block.sequence_order) ?? [block];
@@ -71,19 +79,19 @@ function computeVideoOffsets(matchVideos: MatchBlock[]): Map<string, number> {
   return map;
 }
 
-function computeOffsetPlan(primaryBlocks: MatchBlock[], camerasByBlockOrder: Map<number, MatchBlock[]>) {
+function computeOffsetPlan(primaryBlocks: MatchBlock[], camerasByBlockOrder: Map<number, MatchBlock[]>, match: Match | null) {
   const map = new Map<string, number>();
   const knownStarts = primaryBlocks
     .map((block) => block.recording_started_at ? new Date(block.recording_started_at).getTime() : null)
     .filter((value): value is number => value !== null && !Number.isNaN(value));
-  const firstRecordingStart = knownStarts.length ? Math.min(...knownStarts) : null;
+  const timelineStart = matchTimelineStartMs(match) ?? (knownStarts.length ? Math.min(...knownStarts) : null);
   let cursor = 0;
   let total = 0;
   for (const block of primaryBlocks) {
     if (!block.videos) continue;
     const startedAt = block.recording_started_at ? new Date(block.recording_started_at).getTime() : null;
-    const recordingOffset = firstRecordingStart !== null && startedAt !== null && !Number.isNaN(startedAt)
-      ? Math.max(0, (startedAt - firstRecordingStart) / 1000)
+    const recordingOffset = timelineStart !== null && startedAt !== null && !Number.isNaN(startedAt)
+      ? Math.max(0, (startedAt - timelineStart) / 1000)
       : null;
     const start = recordingOffset === null ? cursor : Math.max(cursor, recordingOffset);
     const duration = Math.max(0, block.videos.duration ?? 0);
@@ -114,6 +122,12 @@ function parseClockTime(value: string): number | null {
   if (parts.length === 2 && parts[1] < 60) return parts[0] * 60 + parts[1];
   if (parts.length === 3 && parts[1] < 60 && parts[2] < 60) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   return null;
+}
+
+function matchTitle(match: Pick<Match, "team_a_name" | "team_b_name" | "is_home_match"> | null, fallbackA: string, fallbackB: string) {
+  const teamA = match?.team_a_name || fallbackA;
+  const teamB = match?.team_b_name || fallbackB;
+  return match?.is_home_match === false ? `${teamB} - ${teamA}` : `${teamA} - ${teamB}`;
 }
 
 function liveTagVideoSeconds(liveTag: LiveMatchTag, match: Match) {
@@ -323,8 +337,8 @@ export default function MatchViewerPage() {
     return map;
   }, [blocks]);
   const offsets = useMemo(() => {
-    return computeOffsetPlan(primaryBlocks, camerasByBlockOrder);
-  }, [primaryBlocks, camerasByBlockOrder]);
+    return computeOffsetPlan(primaryBlocks, camerasByBlockOrder, match);
+  }, [primaryBlocks, camerasByBlockOrder, match]);
   const siblingCamerasByVideoId = useMemo(() => {
     const map: Record<string, { id: string; camera_number: number | null; label: string }[]> = {};
     for (const cameras of camerasByBlockOrder.values()) {
@@ -466,7 +480,7 @@ export default function MatchViewerPage() {
     const loadedVideos = loaded.match_videos.map((block) => block.videos).filter((video): video is Video => !!video);
     if (loadedVideos.length) {
       const remembered = await Promise.all(loadedVideos.map(async (video) => [video.id, await getRememberedLocalVideo(video.id)] as const));
-      const freshOffsets = computeVideoOffsets(loaded.match_videos);
+      const freshOffsets = computeVideoOffsets(loaded.match_videos, loaded);
       setTags((body.tags ?? []).sort((a, b) => (freshOffsets.get(a.video_id) ?? 0) + a.start_time - ((freshOffsets.get(b.video_id) ?? 0) + b.start_time)));
       setFiles(Object.fromEntries(remembered.filter((entry): entry is readonly [string, File] => !!entry[1])));
     } else {
@@ -1011,7 +1025,7 @@ export default function MatchViewerPage() {
               })}
             </div>}
           </section>
-          {videos[0] && <ClipBuilder videoId={videos[0].id} videoIds={allVideos.map((video) => video.id)} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo={allVideos.some((video) => isLocalVideoUrl(video.video_url))} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={`${match?.team_a_name || t("match.teamA")} - ${match?.team_b_name || t("match.teamB")}`} onClipCreated={() => setSelectedTagIds([])} />}
+          {videos[0] && <ClipBuilder videoId={videos[0].id} videoIds={allVideos.map((video) => video.id)} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo={allVideos.some((video) => isLocalVideoUrl(video.video_url))} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={matchTitle(match, t("match.teamA"), t("match.teamB"))} onClipCreated={() => setSelectedTagIds([])} />}
         </aside>
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}

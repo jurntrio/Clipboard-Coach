@@ -16,8 +16,9 @@ type MatchListRow = {
   team_b_name: string | null;
   match_date: string | null;
   start_time: string | null;
+  is_home_match: boolean;
   club_team_id: string | null;
-  match_videos: { video_id: string }[] | null;
+  match_videos: { video_id: string; recording_started_at: string | null }[] | null;
 };
 
 export async function GET(request: Request) {
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
 
   const today = new Date().toISOString().slice(0, 10);
   function baseQuery() {
-    let query = admin.from("matches").select("id, team_a_name, team_b_name, match_date, start_time, club_team_id, match_videos(video_id)")
+    let query = admin.from("matches").select("id, team_a_name, team_b_name, match_date, start_time, is_home_match, club_team_id, match_videos(video_id, recording_started_at)")
       .eq("club_id", clubId)
       .not("match_date", "is", null)
       .lte("match_date", before || today)

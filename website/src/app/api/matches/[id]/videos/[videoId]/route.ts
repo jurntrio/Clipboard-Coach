@@ -10,6 +10,7 @@ type UpdateVideoSourceBody = {
   title?: string;
   label?: string;
   camera_number?: number | null;
+  recording_started_at?: string | null;
 };
 
 async function getManageableMatch(admin: ReturnType<typeof createAdminClient>, matchId: string, user: { id: string }) {
@@ -47,19 +48,34 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const videoUrl = body?.video_url?.trim();
   const videoKey = body?.video_key?.trim();
   const cameraNumber = body?.camera_number;
-  if (!body || !title || !label || (videoUrl !== undefined && !videoUrl.startsWith("https://"))
+  const recordingStartedAt = parseIsoTimestamp(body?.recording_started_at);
+  const updatesRecordingStartOnly = !!body && !title && !label && "recording_started_at" in body;
+  if (!body || (!updatesRecordingStartOnly && (!title || !label)) || (videoUrl !== undefined && !videoUrl.startsWith("https://"))
     || (cameraNumber !== null && cameraNumber !== undefined && (!Number.isInteger(cameraNumber) || cameraNumber < 1))) {
     return NextResponse.json({ error: "Ongeldige videobron." }, { status: 400 });
   }
 
-  const videoChanges: Record<string, string | number | null> = { title, camera_number: cameraNumber ?? null };
-  if (videoUrl !== undefined) videoChanges.video_url = videoUrl;
-  if (videoKey) videoChanges.video_key = videoKey;
-  const { data: video, error: videoError } = await admin.from("videos").update(videoChanges).eq("id", params.videoId).select("*").single();
-  if (videoError || !video) return NextResponse.json({ error: videoError?.message || "Videobron kon niet worden gewijzigd." }, { status: 500 });
-  const { error: linkError } = await admin.from("match_videos").update({ label }).eq("id", link.id);
+  let video = null;
+  if (!updatesRecordingStartOnly) {
+    const videoChanges: Record<string, string | number | null> = { title: title!, camera_number: cameraNumber ?? null };
+    if (videoUrl !== undefined) videoChanges.video_url = videoUrl;
+    if (videoKey) videoChanges.video_key = videoKey;
+    const result = await admin.from("videos").update(videoChanges).eq("id", params.videoId).select("*").single();
+    if (result.error || !result.data) return NextResponse.json({ error: result.error?.message || "Videobron kon niet worden gewijzigd." }, { status: 500 });
+    video = result.data;
+  }
+  const linkChanges: Record<string, string | null> = {};
+  if (label) linkChanges.label = label;
+  if ("recording_started_at" in body) linkChanges.recording_started_at = recordingStartedAt;
+  const { error: linkError } = await admin.from("match_videos").update(linkChanges).eq("id", link.id);
   if (linkError) return NextResponse.json({ error: linkError.message }, { status: 500 });
   return NextResponse.json({ video, label });
+}
+
+function parseIsoTimestamp(value: string | null | undefined) {
+  if (value === null || value === undefined || value === "") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 export async function DELETE(_request: Request, { params }: { params: { id: string; videoId: string } }) {
