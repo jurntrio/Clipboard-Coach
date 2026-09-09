@@ -4,12 +4,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ShareClipPlayer } from "@/components/clips/ShareClipPlayer";
 import type { ClipSegmentPlayback } from "@/components/clips/ClipPreviewModal";
 import { getServerI18n } from "@/i18n/server";
+import { getMatchDisplay } from "@/lib/match-display";
 import type { Metadata } from "next";
 import type { Clip, ClipSegment, Match, ShareLink, Tag, Video } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
-type MetadataMatch = Pick<Match, "team_a_name" | "team_b_name" | "match_date" | "score_a" | "score_b">;
+type MetadataMatch = Pick<Match, "team_a_name" | "team_b_name" | "match_date" | "score_a" | "score_b" | "is_home_match">;
 type MetadataRow = {
   clips: {
     name: string;
@@ -20,18 +21,19 @@ type MetadataRow = {
 export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
   const supabase = createAdminClient();
   const { data } = await supabase.from("share_links").select(
-    "clips(name, videos(match_videos(matches(team_a_name, team_b_name, match_date, score_a, score_b))))"
+    "clips(name, videos(match_videos(matches(team_a_name, team_b_name, match_date, score_a, score_b, is_home_match))))"
   ).eq("token", params.token).maybeSingle<MetadataRow>();
   const clip = data?.clips;
   const match = clip?.videos?.match_videos?.[0]?.matches;
-  const title = match ? `${match.team_a_name} – ${match.team_b_name}${match.score_a !== null && match.score_b !== null ? ` | ${match.score_a}–${match.score_b}` : ""}` : clip?.name || "Gedeelde clip";
+  const displayMatch = match ? getMatchDisplay(match) : null;
+  const title = displayMatch ? `${displayMatch.homeTeamName} – ${displayMatch.awayTeamName}${displayMatch.homeScore !== null && displayMatch.awayScore !== null ? ` | ${displayMatch.homeScore}–${displayMatch.awayScore}` : ""}` : clip?.name || "Gedeelde clip";
   const description = match?.match_date
     ? `Bekijk de wedstrijdclips van ${new Intl.DateTimeFormat("nl-BE").format(new Date(`${match.match_date}T12:00:00`))}.`
     : "Bekijk deze gedeelde wedstrijdclip.";
   return { title, description, robots: { index: false, follow: false }, openGraph: { title, description, type: "video.other" } };
 }
 
-type ShareMatch = Pick<Match, "id" | "club_id" | "club_team_id" | "team_a_name" | "team_b_name" | "match_date" | "start_time" | "score_a" | "score_b" | "public_location" | "show_public_location" | "sponsor_source" | "sponsor_caption">;
+type ShareMatch = Pick<Match, "id" | "club_id" | "club_team_id" | "team_a_name" | "team_b_name" | "match_date" | "start_time" | "score_a" | "score_b" | "is_home_match" | "public_location" | "show_public_location" | "sponsor_source" | "sponsor_caption">;
 
 type ShareTag = Pick<Tag, "id" | "name" | "start_time" | "end_time" | "color">;
 
@@ -64,7 +66,7 @@ export default async function SharePage({ params }: { params: { token: string } 
        clips (
          id, video_id, name, team_id, render_status, rendered_segments, rendered_clip,
          videos ( video_url, title, home_team, away_team,
-           match_videos ( match_id, matches ( id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, score_a, score_b, public_location, show_public_location, sponsor_source, sponsor_caption ) )
+           match_videos ( match_id, matches ( id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, score_a, score_b, is_home_match, public_location, show_public_location, sponsor_source, sponsor_caption ) )
          ),
          clip_segments ( id, sequence_order, video_id, videos ( video_url ), tags ( id, name, start_time, end_time, color ) )
        )`
@@ -89,6 +91,7 @@ export default async function SharePage({ params }: { params: { token: string } 
 
   const clip = shareLink.clips;
   const match = clip.videos?.match_videos?.[0]?.matches ?? null;
+  const displayMatch = match ? getMatchDisplay(match) : null;
   const sourceSegments: ClipSegmentPlayback[] = (clip.clip_segments ?? [])
     .sort((a, b) => a.sequence_order - b.sequence_order)
     .filter((segment): segment is ShareClipSegment & { tags: ShareTag } => !!segment.tags)
@@ -160,12 +163,12 @@ export default async function SharePage({ params }: { params: { token: string } 
       </header>
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center px-4 py-6">
-        {match && <section className="mb-5 rounded-xl border border-border bg-card p-5 text-center">
+        {match && displayMatch && <section className="mb-5 rounded-xl border border-border bg-card p-5 text-center">
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Wedstrijd</p>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-textBright">
-            <h1 className="text-xl font-black sm:text-2xl">{match.team_a_name}</h1>
-            <strong className="rounded-lg bg-cardDeep px-3 py-1.5 text-xl">{match.score_a !== null && match.score_b !== null ? `${match.score_a} – ${match.score_b}` : "–"}</strong>
-            <h2 className="text-xl font-black sm:text-2xl">{match.team_b_name}</h2>
+            <h1 className="text-xl font-black sm:text-2xl">{displayMatch.homeTeamName}</h1>
+            <strong className="rounded-lg bg-cardDeep px-3 py-1.5 text-xl">{displayMatch.homeScore !== null && displayMatch.awayScore !== null ? `${displayMatch.homeScore} – ${displayMatch.awayScore}` : "–"}</strong>
+            <h2 className="text-xl font-black sm:text-2xl">{displayMatch.awayTeamName}</h2>
           </div>
           <p className="mt-3 text-sm text-textMuted">{match.match_date ? new Intl.DateTimeFormat("nl-BE", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${match.match_date}T12:00:00`)) : ""}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}{match.show_public_location && match.public_location ? ` · ${match.public_location}` : ""}</p>
         </section>}
