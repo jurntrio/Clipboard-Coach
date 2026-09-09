@@ -20,11 +20,17 @@ type MetadataRow = {
   } | null;
 };
 
+const metadataSelectWithOfficialNames =
+  "clips(name, videos(match_videos(matches(team_a_name, team_b_name, match_date, score_a, score_b, is_home_match, official_home_team_name, official_away_team_name, clubs(name)))))";
+const metadataSelect =
+  "clips(name, videos(match_videos(matches(team_a_name, team_b_name, match_date, score_a, score_b, is_home_match, clubs(name)))))";
+
 export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
   const supabase = createAdminClient();
-  const { data } = await supabase.from("share_links").select(
-    "clips(name, videos(match_videos(matches(team_a_name, team_b_name, match_date, score_a, score_b, is_home_match, official_home_team_name, official_away_team_name, clubs(name)))))"
-  ).eq("token", params.token).maybeSingle<MetadataRow>();
+  let { data, error } = await supabase.from("share_links").select(metadataSelectWithOfficialNames).eq("token", params.token).maybeSingle<MetadataRow>();
+  if (error?.code === "42703") {
+    ({ data } = await supabase.from("share_links").select(metadataSelect).eq("token", params.token).maybeSingle<MetadataRow>());
+  }
   const clip = data?.clips;
   const match = clip?.videos?.match_videos?.[0]?.matches;
   const displayMatch = match ? getMatchDisplay({ ...match, club_name: match.clubs?.name ?? null }) : null;
@@ -59,24 +65,40 @@ type ShareLinkRow = Pick<ShareLink, "id" | "view_count" | "expires_at"> & {
   clips: ShareClip | null;
 };
 
+const shareSelectWithOfficialNames = `id, view_count, expires_at,
+ clips (
+   id, video_id, name, team_id, render_status, rendered_segments, rendered_clip,
+   videos ( video_url, title, home_team, away_team,
+     match_videos ( match_id, matches ( id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, score_a, score_b, is_home_match, official_home_team_name, official_away_team_name, public_location, show_public_location, sponsor_source, sponsor_caption, clubs(name) ) )
+   ),
+   clip_segments ( id, sequence_order, video_id, videos ( video_url ), tags ( id, name, start_time, end_time, color ) )
+ )`;
+
+const shareSelect = `id, view_count, expires_at,
+ clips (
+   id, video_id, name, team_id, render_status, rendered_segments, rendered_clip,
+   videos ( video_url, title, home_team, away_team,
+     match_videos ( match_id, matches ( id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, score_a, score_b, is_home_match, public_location, show_public_location, sponsor_source, sponsor_caption, clubs(name) ) )
+   ),
+   clip_segments ( id, sequence_order, video_id, videos ( video_url ), tags ( id, name, start_time, end_time, color ) )
+ )`;
+
 export default async function SharePage({ params }: { params: { token: string } }) {
   const { t } = getServerI18n();
   const supabase = createAdminClient();
 
-  const { data: shareLink } = await supabase
+  let { data: shareLink, error: shareLinkError } = await supabase
     .from("share_links")
-    .select(
-      `id, view_count, expires_at,
-       clips (
-         id, video_id, name, team_id, render_status, rendered_segments, rendered_clip,
-         videos ( video_url, title, home_team, away_team,
-           match_videos ( match_id, matches ( id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, score_a, score_b, is_home_match, official_home_team_name, official_away_team_name, public_location, show_public_location, sponsor_source, sponsor_caption, clubs(name) ) )
-         ),
-         clip_segments ( id, sequence_order, video_id, videos ( video_url ), tags ( id, name, start_time, end_time, color ) )
-       )`
-    )
+    .select(shareSelectWithOfficialNames)
     .eq("token", params.token)
     .single<ShareLinkRow>();
+  if (shareLinkError?.code === "42703") {
+    ({ data: shareLink } = await supabase
+      .from("share_links")
+      .select(shareSelect)
+      .eq("token", params.token)
+      .single<ShareLinkRow>());
+  }
 
   if (!shareLink || !shareLink.clips) {
     notFound();

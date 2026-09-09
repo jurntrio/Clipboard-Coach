@@ -74,6 +74,13 @@ export async function GET(request: Request) {
 type ImportContext = { user: { id: string }; club: { id: string }; season: { id: string } };
 type ImportTeam = { id: string; name: string; sponsor_source: string | null; teams: { id: string } | { id: string }[] };
 
+function withoutOfficialTeamNames<T extends { official_home_team_name?: string; official_away_team_name?: string }>(payload: T) {
+  const fallbackPayload = { ...payload };
+  delete fallbackPayload.official_home_team_name;
+  delete fallbackPayload.official_away_team_name;
+  return fallbackPayload;
+}
+
 async function matchPayload(ctx: ImportContext, fixture: RbfaClubFixture, team: ImportTeam, ownClubId: string | null, opponentClubIds: Map<string, string | null>, liveTagNames: string[]) {
   const operationalTeam = Array.isArray(team.teams) ? team.teams[0] : team.teams;
   const opponent = fixture.ownIsHome ? fixture.awayTeam : fixture.homeTeam;
@@ -171,7 +178,13 @@ export async function POST(request: Request) {
         .filter(candidate => Number.isFinite(candidate.distance) && candidate.distance <= 21 * 86_400_000)
         .sort((a, b) => a.distance - b.distance || `${b.updated_at}`.localeCompare(`${a.updated_at}`))[0] ?? null;
     }
-    const result = existing ? await ctx.admin.from("matches").update({ ...payload, live_tag_names: existing.live_tag_names?.length ? existing.live_tag_names : payload.live_tag_names }).eq("id", existing.id) : await ctx.admin.from("matches").insert(payload);
+    let result = existing ? await ctx.admin.from("matches").update({ ...payload, live_tag_names: existing.live_tag_names?.length ? existing.live_tag_names : payload.live_tag_names }).eq("id", existing.id) : await ctx.admin.from("matches").insert(payload);
+    if (result.error?.code === "42703") {
+      const fallbackPayload = withoutOfficialTeamNames(payload);
+      result = existing
+        ? await ctx.admin.from("matches").update({ ...fallbackPayload, live_tag_names: existing.live_tag_names?.length ? existing.live_tag_names : payload.live_tag_names }).eq("id", existing.id)
+        : await ctx.admin.from("matches").insert(fallbackPayload);
+    }
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
     if (existing) updated += 1; else imported += 1;
   }

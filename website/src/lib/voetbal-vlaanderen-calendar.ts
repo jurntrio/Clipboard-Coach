@@ -62,6 +62,13 @@ function normalized(value: string) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+function withoutOfficialTeamNames<T extends { official_home_team_name?: string; official_away_team_name?: string }>(payload: T) {
+  const fallbackPayload = { ...payload };
+  delete fallbackPayload.official_home_team_name;
+  delete fallbackPayload.official_away_team_name;
+  return fallbackPayload;
+}
+
 export async function syncVoetbalVlaanderenFeed(teamId: string) {
   const admin = createAdminClient();
   await removeFoot24Advertisements(teamId);
@@ -130,9 +137,15 @@ export async function syncVoetbalVlaanderenFeed(teamId: string) {
       external_match_id: externalMatchId,
       sponsor_source: team.sponsor_source ?? "none"
     };
-    const result = existing
+    let result = existing
       ? await admin.from("matches").update(payload).eq("id", existing.id)
       : await admin.from("matches").insert({ ...payload, live_tag_names: defaultTags });
+    if (result.error?.code === "42703") {
+      const fallbackPayload = withoutOfficialTeamNames(payload);
+      result = existing
+        ? await admin.from("matches").update(fallbackPayload).eq("id", existing.id)
+        : await admin.from("matches").insert({ ...fallbackPayload, live_tag_names: defaultTags });
+    }
     if (result.error) throw new Error(result.error.message);
     if (existing) updated += 1; else imported += 1;
   }
