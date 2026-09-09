@@ -10,7 +10,7 @@ import type { Clip, ClipSegment, Match, ShareLink, Tag, Video } from "@/types/da
 
 export const dynamic = "force-dynamic";
 
-type MetadataMatch = Pick<Match, "team_a_name" | "team_b_name" | "match_date" | "score_a" | "score_b" | "is_home_match"> & {
+type MetadataMatch = Pick<Match, "team_a_name" | "team_b_name" | "match_date" | "score_a" | "score_b" | "is_home_match" | "official_home_team_name" | "official_away_team_name"> & {
   clubs: { name: string } | null;
 };
 type MetadataRow = {
@@ -23,7 +23,7 @@ type MetadataRow = {
 export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
   const supabase = createAdminClient();
   const { data } = await supabase.from("share_links").select(
-    "clips(name, videos(match_videos(matches(team_a_name, team_b_name, match_date, score_a, score_b, is_home_match, clubs(name)))))"
+    "clips(name, videos(match_videos(matches(team_a_name, team_b_name, match_date, score_a, score_b, is_home_match, official_home_team_name, official_away_team_name, clubs(name)))))"
   ).eq("token", params.token).maybeSingle<MetadataRow>();
   const clip = data?.clips;
   const match = clip?.videos?.match_videos?.[0]?.matches;
@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: { params: { token: string } }
   return { title, description, robots: { index: false, follow: false }, openGraph: { title, description, type: "video.other" } };
 }
 
-type ShareMatch = Pick<Match, "id" | "club_id" | "club_team_id" | "team_a_name" | "team_b_name" | "match_date" | "start_time" | "score_a" | "score_b" | "is_home_match" | "public_location" | "show_public_location" | "sponsor_source" | "sponsor_caption"> & {
+type ShareMatch = Pick<Match, "id" | "club_id" | "club_team_id" | "team_a_name" | "team_b_name" | "match_date" | "start_time" | "score_a" | "score_b" | "is_home_match" | "official_home_team_name" | "official_away_team_name" | "public_location" | "show_public_location" | "sponsor_source" | "sponsor_caption"> & {
   clubs: { name: string } | null;
 };
 
@@ -70,7 +70,7 @@ export default async function SharePage({ params }: { params: { token: string } 
        clips (
          id, video_id, name, team_id, render_status, rendered_segments, rendered_clip,
          videos ( video_url, title, home_team, away_team,
-           match_videos ( match_id, matches ( id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, score_a, score_b, is_home_match, public_location, show_public_location, sponsor_source, sponsor_caption, clubs(name) ) )
+           match_videos ( match_id, matches ( id, club_id, club_team_id, team_a_name, team_b_name, match_date, start_time, score_a, score_b, is_home_match, official_home_team_name, official_away_team_name, public_location, show_public_location, sponsor_source, sponsor_caption, clubs(name) ) )
          ),
          clip_segments ( id, sequence_order, video_id, videos ( video_url ), tags ( id, name, start_time, end_time, color ) )
        )`

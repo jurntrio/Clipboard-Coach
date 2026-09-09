@@ -47,3 +47,21 @@ test("uses the club name for public own-team display when available", () => {
     awayScore: 0
   });
 });
+
+test("prefers official federation home and away names when available", () => {
+  assert.deepEqual(getMatchDisplay({
+    team_a_name: "IP U13 Zwart",
+    team_b_name: "Sparta Petegem",
+    score_a: 0,
+    score_b: 4,
+    is_home_match: false,
+    club_name: "KM Torhout",
+    official_home_team_name: "Sparta Petegem",
+    official_away_team_name: "KM Torhout"
+  }), {
+    homeTeamName: "Sparta Petegem",
+    awayTeamName: "KM Torhout",
+    homeScore: 4,
+    awayScore: 0
+  });
+});

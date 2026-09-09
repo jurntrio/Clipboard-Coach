@@ -124,6 +124,8 @@ export async function syncVoetbalVlaanderenFeed(teamId: string) {
       score_b: ownIsHome ? game.outcome?.awayTeamGoals ?? null : game.outcome?.homeTeamGoals ?? null,
       official_series_id: game.series?.id ?? null,
       official_series_name: game.series?.name?.trim() || null,
+      official_home_team_name: game.homeTeam.name,
+      official_away_team_name: game.awayTeam.name,
       external_source: "voetbal_vlaanderen",
       external_match_id: externalMatchId,
       sponsor_source: team.sponsor_source ?? "none"

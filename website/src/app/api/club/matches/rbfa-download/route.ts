@@ -88,6 +88,8 @@ async function matchPayload(ctx: ImportContext, fixture: RbfaClubFixture, team: 
     score_b: fixture.ownIsHome ? fixture.scoreAway : fixture.scoreHome,
     live_tag_names: liveTagNames,
     official_series_name: fixture.division || null,
+    official_home_team_name: fixture.homeTeam,
+    official_away_team_name: fixture.awayTeam,
     external_source: "voetbal_vlaanderen_download", external_match_id: `${ctx.club.id}:${fixture.key}`,
     sponsor_source: team.sponsor_source ?? "none", official_referee_name: fixture.referee,
     official_assistant_referee_1_name: fixture.assistantReferee1,
