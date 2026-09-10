@@ -143,6 +143,16 @@ export function ClipBuilder({
     }).filter((segment, index, allSegments) =>
       allSegments.findIndex((candidate) => candidate.tag.id === segment.tag.id && candidate.videoId === segment.videoId) === index
     );
+    if (localVideo) {
+      const missingLocalSegments = expandedSegments.filter(({ videoId: sourceVideoId }) =>
+        !(localFilesByVideoId?.[sourceVideoId] ?? (sourceVideoId === videoId ? localFile : null))
+      );
+      if (missingLocalSegments.length > 0) {
+        setErrorMessage(t("clip.reconnectAll"));
+        setSaving(false);
+        return;
+      }
+    }
     let resolvedClipName = clipName.trim();
     if (!resolvedClipName && orderedTags.length === 1) {
       resolvedClipName = orderedTags[0].name;
@@ -178,16 +188,16 @@ export function ClipBuilder({
       const { error: segmentError } = await supabase.from("clip_segments").insert(segments);
       if (segmentError) {
         setErrorMessage(segmentError.message);
-      } else if (localFile) {
+      } else if (localVideo) {
         try {
           const renderedSegments = [];
           for (let index = 0; index < expandedSegments.length; index += 1) {
-            const { tag, videoId } = expandedSegments[index];
+            const { tag, videoId: sourceVideoId } = expandedSegments[index];
+            const sourceFile = localFilesByVideoId?.[sourceVideoId] ?? (sourceVideoId === videoId && localVideo ? localFile : null);
+            if (!sourceFile) throw new Error(t("clip.reconnectAll"));
             const baseProgress = index / expandedSegments.length;
             const unit = 1 / expandedSegments.length;
             setStatus(t("clip.makingSegment", { current: index + 1, total: expandedSegments.length }));
-            const sourceFile = localFilesByVideoId?.[videoId] ?? localFile;
-            if (!sourceFile) throw new Error(t("clip.reconnectSegment", { current: index + 1 }));
             const rendered = await remuxLocalSegment(sourceFile, tag.start_time, tag.end_time, (value) => {
               setProgress(baseProgress + unit * value * 0.55);
             }, localMediaMessages(t));
@@ -212,7 +222,7 @@ export function ClipBuilder({
                 drawing_time_base: "clip",
                 drawings: (tag.drawings ?? [])
                   .filter((drawing) =>
-                    (drawing.video_id ?? tag.video_id) === videoId
+                    (drawing.video_id ?? tag.video_id) === sourceVideoId
                     && drawing.video_time >= tag.start_time
                     && drawing.video_time <= tag.end_time
                   )
@@ -230,10 +240,15 @@ export function ClipBuilder({
             }
           }
 
-          const { error: updateError } = await supabase
-            .from("clips")
-            .update({ rendered_segments: renderedSegments, render_status: "rendering", render_error: null })
-            .eq("id", clip.id);
+          if (localVideo && renderedSegments.length !== expandedSegments.length) {
+            throw new Error(t("clip.reconnectAll"));
+          }
+
+          const { error: updateError } = await supabase.from("clips").update({
+            rendered_segments: renderedSegments,
+            render_status: "rendering",
+            render_error: null
+          }).eq("id", clip.id);
           if (updateError) throw updateError;
           const processResponse = await fetch(`/api/clips/${clip.id}/process`, { method: "POST" });
           if (!processResponse.ok) {

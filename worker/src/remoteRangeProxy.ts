@@ -12,8 +12,11 @@ export type RemoteRangeProxy = {
   close: () => Promise<void>;
 };
 
+const REMOTE_PROBE_TIMEOUT_MS = 30 * 1000;
+const REMOTE_RANGE_TIMEOUT_MS = 5 * 60 * 1000;
+
 export async function createRemoteRangeProxy(sourceUrl: string): Promise<RemoteRangeProxy> {
-  const probe = await fetch(sourceUrl, { method: "HEAD", redirect: "follow" });
+  const probe = await fetch(sourceUrl, { method: "HEAD", redirect: "follow", signal: AbortSignal.timeout(REMOTE_PROBE_TIMEOUT_MS) });
   if (!probe.ok) throw new Error(`Remote source probe failed with HTTP ${probe.status}`);
   if (probe.headers.get("accept-ranges")?.toLowerCase() !== "bytes") {
     throw new Error("Remote source does not support byte ranges");
@@ -34,6 +37,8 @@ export async function createRemoteRangeProxy(sourceUrl: string): Promise<RemoteR
     }
 
     const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REMOTE_RANGE_TIMEOUT_MS);
+    timeout.unref();
     pendingControllers.add(controller);
     response.on("close", () => controller.abort());
     try {
@@ -83,6 +88,7 @@ export async function createRemoteRangeProxy(sourceUrl: string): Promise<RemoteR
     } catch (error) {
       if (!controller.signal.aborted && !response.headersSent) response.writeHead(502).end();
     } finally {
+      clearTimeout(timeout);
       pendingControllers.delete(controller);
     }
   });

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { randomUUID } from "node:crypto";
-import { buildMobileMp4WithDrawings, probeDurationSeconds } from "./hlsPipeline";
+import { buildMobileMp4WithDrawings, probeDurationSeconds, type ClipDrawingInput } from "./hlsPipeline";
 import { deleteObject, downloadToFile, uploadFile, readJsonObject } from "./r2";
 import { parseImageManifest } from "./clipImagePlan";
 import { prependClipImages } from "./clipImagePipeline";
@@ -16,10 +16,31 @@ import { createRemoteRangeProxy, type RemoteRangeProxy } from "./remoteRangeProx
 // against a local copy of the exact same file) - likely because these are
 // raw multi-GB (>4GB) camera recordings, a known trigger for demuxer bugs.
 // Downloading first sidesteps ffmpeg's network code path entirely.
+const REMOTE_DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
+const REMOTE_SOURCE_ATTEMPTS = 3;
+
+async function retryRemoteOperation<T>(label: string, operation: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= REMOTE_SOURCE_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt < REMOTE_SOURCE_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+      }
+    }
+  }
+  const message = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(`${label} failed after ${REMOTE_SOURCE_ATTEMPTS} attempts: ${message}`);
+}
+
 async function downloadRemoteFile(url: string, destPath: string) {
-  const response = await fetch(url);
-  if (!response.ok || !response.body) throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
-  await pipeline(response.body as unknown as NodeJS.ReadableStream, fs.createWriteStream(destPath));
+  await retryRemoteOperation("Remote source download", async () => {
+    const response = await fetch(url, { signal: AbortSignal.timeout(REMOTE_DOWNLOAD_TIMEOUT_MS) });
+    if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+    await pipeline(response.body as unknown as NodeJS.ReadableStream, fs.createWriteStream(destPath));
+  });
 }
 
 type RemoteSegmentRow = {
@@ -130,12 +151,15 @@ export async function processRemoteClip(clipId: string) {
       const uploadedLocalKey = segment.rendered_segment?.key;
       const sourceUrl = segment.videos?.video_url ?? tag.videos?.video_url;
       if (!uploadedLocalKey && !sourceUrl) throw new Error(`Segment ${index} has no source video`);
+      if (!uploadedLocalKey && sourceUrl && !/^https?:\/\//i.test(sourceUrl)) {
+        throw new Error(`Segment ${index} has a local-only video source and was not uploaded by the browser`);
+      }
 
       const outputPath = path.join(workDir, `${index}-mobile.mp4`);
       const segmentWorkDir = path.join(workDir, `${index}-parts`);
       await fsp.mkdir(segmentWorkDir, { recursive: true });
 
-      const drawingInputs = [];
+      const drawingInputs: ClipDrawingInput[] = [];
       for (const [drawingIndex, drawing] of (tag.drawings ?? []).entries()) {
         const drawingVideoId = drawing.video_id ?? tag.video_id;
         const segmentVideoId = segment.video_id ?? segment.videos?.id ?? tag.video_id;
@@ -158,11 +182,14 @@ export async function processRemoteClip(clipId: string) {
         let usedRangeExtraction = false;
         if (!fallbackSourcesByUrl.has(sourceUrl!)) {
           try {
-            const proxyInput = await rangeSource(sourceUrl!);
-            await buildMobileMp4WithDrawings(proxyInput, outputPath, drawingInputs, segmentWorkDir, tag.start_time, tag.end_time - tag.start_time);
+            await retryRemoteOperation("Remote range extraction", async () => {
+              const proxyInput = await rangeSource(sourceUrl!);
+              await buildMobileMp4WithDrawings(proxyInput, outputPath, drawingInputs, segmentWorkDir, tag.start_time, tag.end_time - tag.start_time);
+            });
             usedRangeExtraction = true;
           } catch (rangeError) {
-            console.warn(`[worker] range extraction unavailable for clip ${clipId} segment ${segment.id}; using full-download fallback`);
+            const message = rangeError instanceof Error ? rangeError.message : String(rangeError);
+            console.warn(`[worker] range extraction unavailable for clip ${clipId} segment ${segment.id}; using full-download fallback: ${message}`);
           }
         }
         if (!usedRangeExtraction) {
