@@ -291,6 +291,11 @@ function parseClockTime(value: string) {
   return null;
 }
 
+function formatClockTimeDraft(value: string) {
+  const digits = value.replace(/\D/g, "").slice(-6).padStart(6, "0");
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4, 6)}`;
+}
+
 function shortenPath(filePath: string) {
   if (filePath.length <= 72) {
     return filePath;
@@ -4860,8 +4865,10 @@ function App() {
                               Start
                               <input
                                 value={tagDraft.startTime}
+                                inputMode="numeric"
+                                maxLength={8}
                                 onChange={(event) =>
-                                  setTagDraft((current) => ({ ...current, startTime: event.target.value }))
+                                  setTagDraft((current) => ({ ...current, startTime: formatClockTimeDraft(event.target.value) }))
                                 }
                               />
                             </label>
@@ -4869,8 +4876,10 @@ function App() {
                               End
                               <input
                                 value={tagDraft.endTime}
+                                inputMode="numeric"
+                                maxLength={8}
                                 onChange={(event) =>
-                                  setTagDraft((current) => ({ ...current, endTime: event.target.value }))
+                                  setTagDraft((current) => ({ ...current, endTime: formatClockTimeDraft(event.target.value) }))
                                 }
                               />
                             </label>
@@ -4968,7 +4977,7 @@ function App() {
               </button>
             ) : null}
             <div className="timelineTagLane">
-              <div className="timelineTagLaneContent" style={{ height: `${Math.max(34, timelineLaneCount * 24 + 8)}px` }}>
+              <div className="timelineTagLaneContent" style={{ height: `${Math.max(28, timelineLaneCount * 18 + 6)}px` }}>
                 {duration > 0
                   ? timelineTags.map(({ tag, laneIndex, startTime, endTime }) => (
                     <button
@@ -4978,7 +4987,7 @@ function App() {
                       style={{
                         left: `${Math.min(100, Math.max(0, (startTime / duration) * 100))}%`,
                         width: `${Math.max(1, Math.min(100, ((endTime - startTime) / duration) * 100))}%`,
-                        top: `${laneIndex * 24}px`,
+                        top: `${laneIndex * 18}px`,
                         background: tag.color
                       }}
                       title={`${formatClockTime(startTime)} - ${formatClockTime(endTime)} - ${tag.label}`}

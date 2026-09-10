@@ -933,11 +933,11 @@ select:focus {
 
 .appShell {
   display: grid;
-  grid-template-columns: 280px minmax(420px, 1fr) 340px;
-  grid-template-rows: minmax(0, 1fr) 210px;
-  gap: 12px;
+  grid-template-columns: 240px minmax(520px, 1fr) 270px;
+  grid-template-rows: minmax(0, 1fr) 150px;
+  gap: 8px;
   height: 100vh;
-  padding: 12px;
+  padding: 8px;
   background: var(--bg-page);
 }
 
@@ -1490,8 +1490,8 @@ select:focus {
 .controlPanel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 14px;
+  gap: 10px;
+  padding: 10px;
   overflow: auto;
 }
 
@@ -1499,7 +1499,7 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-bottom: 12px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -1985,8 +1985,8 @@ select:focus {
 .tagPanel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 14px;
+  gap: 8px;
+  padding: 8px;
   overflow: hidden;
 }
 
@@ -2000,13 +2000,13 @@ select:focus {
 .panelHeader h2 {
   margin: 0;
   color: var(--text-white);
-  font-size: 20px;
+  font-size: 16px;
 }
 
 .panelHeader span {
   display: inline-grid;
-  min-width: 30px;
-  height: 30px;
+  min-width: 24px;
+  height: 24px;
   place-items: center;
   border-radius: 999px;
   background: #263025;
@@ -2021,13 +2021,14 @@ select:focus {
 }
 
 .tagPanelActions button {
-  min-height: 34px;
-  padding: 0 10px;
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
 }
 
 .tagList {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   min-height: 0;
   margin: 0;
   padding: 0;
@@ -2038,20 +2039,20 @@ select:focus {
 .tagRow {
   display: grid;
   width: 100%;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 6px;
   align-items: center;
-  min-height: 50px;
+  min-height: 34px;
   border: 1px solid var(--border-button);
   border-radius: 6px;
-  padding: 10px;
+  padding: 6px;
   background: var(--bg-button);
 }
 
 .compactMatchTagRow {
-  gap: 8px;
-  min-height: 42px;
-  padding: 8px;
+  gap: 5px;
+  min-height: 32px;
+  padding: 5px;
 }
 
 .activeBlockTagRow {
@@ -2064,9 +2065,9 @@ select:focus {
 }
 
 .selectCircle {
-  width: 22px;
-  height: 22px;
-  min-height: 22px;
+  width: 15px;
+  height: 15px;
+  min-height: 15px;
   border-radius: 999px;
   padding: 0;
 }
@@ -2074,7 +2075,7 @@ select:focus {
 .selectCircle[aria-pressed="true"] {
   border-color: var(--accent);
   background: var(--accent);
-  box-shadow: inset 0 0 0 5px var(--bg-button);
+  box-shadow: inset 0 0 0 3px var(--bg-button);
 }
 
 .tagJumpButton {
@@ -2094,11 +2095,11 @@ select:focus {
 .matchTagJumpButton {
   display: grid;
   width: 100%;
-  grid-template-columns: 70px 54px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 44px 48px minmax(0, 1fr);
+  gap: 5px;
   align-items: baseline;
   height: auto;
-  min-height: 30px;
+  min-height: 24px;
   border: 0;
   padding: 0;
   background: transparent;
@@ -2117,31 +2118,32 @@ select:focus {
 
 .matchTagJumpButton strong {
   color: #cfeac8;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .matchTagJumpButton time {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 
 .matchTagJumpButton small {
   grid-column: 3;
   color: #8f9a91;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .tagRowActions {
   grid-column: 2 / -1;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .tagRowActions button {
-  min-height: 32px;
-  padding: 0 10px;
+  min-height: 24px;
+  padding: 0 6px;
+  font-size: 11px;
 }
 
 .tagExpandButton {
@@ -2154,9 +2156,9 @@ select:focus {
   display: grid;
   gap: 4px;
   border-top: 1px solid var(--border-button);
-  padding-top: 8px;
+  padding-top: 6px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .inlineTagDetails > button {
@@ -2194,7 +2196,7 @@ select:focus {
 
 .tagEditor {
   display: grid;
-  gap: 10px;
+  gap: 7px;
   border-top: 1px solid var(--border-button);
   padding-top: 12px;
 }
@@ -2203,7 +2205,7 @@ select:focus {
   grid-column: 1 / -1;
   border-top: 0;
   border-left: 3px solid var(--accent);
-  padding: 10px 0 0 10px;
+  padding: 8px 0 0 8px;
 }
 
 .editPlayerList {
@@ -2228,7 +2230,7 @@ select:focus {
 
 .tagEditor label {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .tagEditor .editPlayerList label {
@@ -2240,9 +2242,9 @@ select:focus {
 .timelinePanel {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-rows: auto 132px;
-  gap: 10px;
-  padding: 14px 16px;
+  grid-template-rows: auto 94px;
+  gap: 6px;
+  padding: 8px 10px;
 }
 
 .timelineTimes {
@@ -2281,14 +2283,14 @@ select:focus {
 .timelineTrack {
   position: relative;
   display: block;
-  min-height: 132px;
-  padding-top: 64px;
+  min-height: 94px;
+  padding-top: 44px;
 }
 
 .globalBlockTimeline {
   position: absolute;
-  inset: 4px 0 auto;
-  height: 24px;
+  inset: 2px 0 auto;
+  height: 18px;
 }
 
 .globalBlockSegment {
@@ -2296,13 +2298,13 @@ select:focus {
   top: 0;
   z-index: 1;
   overflow: hidden;
-  height: 24px;
-  min-height: 24px;
+  height: 18px;
+  min-height: 18px;
   border-radius: 4px;
   border-color: #3c4a41;
   background: #202720;
   color: #cfeac8;
-  font-size: 11px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2315,7 +2317,7 @@ select:focus {
 
 .timelineTrack .timelineSlider {
   position: absolute;
-  top: 34px;
+  top: 23px;
   left: 0;
   width: 100%;
 }
@@ -2383,7 +2385,7 @@ select:focus {
 
 .blockMarker {
   position: absolute;
-  top: 24px;
+  top: 16px;
   z-index: 5;
   width: 26px;
   height: 26px;
@@ -2409,7 +2411,7 @@ select:focus {
 
 .timelineTagLane {
   position: relative;
-  height: 68px;
+  height: 50px;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
@@ -2424,15 +2426,15 @@ select:focus {
   position: absolute;
   z-index: 2;
   overflow: hidden;
-  height: 20px;
+  height: 16px;
   min-height: 0;
-  padding: 0 6px;
+  padding: 0 4px;
   border: 2px solid var(--bg-page);
   border-radius: 5px;
   color: #10130f;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  line-height: 16px;
+  line-height: 12px;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;

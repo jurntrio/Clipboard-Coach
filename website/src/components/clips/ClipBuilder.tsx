@@ -153,6 +153,16 @@ export function ClipBuilder({
     }).filter((segment, index, allSegments) =>
       allSegments.findIndex((candidate) => candidate.tag.id === segment.tag.id && candidate.videoId === segment.videoId) === index
     );
+    if (localVideo) {
+      const missingLocalSegments = expandedSegments.filter(({ videoId: sourceVideoId }) =>
+        !(localFilesByVideoId?.[sourceVideoId] ?? (sourceVideoId === videoId ? localFile : null))
+      );
+      if (missingLocalSegments.length > 0) {
+        setErrorMessage(t("clip.reconnectAll"));
+        setSaving(false);
+        return;
+      }
+    }
     let resolvedClipName = clipName.trim();
     if (!resolvedClipName && orderedTags.length === 1) {
       resolvedClipName = orderedTags[0].name;
@@ -194,7 +204,7 @@ export function ClipBuilder({
           for (let index = 0; index < expandedSegments.length; index += 1) {
             const { tag, videoId: sourceVideoId } = expandedSegments[index];
             const sourceFile = localFilesByVideoId?.[sourceVideoId] ?? (sourceVideoId === videoId && localVideo ? localFile : null);
-            if (!sourceFile) continue;
+            if (!sourceFile) throw new Error(t("clip.reconnectAll"));
             const baseProgress = index / expandedSegments.length;
             const unit = 1 / expandedSegments.length;
             setStatus(t("clip.makingSegment", { current: index + 1, total: expandedSegments.length }));
@@ -248,6 +258,10 @@ export function ClipBuilder({
             } finally {
               await rendered.cleanup();
             }
+          }
+
+          if (localVideo && renderedSegments.length !== expandedSegments.length) {
+            throw new Error(t("clip.reconnectAll"));
           }
 
           const { error: updateError } = await supabase.from("clips").update({

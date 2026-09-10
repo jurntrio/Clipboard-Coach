@@ -7,17 +7,32 @@ const ffmpegPath = require("ffmpeg-static") as string;
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const ffprobePath = (require("ffprobe-static") as { path: string }).path;
 
+const MEDIA_COMMAND_TIMEOUT_MS = 15 * 60 * 1000;
+
 function run(bin: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args);
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`${path.basename(bin)} timed out after ${Math.round(MEDIA_COMMAND_TIMEOUT_MS / 60000)} minutes`));
+    }, MEDIA_COMMAND_TIMEOUT_MS);
+    timer.unref();
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    const finish = (error: Error | null, output = "") => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(output);
+    };
     child.stdout.on("data", (chunk) => (stdout += chunk));
     child.stderr.on("data", (chunk) => (stderr += chunk));
-    child.on("error", reject);
+    child.on("error", (error) => finish(error));
     child.on("close", (code) => {
-      if (code === 0) resolve(stdout);
-      else reject(new Error(`${path.basename(bin)} exited with code ${code}: ${stderr.slice(-2000)}`));
+      if (code === 0) finish(null, stdout);
+      else finish(new Error(`${path.basename(bin)} exited with code ${code}: ${stderr.slice(-2000)}`));
     });
   });
 }
