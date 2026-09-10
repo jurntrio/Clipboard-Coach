@@ -35,7 +35,7 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
   const markers = tags.filter((tag) => isPeriodMarker(tag.name));
   const clipTags = tags.filter((tag) => !isPeriodMarker(tag.name));
   const { laneByTag, laneCount } = arrangeInLanes(clipTags);
-  const bandHeight = Math.max(32, 5 + laneCount * 27);
+  const bandHeight = Math.max(24, 4 + laneCount * 18);
   const [hoverRatio, setHoverRatio] = useState<number | null>(null);
   const playheadPercent = Math.min(100, Math.max(0, (currentTime / safeDuration) * 100));
 
@@ -49,25 +49,25 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
   }
 
   return (
-    <div className="shrink-0 space-y-1.5">
-      <div className="flex justify-between px-1 text-[10px] text-textMuted">
+    <div className="shrink-0 space-y-1">
+      <div className="flex justify-between px-1 text-[10px] leading-none text-textMuted">
         <span>{formatTime(0)}</span>
         <span>{formatTime(duration)}</span>
       </div>
-      <div className="relative h-6" aria-label={t("timeline.periodMarkers")}>
+      <div className="relative h-4" aria-label={t("timeline.periodMarkers")}>
         <div className="pointer-events-none absolute inset-y-0 z-20 w-0.5 -translate-x-1/2 bg-accent shadow-[0_0_0_1px_rgba(0,0,0,0.35)]" style={{ left: `${playheadPercent}%` }} />
         {markers.map((tag) => {
           const endMarker = tag.name.trim().toLowerCase() === "end";
           return (
-            <button type="button" key={tag.id} title={`${tag.name} · ${formatTime(tag.start_time)}`} aria-label={`${tag.name} · ${formatTime(tag.start_time)}`} className="absolute top-0 z-10 h-6 w-5 -translate-x-1/2 transition hover:scale-110" style={{ left: `${(tag.start_time / safeDuration) * 100}%` }} onClick={() => onSeek(tag.start_time)}>
-              <span className={`absolute bottom-0 left-1 h-6 border-l-2 ${endMarker ? "border-white" : "border-accent"}`} />
-              <span className={`absolute left-1 top-0 h-3 w-4 rounded-r-sm ${endMarker ? "border border-white" : "bg-accent"}`} style={endMarker ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "6px 6px" } : undefined} />
+            <button type="button" key={tag.id} title={`${tag.name} · ${formatTime(tag.start_time)}`} aria-label={`${tag.name} · ${formatTime(tag.start_time)}`} className="absolute top-0 z-10 h-4 w-4 -translate-x-1/2 transition hover:scale-110" style={{ left: `${(tag.start_time / safeDuration) * 100}%` }} onClick={() => onSeek(tag.start_time)}>
+              <span className={`absolute bottom-0 left-1 h-4 border-l-2 ${endMarker ? "border-white" : "border-accent"}`} />
+              <span className={`absolute left-1 top-0 h-2.5 w-3 rounded-r-sm ${endMarker ? "border border-white" : "bg-accent"}`} style={endMarker ? { backgroundImage: "conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0)", backgroundSize: "5px 5px" } : undefined} />
             </button>
           );
         })}
       </div>
       <div
-        className="relative h-5 cursor-pointer overflow-visible rounded-md border border-border bg-input"
+        className="relative h-4 cursor-pointer overflow-visible rounded-md border border-border bg-input"
         onClick={handleClick}
         onMouseMove={(event) => setHoverRatio(ratioFromEvent(event))}
         onMouseLeave={() => setHoverRatio(null)}
@@ -88,7 +88,7 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
         )}
       </div>
 
-      <div className="max-h-32 overflow-y-auto rounded-md border border-borderSubtle bg-cardDeep" aria-label={t("tag.bands")}>
+      <div className="max-h-24 overflow-y-auto rounded-md border border-borderSubtle bg-cardDeep" aria-label={t("tag.bands")}>
         <div className="relative min-w-full" style={{ height: bandHeight }}>
           <div className="pointer-events-none absolute inset-y-0 z-20 w-0.5 -translate-x-1/2 bg-accent shadow-[0_0_0_1px_rgba(0,0,0,0.35)]" style={{ left: `${playheadPercent}%` }} />
           {clipTags.map((tag) => (
@@ -96,9 +96,9 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
               type="button"
               key={tag.id}
               title={`${tag.name} · ${formatTime(tag.start_time)}–${formatTime(tag.end_time)}`}
-              className="absolute h-5 min-w-1 overflow-hidden whitespace-nowrap rounded-sm px-1 text-[10px] font-semibold text-black/80 opacity-85 hover:opacity-100"
+              className="absolute h-4 min-w-1 overflow-hidden whitespace-nowrap rounded-sm px-1 text-[9px] font-semibold leading-4 text-black/80 opacity-85 hover:opacity-100"
               style={{
-                top: 4 + (laneByTag.get(tag.id) ?? 0) * 27,
+                top: 3 + (laneByTag.get(tag.id) ?? 0) * 18,
                 left: `${(tag.start_time / safeDuration) * 100}%`,
                 width: `${Math.max(0.7, ((tag.end_time - tag.start_time) / safeDuration) * 100)}%`,
                 backgroundColor: tag.color

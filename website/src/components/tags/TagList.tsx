@@ -16,6 +16,13 @@ function parseTime(value: string): number | null {
   return null;
 }
 
+function formatTimeDraft(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 6);
+  const padded = digits.padEnd(6, "_");
+  const draft = `${padded.slice(0, 2)}:${padded.slice(2, 4)}:${padded.slice(4, 6)}`;
+  return draft.replace(/_+$/g, "");
+}
+
 export type TagListMeta = {
   badge: string;
   byLabel: string;
@@ -78,24 +85,24 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
     window.setTimeout(() => setTimeSaveState("idle"), 900);
   }
 
-  const timeInput = "w-[58px] rounded border border-border bg-input px-1.5 py-1 text-center text-[11px] text-textPrimary focus:border-accent focus:outline-none";
+  const timeInput = "w-[56px] rounded border border-border bg-input px-1 py-0.5 text-center text-[10px] text-textPrimary focus:border-accent focus:outline-none";
 
   return (
-    <div className={`rounded-lg border px-2 py-2 ${selected && !marker ? "border-accent bg-accentDim" : "border-transparent bg-cardDeep hover:border-border"}`}>
-      <div className="flex items-center gap-2">
+    <div className={`rounded-md border px-2 py-1.5 ${selected && !marker ? "border-accent bg-accentDim" : "border-transparent bg-cardDeep hover:border-border"}`}>
+      <div className="flex items-center gap-1.5">
         {marker ? (
           <span className="w-4 text-center text-sm" style={{ color: endMarker ? "white" : tag.color }} title={t("tag.periodMarker")}>{endMarker ? "🏁" : "⚑"}</span>
         ) : (
           <input type="checkbox" aria-label={t("tag.selectForClip", { name: tag.name })} checked={selected} onChange={() => onToggleSelect(tag.id)} />
         )}
         <span className={`h-2.5 w-2.5 flex-shrink-0 ${marker ? "rotate-45 rounded-sm" : "rounded-full"}`} style={{ backgroundColor: tag.color }} />
-        {editingName ? <input autoFocus disabled={savingName} value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} onBlur={() => void saveName()} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape" && !savingName) { setNameDraft(tag.name); setEditingName(false); } }} className="min-w-0 flex-1 rounded border border-accent bg-input px-2 py-1 text-sm text-textPrimary outline-none disabled:cursor-not-allowed disabled:opacity-60" /> : <button onClick={() => onSeek(tag.start_time)} className="min-w-0 flex-1 truncate text-left text-sm font-medium text-textPrimary">{tag.name}</button>}
+        {editingName ? <input autoFocus disabled={savingName} value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} onBlur={() => void saveName()} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape" && !savingName) { setNameDraft(tag.name); setEditingName(false); } }} className="min-w-0 flex-1 rounded border border-accent bg-input px-2 py-0.5 text-xs text-textPrimary outline-none disabled:cursor-not-allowed disabled:opacity-60" /> : <button onClick={() => onSeek(tag.start_time)} className="min-w-0 flex-1 truncate text-left text-xs font-semibold text-textPrimary">{tag.name}</button>}
         {meta?.onCalibrate && <button type="button" onClick={meta.onCalibrate} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="px-1 text-xs text-textMuted hover:text-accent">🎯</button>}
         {!marker && onRename && <button type="button" onClick={() => setEditingName(true)} className="px-1 text-xs text-textMuted hover:text-accent">{t("common.edit")}</button>}
         <button onClick={() => onDelete(tag.id)} className="px-1 text-sm text-textMuted hover:text-red-400" aria-label={t("tag.deleteNamed", { name: tag.name })}>&times;</button>
       </div>
       <div
-        className={`tagTimeSaveArea mt-2 flex items-center justify-end gap-1.5 overflow-hidden rounded-md px-1 py-0.5 text-[10px] text-textMuted ${timeSaveState}`}
+        className={`tagTimeSaveArea mt-1.5 flex items-center justify-end gap-1 overflow-hidden rounded-md px-1 py-0.5 text-[10px] text-textMuted ${timeSaveState}`}
         onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) void saveTimes(); }}
       >
         {meta && <span title={meta.byLabel} aria-label={meta.byLabel} className="relative z-[1] mr-auto inline-flex min-w-7 items-center justify-center rounded bg-accentDim px-1.5 py-1 font-bold text-accent">{meta.badge}</span>}
@@ -106,12 +113,12 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
         )}
         <label className="relative z-[1] flex items-center gap-1">
           <span>{marker ? t("tag.time") : t("tag.start")}</span>
-          <input value={startDraft} onChange={(event) => setStartDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} disabled={!onUpdate || timeSaveState === "saving"} className={timeInput} inputMode="numeric" />
+          <input value={startDraft} onChange={(event) => setStartDraft(formatTimeDraft(event.target.value))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} disabled={!onUpdate || timeSaveState === "saving"} className={timeInput} inputMode="numeric" maxLength={8} />
         </label>
         {!marker && (
           <label className="relative z-[1] flex items-center gap-1">
             <span>{t("tag.end")}</span>
-            <input value={endDraft} onChange={(event) => setEndDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} disabled={!onUpdate || timeSaveState === "saving"} className={timeInput} inputMode="numeric" />
+            <input value={endDraft} onChange={(event) => setEndDraft(formatTimeDraft(event.target.value))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} disabled={!onUpdate || timeSaveState === "saving"} className={timeInput} inputMode="numeric" maxLength={8} />
           </label>
         )}
       </div>
@@ -149,7 +156,7 @@ export function TagList({ tags, tagMetaById, selectedTagIds, onToggleSelect, onT
   return (
     <div className="flex flex-col gap-1 overflow-y-auto">
       {onToggleAll && selectableTagIds.length > 1 && (
-        <label className="mb-1 flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-cardDeep px-2 py-2 text-xs font-semibold text-textPrimary hover:bg-cardHover">
+        <label className="mb-0.5 flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-cardDeep px-2 py-1 text-[11px] font-semibold text-textPrimary hover:bg-cardHover">
           <input type="checkbox" checked={allSelected} onChange={() => onToggleAll(selectableTagIds)} className="accent-accent" />
           <span>{allSelected ? t("tag.deselectAll") : t("tag.selectAll")}</span>
           <span className="ml-auto text-[11px] font-normal text-textMuted">{selectedCount}/{selectableTagIds.length}</span>

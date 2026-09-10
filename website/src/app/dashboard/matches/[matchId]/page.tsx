@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getRememberedLocalVideo, isLocalVideoUrl } from "@/lib/local-video-store";
@@ -117,6 +118,13 @@ function parseClockTime(value: string): number | null {
   return null;
 }
 
+function formatClockDraft(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 6);
+  const padded = digits.padEnd(6, "_");
+  const draft = `${padded.slice(0, 2)}:${padded.slice(2, 4)}:${padded.slice(4, 6)}`;
+  return draft.replace(/_+$/g, "");
+}
+
 function matchTitle(match: Pick<Match, "team_a_name" | "team_b_name" | "is_home_match"> | null, fallbackA: string, fallbackB: string) {
   const teamA = match?.team_a_name || fallbackA;
   const teamB = match?.team_b_name || fallbackB;
@@ -167,29 +175,29 @@ function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleRevie
   const seekTime = materializedTag
     ? parseClockTime(startDraft) ?? materializedTag.start_time
     : elapsed;
-  const timeInput = "w-[58px] rounded border border-border bg-input px-1.5 py-1 text-center text-[11px] text-textPrimary focus:border-accent focus:outline-none";
+  const timeInput = "w-[56px] rounded border border-border bg-input px-1 py-0.5 text-center text-[10px] text-textPrimary focus:border-accent focus:outline-none";
 
   return (
-    <div className={`rounded-lg border border-border bg-cardDeep px-3 py-2 ${reviewed ? "opacity-50" : ""}`}>
-      <div className="flex items-center gap-2">
-        <input type="checkbox" checked={reviewed} onChange={onToggleReviewed} title={t("liveTags.reviewed")} className="h-4 w-4 flex-shrink-0 accent-accent" />
+    <div className={`rounded-md border border-border bg-cardDeep px-2 py-1.5 ${reviewed ? "opacity-50" : ""}`}>
+      <div className="flex items-center gap-1.5">
+        <input type="checkbox" checked={reviewed} onChange={onToggleReviewed} title={t("liveTags.reviewed")} className="h-3.5 w-3.5 flex-shrink-0 accent-accent" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-textPrimary">{liveTag.tag_name}</p>
+          <p className="truncate text-xs font-semibold text-textPrimary">{liveTag.tag_name}</p>
           <p className="truncate text-xs text-textMuted">{liveTag.tagger_name ? t("liveTags.by", { name: liveTag.tagger_name }) : t("liveTags.byUnknown")}</p>
         </div>
-        <button type="button" onClick={onCalibrate} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">🎯</button>
-        {seekTime !== null && <button type="button" onClick={() => onSeek(seekTime)} className="flex-shrink-0 rounded-lg border border-borderButton bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.goTo")}</button>}
+        <button type="button" onClick={onCalibrate} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="flex-shrink-0 rounded border border-borderButton bg-button px-1 py-0.5 text-[10px] font-semibold text-textPrimary hover:bg-cardHover">🎯</button>
+        {seekTime !== null && <button type="button" onClick={() => onSeek(seekTime)} className="flex-shrink-0 rounded border border-borderButton bg-button px-1.5 py-0.5 text-[10px] font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.goTo")}</button>}
         <button type="button" onClick={onDelete} title={t("liveTags.delete")} aria-label={t("liveTags.delete")} className="flex-shrink-0 px-1 text-sm text-textMuted hover:text-red-400">&times;</button>
       </div>
       {materializedTag ? (
-        <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-textMuted">
+        <div className="mt-1.5 flex items-center justify-end gap-1 text-[10px] text-textMuted">
           <label className="flex items-center gap-1">
             <span>{t("tag.start")}</span>
-            <input value={startDraft} onChange={(event) => setStartDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="numeric" />
+            <input value={startDraft} onChange={(event) => setStartDraft(formatClockDraft(event.target.value))} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="numeric" maxLength={8} />
           </label>
           <label className="flex items-center gap-1">
             <span>{t("tag.end")}</span>
-            <input value={endDraft} onChange={(event) => setEndDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="numeric" />
+            <input value={endDraft} onChange={(event) => setEndDraft(formatClockDraft(event.target.value))} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="numeric" maxLength={8} />
           </label>
         </div>
       ) : elapsed !== null && (
@@ -797,13 +805,14 @@ export default function MatchViewerPage() {
     <div
       ref={viewerRef}
       onMouseMove={(event) => revealFocusControls(event.clientX)}
-      className={`match-viewer-shell flex h-[calc(100dvh-5rem)] min-h-0 flex-col overflow-hidden bg-page${isFocusMode ? " match-viewer-focus" : ""}${focusChromeVisible ? " match-viewer-chrome-visible" : ""}${focusPanel ? ` match-viewer-panel-${focusPanel}` : ""}`}
+      className={`match-viewer-shell fixed inset-0 z-50 flex h-screen min-h-0 flex-col overflow-hidden bg-page text-textPrimary${isFocusMode ? " match-viewer-focus" : ""}${focusChromeVisible ? " match-viewer-chrome-visible" : ""}${focusPanel ? ` match-viewer-panel-${focusPanel}` : ""}`}
     >
       <input ref={reconnectInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void handleFallbackSelection(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
       <input ref={replaceInputRef} type="file" multiple={videos.length > 1} accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void replaceSelectedVideos(Array.from(event.target.files ?? []).map((file) => ({ file, handle: null }))); event.target.value = ""; }} />
       <input ref={attachInputRef} type="file" multiple accept=".mp4,.mov,.m4v,video/mp4,video/quicktime" className="hidden" onChange={(event) => { void attachLocalFiles(Array.from(event.target.files ?? []).map((file) => ({ file, handle: null }))); event.target.value = ""; }} />
       <div className="flex flex-1 min-h-0">
-        <aside className="match-viewer-left w-64 bg-card p-4 flex flex-col gap-4 overflow-y-auto border-r border-border">
+        <aside className="match-viewer-left w-56 bg-card p-3 flex flex-col gap-3 overflow-y-auto border-r border-border">
+          <Link href="/dashboard" className="rounded-md border border-borderButton bg-button px-3 py-1.5 text-center text-sm font-semibold text-textPrimary hover:border-accent hover:bg-cardHover">Home</Link>
           <span className="font-mono text-sm font-semibold text-textPrimary" aria-label={t("match.currentPosition")}>{formatClock(combinedTime)}</span>
           {match && <MatchDetailsCard match={match} videoCount={blocks.length} onSaved={(updated) => setMatch((current) => current ? { ...current, ...updated } : current)} onReplaceVideos={match.coach_id === currentUserId && videos.every((video) => isLocalVideoUrl(video.video_url)) ? () => void chooseReplacementVideos() : undefined} onDeleteMatch={match.coach_id === currentUserId || isPlatformAdmin ? () => setConfirmDeleteMatch(true) : undefined} replacing={replacing} editable={false} />}
           {canManageSources && blocks.length > 0 && <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
@@ -862,7 +871,7 @@ export default function MatchViewerPage() {
           <button type="button" onClick={drawDownloadOnly} className="mt-auto w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page">{t("tag.draw")}</button>
         </aside>
 
-        <main className="match-viewer-main min-h-0 min-w-0 flex-1 flex flex-col p-4 gap-3">
+        <main className="match-viewer-main min-h-0 min-w-0 flex-1 flex flex-col p-3 gap-2">
           {!videos.length ? (
             <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center">
               {canManageSources ? (
@@ -918,7 +927,7 @@ export default function MatchViewerPage() {
           ) : currentVideo && isLocalVideoUrl(currentVideo.video_url) && !currentFile ? <div className="flex-1 grid place-items-center bg-black rounded-lg border border-border p-8 text-center"><div><h2 className="text-textBright text-lg font-semibold">{t("match.reconnect", { number: currentIndex + 1 })}</h2><p className="text-textMuted text-sm mt-2">{t("match.reconnectHelp")}</p>{supportsPersistentFileAccess === false && <p className="mt-2 text-xs text-amber-300">{t("match.browserReconnect")}</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={() => void reconnectAllVideos()} className="px-4 py-2 rounded-lg bg-accent text-page font-semibold">{t("match.reconnectAll")}</button><button onClick={() => void reconnect(currentVideo)} className="px-4 py-2 rounded-lg bg-button text-textPrimary">{t("match.onlyVideo", { number: currentIndex + 1 })}</button></div></div></div> : <div className="match-viewer-stage relative flex min-h-0 flex-1"><VideoPlayer ref={videoRef} src={playbackUrl ?? currentVideo?.video_url} onTimeUpdate={handleViewerTimeUpdate} onDurationChange={onVideoReady} onEnded={handleVideoEnded} onPlayingChange={setIsPlaying} /><ActiveTagOverlay tags={filteredTimelineTags} currentTime={combinedTime} /><ActiveDrawingOverlay drawing={playingDrawing} /><button type="button" onClick={() => void toggleFocusMode()} className="match-viewer-focus-button absolute left-3 top-3 z-20 rounded-lg border border-white/30 bg-black/70 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-black/85" aria-label={isFocusMode ? "Volledig scherm sluiten" : "Volledig scherm openen"}>{isFocusMode ? "⤢ Sluiten" : "⛶ Volledig scherm"}</button></div>}
           <div className="match-viewer-bottom-chrome contents">
           <div
-            className="relative min-h-12 overflow-hidden rounded-lg border border-border bg-cardDeep"
+            className="relative h-9 overflow-hidden rounded-md border border-border bg-cardDeep"
             style={{ backgroundImage: "repeating-linear-gradient(135deg, rgba(128,128,128,0.16) 0, rgba(128,128,128,0.16) 5px, transparent 5px, transparent 11px)" }}
             aria-label={t("match.videoSequence")}
           >
@@ -931,11 +940,11 @@ export default function MatchViewerPage() {
                   left: `${((offsets.map.get(video.id) ?? 0) / Math.max(1, offsets.total)) * 100}%`,
                   width: `${Math.max(2, ((video.duration ?? 0) / Math.max(1, offsets.total)) * 100)}%`
                 }}
-                className={`absolute inset-y-0 min-w-[72px] border-l-4 border-r border-r-border px-2 py-1 text-center text-xs ${index === currentIndex ? "border-l-accent bg-accentDim text-textBright" : "border-l-textMuted/50 bg-cardHover text-textSecondary hover:brightness-110"}`}
+                className={`absolute inset-y-0 min-w-[64px] border-l-4 border-r border-r-border px-2 py-0.5 text-center text-[11px] ${index === currentIndex ? "border-l-accent bg-accentDim text-textBright" : "border-l-textMuted/50 bg-cardHover text-textSecondary hover:brightness-110"}`}
                 title={`${video.title || `Video ${index + 1}`} · ${formatTime(video.duration ?? 0)}`}
               >
                 <span className="block truncate font-semibold">{t("match.videoNumber", { number: index + 1 })}</span>
-                <span className="block text-[10px] text-textMuted">{formatTime(video.duration ?? 0)}{isLocalVideoUrl(video.video_url) && !files[video.id] ? ` · ${t("match.reconnectShort")}` : ""}</span>
+                <span className="block text-[9px] leading-tight text-textMuted">{formatTime(video.duration ?? 0)}{isLocalVideoUrl(video.video_url) && !files[video.id] ? ` · ${t("match.reconnectShort")}` : ""}</span>
               </button>
             ))}
           </div>
@@ -963,10 +972,10 @@ export default function MatchViewerPage() {
           {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
         </main>
 
-        <aside className="match-viewer-right w-96 bg-card p-4 border-l border-border overflow-y-auto space-y-4">
+        <aside className="match-viewer-right w-80 bg-card p-2.5 border-l border-border overflow-y-auto space-y-2">
           <section className="min-h-0">
-            <div className="mb-2 flex items-start justify-between gap-3">
-              <h3 className="font-semibold text-textBright">{t("tag.tagsTitle")}</h3>
+            <div className="mb-1.5 flex items-start justify-between gap-2">
+              <h3 className="text-sm font-semibold text-textBright">{t("tag.tagsTitle")}</h3>
               {!!(liveTaggers.length || filterableTagNames.length) && <details className="relative">
                 <summary className="cursor-pointer list-none rounded-lg border border-borderButton bg-button px-2.5 py-1.5 text-xs font-semibold text-textPrimary hover:bg-cardHover">{t("liveTags.filters")}</summary>
                 <div className="absolute right-0 z-20 mt-1 max-h-[70vh] w-64 overflow-y-auto rounded-xl border border-border bg-cardDeep p-3 shadow-xl">
