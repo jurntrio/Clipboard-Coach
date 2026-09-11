@@ -7,8 +7,11 @@ import { calculateGame, dateLabel, defaultSettings, euro, type BingoData } from 
 
 const BingoAdmin = dynamic(() => import("./BingoAdmin"), { ssr: false, loading: () => <p className="wrap">Beheer laden…</p> });
 
-export function Balls({ numbers, hits = [], missing = false }: { numbers: number[]; hits?: number[]; missing?: boolean }) {
-  return <div className="balls">{numbers.map(n => <span key={n} className={`ball ${hits.includes(n) ? "hit" : missing ? "missing" : ""}`} aria-label={`${n}${hits.includes(n) ? ", reeds getrokken" : missing ? ", nog nodig" : ""}`} title={hits.includes(n) ? "Reeds getrokken" : "Nog nodig"}>{n}</span>)}</div>;
+export function Balls({ numbers, hits = [] }: { numbers: number[]; hits?: number[] }) {
+  return <div className="balls">{numbers.map(n => {
+    const hit = hits.includes(n);
+    return <span key={n} className={`ball ${hit ? "hit" : ""}`} aria-label={`${n}${hit ? ", reeds getrokken" : ", nog niet getrokken"}`} title={hit ? "Reeds getrokken" : "Nog niet getrokken"}>{n}</span>;
+  })}</div>;
 }
 
 export function LottoBingo({ initialData }: { initialData: BingoData | null }) {
@@ -65,10 +68,10 @@ export function LottoBingo({ initialData }: { initialData: BingoData | null }) {
         {game && data ? <>
           <div className="stats"><div className="stat"><span>Deelnemers</span><strong>{data.participants.length}</strong></div><div className="stat"><span>Prijzenpot</span><strong>{euro(game.pot)}</strong></div><div className="stat"><span>Trekkingen</span><strong>{game.draws.length}</strong></div><div className="stat"><span>Laatste trekking</span><strong style={{ fontSize: 19 }}>{game.lastDraw ? dateLabel(game.lastDraw.draw_date) : "—"}</strong></div></div>
           {game.lastDraw && <div className="card last-draw"><strong>Laatste hoofdnummers · {dateLabel(game.lastDraw.draw_date)}</strong><Balls numbers={game.lastDraw.numbers} hits={game.lastDraw.numbers} /></div>}
-          <section className="card"><div className="card-head"><div><h2>Actuele stand</h2><p>Groene nummers zijn al getrokken. Gele nummers moeten nog vallen.</p></div><span className="sub">10 unieke nummers · 1 t.e.m. 45</span></div>
+          <section className="card"><div className="card-head"><div><h2>Actuele stand</h2><p>Groene bollen zijn al getrokken. Witte bollen moeten nog vallen.</p></div><span className="sub">10 unieke nummers · 1 t.e.m. 45</span></div>
             {!!game.winners.length && <div className="notice winner"><strong>🏆 Winnaar{game.winners.length > 1 ? "s" : ""}: {game.winners.map(p => p.name).join(", ")}</strong><br />{dateLabel(game.winners[0].completedOn!)} · {euro(game.prize)} per winnaar{game.winners.length > 1 && " · De pot wordt gelijk gedeeld."}</div>}
-            {game.ranking.length ? <div className="table-wrap"><table><thead><tr><th scope="col">Plaats</th><th scope="col">Deelnemer</th><th scope="col">Gekozen nummers</th><th scope="col">Score</th><th scope="col">Nog nodig</th></tr></thead><tbody>{game.ranking.map((p, index) => <tr key={p.id} className={game.winners.some(w => w.id === p.id) ? "winner-row" : ""}><td><span className={`rank ${index === 0 ? "top" : ""}`}>{index + 1}</span></td><td><div className="name">{p.name}</div>{game.winners.some(w => w.id === p.id) && <div className="sub">🏆 Winnaar</div>}</td><td><Balls numbers={p.numbers} hits={p.hits} /></td><td><span className="score">{p.count}/10</span><div className="progress" aria-hidden="true"><i style={{ width: `${p.count * 10}%` }} /></div></td><td>{p.missing.length ? <Balls numbers={p.missing} missing /> : <strong>Volledig!</strong>}</td></tr>)}</tbody></table></div> : <div className="empty">Er zijn nog geen deelnemers. Binnenkort vind je hier de actuele stand.</div>}
-          </section><p className="updated">De stand vernieuwt automatisch. Een getrokken nummer blijft afgevinkt; het bonusnummer telt niet mee.</p>
+            {game.ranking.length ? <div className="table-wrap"><table className="stand-table"><thead><tr><th scope="col">Plaats</th><th scope="col">Deelnemer</th><th scope="col">10 nummers</th></tr></thead><tbody>{game.ranking.map((p, index) => <tr key={p.id} className={game.winners.some(w => w.id === p.id) ? "winner-row" : ""}><td><span className={`rank ${index === 0 ? "top" : ""}`}>{index + 1}</span></td><td><div className="name">{p.name}</div></td><td className="stand-numbers"><Balls numbers={p.numbers} hits={p.hits} /></td></tr>)}</tbody></table></div> : <div className="empty">Er zijn nog geen deelnemers. Binnenkort vind je hier de actuele stand.</div>}
+          </section><p className="updated">De stand vernieuwt automatisch. Groen is reeds getrokken; wit moet nog vallen. Het bonusnummer telt niet mee.</p>
         </> : <div className="card empty">De Lotto Bingo-stand wordt geladen…</div>}
       </section>
       {canManage && manage && data && <section className="admin wrap" id="bingo-admin"><BingoAdmin data={data} refresh={refresh} /></section>}

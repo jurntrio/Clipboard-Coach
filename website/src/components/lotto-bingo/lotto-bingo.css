@@ -44,6 +44,9 @@
 .clubboys-bingo .card-head p{margin:4px 0 0;color:var(--muted);font-size:13px}
 .clubboys-bingo .table-wrap{overflow-x:auto}
 .clubboys-bingo table{width:100%;border-collapse:collapse;min-width:760px}
+.clubboys-bingo .stand-table{min-width:0;table-layout:fixed}
+.clubboys-bingo .stand-table th:first-child,.clubboys-bingo .stand-table td:first-child{width:96px}
+.clubboys-bingo .stand-table th:nth-child(2),.clubboys-bingo .stand-table td:nth-child(2){width:240px}
 .clubboys-bingo th,.clubboys-bingo td{padding:14px 16px;border-bottom:1px solid #edf0ed;text-align:left;vertical-align:middle}
 .clubboys-bingo th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#68706b;background:#fafbf9}
 .clubboys-bingo tbody tr:hover{background:#fbfcfa}
@@ -51,14 +54,11 @@
 .clubboys-bingo .rank.top{background:linear-gradient(135deg,var(--gold-2),var(--gold));color:#19160c}
 .clubboys-bingo .name{font-weight:900;font-size:15px}
 .clubboys-bingo .sub{font-size:12px;color:var(--muted);margin-top:2px}
-.clubboys-bingo .score{font-weight:950;color:var(--green);font-size:18px;white-space:nowrap}
-.clubboys-bingo .progress{height:8px;background:#e7ebe8;border-radius:99px;overflow:hidden;margin-top:7px;min-width:120px}
-.clubboys-bingo .progress>i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--green-3));border-radius:inherit}
 .clubboys-bingo .balls{display:flex;flex-wrap:wrap;gap:5px;max-width:360px}
+.clubboys-bingo .stand-numbers .balls{max-width:none}
 .clubboys-bingo .ball{min-width:31px;height:31px;padding:0 7px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;border:1px solid #ccd4ce;background:#fff;color:#2a2e2b}
 .clubboys-bingo .ball.hit{background:var(--green);color:#fff;border-color:var(--green)}
 .clubboys-bingo .ball.draw{background:#121413;color:#fff;border-color:#121413}
-.clubboys-bingo .ball.missing{background:#fff9e6;border-color:#e3c75f;color:#665313}
 .clubboys-bingo .notice{margin:18px 20px 0;padding:14px 15px;border-radius:14px;background:#eef8f2;border:1px solid #bfdec9;color:#193f2b}
 .clubboys-bingo .notice.winner{background:#fff8df;border-color:#ebd27c;color:#5b4a0b}
 .clubboys-bingo .empty{padding:34px 20px;color:var(--muted);text-align:center}
@@ -126,3 +126,32 @@
 .clubboys-bingo .status-message { margin:16px 0; }
 .clubboys-bingo .footer a { color:inherit; text-decoration:none; }
 @media(max-width:600px) { .clubboys-bingo .brand-mini { font-size:10px; } .clubboys-bingo .hero-inner { padding-top:26px; } .clubboys-bingo .card-head { flex-wrap:wrap; } .clubboys-bingo .stat strong { font-size:22px; } }
+@media(max-width:640px) {
+  .clubboys-bingo .public-area.wrap { padding:16px 10px 38px; }
+  .clubboys-bingo .card-head { padding:16px 14px 12px; }
+  .clubboys-bingo .card-head p { font-size:12px; }
+  .clubboys-bingo .card-head>.sub { display:none; }
+  .clubboys-bingo .stand-table { display:block; width:100%; }
+  .clubboys-bingo .stand-table thead { display:none; }
+  .clubboys-bingo .stand-table tbody { display:grid; gap:10px; padding:10px; }
+  .clubboys-bingo .stand-table tr { display:grid; grid-template-columns:50px minmax(0,1fr); gap:9px 11px; padding:11px; border:1px solid #e2e7e2; border-radius:14px; background:#fff; }
+  .clubboys-bingo .stand-table tr.winner-row { background:#fffbed; }
+  .clubboys-bingo .stand-table tr:hover { background:#fff; }
+  .clubboys-bingo .stand-table tr.winner-row:hover { background:#fffbed; }
+  .clubboys-bingo .stand-table td { padding:0; border:0; }
+  .clubboys-bingo .stand-table td:first-child { width:auto; grid-row:1 / span 2; }
+  .clubboys-bingo .stand-table td:nth-child(2) { width:auto; align-self:center; }
+  .clubboys-bingo .stand-numbers { grid-column:2; }
+  .clubboys-bingo .stand-numbers .balls { display:flex; flex-wrap:wrap; gap:6px; max-width:204px; }
+  .clubboys-bingo .stand-numbers .ball { width:36px; min-width:36px; height:36px; padding:0; font-size:15px; }
+  .clubboys-bingo .rank { width:46px; height:46px; border-radius:13px; }
+  .clubboys-bingo .name { font-size:16px; line-height:1.2; }
+  .clubboys-bingo .updated { text-align:left; padding:0 4px; }
+}
+@media(max-width:380px) {
+  .clubboys-bingo .stand-table tbody { padding:8px; }
+  .clubboys-bingo .stand-table tr { grid-template-columns:46px minmax(0,1fr); padding:9px; gap:8px 9px; }
+  .clubboys-bingo .stand-numbers .balls { gap:5px; }
+  .clubboys-bingo .stand-numbers .ball { height:34px; font-size:14px; }
+  .clubboys-bingo .rank { width:42px; height:42px; }
+}
