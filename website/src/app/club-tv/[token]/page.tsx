@@ -72,7 +72,7 @@ export default function ClubTvShow({
     />
   ) : null;
   return (
-    <main className="relative flex min-h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#174936,#06110d_68%)] p-[3vw] text-white">
+    <main className="relative flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#174936,#06110d_68%)] p-[3vw] text-white">
       {data.screen.clubs?.logo_url && (
         <Image
           src={data.screen.clubs.logo_url}
@@ -97,7 +97,7 @@ export default function ClubTvShow({
         {matchPosition === "top" && matchHeader}
         <section
           key={slide?.key}
-          className={`m-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col items-center justify-center py-6 text-center club-tv-${data.screen.transition_effect}`}
+          className={`m-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col items-center justify-center overflow-hidden py-6 text-center club-tv-${data.screen.transition_effect}`}
         >
           {matchPosition === "middle" && matchHeader}
           {slide?.node ?? <p className="text-4xl font-black">Welkom</p>}
@@ -129,7 +129,7 @@ function TickerFooter({ tickers }: { tickers: any[] }) {
     duration = Math.max(16, tickers.reduce((total, ticker) => total + String(ticker.configuration?.text ?? "").length, 0) * 0.18);
   return <footer
     ref={viewportRef}
-    className="relative z-20 -mx-[3vw] -mb-[3vw] overflow-hidden border-t border-emerald-300/25 shadow-[0_-12px_35px_rgba(0,0,0,.3)]"
+    className="relative z-20 shrink-0 -mx-[3vw] -mb-[3vw] overflow-hidden border-t border-emerald-300/25 shadow-[0_-12px_35px_rgba(0,0,0,.3)]"
     style={{ background: first.backgroundMode === "none" ? "transparent" : first.backgroundColor }}
   >
     <div
@@ -355,7 +355,7 @@ function buildSlides(data: any) {
               width={1800}
               height={1000}
               unoptimized
-              className="max-h-[78vh] max-w-[92vw] rounded-2xl object-contain"
+              className="max-h-full max-w-full rounded-2xl object-contain"
             />
           </>
         ),
@@ -383,7 +383,7 @@ function sponsorSlide(b: any, s: any) {
         width={1400}
         height={650}
         unoptimized
-        className="max-h-[70vh] max-w-[92vw] object-contain"
+        className="max-h-full max-w-full object-contain"
       />
     ) : (
       <div className="rounded-3xl border border-white/15 bg-white/5 px-14 py-12">
