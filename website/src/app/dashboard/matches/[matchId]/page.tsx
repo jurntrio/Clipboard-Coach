@@ -23,7 +23,7 @@ import { ActiveDrawingOverlay } from "@/components/video-player/ActiveDrawingOve
 import { useI18n } from "@/i18n/client";
 import { getTagEventKind } from "@/lib/tag-events";
 import { GoalTagDialog, type GoalTagDetails } from "@/components/tags/GoalTagDialog";
-import { externalRecordingCameras, externalRecordingConfig } from "@/lib/external-recording";
+import { externalRecordingConfig } from "@/lib/external-recording";
 import { useFocusMode } from "@/hooks/useFocusMode";
 import { useMatchVideoSources, type MatchBlock } from "@/hooks/useMatchVideoSources";
 import { useDrawingTool } from "@/hooks/useDrawingTool";
@@ -300,7 +300,6 @@ export default function MatchViewerPage() {
     attachRecordingId, setAttachRecordingId,
     attach360Url, setAttach360Url,
     attachVeoUrl, setAttachVeoUrl,
-    attachCameras, setAttachCameras,
     attaching,
     editingVideoId, setEditingVideoId,
     editingRecordingId, setEditingRecordingId,
@@ -310,7 +309,7 @@ export default function MatchViewerPage() {
     reconnectInputRef, replaceInputRef, attachInputRef,
     reconnect, reconnectAllVideos, handleFallbackSelection,
     replaceSelectedVideos, chooseReplacementVideos,
-    toggleAttachCamera, beginEditVideoSource, beginEditExternalRecording,
+    beginEditVideoSource, beginEditExternalRecording,
     saveExternalRecording, saveVideoSource,
     attachExternalRecording, attachVeoRecording, attach360Recording,
     attachLocalFiles, chooseLocalFilesToAttach, removeVideoSource
@@ -525,40 +524,29 @@ export default function MatchViewerPage() {
 
   async function addTag(label: string) {
     if (!currentVideo || !label.trim()) return;
+    const trimmedLabel = label.trim();
     const localTime = videoRef.current?.currentTime ?? Math.max(0, combinedTime - (offsets.map.get(currentVideo.id) ?? 0));
-    const marker = isPeriodMarker(label);
-    if (!marker && getTagEventKind(label) === "goal") {
-      setPendingGoal({ video: currentVideo, label, localTime });
+    const marker = isPeriodMarker(trimmedLabel);
+    if (!marker && getTagEventKind(trimmedLabel) === "goal") {
+      setPendingGoal({ video: currentVideo, label: trimmedLabel, localTime });
       return;
     }
-    if (!marker) {
-      const response = await fetch(`/api/matches/${matchId}/tags`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          videoId: currentVideo.id,
-          name: label,
-          occurredAtSeconds: localTime,
-          playerIds: match?.player_ids?.length ? match.player_ids : currentVideo.active_player_ids
-        })
-      });
-      const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
-      if (!response.ok || !body?.tag) { setError(body?.error || "Tag kon niet worden opgeslagen."); return; }
-      setTags((current) => [...current.filter((tag) => tag.id !== body.tag!.id), body.tag!]
-        .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
-      return;
-    }
-    const { data, error: tagError } = await supabase.from("tags").insert({
-      video_id: currentVideo.id,
-      name: label.trim(),
-      occurred_at_seconds: localTime,
-      start_time: localTime,
-      end_time: localTime,
-      color: getTagColor(label),
-      player_ids: currentVideo.active_player_ids
-    }).select().single();
-    if (tagError) { setError(tagError.message); return; }
-    if (data) setTags((current) => [...current, data].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+    const response = await fetch(`/api/matches/${matchId}/tags`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        videoId: currentVideo.id,
+        name: trimmedLabel,
+        occurredAtSeconds: localTime,
+        ...(marker ? { startTime: localTime, endTime: localTime } : {}),
+        playerIds: match?.player_ids?.length ? match.player_ids : currentVideo.active_player_ids
+      })
+    });
+    const body = await response.json().catch(() => null) as { tag?: Tag; error?: string } | null;
+    if (!response.ok || !body?.tag) { setError(body?.error || "Tag kon niet worden opgeslagen."); return; }
+    setTags((current) => [...current.filter((tag) => tag.id !== body.tag!.id), body.tag!]
+      .sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+    setError("");
   }
 
   function togglePhaseTag() {
@@ -819,7 +807,7 @@ export default function MatchViewerPage() {
             <summary className="cursor-pointer text-sm font-semibold text-textBright">{t("match.manageSources")}</summary>
             <div className="mt-3 space-y-2">
               {[...externalRecordingGroups.entries()].map(([recordingId, group]) => <button key={`external-${recordingId}`} type="button" onClick={() => beginEditExternalRecording(recordingId)} className="block w-full rounded-lg border border-border bg-cardAlt px-2 py-2 text-left text-xs transition hover:border-accent hover:bg-cardHover focus:border-accent focus:outline-none">
-                <span className="block min-w-0 text-textPrimary"><strong>360SI · {t("match.recordingId")} {recordingId}</strong><span className="mt-0.5 block text-[11px] text-textMuted">{t("match.camerasUsed")}: {group.map((item) => item.videos.camera_number).filter(Boolean).sort((a, b) => Number(a) - Number(b)).join(", ")}</span></span>
+                <span className="block min-w-0 text-textPrimary"><strong>360SI · {t("match.recordingId")} {recordingId}</strong><span className="mt-0.5 block text-[11px] text-textMuted">{group.map((item) => item.label || item.videos.title).join(", ")}</span></span>
               </button>)}
               {standaloneSourceBlocks.map((block) => block.videos && <div key={block.id} className="rounded-lg border border-border bg-cardAlt px-2 py-1.5 text-xs">
                 {editingVideoId === block.videos.id ? <div className="space-y-2">
@@ -838,12 +826,10 @@ export default function MatchViewerPage() {
                 {editingRecordingId && <p className="mb-2 text-xs font-semibold text-textBright">{t("match.editRecording")}</p>}
                 <label className="block text-[11px] text-textMuted">{t("match.recordingId")}</label>
                 <input type="text" inputMode="numeric" value={attachRecordingId} onChange={(event) => setAttachRecordingId(event.target.value)} placeholder="1391450" className="mt-1 w-full rounded-lg border border-border bg-input px-2 py-1.5 text-xs text-textPrimary" />
-                <div className="mt-2 grid grid-cols-4 gap-1">
-                  {externalRecordingCameras(recordingConfig).map((cameraNumber) => { const alreadyAddedElsewhere = !editingRecordingId && allVideos.some((video) => video.camera_number === cameraNumber); return <button key={cameraNumber} type="button" disabled={alreadyAddedElsewhere} title={alreadyAddedElsewhere ? t("match.cameraAlreadyAdded") : undefined} onClick={() => toggleAttachCamera(cameraNumber)} className={`rounded border py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${attachCameras.includes(cameraNumber) ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary"}`}>{cameraNumber}</button>; })}
-                </div>
+                <p className="mt-2 rounded border border-borderSubtle bg-cardDeep px-2 py-1.5 text-[11px] leading-4 text-textMuted">{t("match.camerasAutoDetect", { count: recordingConfig.cameraCount })}</p>
                 <div className="mt-2 flex gap-2">
-                  {editingRecordingId && <button type="button" disabled={attaching} onClick={() => { setEditingRecordingId(null); setAttachRecordingId(""); setAttachCameras([]); }} className="flex-1 rounded-lg bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary">{t("common.cancel")}</button>}
-                  <button type="button" disabled={attaching || !attachRecordingId.trim() || !attachCameras.length} onClick={() => void (editingRecordingId ? saveExternalRecording() : attachExternalRecording())} className="flex-1 rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{editingRecordingId ? t("common.save") : "+ 360SI"}</button>
+                  {editingRecordingId && <button type="button" disabled={attaching} onClick={() => { setEditingRecordingId(null); setAttachRecordingId(""); }} className="flex-1 rounded-lg bg-button px-2 py-1.5 text-xs font-semibold text-textPrimary">{t("common.cancel")}</button>}
+                  <button type="button" disabled={attaching || !attachRecordingId.trim()} onClick={() => void (editingRecordingId ? saveExternalRecording() : attachExternalRecording())} className="flex-1 rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{editingRecordingId ? t("common.save") : "+ 360SI"}</button>
                 </div>
               </div>}
               <div className="flex gap-2"><input type="url" value={attach360Url} onChange={(event) => setAttach360Url(event.target.value)} placeholder="https://360si..." className="min-w-0 flex-1 rounded-lg border border-border bg-input px-2 py-1.5 text-xs text-textPrimary" /><button type="button" disabled={attaching || !attach360Url.trim()} onClick={() => void attach360Recording()} className="rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">+ 360SI</button></div>
@@ -889,16 +875,8 @@ export default function MatchViewerPage() {
                       <label className="block text-sm text-textSecondary">{t("match.recordingId")}
                         <input type="text" inputMode="numeric" value={attachRecordingId} onChange={(event) => setAttachRecordingId(event.target.value)} placeholder="1391450" className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
                       </label>
-                      <div className="mt-3">
-                        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-textMuted">{t("match.camerasUsed")}</span>
-                        <div className="grid grid-cols-7 gap-2">
-                          {recordingConfig && externalRecordingCameras(recordingConfig).map((cameraNumber) => {
-                            const checked = attachCameras.includes(cameraNumber);
-                            return <button key={cameraNumber} type="button" onClick={() => toggleAttachCamera(cameraNumber)} className={`rounded-lg border py-2 text-center text-sm font-semibold ${checked ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-cardAlt text-textSecondary"}`}>{cameraNumber}</button>;
-                          })}
-                        </div>
-                      </div>
-                      <button type="button" disabled={attaching || !attachRecordingId.trim() || !attachCameras.length} onClick={() => void attachExternalRecording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
+                      {recordingConfig && <p className="mt-3 rounded border border-borderSubtle bg-cardDeep px-3 py-2 text-xs leading-5 text-textMuted">{t("match.camerasAutoDetect", { count: recordingConfig.cameraCount })}</p>}
+                      <button type="button" disabled={attaching || !attachRecordingId.trim()} onClick={() => void attachExternalRecording()} className="mt-4 w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{attaching ? t("match.working") : t("match.attachAction")}</button>
                     </div>
                   ) : attachSource === "file" ? (
                     <div className="mt-4">

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { inferRecordingStartMs, inspectLocalVideo, recordingStartTimeFromLocalVideos, sortLocalVideosByRecordingTime, type LocalVideoInfo } from "@/lib/media/local-clips";
 import { getRememberedLocalVideo, localVideoFingerprint, matchesLocalVideo, rememberLocalVideo } from "@/lib/local-video-store";
-import { externalRecordingCameras, externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
+import { availableExternalRecordingCameras, type ExternalRecordingConfig } from "@/lib/external-recording";
 import type { Match, Team, Video } from "@/types/database";
 import { useI18n } from "@/i18n/client";
 import { localMediaMessages } from "@/i18n/local-media";
@@ -68,7 +68,6 @@ export function MatchLauncher() {
   const [videoSource, setVideoSource] = useState<"file" | "external" | "veo">("file");
   const [recordingId, setRecordingId] = useState("");
   const [veoUrl, setVeoUrl] = useState("");
-  const [selectedCameras, setSelectedCameras] = useState<number[]>([]);
   const [recordingConfig] = useState<ExternalRecordingConfig | null>(null);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState("");
@@ -343,7 +342,6 @@ export function MatchLauncher() {
     setVideoSource("file");
     setRecordingId("");
     setVeoUrl("");
-    setSelectedCameras([]);
     setDate(new Date().toISOString().slice(0, 10));
     setStartTime("");
     setTeamAId("");
@@ -353,15 +351,11 @@ export function MatchLauncher() {
     setError("");
   }
 
-  function toggleCamera(cameraNumber: number) {
-    setSelectedCameras((current) => current.includes(cameraNumber) ? current.filter((n) => n !== cameraNumber) : [...current, cameraNumber]);
-  }
-
   async function createMatch(event: React.FormEvent) {
     event.preventDefault();
     const selected = slots.filter((slot): slot is SelectedVideo => !!slot);
     if (videoSource === "file" && !selected.length) return;
-    if (videoSource === "external" && (!recordingConfig || !recordingId.trim() || !selectedCameras.length)) return;
+    if (videoSource === "external" && (!recordingConfig || !recordingId.trim())) return;
     if (videoSource === "veo" && !veoUrl.trim()) return;
     setBusy(true);
     setError("");
@@ -413,18 +407,22 @@ export function MatchLauncher() {
         if (linkError) throw linkError;
       } else if (videoSource === "external") {
         const trimmedRecordingId = recordingId.trim();
-        const cameras = [...selectedCameras].sort((a, b) => a - b);
+        setStatus(t("match.detectingCameras"));
+        const cameras = await availableExternalRecordingCameras(recordingConfig!, trimmedRecordingId);
+        if (!cameras.length) throw new Error(t("match.noAvailableCameras"));
         for (let index = 0; index < cameras.length; index += 1) {
-          const cameraNumber = cameras[index];
+          const camera = cameras[index];
+          const cameraNumber = camera.cameraNumber;
+          const label = t("match.cameraLabel", { number: index + 1 });
           setStatus(t("match.savingVideo", { current: index + 1, total: cameras.length }));
           const { data: video, error: videoError } = await supabase.from("videos").insert({
             coach_id: user.id,
             team_id: teamAId || null,
-            video_url: externalRecordingUrl(recordingConfig!, trimmedRecordingId, cameraNumber),
+            video_url: camera.url,
             video_key: `external/${trimmedRecordingId}/ch${cameraNumber}`,
             camera_number: cameraNumber,
             processing_status: "ready",
-            title: t("match.cameraLabel", { number: cameraNumber })
+            title: label
           }).select("id").single();
           if (videoError) throw videoError;
           const { error: linkError } = await supabase.from("match_videos").insert({
@@ -432,7 +430,7 @@ export function MatchLauncher() {
             video_id: video.id,
             sequence_order: 0,
             is_primary: index === 0,
-            label: t("match.cameraLabel", { number: cameraNumber })
+            label
           });
           if (linkError) throw linkError;
         }
@@ -585,15 +583,7 @@ export function MatchLauncher() {
                   <label className="mt-3 block text-sm text-textSecondary">{t("match.recordingId")}
                     <input type="text" inputMode="numeric" value={recordingId} onChange={(event) => setRecordingId(event.target.value)} placeholder="1391450" className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" />
                   </label>
-                  <div className="mt-3">
-                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-textMuted">{t("match.camerasUsed")}</span>
-                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-                      {recordingConfig && externalRecordingCameras(recordingConfig).map((cameraNumber) => {
-                        const checked = selectedCameras.includes(cameraNumber);
-                        return <button key={cameraNumber} type="button" onClick={() => toggleCamera(cameraNumber)} className={`rounded-lg border py-2 text-center text-sm font-semibold ${checked ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-cardAlt text-textSecondary"}`}>{cameraNumber}</button>;
-                      })}
-                    </div>
-                  </div>
+                  {recordingConfig && <p className="mt-3 rounded border border-borderSubtle bg-cardDeep px-3 py-2 text-xs leading-5 text-textMuted">{t("match.camerasAutoDetect", { count: recordingConfig.cameraCount })}</p>}
                 </>
               ) : (
                 <div className="mt-3">
@@ -607,7 +597,7 @@ export function MatchLauncher() {
 
             {status && <div className="rounded-lg border border-border bg-cardDeep p-3 text-sm text-textSecondary">{status}</div>}
             {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
-            <div className="flex gap-3"><button type="button" disabled={busy} onClick={() => setMode("recent")} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary">{t("match.back")}</button><button type="submit" disabled={busy || (videoSource === "file" ? !slots.some(Boolean) : videoSource === "external" ? !recordingId.trim() || !selectedCameras.length : !veoUrl.trim())} className="flex-1 rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">{busy ? t("match.working") : t("match.createAction")}</button></div>
+            <div className="flex gap-3"><button type="button" disabled={busy} onClick={() => setMode("recent")} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary">{t("match.back")}</button><button type="submit" disabled={busy || (videoSource === "file" ? !slots.some(Boolean) : videoSource === "external" ? !recordingId.trim() : !veoUrl.trim())} className="flex-1 rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">{busy ? t("match.working") : t("match.createAction")}</button></div>
           </form>
         )}
       </div>

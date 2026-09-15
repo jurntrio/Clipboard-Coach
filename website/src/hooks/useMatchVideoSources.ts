@@ -6,7 +6,7 @@ import { getRememberedLocalVideo, isLocalVideoUrl, localVideoFingerprint, matche
 import { inferRecordingStartMs, inspectLocalVideo, sortLocalVideosByRecordingTime } from "@/lib/media/local-clips";
 import { localMediaMessages } from "@/i18n/local-media";
 import { useI18n } from "@/i18n/client";
-import { externalRecordingUrl, type ExternalRecordingConfig } from "@/lib/external-recording";
+import { availableExternalRecordingCameras, type ExternalRecordingConfig } from "@/lib/external-recording";
 import { resolveVeoLink } from "@/lib/veo-browser";
 import type { Video } from "@/types/database";
 
@@ -67,7 +67,6 @@ export function useMatchVideoSources({
   const [attachRecordingId, setAttachRecordingId] = useState("");
   const [attach360Url, setAttach360Url] = useState("");
   const [attachVeoUrl, setAttachVeoUrl] = useState("");
-  const [attachCameras, setAttachCameras] = useState<number[]>([]);
   const [attaching, setAttaching] = useState(false);
   const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
   const [editingRecordingId, setEditingRecordingId] = useState<string | null>(null);
@@ -200,10 +199,6 @@ export function useMatchVideoSources({
     }
   }
 
-  function toggleAttachCamera(cameraNumber: number) {
-    setAttachCameras((current) => current.includes(cameraNumber) ? current.filter((n) => n !== cameraNumber) : [...current, cameraNumber]);
-  }
-
   function beginEditVideoSource(block: MatchBlock & { videos: Video }) {
     setEditingVideoId(block.videos.id);
     setSourceDraft({
@@ -214,30 +209,37 @@ export function useMatchVideoSources({
   }
 
   function beginEditExternalRecording(recordingId: string) {
-    const group = externalRecordingGroups.get(recordingId) ?? [];
     setEditingRecordingId(recordingId);
     setAttachSource("external");
     setAttachRecordingId(recordingId);
-    setAttachCameras(group.map((block) => block.videos.camera_number).filter((camera): camera is number => camera !== null));
   }
 
   async function saveExternalRecording() {
     const nextRecordingId = attachRecordingId.trim();
-    if (!recordingConfig || !editingRecordingId || !nextRecordingId || !attachCameras.length) return;
+    if (!recordingConfig || !editingRecordingId || !nextRecordingId) return;
     const group = externalRecordingGroups.get(editingRecordingId) ?? [];
-    const existingByCamera = new Map(group.map((block) => [block.videos.camera_number, block]));
+    const existingByCamera = new Map<number, MatchBlock & { videos: Video }>();
+    for (const block of group) {
+      if (block.videos.camera_number !== null) existingByCamera.set(block.videos.camera_number, block);
+    }
     const sequenceOrder = group[0]?.sequence_order ?? 0;
     setAttaching(true);
     setError("");
     try {
-      for (const cameraNumber of [...attachCameras].sort((a, b) => a - b)) {
+      const availableCameras = await availableExternalRecordingCameras(recordingConfig, nextRecordingId);
+      if (!availableCameras.length) throw new Error(t("match.noAvailableCameras"));
+
+      for (let index = 0; index < availableCameras.length; index += 1) {
+        const camera = availableCameras[index];
+        const cameraNumber = camera.cameraNumber;
         const existing = existingByCamera.get(cameraNumber);
+        const label = t("match.cameraLabel", { number: index + 1 });
         const source = {
-          video_url: externalRecordingUrl(recordingConfig, nextRecordingId, cameraNumber),
+          video_url: camera.url,
           video_key: `external/${nextRecordingId}/ch${cameraNumber}`,
           camera_number: cameraNumber,
-          title: t("match.cameraLabel", { number: cameraNumber }),
-          label: t("match.cameraLabel", { number: cameraNumber })
+          title: label,
+          label
         };
         if (existing) {
           const response = await fetch(`/api/matches/${matchId}/videos/${existing.videos.id}`, {
@@ -249,14 +251,8 @@ export function useMatchVideoSources({
           await createMatchVideoSource({ ...source, sequence_order: sequenceOrder, is_primary: false });
         }
       }
-      for (const block of group.filter((item) => item.videos.camera_number === null || !attachCameras.includes(item.videos.camera_number))) {
-        const response = await fetch(`/api/matches/${matchId}/videos/${block.videos.id}`, { method: "DELETE" });
-        const body = await response.json().catch(() => null) as { error?: string } | null;
-        if (!response.ok) throw new Error(body?.error || t("match.removeVideoFailed"));
-      }
       setEditingRecordingId(null);
       setAttachRecordingId("");
-      setAttachCameras([]);
       await loadMatch();
     } catch (updateError) {
       setError(messageFrom(updateError, t("match.updateSourceFailed")));
@@ -316,27 +312,32 @@ export function useMatchVideoSources({
 
   async function attachExternalRecording() {
     const trimmedRecordingId = attachRecordingId.trim();
-    if (!recordingConfig || !trimmedRecordingId || !attachCameras.length || !currentUserId) return;
+    if (!recordingConfig || !trimmedRecordingId || !currentUserId) return;
     setAttaching(true);
     setError("");
     try {
+      const availableCameras = await availableExternalRecordingCameras(recordingConfig, trimmedRecordingId);
+      if (!availableCameras.length) throw new Error(t("match.noAvailableCameras"));
+
       const existingCameraNumbers = new Set(allVideos.map((video) => video.camera_number).filter((number): number is number => number !== null));
-      const cameras = [...attachCameras].filter((number) => !existingCameraNumbers.has(number)).sort((a, b) => a - b);
+      const cameras = availableCameras.filter((camera) => !existingCameraNumbers.has(camera.cameraNumber));
       if (!cameras.length) throw new Error(t("match.camerasAlreadyAdded"));
+      const labelByCamera = new Map(availableCameras.map((camera, index) => [camera.cameraNumber, t("match.cameraLabel", { number: index + 1 })]));
       for (let index = 0; index < cameras.length; index += 1) {
-        const cameraNumber = cameras[index];
+        const camera = cameras[index];
+        const cameraNumber = camera.cameraNumber;
+        const label = labelByCamera.get(cameraNumber) ?? t("match.cameraLabel", { number: index + 1 });
         await createMatchVideoSource({
-          video_url: externalRecordingUrl(recordingConfig, trimmedRecordingId, cameraNumber),
+          video_url: camera.url,
           video_key: `external/${trimmedRecordingId}/ch${cameraNumber}`,
           camera_number: cameraNumber,
-          title: t("match.cameraLabel", { number: cameraNumber }),
+          title: label,
           sequence_order: 0,
           is_primary: !blocks.length && index === 0,
-          label: t("match.cameraLabel", { number: cameraNumber })
+          label
         });
       }
       setAttachRecordingId("");
-      setAttachCameras([]);
       await loadMatch();
     } catch (attachError) {
       setError(messageFrom(attachError, t("match.createFailed")));
@@ -458,7 +459,6 @@ export function useMatchVideoSources({
     attachRecordingId, setAttachRecordingId,
     attach360Url, setAttach360Url,
     attachVeoUrl, setAttachVeoUrl,
-    attachCameras, setAttachCameras,
     attaching,
     editingVideoId, setEditingVideoId,
     editingRecordingId, setEditingRecordingId,
@@ -468,7 +468,7 @@ export function useMatchVideoSources({
     reconnectInputRef, replaceInputRef, attachInputRef,
     reconnect, reconnectAllVideos, handleFallbackSelection,
     replaceSelectedVideos, chooseReplacementVideos,
-    toggleAttachCamera, beginEditVideoSource, beginEditExternalRecording,
+    beginEditVideoSource, beginEditExternalRecording,
     saveExternalRecording, saveVideoSource,
     attachExternalRecording, attachVeoRecording, attach360Recording,
     attachLocalFiles, chooseLocalFilesToAttach, removeVideoSource

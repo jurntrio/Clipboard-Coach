@@ -31,9 +31,10 @@ export function Timeline({ duration, currentTime, tags, onSeek }: {
   onSeek: (time: number) => void;
 }) {
   const { t } = useI18n();
-  const safeDuration = duration > 0 ? duration : 1;
   const markers = tags.filter((tag) => isPeriodMarker(tag.name));
   const clipTags = tags.filter((tag) => !isPeriodMarker(tag.name));
+  const tagExtent = tags.reduce((maximum, tag) => Math.max(maximum, tag.start_time, tag.end_time), 0);
+  const safeDuration = Math.max(duration, currentTime, tagExtent, 1);
   const { laneByTag, laneCount } = arrangeInLanes(clipTags);
   const bandHeight = Math.max(24, 4 + laneCount * 18);
   const [hoverRatio, setHoverRatio] = useState<number | null>(null);

@@ -6,6 +6,8 @@ These instructions apply to contributors and coding agents working in this repos
 
 Clipboard Coach Studio is a focused Windows desktop app for local video review and timestamped tagging. Treat this repository as the source of truth for product direction, implementation plans, and application code.
 
+By default, interpret user requests for changes, fixes, or new features as applying to the website version under `website/`, unless the user explicitly mentions the desktop app, Electron app, shared code, worker code, or another target.
+
 ## Collaboration Rules
 
 - Read the existing files before making changes.
