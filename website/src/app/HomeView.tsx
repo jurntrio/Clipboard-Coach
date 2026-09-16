@@ -77,6 +77,7 @@ export function HomeView() {
           </div>
           <div className="hidden min-w-0 flex-1 items-center justify-end gap-3 xl:flex">
             <a href="#mogelijkheden" className="mr-2 whitespace-nowrap text-sm font-semibold text-textSecondary hover:text-accent">{t("home.discover")}</a>
+            <Link href="/club-tv" className="mr-2 whitespace-nowrap text-sm font-semibold text-textSecondary hover:text-accent">Club TV</Link>
             <LanguageSwitcher compact />
             <Link href={signedInAs ? "/dashboard" : "/login"} className="px-4 py-2 rounded-lg border border-borderButton text-textPrimary text-sm font-semibold hover:border-accent hover:text-accent">
               {signedInAs ? "Naar dashboard" : t("home.signIn")}
