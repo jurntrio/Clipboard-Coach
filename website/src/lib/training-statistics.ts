@@ -1,6 +1,12 @@
 export type AttendanceStatus = "present" | "injured" | "absent";
 export type MembershipPeriod = { validFrom: string; validUntil: string | null };
 
+export function normalizeAttendanceStatus(status: string, reasonLabel?: string | null): AttendanceStatus {
+  if (status === "present") return "present";
+  if (status === "injured" || ["gekwetst", "geblesseerd"].includes((reasonLabel ?? "").trim().toLocaleLowerCase("nl-BE"))) return "injured";
+  return "absent";
+}
+
 export function isExpected(player: MembershipPeriod, date: string) {
   return player.validFrom <= date && (!player.validUntil || date <= player.validUntil);
 }

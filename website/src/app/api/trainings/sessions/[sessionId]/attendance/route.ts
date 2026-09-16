@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getClubContext } from "@/lib/auth/active-club";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
+import { normalizeAttendanceStatus } from "@/lib/training-statistics";
 
 export async function PUT(request: Request, { params }: { params: { sessionId: string } }) {
   const context = await getClubContext();
@@ -22,7 +23,7 @@ export async function PUT(request: Request, { params }: { params: { sessionId: s
   }
   const body = await request.json().catch(() => null) as {
     action?: "confirm" | "trainer_info"; trainerInfo?: string;
-    playerId?: string; status?: "unknown" | "present" | "absent"; reasonId?: string | null; note?: string | null;
+    playerId?: string; status?: "unknown" | "present" | "injured" | "absent"; reasonId?: string | null; note?: string | null;
   } | null;
   if (body?.action === "trainer_info") {
     const trainerInfo = body.trainerInfo?.trim().slice(0, 1000) || null;
@@ -65,7 +66,7 @@ export async function PUT(request: Request, { params }: { params: { sessionId: s
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ confirmedAt });
   }
-  if (!body?.playerId || !["unknown", "present", "absent"].includes(body.status ?? "")) {
+  if (!body?.playerId || !["unknown", "present", "injured", "absent"].includes(body.status ?? "")) {
     return NextResponse.json({ error: "Ongeldige aanwezigheidsstatus." }, { status: 400 });
   }
   const validateReason = body.status === "absent" && body.reasonId;
@@ -74,17 +75,18 @@ export async function PUT(request: Request, { params }: { params: { sessionId: s
       ? admin.from("players").select("id, player_group_players!inner(group_id)").eq("id", body.playerId).eq("player_group_players.group_id", session.player_group_id).maybeSingle()
       : admin.from("players").select("id, teams!inner(club_team_id)").eq("id", body.playerId).eq("teams.club_team_id", session.club_team_id).maybeSingle(),
     validateReason
-      ? admin.from("club_match_options").select("id").eq("id", body.reasonId as string)
+      ? admin.from("club_match_options").select("id, label").eq("id", body.reasonId as string)
         .eq("club_id", session.club_id).eq("option_type", "non_selection_reason").eq("active", true).maybeSingle()
       : Promise.resolve({ data: null })
   ]);
   if (!player) return NextResponse.json({ error: "Speler behoort niet tot de doelgroep van deze training." }, { status: 400 });
   if (validateReason && !reason) return NextResponse.json({ error: "Ongeldige afwezigheidsreden." }, { status: 400 });
+  const attendanceStatus = body.status === "unknown" ? "present" : normalizeAttendanceStatus(body.status!, reason?.label);
   const row = {
     training_session_id: session.id,
     player_id: body.playerId,
-    attendance_status: body.status,
-    absence_reason_id: body.status === "absent" ? body.reasonId || null : null,
+    attendance_status: attendanceStatus,
+    absence_reason_id: attendanceStatus !== "present" ? body.reasonId || null : null,
     note: body.note?.trim().slice(0, 500) || null,
     updated_by: context.user.id,
     updated_at: new Date().toISOString()

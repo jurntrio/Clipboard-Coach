@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeAttendanceStatus } from "@/lib/training-statistics";
 
 type GuardianPlayer = { player_id: string; first_name: string; last_name: string; team_id: string | null; team_name: string | null };
 
@@ -69,12 +70,15 @@ export async function PUT(request: Request) {
   const { count: groupMembership } = session?.player_group_id ? await admin.from("player_group_players").select("group_id", { count: "exact", head: true }).eq("group_id", session.player_group_id).eq("player_id", body.playerId) : { count: 0 };
   if (!session || (!groupMembership && (!team || session.club_team_id !== team.club_team_id))) return NextResponse.json({ error: "Training niet gevonden voor deze speler." }, { status: 404 });
   if (session.attendance_confirmed_at) return NextResponse.json({ error: "De aanwezigheden zijn al bevestigd." }, { status: 409 });
+  let reason: { id: string; label: string } | null = null;
   if (body.status === "absent" && body.reasonId) {
-    const { data: reason } = await admin.from("club_match_options").select("id").eq("id", body.reasonId).eq("club_id", session.club_id).eq("option_type", "non_selection_reason").eq("active", true).maybeSingle();
+    const result = await admin.from("club_match_options").select("id, label").eq("id", body.reasonId).eq("club_id", session.club_id).eq("option_type", "non_selection_reason").eq("active", true).maybeSingle();
+    reason = result.data;
     if (!reason) return NextResponse.json({ error: "Ongeldige afwezigheidsreden." }, { status: 400 });
   }
+  const attendanceStatus = normalizeAttendanceStatus(body.status!, reason?.label);
   const { data, error } = await admin.from("team_training_attendance").upsert({
-    training_session_id: session.id, player_id: body.playerId, attendance_status: body.status,
+    training_session_id: session.id, player_id: body.playerId, attendance_status: attendanceStatus,
     absence_reason_id: body.status === "absent" ? body.reasonId || null : null,
     note: body.status === "absent" ? body.note?.trim().slice(0, 500) || null : null,
     updated_by: user.id, updated_at: new Date().toISOString()

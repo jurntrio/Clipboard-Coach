@@ -8,7 +8,7 @@ type Training = {
   field_option_id: string | null; locker_room_option_id: string | null; can_update: boolean;
   club_teams: { name: string } | null;
   player_groups?: { name: string; icon: string | null } | null;
-  attendance: { attendance_status: "present" | "absent"; absence_reason_id: string | null; note: string | null } | null;
+  attendance: { attendance_status: "present" | "injured" | "absent"; absence_reason_id: string | null; note: string | null } | null;
 };
 
 export function ContactTrainingAvailability({ playerIds }: { playerIds: string[] }) {
@@ -38,7 +38,7 @@ export function ContactTrainingAvailability({ playerIds }: { playerIds: string[]
     <p className="mt-1 text-xs text-textMuted">Geef de beschikbaarheid van je gekoppelde speler door.</p>
     {error && <p className="mt-3 rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
     <div className="mt-4 space-y-3">{rows.map(row => {
-      const key = `${row.id}:${row.player_id}`; const absent = row.attendance?.attendance_status === "absent";
+      const key = `${row.id}:${row.player_id}`; const absent = ["absent", "injured"].includes(row.attendance?.attendance_status ?? "");
       return <div key={key} className="rounded-xl border border-borderSubtle bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><strong className="text-textBright">{new Date(`${row.training_date}T12:00:00`).toLocaleDateString("nl-BE", { weekday: "long", day: "numeric", month: "long" })} · {row.start_time.slice(0, 5)}</strong>

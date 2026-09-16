@@ -5,7 +5,7 @@ import Link from "next/link";
 
 type Player = { id: string; first_name: string; last_name: string };
 type Reason = { id: string; label: string };
-type Attendance = { player_id: string; attendance_status: "unknown" | "present" | "absent"; absence_reason_id: string | null; note: string | null };
+type Attendance = { player_id: string; attendance_status: "unknown" | "present" | "injured" | "absent"; absence_reason_id: string | null; note: string | null };
 
 export function TrainingAttendanceList({ sessionId, players, reasons, initial, editable, confirmedAt, initialTrainerInfo }: {
   sessionId: string; players: Player[]; reasons: Reason[]; initial: Attendance[]; editable: boolean;
@@ -34,6 +34,7 @@ export function TrainingAttendanceList({ sessionId, players, reasons, initial, e
       });
       const body = await response.json();
       if (!response.ok) setError(body.error || "Aanwezigheid kon niet worden bewaard.");
+      else if (body.attendance) setRows(current => ({ ...current, [playerId]: body.attendance }));
     } catch {
       setError("Aanwezigheid kon niet worden bewaard. Controleer je internetverbinding en probeer opnieuw.");
     } finally {
@@ -82,11 +83,11 @@ export function TrainingAttendanceList({ sessionId, players, reasons, initial, e
       return <div key={player.id} className="grid gap-2 px-3 py-2.5 md:grid-cols-[1fr_150px_220px] md:items-center">
         <Link href={`/dashboard/teams/players/${player.id}`} className="text-sm font-bold text-textPrimary underline decoration-accent/50 underline-offset-4 hover:text-accent">{player.first_name} {player.last_name}</Link>
         {editable && editingAttendance ? <select value={row.attendance_status} onChange={event => void save(player.id, { attendance_status: event.target.value as Attendance["attendance_status"], absence_reason_id: event.target.value === "absent" ? row.absence_reason_id : null })} className={inputClass}>
-            <option value="present">Aanwezig</option><option value="absent">Afwezig</option>
-          </select> : <strong className={row.attendance_status === "absent" ? "text-red-300" : "text-accent"}>{row.attendance_status === "absent" ? "Afwezig" : "Aanwezig"}</strong>}
+            <option value="present">Aanwezig</option><option value="absent">Afwezig</option><option value="injured">Gekwetst</option>
+          </select> : <strong className={row.attendance_status === "injured" ? "text-amber-300" : row.attendance_status === "absent" ? "text-red-300" : "text-accent"}>{row.attendance_status === "injured" ? "Gekwetst" : row.attendance_status === "absent" ? "Afwezig" : "Aanwezig"}</strong>}
         {row.attendance_status === "absent" && editable && editingAttendance ? <select value={row.absence_reason_id ?? ""} onChange={event => void save(player.id, { absence_reason_id: event.target.value || null })} className={inputClass}>
           <option value="">Reden niet bepaald</option>{reasonOptions}
-        </select> : <span className="text-xs text-textMuted">{row.attendance_status === "absent" ? reasonLabels.get(row.absence_reason_id ?? "") ?? "Reden niet bepaald" : "Aanwezig"}</span>}
+        </select> : <span className="text-xs text-textMuted">{row.attendance_status === "injured" ? "Gekwetst" : row.attendance_status === "absent" ? reasonLabels.get(row.absence_reason_id ?? "") ?? "Reden niet bepaald" : "Aanwezig"}</span>}
       </div>;
     })}</div>}
     {!players.length && <p className="mt-4 rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Er zijn nog geen spelers aan dit team gekoppeld.</p>}

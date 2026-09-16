@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inPeriod, isExpected, summarize } from "../src/lib/training-statistics.ts";
+import { inPeriod, isExpected, normalizeAttendanceStatus, summarize } from "../src/lib/training-statistics.ts";
 
 test("counts present, injured and absent and calculates the percentage", () => {
   assert.deepEqual(summarize(["present", "present", "injured", "absent"]), { present: 2, injured: 1, absent: 1, total: 4, percentage: 50 });
 });
 
 test("injury is expected but is not present", () => assert.deepEqual(summarize(["injured"]), { present: 0, injured: 1, absent: 0, total: 1, percentage: 0 }));
+test("maps an absent row with injury reason to injured", () => assert.equal(normalizeAttendanceStatus("absent", "Gekwetst"), "injured"));
+test("keeps other absence reasons absent", () => assert.equal(normalizeAttendanceStatus("absent", "Ziek"), "absent"));
 test("outside-membership cells do not count", () => assert.deepEqual(summarize([null, "present", null]), { present: 1, injured: 0, absent: 0, total: 1, percentage: 100 }));
 test("a later join excludes earlier training", () => { const player = { validFrom: "2026-10-01", validUntil: null }; assert.equal(isExpected(player, "2026-09-30"), false); assert.equal(isExpected(player, "2026-10-01"), true); });
 test("a departure includes the last day and excludes later training", () => { const player = { validFrom: "2026-08-01", validUntil: "2026-10-01" }; assert.equal(isExpected(player, "2026-10-01"), true); assert.equal(isExpected(player, "2026-10-02"), false); });
