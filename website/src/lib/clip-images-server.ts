@@ -1,4 +1,3 @@
-import sharp from "sharp";
 import type { User } from "@supabase/supabase-js";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,6 +8,7 @@ import { readIntro } from "./clip-intro-storage";
 import type { ClipIntro, IntroMatch } from "./clip-intro";
 
 const client = () => new S3Client({ region: "auto", endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`, credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID!, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY! } });
+const imageProcessor = async () => (await import("sharp")).default;
 export async function readImageObject(key: string): Promise<Buffer | null> {
   try {
     const response = await client().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key }));
@@ -69,6 +69,7 @@ export function creationImageKey(url: string, userId: string, videoId: string): 
 
 export async function uploadCreationImage(file: File, userId: string, videoId: string) {
   if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size <= 0 || file.size > 5 * 1024 * 1024) throw new Error("Kies PNG, JPEG of WebP, maximaal 5 MB.");
+  const sharp = await imageProcessor();
   const image = await sharp(Buffer.from(await file.arrayBuffer()), { limitInputPixels: 40_000_000 }).rotate().resize({ width: 1920, height: 1080, fit: "inside", withoutEnlargement: true }).png().toBuffer();
   const key = `clip-intros/creation/${userId}/${videoId}/${crypto.randomUUID()}.png`;
   await writeImageObject(key, image, "image/png");
@@ -82,6 +83,7 @@ async function trustedLogo(url: string | null): Promise<string | null> {
   if (!url.startsWith(base)) return null;
   const content = await readImageObject(decodeURIComponent(url.slice(base.length)));
   if (!content) throw new Error("Een gekozen logo ontbreekt. Probeer opnieuw.");
+  const sharp = await imageProcessor();
   const png = await sharp(content, { limitInputPixels: 40_000_000 }).resize({ width: 400, height: 200, fit: "inside" }).png().toBuffer();
   return `data:image/png;base64,${png.toString("base64")}`;
 }
@@ -102,6 +104,7 @@ export async function renderOpeningCard(settings: ClipIntro, match: IntroMatch, 
     ${settings.mode === "sponsor" ? `<path d="M180 430H1100" stroke="#5a7067"/>${text(settings.sponsorLabel, 640, 477, 24, "#c6d2cd")}${logo(sponsor, 470, 500, 340, 95)}${text(settings.sponsorName, 640, 650, Math.max(14, Math.min(34, 1400 / Math.max(settings.sponsorName.length, 1))))}` : ""}
     </svg>`;
   const key = `clip-intros/render-assets/${clipId}/opening.png`;
+  const sharp = await imageProcessor();
   await writeImageObject(key, await sharp(Buffer.from(svg)).png().toBuffer(), "image/png");
   return key;
 }

@@ -57,7 +57,7 @@ export function ClipCreationImages({ videoId, tags, value, onChange, onReady, di
   }
 
   if (!source) return <div className="mt-4 text-sm text-textMuted"><p>{error || "Ploeginstelling voor clipbeelden laden…"}</p>{error && <div className="mt-2 flex gap-3"><button type="button" className="text-accent" onClick={() => setAttempt(value => value + 1)}>Opnieuw proberen</button><button type="button" className="text-accent" onClick={() => { onChange(emptyClipImages()); onReady(true); setSource({ allowed: false, teamName: null, matchCard: { teamA: "", teamB: "", logoA: null, logoB: null, score: "" } }); }}>Verder zonder beelden</button></div>}</div>;
-  if (!source.allowed) return <p className="mt-4 text-xs text-textMuted">Introbeelden zijn uitgeschakeld voor {source.teamName || "deze ploeg"}. Een beheerder kan ze toestaan via Clubbeheer → Teams & spelers → Bewerken.</p>;
+  if (!source.allowed) return null;
   return <fieldset disabled={disabled || uploading} className="mt-4 space-y-4 rounded-xl border border-accent/30 bg-cardDeep p-4 disabled:opacity-60">
     <legend className="px-2 font-semibold text-accent">Beelden bij deze clip · {source.teamName}</legend>
     <p className="text-xs text-textMuted">Optioneel. De gekozen beelden komen in het videobestand en zijn zichtbaar in de preview, download en deellink.</p>
