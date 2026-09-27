@@ -6,22 +6,7 @@ import type { Tag, TagDrawing } from "@/types/database";
 import { formatTime } from "@/lib/utils";
 import { isPeriodMarker } from "@/lib/tags";
 import { useI18n } from "@/i18n/client";
-
-function parseTime(value: string): number | null {
-  const parts = value.trim().split(":").map(Number);
-  if (!value.trim() || parts.some((part) => !Number.isFinite(part) || part < 0)) return null;
-  if (parts.length === 1) return parts[0];
-  if (parts.length === 2 && parts[1] < 60) return parts[0] * 60 + parts[1];
-  if (parts.length === 3 && parts[1] < 60 && parts[2] < 60) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  return null;
-}
-
-function formatTimeDraft(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 6);
-  const padded = digits.padEnd(6, "_");
-  const draft = `${padded.slice(0, 2)}:${padded.slice(2, 4)}:${padded.slice(4, 6)}`;
-  return draft.replace(/_+$/g, "");
-}
+import { parseClockTime } from "@/lib/clock-time";
 
 export type TagListMeta = {
   badge: string;
@@ -68,8 +53,8 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
 
   async function saveTimes() {
     if (!onUpdate) return;
-    const parsedStart = parseTime(startDraft);
-    const parsedEnd = marker ? parsedStart : parseTime(endDraft);
+    const parsedStart = parseClockTime(startDraft);
+    const parsedEnd = marker ? parsedStart : parseClockTime(endDraft);
     if (parsedStart === null || parsedEnd === null) {
       setStartDraft(formatTime(tag.start_time));
       setEndDraft(formatTime(tag.end_time));
@@ -113,12 +98,12 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
         )}
         <label className="relative z-[1] flex items-center gap-1">
           <span>{marker ? t("tag.time") : t("tag.start")}</span>
-          <input value={startDraft} onChange={(event) => setStartDraft(formatTimeDraft(event.target.value))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} disabled={!onUpdate || timeSaveState === "saving"} className={timeInput} inputMode="numeric" maxLength={8} />
+          <input value={startDraft} onChange={(event) => setStartDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} disabled={!onUpdate || timeSaveState === "saving"} className={timeInput} inputMode="text" maxLength={8} placeholder="m:ss" aria-label={`${marker ? t("tag.time") : t("tag.start")} (u:mm:ss of m:ss)`} />
         </label>
         {!marker && (
           <label className="relative z-[1] flex items-center gap-1">
             <span>{t("tag.end")}</span>
-            <input value={endDraft} onChange={(event) => setEndDraft(formatTimeDraft(event.target.value))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} disabled={!onUpdate || timeSaveState === "saving"} className={timeInput} inputMode="numeric" maxLength={8} />
+            <input value={endDraft} onChange={(event) => setEndDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} disabled={!onUpdate || timeSaveState === "saving"} className={timeInput} inputMode="text" maxLength={8} placeholder="m:ss" aria-label={`${t("tag.end")} (u:mm:ss of m:ss)`} />
           </label>
         )}
       </div>

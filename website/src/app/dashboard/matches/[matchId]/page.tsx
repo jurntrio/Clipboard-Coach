@@ -29,6 +29,7 @@ import { useMatchVideoSources, type MatchBlock } from "@/hooks/useMatchVideoSour
 import { useDrawingTool } from "@/hooks/useDrawingTool";
 import { useLiveTagSync } from "@/hooks/useLiveTagSync";
 import { liveTagVideoSeconds, matchTimelineStartMs } from "@/lib/match-timeline";
+import { parseClockTime } from "@/lib/clock-time";
 
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
 
@@ -113,22 +114,6 @@ function formatClock(totalSeconds: number) {
   return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function parseClockTime(value: string): number | null {
-  const parts = value.trim().split(":").map(Number);
-  if (!value.trim() || parts.some((part) => !Number.isFinite(part) || part < 0)) return null;
-  if (parts.length === 1) return parts[0];
-  if (parts.length === 2 && parts[1] < 60) return parts[0] * 60 + parts[1];
-  if (parts.length === 3 && parts[1] < 60 && parts[2] < 60) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  return null;
-}
-
-function formatClockDraft(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 6);
-  const padded = digits.padEnd(6, "_");
-  const draft = `${padded.slice(0, 2)}:${padded.slice(2, 4)}:${padded.slice(4, 6)}`;
-  return draft.replace(/_+$/g, "");
-}
-
 function matchTitle(match: Pick<Match, "team_a_name" | "team_b_name" | "is_home_match"> | null, fallbackA: string, fallbackB: string) {
   const teamA = match?.team_a_name || fallbackA;
   const teamB = match?.team_b_name || fallbackB;
@@ -197,11 +182,11 @@ function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleRevie
         <div className="mt-1.5 flex items-center justify-end gap-1 text-[10px] text-textMuted">
           <label className="flex items-center gap-1">
             <span>{t("tag.start")}</span>
-            <input value={startDraft} onChange={(event) => setStartDraft(formatClockDraft(event.target.value))} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="numeric" maxLength={8} />
+            <input value={startDraft} onChange={(event) => setStartDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="text" maxLength={8} placeholder="m:ss" aria-label={`${t("tag.start")} (u:mm:ss of m:ss)`} />
           </label>
           <label className="flex items-center gap-1">
             <span>{t("tag.end")}</span>
-            <input value={endDraft} onChange={(event) => setEndDraft(formatClockDraft(event.target.value))} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="numeric" maxLength={8} />
+            <input value={endDraft} onChange={(event) => setEndDraft(event.target.value)} onBlur={saveTimes} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className={timeInput} inputMode="text" maxLength={8} placeholder="m:ss" aria-label={`${t("tag.end")} (u:mm:ss of m:ss)`} />
           </label>
         </div>
       ) : elapsed !== null && (
