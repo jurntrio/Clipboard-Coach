@@ -96,3 +96,23 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
   return NextResponse.json({ tag: updated });
 }
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const auth = await authorizedMatch(params.id);
+  if ("error" in auth) return auth.error;
+  const body = await request.json().catch(() => null) as { tagId?: string } | null;
+  if (!body?.tagId) return NextResponse.json({ error: "Ongeldige tag." }, { status: 400 });
+
+  const { data: tag } = await auth.admin.from("tags").select("id, video_id").eq("id", body.tagId).maybeSingle();
+  if (!tag) return NextResponse.json({ error: "Tag niet gevonden." }, { status: 404 });
+  const { data: link } = await auth.admin.from("match_videos").select("id")
+    .eq("match_id", auth.match.id).eq("video_id", tag.video_id).maybeSingle();
+  if (!link) return NextResponse.json({ error: "Tag hoort niet bij deze wedstrijd." }, { status: 403 });
+
+  const { error: liveTagError } = await auth.admin.from("live_match_tags")
+    .delete().eq("match_id", auth.match.id).eq("tag_id", tag.id);
+  if (liveTagError) return NextResponse.json({ error: liveTagError.message }, { status: 500 });
+  const { error } = await auth.admin.from("tags").delete().eq("id", tag.id);
+  if (error) return NextResponse.json({ error: error.message || "Tag kon niet worden verwijderd." }, { status: 500 });
+  return NextResponse.json({ deleted: true, tagId: tag.id });
+}

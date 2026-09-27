@@ -80,3 +80,29 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
   return NextResponse.json({ tag: createdTag }, { status: 201 });
 }
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const admin = createAdminClient();
+  const { data: match } = await admin.from("matches")
+    .select("id, coach_id, club_id, club_team_id")
+    .eq("id", params.id).maybeSingle();
+  if (!match?.club_id) return NextResponse.json({ error: "Wedstrijd niet gevonden." }, { status: 404 });
+  const access = await getClubAccess(match.club_id, user);
+  const canManage = !access.readOnly && canAccessTeam(access, match.club_team_id)
+    && (match.coach_id === user.id || access.role === "club_admin" || access.role === "platform_admin" || hasClubPermission(access, "games.tag"));
+  if (!canManage) return NextResponse.json({ error: "Geen recht om tags te beheren." }, { status: 403 });
+
+  const body = await request.json().catch(() => null) as { liveTagId?: string } | null;
+  if (!body?.liveTagId) return NextResponse.json({ error: "Ongeldige live-tag." }, { status: 400 });
+  const { data: liveTag } = await admin.from("live_match_tags").select("id, tag_id")
+    .eq("id", body.liveTagId).eq("match_id", match.id).maybeSingle();
+  if (!liveTag) return NextResponse.json({ error: "Live-tag niet gevonden." }, { status: 404 });
+  if (liveTag.tag_id) return NextResponse.json({ error: "Verwijder deze live-tag via de gekoppelde videotag." }, { status: 409 });
+  const { error } = await admin.from("live_match_tags").delete().eq("id", liveTag.id).eq("match_id", match.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ deleted: true, liveTagId: liveTag.id });
+}

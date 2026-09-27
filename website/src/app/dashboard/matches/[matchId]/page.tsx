@@ -263,6 +263,8 @@ export default function MatchViewerPage() {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [canManageSources, setCanManageSources] = useState(false);
   const [confirmDeleteMatch, setConfirmDeleteMatch] = useState(false);
+  const [pendingTagDelete, setPendingTagDelete] = useState<{ tagId: string | null; liveTagId: string | null; name: string } | null>(null);
+  const [deletingTag, setDeletingTag] = useState(false);
   const [deletingMatch, setDeletingMatch] = useState(false);
 
   const blocks = useMemo(() => [...(match?.match_videos ?? [])].sort((a, b) => a.sequence_order - b.sequence_order), [match]);
@@ -641,27 +643,53 @@ export default function MatchViewerPage() {
   }
 
   async function deleteTag(tagId: string) {
-    const { error: deleteError } = await supabase.from("tags").delete().eq("id", tagId);
-    if (deleteError) { setError(deleteError.message || t("tag.deleteFailed")); return false; }
+    const response = await fetch(`/api/matches/${matchId}/tags`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tagId })
+    });
+    const body = await response.json().catch(() => null) as { deleted?: boolean; error?: string } | null;
+    if (!response.ok || !body?.deleted) { setError(body?.error || t("tag.deleteFailed")); return false; }
     setTags((current) => current.filter((tag) => tag.id !== tagId));
+    setLiveTags((current) => current.filter((liveTag) => liveTag.tag_id !== tagId));
     setSelectedTagIds((current) => current.filter((id) => id !== tagId));
     setError("");
     return true;
   }
 
   async function deleteLiveTag(liveTag: LiveMatchTag) {
-    if (liveTag.tag_id && await deleteTag(liveTag.tag_id) === false) return;
-    const { error: deleteError } = await supabase.from("live_match_tags").delete().eq("id", liveTag.id);
-    if (deleteError) { setError(deleteError.message); return; }
+    if (liveTag.tag_id) return deleteTag(liveTag.tag_id);
+    const response = await fetch(`/api/matches/${matchId}/live-tags/materialize`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ liveTagId: liveTag.id })
+    });
+    const body = await response.json().catch(() => null) as { deleted?: boolean; error?: string } | null;
+    if (!response.ok || !body?.deleted) { setError(body?.error || t("tag.deleteFailed")); return false; }
     setLiveTags((current) => current.filter((item) => item.id !== liveTag.id));
+    setError("");
+    return true;
   }
 
   function deleteDisplayedTag(tagId: string) {
     const tag = tags.find((item) => item.id === tagId);
-    if (!window.confirm(t("tag.deleteConfirm", { name: tag?.name ?? t("tag.name") }))) return;
     const liveTag = liveTags.find((item) => item.tag_id === tagId);
-    if (liveTag) void deleteLiveTag(liveTag);
-    else void deleteTag(tagId);
+    setPendingTagDelete({ tagId, liveTagId: liveTag?.id ?? null, name: tag?.name ?? t("tag.name") });
+  }
+
+  function requestLiveTagDelete(liveTag: LiveMatchTag) {
+    setPendingTagDelete({ tagId: liveTag.tag_id, liveTagId: liveTag.id, name: liveTag.tag_name });
+  }
+
+  async function confirmTagDelete() {
+    if (!pendingTagDelete || deletingTag) return;
+    setDeletingTag(true);
+    const liveTag = pendingTagDelete.liveTagId ? liveTags.find((item) => item.id === pendingTagDelete.liveTagId) : null;
+    const deleted = pendingTagDelete.tagId
+      ? await deleteTag(pendingTagDelete.tagId)
+      : liveTag ? await deleteLiveTag(liveTag) : false;
+    setDeletingTag(false);
+    if (deleted) setPendingTagDelete(null);
   }
 
   function toggleAllRightColumnTags(tagIds: string[]) {
@@ -837,7 +865,7 @@ export default function MatchViewerPage() {
             <details className="rounded-lg border border-border bg-cardDeep px-3 py-2">
               <summary className="cursor-pointer text-sm font-semibold text-textBright">{t("video.periodTimes")}</summary>
               <div className="mt-2">
-              <TagList tags={displayTags.filter((tag) => isPeriodMarker(tag.name))} selectedTagIds={[]} onToggleSelect={() => undefined} onSeek={seekTo} onDelete={(id) => { if (window.confirm(t("tag.deleteConfirm", { name: tags.find((tag) => tag.id === id)?.name ?? t("tag.name") }))) void deleteTag(id); }} onUpdate={updateTag} />
+              <TagList tags={displayTags.filter((tag) => isPeriodMarker(tag.name))} selectedTagIds={[]} onToggleSelect={() => undefined} onSeek={seekTo} onDelete={deleteDisplayedTag} onUpdate={updateTag} />
               </div>
             </details>
           )}
@@ -989,7 +1017,7 @@ export default function MatchViewerPage() {
                   onSeek={seekTo}
                   onCalibrate={() => setCalibratingLiveTagId(liveTag.id)}
                   onUpdateTimes={(startTime, endTime) => { if (liveTag.tag_id) void updateTag(liveTag.tag_id, startTime, endTime); }}
-                  onDelete={() => void deleteLiveTag(liveTag)}
+                  onDelete={() => requestLiveTagDelete(liveTag)}
                   t={t}
                 />;
               })}
@@ -1001,6 +1029,7 @@ export default function MatchViewerPage() {
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}
       {pendingPhaseTag && <PhaseTagDialog onCancel={() => setPendingPhaseTag(null)} onConfirm={savePhaseTag} />}
       {pendingGoal && <GoalTagDialog players={players} onCancel={() => setPendingGoal(null)} onConfirm={async (details) => { const pending = pendingGoal; setPendingGoal(null); await persistProfiledTag(pending.video, pending.label, pending.localTime, details); }} />}
+      <ConfirmDialog open={!!pendingTagDelete} title={t("tag.deleteTitle")} message={t("tag.deleteMessage", { name: pendingTagDelete?.name ?? t("tag.name") })} busy={deletingTag} onCancel={() => setPendingTagDelete(null)} onConfirm={() => void confirmTagDelete()} />
       <ConfirmDialog open={confirmDeleteMatch} title={t("match.deleteTitle")} message={t("match.deleteMessage")} busy={deletingMatch} onCancel={() => setConfirmDeleteMatch(false)} onConfirm={() => void deleteMatch()} />
     </div>
   );

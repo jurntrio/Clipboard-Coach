@@ -632,6 +632,8 @@ export const nl = {
   ,"tag.deselectAll": "Alle tags uitvinken"
   ,"tag.deleteNamed": "{name} verwijderen"
   ,"tag.deleteConfirm": "{name} verwijderen?"
+  ,"tag.deleteTitle": "Tag verwijderen"
+  ,"tag.deleteMessage": "Weet je zeker dat je ‘{name}’ wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt."
   ,"tag.draw": "Tekenen"
   ,"tag.time": "Tijd"
   ,"tag.start": "Start"

@@ -634,6 +634,8 @@ export const en: Record<MessageKey, string> = {
   ,"tag.deselectAll": "Deselect all tags"
   ,"tag.deleteNamed": "Delete {name}"
   ,"tag.deleteConfirm": "Delete {name}?"
+  ,"tag.deleteTitle": "Delete tag"
+  ,"tag.deleteMessage": "Are you sure you want to delete ‘{name}’? This action cannot be undone."
   ,"tag.draw": "Draw"
   ,"tag.time": "Time"
   ,"tag.start": "Start"
