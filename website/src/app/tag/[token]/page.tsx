@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { getTagEventKind } from "@/lib/tag-events";
+import { defaultGoalEventType, getTagEventKind } from "@/lib/tag-events";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 
-type PublicMatch = { id: string; team_a_name: string; team_b_name: string; is_home_match: boolean; match_date: string | null; start_time: string | null; status: string; live_tag_names: string[] };
+type PublicMatch = { id: string; team_a_name: string; team_b_name: string; is_home_match: boolean; match_date: string | null; start_time: string | null; status: string; score_a: number | null; score_b: number | null; live_tag_names: string[] };
 type PublicPlayer = { id: string; first_name: string; last_name: string; jersey_number: number | null };
+type GoalDetails = { eventType: "goal_for" | "goal_against"; scorerId: string | null; homeScore: number; awayScore: number };
 
 export default function LiveTagPage() {
   const { token } = useParams<{ token: string }>();
@@ -57,7 +58,7 @@ export default function LiveTagPage() {
     await detectLoggedInName();
   }
 
-  async function addTag(tagName: string, playerIdsOverride?: string[]) {
+  async function addTag(tagName: string, playerIdsOverride?: string[], goal?: GoalDetails) {
     if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true); setMessage("");
@@ -75,13 +76,18 @@ export default function LiveTagPage() {
           tagName,
           playerIds: selectedIds,
           taggerName,
-          clientEventId
+          clientEventId,
+          goal
         })
       });
       if (!response.ok) {
         const result = await response.json().catch(() => null) as { error?: string } | null;
         setMessage(result?.error || "De tag kon niet worden opgeslagen.");
         return;
+      }
+      const result = await response.json().catch(() => null) as { scoreA?: number; scoreB?: number } | null;
+      if (goal && typeof result?.scoreA === "number" && typeof result.scoreB === "number") {
+        setMatch((current) => current ? { ...current, score_a: result.scoreA!, score_b: result.scoreB! } : current);
       }
       pendingEventRef.current = null;
       setMessage(`${tagName} opgeslagen om ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
@@ -94,15 +100,15 @@ export default function LiveTagPage() {
   }
 
   function handleTagPress(name: string) {
-    if (getTagEventKind(name) === "goal" && players.length > 0) { setGoalPromptTag(name); return; }
+    if (getTagEventKind(name) === "goal") { setGoalPromptTag(name); return; }
     void addTag(name);
   }
 
-  async function confirmGoalScorer(playerId: string | null) {
+  async function confirmGoal(details: GoalDetails) {
     const tagName = goalPromptTag;
     setGoalPromptTag(null);
     if (!tagName) return;
-    await addTag(tagName, playerId ? [playerId] : []);
+    await addTag(tagName, details.scorerId ? [details.scorerId] : [], details);
   }
 
   if (!match) return <main className="grid min-h-screen place-items-center bg-page p-6 text-textPrimary">{message || "Wedstrijd laden…"}</main>;
@@ -140,22 +146,56 @@ export default function LiveTagPage() {
         </div>
         {message && <p className="mt-5 rounded-xl border border-border bg-card p-3 text-center text-sm" role="status">{message}</p>}
       </div>
-      {goalPromptTag && <GoalScorerPrompt players={players} onSelect={(playerId) => void confirmGoalScorer(playerId)} onCancel={() => setGoalPromptTag(null)} />}
+      {goalPromptTag && <GoalPrompt
+        players={players}
+        ownTeamSide={match.is_home_match ? "home" : "away"}
+        initialEventType={defaultGoalEventType(goalPromptTag, match.is_home_match)}
+        homeScore={match.is_home_match ? match.score_a ?? 0 : match.score_b ?? 0}
+        awayScore={match.is_home_match ? match.score_b ?? 0 : match.score_a ?? 0}
+        onConfirm={(details) => void confirmGoal(details)}
+        onCancel={() => setGoalPromptTag(null)}
+      />}
     </main>
   );
 }
 
-function GoalScorerPrompt({ players, onSelect, onCancel }: { players: PublicPlayer[]; onSelect: (playerId: string | null) => void; onCancel: () => void }) {
+function GoalPrompt({ players, ownTeamSide, initialEventType, homeScore, awayScore, onConfirm, onCancel }: {
+  players: PublicPlayer[]; ownTeamSide: "home" | "away"; homeScore: number; awayScore: number;
+  initialEventType: GoalDetails["eventType"];
+  onConfirm: (details: GoalDetails) => void; onCancel: () => void;
+}) {
+  const [eventType, setEventType] = useState<GoalDetails["eventType"]>(initialEventType);
+  const [scorerId, setScorerId] = useState("");
+  const [score, setScore] = useState(() => ({
+    home: homeScore + ((initialEventType === "goal_for" ? ownTeamSide : ownTeamSide === "home" ? "away" : "home") === "home" ? 1 : 0),
+    away: awayScore + ((initialEventType === "goal_for" ? ownTeamSide : ownTeamSide === "home" ? "away" : "home") === "away" ? 1 : 0)
+  }));
+
+  function chooseType(next: GoalDetails["eventType"]) {
+    setEventType(next);
+    if (next === "goal_against") setScorerId("");
+    const scoringSide = next === "goal_for" ? ownTeamSide : ownTeamSide === "home" ? "away" : "home";
+    setScore({ home: homeScore + (scoringSide === "home" ? 1 : 0), away: awayScore + (scoringSide === "away" ? 1 : 0) });
+  }
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" onClick={onCancel}>
       <section role="dialog" aria-modal="true" aria-labelledby="goal-scorer-title" onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl border border-borderButton bg-cardAlt p-5 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 id="goal-scorer-title" className="text-lg font-bold text-textBright">Wie scoorde?</h2>
+          <h2 id="goal-scorer-title" className="text-lg font-bold text-textBright">Goal registreren</h2>
           <button type="button" onClick={onCancel} aria-label="Sluiten" className="text-2xl text-textMuted hover:text-textPrimary">&times;</button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          {players.map((player) => <button key={player.id} type="button" onClick={() => onSelect(player.id)} className="rounded-xl border border-borderButton bg-button px-3 py-3 text-sm font-semibold text-textPrimary hover:border-accent hover:bg-accentDim">{player.jersey_number ? `${player.jersey_number} · ` : ""}{player.first_name} {player.last_name}</button>)}
-          <button type="button" onClick={() => onSelect(null)} className="col-span-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-3 text-sm font-semibold text-red-300 hover:bg-red-500/20">&times; Onbekend / niet in lijst</button>
+          {([['goal_for', 'Goal voor ons'], ['goal_against', 'Goal tegen']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => chooseType(value)} className={`rounded-xl border px-3 py-3 text-sm font-semibold ${eventType === value ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary"}`}>{label}</button>)}
+        </div>
+        <fieldset className="mt-4"><legend className="mb-2 text-sm font-semibold text-textBright">Stand na de goal</legend><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <input aria-label="Score thuisploeg" type="number" min={0} max={30} value={score.home} onChange={(event) => setScore((current) => ({ ...current, home: Math.max(0, Math.min(30, Number(event.target.value))) }))} className="w-full rounded-xl border border-border bg-input px-3 py-3 text-center text-lg font-bold text-textPrimary" />
+          <span className="font-bold text-textMuted">–</span>
+          <input aria-label="Score uitploeg" type="number" min={0} max={30} value={score.away} onChange={(event) => setScore((current) => ({ ...current, away: Math.max(0, Math.min(30, Number(event.target.value))) }))} className="w-full rounded-xl border border-border bg-input px-3 py-3 text-center text-lg font-bold text-textPrimary" />
+        </div></fieldset>
+        {eventType === "goal_for" && <label className="mt-4 block text-sm font-semibold text-textBright">Doelpuntenmaker<select value={scorerId} onChange={(event) => setScorerId(event.target.value)} className="mt-2 w-full rounded-xl border border-border bg-input px-3 py-3 font-normal text-textPrimary"><option value="">Onbekend / later invullen</option>{players.map((player) => <option key={player.id} value={player.id}>{player.jersey_number ? `${player.jersey_number} · ` : ""}{player.first_name} {player.last_name}</option>)}</select></label>}
+        <div className="mt-5 flex gap-2">
+          <button type="button" onClick={onCancel} className="flex-1 rounded-xl bg-button px-3 py-3 text-sm font-semibold text-textPrimary">Annuleren</button>
+          <button type="button" onClick={() => onConfirm({ eventType, scorerId: scorerId || null, homeScore: score.home, awayScore: score.away })} className="flex-1 rounded-xl bg-accent px-3 py-3 text-sm font-bold text-page">Goal opslaan</button>
         </div>
       </section>
     </div>

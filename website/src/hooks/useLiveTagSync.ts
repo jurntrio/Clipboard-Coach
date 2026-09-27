@@ -16,8 +16,8 @@ function isExternalRecordingVideo(video: Video) {
   return video.video_key.startsWith("external/") || video.video_key.startsWith("external-link/");
 }
 
-function liveTagElapsedSeconds(liveTag: LiveMatchTag, match: Match | null) {
-  return match ? liveTagVideoSeconds(liveTag, match) : null;
+function liveTagElapsedSeconds(liveTag: LiveMatchTag, match: Match | null, timelineLeadSeconds: number) {
+  return match ? liveTagVideoSeconds(liveTag, match, timelineLeadSeconds) : null;
 }
 
 function videoForElapsedTime(videos: Video[], offsets: { map: Map<string, number> }, elapsed: number) {
@@ -51,6 +51,7 @@ export function useLiveTagSync<TMatch extends Match>({
   setTags,
   standardTags,
   offsets,
+  timelineLeadSeconds,
   combinedTime,
   setMatch,
   setError,
@@ -67,6 +68,7 @@ export function useLiveTagSync<TMatch extends Match>({
   setTags: Dispatch<SetStateAction<Tag[]>>;
   standardTags: StandardTag[];
   offsets: { map: Map<string, number>; total: number };
+  timelineLeadSeconds: number;
   combinedTime: number;
   setMatch: Dispatch<SetStateAction<TMatch | null>>;
   setError: (message: string) => void;
@@ -76,6 +78,7 @@ export function useLiveTagSync<TMatch extends Match>({
   const [clubLiveTagProfiles, setClubLiveTagProfiles] = useState<Array<{ name: string; live_start_offset_seconds: number; live_end_offset_seconds: number }>>([]);
   const [calibratingLiveTagId, setCalibratingLiveTagId] = useState<string | null>(null);
   const materializingLiveTagIdsRef = useRef(new Set<string>());
+  const reconcilingTagIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     if (!match || !canManageSources || !currentUserId || !videos.length) return;
@@ -85,6 +88,53 @@ export function useLiveTagSync<TMatch extends Match>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match, currentUserId, videos, liveTags]);
 
+  useEffect(() => {
+    if (!match || !canManageSources || !videos.length || !tags.length) return;
+    void reconcileMaterializedLiveTags();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match, videos, liveTags, tags, timelineLeadSeconds]);
+
+  async function reconcileMaterializedLiveTags() {
+    const tagById = new Map(tags.map((tag) => [tag.id, tag]));
+    const recordingStarts = liveTags
+      .filter((liveTag) => isRecordingStartTag(liveTag.tag_name))
+      .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
+    const canUseRecordingStarts = !videos.every(isExternalRecordingVideo) && recordingStarts.length === videos.length;
+
+    for (const liveTag of liveTags) {
+      const tag = liveTag.tag_id ? tagById.get(liveTag.tag_id) : null;
+      if (!tag || reconcilingTagIdsRef.current.has(tag.id)) continue;
+      let target: { video: Video; localTime: number } | null = null;
+      if (canUseRecordingStarts) {
+        const recordingIndex = recordingStarts.findLastIndex((start) => start.occurred_at <= liveTag.occurred_at);
+        const video = recordingIndex >= 0 ? videos[recordingIndex] : null;
+        if (video) target = { video, localTime: Math.max(0, (new Date(liveTag.occurred_at).getTime() - new Date(recordingStarts[recordingIndex].occurred_at).getTime()) / 1000) };
+      } else {
+        const elapsed = liveTagElapsedSeconds(liveTag, match, timelineLeadSeconds);
+        if (elapsed !== null) target = videoForElapsedTime(videos, offsets, elapsed);
+      }
+      if (!target) continue;
+      const delta = target.localTime - tag.occurred_at_seconds;
+      if (target.video.id === tag.video_id && Math.abs(delta) < 0.5) continue;
+      const startTime = Math.max(0, tag.start_time + delta);
+      const endTime = Math.max(startTime, tag.end_time + delta);
+      const occurredAtSeconds = Math.max(0, target.localTime);
+      reconcilingTagIdsRef.current.add(tag.id);
+      try {
+        const { data: updated, error: updateError } = await supabase.from("tags").update({
+          video_id: target.video.id,
+          start_time: startTime,
+          end_time: endTime,
+          occurred_at_seconds: occurredAtSeconds
+        }).eq("id", tag.id).select("*").single();
+        if (updateError || !updated) { setError(updateError?.message || "De gesynchroniseerde tag kon niet worden aangepast."); continue; }
+        setTags((current) => current.map((item) => item.id === tag.id ? updated : item));
+      } finally {
+        reconcilingTagIdsRef.current.delete(tag.id);
+      }
+    }
+  }
+
   async function materializeLiveTags(pending: LiveMatchTag[]) {
     const recordingStarts = liveTags
       .filter((liveTag) => isRecordingStartTag(liveTag.tag_name))
@@ -93,7 +143,7 @@ export function useLiveTagSync<TMatch extends Match>({
     for (const liveTag of pending) {
       materializingLiveTagIdsRef.current.add(liveTag.id);
       try {
-        let elapsed = liveTagElapsedSeconds(liveTag, match);
+        let elapsed = liveTagElapsedSeconds(liveTag, match, timelineLeadSeconds);
         let targetVideo = videos[0];
         let localTime: number | null = elapsed;
         if (canUseRecordingStarts) {
@@ -144,7 +194,7 @@ export function useLiveTagSync<TMatch extends Match>({
     const liveTag = liveTags.find((item) => item.id === calibratingLiveTagId);
     setCalibratingLiveTagId(null);
     if (!liveTag || !match) return;
-    const currentComputed = liveTagElapsedSeconds(liveTag, match);
+    const currentComputed = liveTagElapsedSeconds(liveTag, match, timelineLeadSeconds);
     if (currentComputed === null) return;
     const delta = combinedTime - currentComputed;
     if (Math.abs(delta) < 0.01) return;

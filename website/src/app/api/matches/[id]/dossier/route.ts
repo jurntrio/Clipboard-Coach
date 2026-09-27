@@ -38,6 +38,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     ? { scouting: body.scouting.trim().slice(0, 10000) } : {};
   const goalEvents = canEditDossier && Array.isArray(body.goal_events) ? body.goal_events.slice(0, 30).map((event: any) => ({
     id: typeof event?.id === "string" ? event.id.slice(0, 100) : "",
+    liveTagId: typeof event?.liveTagId === "string" ? event.liveTagId.slice(0, 100) : "",
     team: event?.team === "away" ? "away" : "home",
     scoreAfter: typeof event?.scoreAfter === "string" && /^\d{1,2}-\d{1,2}$/.test(event.scoreAfter) ? event.scoreAfter : "",
     minute: Number.isInteger(event?.minute) && event.minute >= 0 && event.minute <= 120 ? event.minute : null,

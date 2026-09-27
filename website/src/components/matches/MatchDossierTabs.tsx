@@ -36,7 +36,7 @@ type Clip = {
   clip_segments: Array<{ id: string; sequence_order: number; videos: { video_url: string } | null; tags: { name: string; color: string; start_time: number; end_time: number } | null }>;
 };
 type GoalEvent = {
-  id: string; team: "home" | "away"; scoreAfter: string; minute: number | null;
+  id: string; liveTagId?: string; team: "home" | "away"; scoreAfter: string; minute: number | null;
   scorerType: "" | "player" | "own_goal" | "custom"; scorerPlayerId: string; scorerName: string;
   assistType: "player" | "own_goal" | "custom" | "none"; assistPlayerId: string; assistName: string;
   description: string;

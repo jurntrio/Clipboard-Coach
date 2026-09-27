@@ -41,6 +41,16 @@ const FrameDrawingDialog = dynamic(() => import("@/components/drawings/DesktopDr
 // timeline can render and become interactive without waiting on it first.
 const ClipBuilder = dynamic(() => import("@/components/clips/ClipBuilder").then((mod) => mod.ClipBuilder), { ssr: false });
 
+function recordingTimelineStartMs(primaryBlocks: MatchBlock[], match: Match | null) {
+  const matchStart = matchTimelineStartMs(match);
+  const knownStarts = primaryBlocks
+    .map((block) => block.recording_started_at ? new Date(block.recording_started_at).getTime() : null)
+    .filter((value): value is number => value !== null && !Number.isNaN(value));
+  return matchStart === null
+    ? (knownStarts.length ? Math.min(...knownStarts) : null)
+    : Math.min(matchStart, ...knownStarts);
+}
+
 // Same offset logic as the `offsets` useMemo below, but self-contained so it can run inside
 // loadMatch() right after a fetch, before `match` state (and the memo derived from it) exists yet.
 function computeVideoOffsets(matchVideos: MatchBlock[], match: Match | null): Map<string, number> {
@@ -53,10 +63,7 @@ function computeVideoOffsets(matchVideos: MatchBlock[], match: Match | null): Ma
     list.push(block);
     camerasByBlockOrder.set(block.sequence_order, list);
   }
-  const knownStarts = primaryBlocks
-    .map((block) => block.recording_started_at ? new Date(block.recording_started_at).getTime() : null)
-    .filter((value): value is number => value !== null && !Number.isNaN(value));
-  const timelineStart = matchTimelineStartMs(match) ?? (knownStarts.length ? Math.min(...knownStarts) : null);
+  const timelineStart = recordingTimelineStartMs(primaryBlocks, match);
   const map = new Map<string, number>();
   let offset = 0;
   for (const block of primaryBlocks) {
@@ -75,10 +82,7 @@ function computeVideoOffsets(matchVideos: MatchBlock[], match: Match | null): Ma
 
 function computeOffsetPlan(primaryBlocks: MatchBlock[], camerasByBlockOrder: Map<number, MatchBlock[]>, match: Match | null) {
   const map = new Map<string, number>();
-  const knownStarts = primaryBlocks
-    .map((block) => block.recording_started_at ? new Date(block.recording_started_at).getTime() : null)
-    .filter((value): value is number => value !== null && !Number.isNaN(value));
-  const timelineStart = matchTimelineStartMs(match) ?? (knownStarts.length ? Math.min(...knownStarts) : null);
+  const timelineStart = recordingTimelineStartMs(primaryBlocks, match);
   let cursor = 0;
   let total = 0;
   for (const block of primaryBlocks) {
@@ -131,8 +135,8 @@ function matchTitle(match: Pick<Match, "team_a_name" | "team_b_name" | "is_home_
   return match?.is_home_match === false ? `${teamB} - ${teamA}` : `${teamA} - ${teamB}`;
 }
 
-function liveTagElapsedSeconds(liveTag: LiveMatchTag, match: Match | null) {
-  return match ? liveTagVideoSeconds(liveTag, match) : null;
+function liveTagElapsedSeconds(liveTag: LiveMatchTag, match: Match | null, timelineLeadSeconds = 0) {
+  return match ? liveTagVideoSeconds(liveTag, match, timelineLeadSeconds) : null;
 }
 
 function LiveTagRow({ liveTag, materializedTag, elapsed, reviewed, onToggleReviewed, onSeek, onCalibrate, onUpdateTimes, onDelete, t }: {
@@ -331,6 +335,11 @@ export default function MatchViewerPage() {
   const offsets = useMemo(() => {
     return computeOffsetPlan(primaryBlocks, camerasByBlockOrder, match);
   }, [primaryBlocks, camerasByBlockOrder, match]);
+  const timelineLeadSeconds = useMemo(() => {
+    const matchStart = matchTimelineStartMs(match);
+    const timelineStart = recordingTimelineStartMs(primaryBlocks, match);
+    return matchStart !== null && timelineStart !== null ? Math.max(0, (matchStart - timelineStart) / 1000) : 0;
+  }, [match, primaryBlocks]);
   const siblingCamerasByVideoId = useMemo(() => {
     const map: Record<string, { id: string; camera_number: number | null; label: string }[]> = {};
     for (const cameras of camerasByBlockOrder.values()) {
@@ -377,18 +386,18 @@ export default function MatchViewerPage() {
   });
   const { clubLiveTagProfiles, setClubLiveTagProfiles, calibratingLiveTagId, setCalibratingLiveTagId, confirmLiveTagCalibration } = useLiveTagSync({
     matchId, match, canManageSources, currentUserId, videos, liveTags, setLiveTags,
-    tags, setTags, standardTags, offsets, combinedTime, setMatch, setError, loadMatch: () => loadMatch()
+    tags, setTags, standardTags, offsets, timelineLeadSeconds, combinedTime, setMatch, setError, loadMatch: () => loadMatch()
   });
   const sortedLiveTags = useMemo(() => {
     const displayedTagById = new Map(displayTags.map((tag) => [tag.id, tag]));
     return [...liveTags].sort((a, b) => {
-      const aTime = (a.tag_id ? displayedTagById.get(a.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(a, match);
-      const bTime = (b.tag_id ? displayedTagById.get(b.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(b, match);
+      const aTime = (a.tag_id ? displayedTagById.get(a.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(a, match, timelineLeadSeconds);
+      const bTime = (b.tag_id ? displayedTagById.get(b.tag_id)?.start_time : undefined) ?? liveTagElapsedSeconds(b, match, timelineLeadSeconds);
       if (aTime === null) return bTime === null ? a.occurred_at.localeCompare(b.occurred_at) : 1;
       if (bTime === null) return -1;
       return aTime - bTime || a.occurred_at.localeCompare(b.occurred_at);
     });
-  }, [displayTags, liveTags, match]);
+  }, [displayTags, liveTags, match, timelineLeadSeconds]);
   const liveTaggers = useMemo(() => {
     const byKey = new Map<string, string>();
     for (const liveTag of liveTags) {
@@ -984,7 +993,7 @@ export default function MatchViewerPage() {
             <TagList tags={rightColumnTags} tagMetaById={liveTagMetaById} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onToggleAll={toggleAllRightColumnTags} onSeek={seekTo} onDelete={deleteDisplayedTag} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={combinedTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
             {!!visibleLiveTags.some((liveTag) => !liveTag.tag_id) && <div className="mt-1 space-y-1">
               {visibleLiveTags.filter((liveTag) => !liveTag.tag_id).map((liveTag) => {
-                const elapsed = liveTagElapsedSeconds(liveTag, match);
+                const elapsed = liveTagElapsedSeconds(liveTag, match, timelineLeadSeconds);
                 return <LiveTagRow
                   key={liveTag.id}
                   liveTag={liveTag}

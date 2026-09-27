@@ -1,7 +1,14 @@
 export type TagEventKind = "goal";
 
 export function getTagEventKind(name: string): TagEventKind | null {
-  return name.trim().toLocaleLowerCase() === "goal" ? "goal" : null;
+  return /^goal(?:\s|$)/i.test(name.trim()) ? "goal" : null;
+}
+
+export function defaultGoalEventType(name: string, ownTeamIsHome: boolean): "goal_for" | "goal_against" {
+  const normalized = name.trim().toLocaleLowerCase("nl");
+  if (/\b(thuis|home)\b/.test(normalized)) return ownTeamIsHome ? "goal_for" : "goal_against";
+  if (/\b(uit|away)\b/.test(normalized)) return ownTeamIsHome ? "goal_against" : "goal_for";
+  return "goal_for";
 }
 
 export const DEFAULT_CLIP_PROFILES: Record<string, { start: number; end: number }> = {

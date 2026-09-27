@@ -15,9 +15,9 @@ export function matchTimelineStartMs(match: Pick<Match, "match_date" | "recordin
   return Number.isNaN(date.getTime()) ? null : date.getTime();
 }
 
-export function liveTagVideoSeconds(liveTag: LiveMatchTag, match: Match) {
+export function liveTagVideoSeconds(liveTag: LiveMatchTag, match: Match, timelineLeadSeconds = 0) {
   const recordingStartedAtMs = matchTimelineStartMs(match);
   if (recordingStartedAtMs === null) return null;
   const seconds = (new Date(liveTag.occurred_at).getTime() - recordingStartedAtMs) / 1000;
-  return Math.max(0, seconds + (match.live_tag_offset_seconds ?? 0));
+  return Math.max(0, seconds + timelineLeadSeconds + (match.live_tag_offset_seconds ?? 0));
 }

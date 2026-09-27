@@ -40,7 +40,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (endTime - startTime > 180) return NextResponse.json({ error: "De tag is te lang." }, { status: 400 });
 
   const [{ data: liveTag }, { data: matchVideo }] = await Promise.all([
-    admin.from("live_match_tags").select("id, tag_id, tag_name, player_ids").eq("id", body.liveTagId).eq("match_id", match.id).maybeSingle(),
+    admin.from("live_match_tags").select("id, tag_id, tag_name, player_ids, event_type, score_home, score_away, scorer_id").eq("id", body.liveTagId).eq("match_id", match.id).maybeSingle(),
     admin.from("match_videos").select("video_id, videos(duration, active_player_ids)").eq("match_id", match.id).eq("video_id", body.videoId).maybeSingle()
   ]);
   if (!liveTag || !matchVideo) return NextResponse.json({ error: "Live-tag of videobron niet gevonden." }, { status: 404 });
@@ -58,7 +58,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
     start_time: startTime,
     end_time: endTime,
     color: body.color || "#22c55e",
-    player_ids: playerIds
+    player_ids: playerIds,
+    event_type: liveTag.event_type,
+    event_metadata: liveTag.event_type ? {
+      scorer_id: liveTag.scorer_id,
+      score_home: liveTag.score_home,
+      score_away: liveTag.score_away,
+      live_tag_id: liveTag.id
+    } : {}
   }).select("*").single();
   if (tagError || !createdTag) return NextResponse.json({ error: tagError?.message || "Tag kon niet worden aangemaakt." }, { status: 500 });
 

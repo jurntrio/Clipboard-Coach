@@ -377,6 +377,10 @@ export type LiveMatchTag = {
   player_ids: string[];
   tagger_name: string | null;
   client_event_id: string | null;
+  event_type: "goal_for" | "goal_against" | null;
+  score_home: number | null;
+  score_away: number | null;
+  scorer_id: string | null;
   occurred_at: string;
   reviewed_at: string | null;
   tag_id: string | null;
