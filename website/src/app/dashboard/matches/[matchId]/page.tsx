@@ -1023,7 +1023,7 @@ export default function MatchViewerPage() {
               })}
             </div>}
           </section>
-          {videos[0] && <ClipBuilder videoId={videos[0].id} videoIds={allVideos.map((video) => video.id)} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo={allVideos.some((video) => isLocalVideoUrl(video.video_url))} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={matchTitle(match, t("match.teamA"), t("match.teamB"))} onClipCreated={() => setSelectedTagIds([])} />}
+          {videos[0] && <ClipBuilder videoId={videos[0].id} videoIds={allVideos.map((video) => video.id)} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo={allVideos.some((video) => isLocalVideoUrl(video.video_url))} localVideoIds={allVideos.filter((video) => isLocalVideoUrl(video.video_url)).map((video) => video.id)} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={matchTitle(match, t("match.teamA"), t("match.teamB"))} onClipCreated={() => setSelectedTagIds([])} />}
         </aside>
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}

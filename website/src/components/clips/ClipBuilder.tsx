@@ -19,6 +19,7 @@ export function ClipBuilder({
   tags,
   players,
   localVideo,
+  localVideoIds,
   localFile,
   localFilesByVideoId,
   localSourcesReady,
@@ -33,6 +34,7 @@ export function ClipBuilder({
   tags: Tag[];
   players: Player[];
   localVideo: boolean;
+  localVideoIds?: string[];
   localFile: File | null;
   localFilesByVideoId?: Record<string, File>;
   localSourcesReady?: boolean;
@@ -41,6 +43,7 @@ export function ClipBuilder({
   onClipCreated: () => void;
 }) {
   const canUseLocalSources = localSourcesReady ?? !!localFile;
+  const localSourceIds = new Set(localVideoIds ?? (localVideo ? [videoId] : []));
   const clipTagIds = selectedTagIds.filter((id) => {
     const tag = tags.find((item) => item.id === id);
     return tag ? !isPeriodMarker(tag.name) : false;
@@ -153,8 +156,8 @@ export function ClipBuilder({
     }).filter((segment, index, allSegments) =>
       allSegments.findIndex((candidate) => candidate.tag.id === segment.tag.id && candidate.videoId === segment.videoId) === index
     );
-    if (localVideo) {
-      const missingLocalSegments = expandedSegments.filter(({ videoId: sourceVideoId }) =>
+    if (localSourceIds.size > 0) {
+      const missingLocalSegments = expandedSegments.filter(({ videoId: sourceVideoId }) => localSourceIds.has(sourceVideoId) &&
         !(localFilesByVideoId?.[sourceVideoId] ?? (sourceVideoId === videoId ? localFile : null))
       );
       if (missingLocalSegments.length > 0) {
@@ -204,7 +207,10 @@ export function ClipBuilder({
           for (let index = 0; index < expandedSegments.length; index += 1) {
             const { tag, videoId: sourceVideoId } = expandedSegments[index];
             const sourceFile = localFilesByVideoId?.[sourceVideoId] ?? (sourceVideoId === videoId && localVideo ? localFile : null);
-            if (!sourceFile) throw new Error(t("clip.reconnectAll"));
+            if (!sourceFile) {
+              if (localSourceIds.has(sourceVideoId)) throw new Error(t("clip.reconnectAll"));
+              continue;
+            }
             const baseProgress = index / expandedSegments.length;
             const unit = 1 / expandedSegments.length;
             setStatus(t("clip.makingSegment", { current: index + 1, total: expandedSegments.length }));
@@ -260,7 +266,8 @@ export function ClipBuilder({
             }
           }
 
-          if (localVideo && renderedSegments.length !== expandedSegments.length) {
+          const localSegmentCount = expandedSegments.filter(({ videoId: sourceVideoId }) => localSourceIds.has(sourceVideoId)).length;
+          if (renderedSegments.length < localSegmentCount) {
             throw new Error(t("clip.reconnectAll"));
           }
 
