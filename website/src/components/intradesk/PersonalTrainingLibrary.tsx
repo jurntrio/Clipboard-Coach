@@ -15,8 +15,8 @@ const stateLabel = {
   published: "Ook gedeeld met de club"
 };
 
-export function PersonalTrainingLibrary({ trainings }: { trainings: PersonalTrainingRow[] }) {
-  return <section className="mb-6 overflow-hidden rounded-2xl border border-accent/35 bg-card shadow-sm">
+export function PersonalTrainingLibrary({ trainings, embedded = false }: { trainings: PersonalTrainingRow[]; embedded?: boolean }) {
+  return <section className={embedded ? "overflow-hidden" : "mb-6 overflow-hidden rounded-2xl border border-accent/35 bg-card shadow-sm"}>
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-accentDim px-5 py-4">
       <div><p className="text-xs font-black uppercase tracking-[.16em] text-accent">Privé voor jouw account</p><h2 className="mt-1 text-xl font-black text-textBright">Mijn trainingen</h2><p className="mt-1 text-sm text-textMuted">Ook binnen een club blijven deze persoonlijke exemplaren afzonderlijk van de gedeelde clubbibliotheek.</p></div>
       <div className="flex flex-wrap gap-2"><a href="/api/trainings/export" className="rounded-lg border border-accent px-4 py-2 text-sm font-bold text-accent hover:bg-accent hover:text-page">Alles downloaden (.zip)</a><Link href="/dashboard/training/new" className="rounded-lg bg-accent px-4 py-2 text-sm font-black text-page">Nieuwe training</Link></div>

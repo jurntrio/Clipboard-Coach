@@ -47,7 +47,7 @@ export default async function IntradeskClipPage({ params }: { params: { clipId: 
   const score = match && match.score_a !== null && match.score_b !== null ? ` · ${match.score_a}–${match.score_b}` : "";
 
   return <main className="mx-auto w-full max-w-5xl space-y-5 p-4 sm:p-8">
-    <div className="flex flex-wrap items-center justify-between gap-3"><Link href="/dashboard/intradesk" className="text-sm font-bold text-accent hover:underline">← Terug naar Intradesk</Link>{match && <Link href={`/dashboard/games/${match.id}#wedstrijdverslag`} className="text-sm font-bold text-accent hover:underline">Open wedstrijdverslag →</Link>}</div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><Link href="/dashboard/media-archive" className="text-sm font-bold text-accent hover:underline">← Terug naar Media-archief</Link>{match && <Link href={`/dashboard/games/${match.id}#wedstrijdverslag`} className="text-sm font-bold text-accent hover:underline">Open wedstrijdverslag →</Link>}</div>
     <header className="rounded-2xl border border-border bg-card p-5"><p className="text-xs font-black uppercase tracking-[.16em] text-accent">Clip</p><h1 className="mt-1 text-2xl font-black text-textBright">{clip.name}</h1>{match ? <Link href={`/dashboard/games/${match.id}#wedstrijdverslag`} className="mt-2 inline-block font-semibold text-textSecondary underline decoration-accent/50 underline-offset-4 hover:text-accent">{match.team_a_name} – {match.team_b_name}{score}</Link> : <p className="mt-2 font-semibold text-textSecondary">{clubTeam?.name ?? "Clubclip"}</p>}</header>
     <IntradeskClipViewer videoUrl={clip.videos?.video_url ?? ""} segments={segments} />
   </main>;

@@ -7,17 +7,16 @@ export type MediaSeason = { id: string; name: string };
 export type MediaTeam = { id: string; seasonId: string; name: string };
 export type MediaMatch = { id: string; seasonId: string; teamId: string; title: string; opponent: string; date: string | null; scoreA: number | null; scoreB: number | null };
 export type MediaCategory = { id: string; name: string; active: boolean; isDefault: boolean };
-export type ArchiveTraining = { id: string; title: string; teamId: string | null; seasonId: string | null; ageCategory: string; themes: string[]; updatedAt: string; author: string };
 export type MediaItem = {
   id: string; videoId: string; matchId: string | null; seasonId: string; kind: "clip"; title: string;
   date: string | null; duration: number | null; teamId: string; teamName: string; opponent: string;
   storageProvider: string; categories: MediaCategory[];
 };
 
-type Selection = { type: "root" } | { type: "season"; id: string } | { type: "team" | "trainings" | "matches"; id: string } | { type: "match"; id: string };
+type Selection = { type: "root" } | { type: "season"; id: string } | { type: "team" | "matches"; id: string } | { type: "match"; id: string };
 
-export function MediaArchive({ seasons, teams, matches, trainings, initialCategories, items, canManage }: {
-  seasons: MediaSeason[]; teams: MediaTeam[]; matches: MediaMatch[]; trainings: ArchiveTraining[]; initialCategories: MediaCategory[]; items: MediaItem[]; canManage: boolean;
+export function MediaArchive({ seasons, teams, matches, initialCategories, items, canManage }: {
+  seasons: MediaSeason[]; teams: MediaTeam[]; matches: MediaMatch[]; initialCategories: MediaCategory[]; items: MediaItem[]; canManage: boolean;
 }) {
   const [selection, setSelection] = useState<Selection>({ type: "root" });
   const [expandedSeasons, setExpandedSeasons] = useState(() => new Set(seasons.filter(item => /2026\D+2027/.test(item.name)).map(item => item.id)));
@@ -48,13 +47,8 @@ export function MediaArchive({ seasons, teams, matches, trainings, initialCatego
   const selectedTitle = selection.type === "root" ? "Alle media"
     : selection.type === "season" ? seasons.find(item => item.id === selection.id)?.name ?? "Seizoen"
     : selection.type === "team" ? teamById.get(selection.id)?.name ?? "Ploeg"
-    : selection.type === "trainings" ? `Trainingen · ${teamById.get(selection.id)?.name ?? "Ploeg"}`
     : selection.type === "matches" ? `Wedstrijden met clips · ${teamById.get(selection.id)?.name ?? "Ploeg"}`
     : matchById.get(selection.id)?.title ?? "Wedstrijd";
-
-  const visibleTrainings = useMemo(() => selection.type === "trainings"
-    ? trainings.filter(training => training.teamId === selection.id)
-    : [], [selection, trainings]);
 
   const visible = useMemo(() => mediaItems.filter(item => {
     const inTree = selection.type === "root" || selection.type === "match" && item.matchId === selection.id && item.kind === "clip"
@@ -129,14 +123,13 @@ export function MediaArchive({ seasons, teams, matches, trainings, initialCatego
     <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
       <div className="grid min-h-[620px] lg:grid-cols-[300px_minmax(0,1fr)]">
         <aside className="border-b border-border bg-cardDeep p-3 lg:border-b-0 lg:border-r">
-          <TreeRow active={selection.type === "root"} icon="archive" label="Clubarchief" count={mediaItems.length + trainings.length} onClick={() => setSelection({ type: "root" })} />
+          <TreeRow active={selection.type === "root"} icon="archive" label="Media-archief" count={mediaItems.length} onClick={() => setSelection({ type: "root" })} />
           <div className="treeBranch mt-1 ml-3 pl-4">
             {seasons.map(season => { const seasonTeams = teams.filter(team => team.seasonId === season.id); const open = expandedSeasons.has(season.id); return <div key={season.id}>
               <TreeRow active={selection.type === "season" && selection.id === season.id} open={open} icon="season" label={season.name} onToggle={() => setExpandedSeasons(toggleSet(expandedSeasons, season.id))} onClick={() => setSelection({ type: "season", id: season.id })} />
-              {open && <div className="treeBranch ml-4 pl-4">{seasonTeams.map(team => { const teamMatches = matchesWithClips.filter(match => match.teamId === team.id); const teamOpen = expandedTeams.has(team.id); const matchesOpen = expandedMatchFolders.has(team.id); const teamTrainings = trainings.filter(training => training.teamId === team.id); return <div key={team.id}>
+              {open && <div className="treeBranch ml-4 pl-4">{seasonTeams.map(team => { const teamMatches = matchesWithClips.filter(match => match.teamId === team.id); const teamOpen = expandedTeams.has(team.id); const matchesOpen = expandedMatchFolders.has(team.id); return <div key={team.id}>
                 <TreeRow active={selection.type === "team" && selection.id === team.id} open={teamOpen} icon="team" label={team.name} onToggle={() => setExpandedTeams(toggleSet(expandedTeams, team.id))} onClick={() => setSelection({ type: "team", id: team.id })} />
                 {teamOpen && <div className="treeBranch ml-4 pl-4">
-                  <TreeRow active={selection.type === "trainings" && selection.id === team.id} icon="training" label="Trainingen" count={teamTrainings.length} onClick={() => setSelection({ type: "trainings", id: team.id })} />
                   <TreeRow active={selection.type === "matches" && selection.id === team.id} open={matchesOpen} icon="matches" label="Wedstrijden" count={teamMatches.length} onToggle={() => setExpandedMatchFolders(toggleSet(expandedMatchFolders, team.id))} onClick={() => setSelection({ type: "matches", id: team.id })} />
                   {matchesOpen && !!teamMatches.length && <div className="treeBranch ml-4 pl-4">{teamMatches.map(match => <TreeRow key={match.id} active={selection.type === "match" && selection.id === match.id} icon="match" label={match.opponent || match.title} count={clipCountByMatch.get(match.id)} onClick={() => setSelection({ type: "match", id: match.id })} />)}</div>}
                 </div>}
@@ -146,8 +139,8 @@ export function MediaArchive({ seasons, teams, matches, trainings, initialCatego
         </aside>
 
         <div className="min-w-0 p-4 sm:p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.16em] text-accent">Clubarchief</p><h2 className="mt-1 text-xl font-black text-textBright">{selectedMatch ? <MatchTitleLink match={selectedMatch} /> : selectedTitle}</h2></div><span className="text-sm text-textMuted">{selection.type === "trainings" ? visibleTrainings.length : selection.type === "matches" ? matchesWithClips.filter(match => match.teamId === selection.id).length : visible.length} resultaat{(selection.type === "trainings" ? visibleTrainings.length : selection.type === "matches" ? matchesWithClips.filter(match => match.teamId === selection.id).length : visible.length) === 1 ? "" : "en"}</span></div>
-          {selection.type === "trainings" ? <TrainingCards trainings={visibleTrainings} /> : selection.type === "matches" ? <MatchCards matches={matchesWithClips.filter(match => match.teamId === selection.id)} clipCounts={clipCountByMatch} onOpen={id => setSelection({ type: "match", id })} /> : <>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.16em] text-accent">Media-archief</p><h2 className="mt-1 text-xl font-black text-textBright">{selectedMatch ? <MatchTitleLink match={selectedMatch} /> : selectedTitle}</h2></div><span className="text-sm text-textMuted">{selection.type === "matches" ? matchesWithClips.filter(match => match.teamId === selection.id).length : visible.length} resultaat{(selection.type === "matches" ? matchesWithClips.filter(match => match.teamId === selection.id).length : visible.length) === 1 ? "" : "en"}</span></div>
+          {selection.type === "matches" ? <MatchCards matches={matchesWithClips.filter(match => match.teamId === selection.id)} clipCounts={clipCountByMatch} onOpen={id => setSelection({ type: "match", id })} /> : <>
           {visible.length ? selection.type === "match" ? <ClipRows items={visible} /> : <div className="grid gap-3 xl:grid-cols-2">{visible.map(item => <MediaCard key={`${item.kind}-${item.id}`} item={item} categories={categories} canManage={canManage} onAssign={assignCategory} />)}</div> : <div className="grid min-h-72 place-items-center rounded-xl border border-dashed border-border p-8 text-center"><div><span className="text-4xl" aria-hidden="true">▱</span><p className="mt-3 font-bold text-textPrimary">Geen media in deze selectie</p><p className="mt-1 max-w-md text-sm text-textMuted">Voeg wedstrijdbeelden toe via Video Viewer of maak clips vanuit bestaande tags. De bestanden blijven in de gekoppelde opslag; SVS bewaart de archiefcontext.</p></div></div>}</>}
         </div>
       </div>
@@ -162,18 +155,13 @@ export function MediaArchive({ seasons, teams, matches, trainings, initialCatego
 }
 
 function MediaCard({ item, categories, canManage, onAssign }: { item: MediaItem; categories: MediaCategory[]; canManage: boolean; onAssign: (item: MediaItem, categoryId: string, checked: boolean) => void }) {
-  return <article className="rounded-xl border border-borderSubtle bg-cardDeep p-4 transition hover:border-accent"><Link href={`/dashboard/intradesk/clips/${item.id}`} className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"><div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accentDim text-accent" aria-hidden="true">✂</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-bold text-textBright">{item.title}</h3><span className="rounded-full border border-borderButton px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-textMuted">Clip</span></div><p className="mt-1 text-sm text-textSecondary">{item.teamName}{item.opponent ? ` · ${item.opponent}` : ""}</p><p className="mt-1 text-xs text-textMuted">{item.date ? new Date(`${item.date}T12:00:00`).toLocaleDateString("nl-BE") : "Datum onbekend"} · {formatDuration(item.duration)}</p><span className="mt-3 inline-block text-sm font-bold text-accent">Bekijken →</span></div></div>
+  return <article className="rounded-xl border border-borderSubtle bg-cardDeep p-4 transition hover:border-accent"><Link href={`/dashboard/media-archive/clips/${item.id}`} className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"><div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accentDim text-accent" aria-hidden="true">✂</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-bold text-textBright">{item.title}</h3><span className="rounded-full border border-borderButton px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-textMuted">Clip</span></div><p className="mt-1 text-sm text-textSecondary">{item.teamName}{item.opponent ? ` · ${item.opponent}` : ""}</p><p className="mt-1 text-xs text-textMuted">{item.date ? new Date(`${item.date}T12:00:00`).toLocaleDateString("nl-BE") : "Datum onbekend"} · {formatDuration(item.duration)}</p><span className="mt-3 inline-block text-sm font-bold text-accent">Bekijken →</span></div></div>
     <div className="mt-3 flex flex-wrap gap-1.5">{item.categories.length ? item.categories.map(category => <span key={category.id} className="rounded-full bg-accentDim px-2 py-1 text-xs font-semibold text-accent">{category.name}</span>) : <span className="text-xs text-textMuted">Geen categorieën</span>}</div></Link>
     {canManage && item.kind === "clip" && <details className="mt-3"><summary className="cursor-pointer text-xs font-bold text-accent">Categorieën aanpassen</summary><div className="mt-2 grid gap-1 rounded-lg border border-border bg-card p-2 sm:grid-cols-2">{categories.filter(category => category.active).map(category => <label key={category.id} className="flex items-center gap-2 rounded px-2 py-1 text-xs text-textPrimary hover:bg-cardHover"><input type="checkbox" checked={item.categories.some(value => value.id === category.id)} onChange={event => void onAssign(item, category.id, event.target.checked)} className="accent-accent" />{category.name}</label>)}</div></details>}
   </article>;
 }
 
-function TrainingCards({ trainings }: { trainings: ArchiveTraining[] }) {
-  if (!trainings.length) return <div className="grid min-h-72 place-items-center rounded-xl border border-dashed border-border p-8 text-center"><div><span className="text-4xl text-accent" aria-hidden="true">▱</span><p className="mt-3 font-bold text-textPrimary">Nog geen trainingen voor deze ploeg</p><p className="mt-1 text-sm text-textMuted">Gepubliceerde trainingen verschijnen hier automatisch op basis van hun ploeg of leeftijdscategorie.</p></div></div>;
-  return <div className="grid gap-3 xl:grid-cols-2">{trainings.map(training => <article key={training.id} className="rounded-xl border border-borderSubtle bg-cardDeep p-4"><div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-500/10 text-emerald-400" aria-hidden="true">◆</span><div className="min-w-0 flex-1"><h3 className="font-bold text-textBright">{training.title}</h3><p className="mt-1 text-xs text-textMuted">{training.ageCategory} · {training.author} · {new Date(training.updatedAt).toLocaleDateString("nl-BE")}</p></div></div>{!!training.themes.length && <div className="mt-3 flex flex-wrap gap-1.5">{training.themes.map(theme => <span key={theme} className="rounded-full bg-accentDim px-2 py-1 text-xs font-semibold text-accent">{theme}</span>)}</div>}<Link href={`/dashboard/intradesk/${training.id}`} className="mt-4 inline-flex rounded-lg border border-borderButton px-3 py-2 text-sm font-bold text-textPrimary hover:border-accent hover:text-accent">Training openen</Link></article>)}</div>;
-}
-
-function ClipRows({ items }: { items: MediaItem[] }) { return <div className="space-y-2">{items.map(item => <Link key={item.id} href={`/dashboard/intradesk/clips/${item.id}`} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-cardDeep p-4 transition hover:border-accent hover:bg-cardHover"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accentDim text-accent">▶</span><span className="min-w-0 flex-1"><strong className="block truncate text-textBright">{item.title}</strong><small className="mt-1 block text-textMuted">{formatDuration(item.duration)}</small></span><span className="text-sm font-bold text-accent">Bekijken →</span></Link>)}</div>; }
+function ClipRows({ items }: { items: MediaItem[] }) { return <div className="space-y-2">{items.map(item => <Link key={item.id} href={`/dashboard/media-archive/clips/${item.id}`} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-cardDeep p-4 transition hover:border-accent hover:bg-cardHover"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accentDim text-accent">▶</span><span className="min-w-0 flex-1"><strong className="block truncate text-textBright">{item.title}</strong><small className="mt-1 block text-textMuted">{formatDuration(item.duration)}</small></span><span className="text-sm font-bold text-accent">Bekijken →</span></Link>)}</div>; }
 function MatchTitleLink({ match }: { match: MediaMatch }) { const score = match.scoreA !== null && match.scoreB !== null ? ` · ${match.scoreA}–${match.scoreB}` : ""; return <Link href={`/dashboard/games/${match.id}#wedstrijdverslag`} className="underline decoration-accent/50 underline-offset-4 hover:text-accent">{match.title}{score}</Link>; }
 
 function MatchCards({ matches, clipCounts, onOpen }: { matches: MediaMatch[]; clipCounts: Map<string, number>; onOpen: (id: string) => void }) {
