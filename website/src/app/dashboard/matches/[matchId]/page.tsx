@@ -30,6 +30,7 @@ import { useDrawingTool } from "@/hooks/useDrawingTool";
 import { useLiveTagSync } from "@/hooks/useLiveTagSync";
 import { liveTagVideoSeconds, matchTimelineStartMs } from "@/lib/match-timeline";
 import { parseClockTime } from "@/lib/clock-time";
+import { uniqueTagNames } from "@/lib/tag-names";
 
 type MatchWithBlocks = Match & { match_videos: MatchBlock[] };
 
@@ -430,6 +431,11 @@ export default function MatchViewerPage() {
   ), [t, visibleLiveTagByMaterializedId]);
   const markerTags = ["Start", "End"] as const;
   const clipTags = standardTags.filter((tag) => !isPeriodMarker(tag.name));
+  const quickTagOptions = uniqueTagNames([
+    ...clipTags.map((tag) => tag.name),
+    ...displayTags.filter((tag) => !isPeriodMarker(tag.name)).map((tag) => tag.name),
+    ...liveTags.filter((tag) => !isPeriodMarker(tag.tag_name)).map((tag) => tag.tag_name)
+  ]);
 
   useEffect(() => {
     void loadMatch();
@@ -874,7 +880,7 @@ export default function MatchViewerPage() {
             <div className="grid grid-cols-1 gap-2">
               {clipTags.map((tag) => <button key={tag.id} onClick={() => void addTag(tag.name)} className="rounded-lg border border-borderButton bg-button px-2 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}
             </div>
-            <div className="mt-2"><QuickTagCreator onCreated={async (name) => { await addTag(name); }} /></div>
+            <div className="mt-2"><QuickTagCreator existingTags={quickTagOptions} onCreated={async (name) => { await addTag(name); }} /></div>
           </div>
           <button type="button" onClick={drawDownloadOnly} className="mt-auto w-full rounded-lg bg-accent px-4 py-2 font-semibold text-page">{t("tag.draw")}</button>
         </aside>

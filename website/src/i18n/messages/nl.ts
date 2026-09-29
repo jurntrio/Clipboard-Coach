@@ -629,6 +629,8 @@ export const nl = {
   ,"tag.new": "Nieuwe tag"
   ,"tag.name": "Tagnaam"
   ,"tag.addAction": "Tag toevoegen"
+  ,"tag.existingTags": "Vaste en eerder gebruikte tags"
+  ,"tag.chooseExisting": "Kies een bestaande tag…"
   ,"tag.selectForClip": "{name} selecteren voor clip"
   ,"tag.selectAll": "Alle tags selecteren"
   ,"tag.deselectAll": "Alle tags uitvinken"

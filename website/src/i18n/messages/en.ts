@@ -631,6 +631,8 @@ export const en: Record<MessageKey, string> = {
   ,"tag.new": "New tag"
   ,"tag.name": "Tag name"
   ,"tag.addAction": "Add tag"
+  ,"tag.existingTags": "Standard and previously used tags"
+  ,"tag.chooseExisting": "Choose an existing tag…"
   ,"tag.selectForClip": "Select {name} for clip"
   ,"tag.selectAll": "Select all tags"
   ,"tag.deselectAll": "Deselect all tags"
