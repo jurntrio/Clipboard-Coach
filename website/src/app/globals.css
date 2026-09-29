@@ -29,6 +29,28 @@ html { font-size: 15px; }
   --accent-dim: #2d4a25;
 }
 
+.treeBranch {
+  position: relative;
+}
+
+.treeBranch::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.25rem 0.75rem;
+  left: 0.45rem;
+  border-left: 1px dotted var(--border-button);
+}
+
+.treeBranch > .treeRow::before,
+.treeBranch > div > .treeRow::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -0.55rem;
+  width: 0.55rem;
+  border-top: 1px dotted var(--border-button);
+}
+
 [data-theme="light"] {
   --bg-page: #f2f5f0;
   --bg-card: #ffffff;

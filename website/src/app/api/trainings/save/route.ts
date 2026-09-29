@@ -41,6 +41,17 @@ export async function POST(request: Request) {
   }
   const { data: club } = await admin.from("clubs").select("country").eq("id", body.clubId).maybeSingle();
   if (!club) return NextResponse.json({ error: "Club niet gevonden." }, { status: 404 });
+  let placement: { season_id: string; club_team_id: string } | null = null;
+  if (linkedSession) {
+    const { data: team } = await admin.from("club_teams").select("id,season_id").eq("id", linkedSession.club_team_id).eq("club_id", body.clubId).maybeSingle();
+    if (team?.season_id) placement = { season_id: team.season_id, club_team_id: team.id };
+  } else {
+    const { data: activeSeason } = await admin.from("club_seasons").select("id").eq("club_id", body.clubId).eq("status", "ACTIVE").maybeSingle();
+    const { data: candidateTeams } = activeSeason ? await admin.from("club_teams").select("id,name,season_id").eq("club_id", body.clubId).eq("season_id", activeSeason.id).neq("status", "merged") : { data: [] };
+    const ageKey = String(body.ageCategory).toLocaleLowerCase("nl-BE").replace(/[^a-z0-9]/g, "");
+    const matches = (candidateTeams ?? []).filter(team => team.name.toLocaleLowerCase("nl-BE").replace(/[^a-z0-9]/g, "").startsWith(ageKey));
+    if (matches.length === 1) placement = { season_id: matches[0].season_id, club_team_id: matches[0].id };
+  }
   const content = {
     ...(body.content as Record<string, unknown>),
     teamTactics: supportsBelgianTeamTactics(club.country) && Array.isArray(body.content.teamTactics)
@@ -103,14 +114,16 @@ export async function POST(request: Request) {
       if (versionError) return NextResponse.json({ error: versionError.message }, { status: 409 });
       const { error: updateError } = await admin.from("club_trainings").update({
         title: base.title, age_category: base.age_category, themes,
-        current_version: nextVersion, updated_by: user.id, updated_at: base.updated_at
+        current_version: nextVersion, updated_by: user.id, updated_at: base.updated_at,
+        ...(placement ?? {})
       }).eq("id", linked.data.id);
       if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 });
       clubTrainingId = linked.data.id;
     } else {
       const { data: clubTraining, error: clubError } = await admin.from("club_trainings").insert({
         club_id: body.clubId, title: base.title, age_category: base.age_category, themes,
-        created_by: user.id, updated_by: user.id
+        created_by: user.id, updated_by: user.id,
+        ...(placement ?? {})
       }).select("id").single();
       if (clubError || !clubTraining) return NextResponse.json({ error: clubError?.message ?? "Publiceren is mislukt." }, { status: 400 });
       const { error: versionError } = await admin.from("club_training_versions").insert({

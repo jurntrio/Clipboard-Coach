@@ -370,7 +370,7 @@ export default function MatchViewerPage() {
     });
   }, [liveTags, offsets, tags]);
   const { drawingFrame, setDrawingFrame, drawOnCurrentFrame, drawDownloadOnly, saveDrawing, openSavedDrawing, changeDrawingDuration } = useDrawingTool({
-    videoRef, currentVideo, displayTags, combinedTime, tags, setTags, coachId: match?.coach_id, setError
+    videoRef, currentVideo, displayTags, combinedTime, tags, setTags, currentUserId, setError
   });
   const { clubLiveTagProfiles, setClubLiveTagProfiles, calibratingLiveTagId, setCalibratingLiveTagId, confirmLiveTagCalibration } = useLiveTagSync({
     matchId, match, canManageSources, currentUserId, videos, liveTags, setLiveTags,

@@ -37,7 +37,7 @@ export function useDrawingTool({
   combinedTime,
   tags,
   setTags,
-  coachId,
+  currentUserId,
   setError
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -46,7 +46,7 @@ export function useDrawingTool({
   combinedTime: number;
   tags: Tag[];
   setTags: Dispatch<SetStateAction<Tag[]>>;
-  coachId: string | undefined;
+  currentUserId: string;
   setError: (message: string) => void;
 }) {
   const { t } = useI18n();
@@ -81,13 +81,17 @@ export function useDrawingTool({
     if (!drawingFrame?.tagId) return;
     const tag = tags.find((item) => item.id === drawingFrame.tagId);
     if (!tag) throw new Error(t("tag.noLongerExists"));
+    if (!currentUserId) throw new Error("Je sessie kon niet worden gecontroleerd. Vernieuw de pagina en probeer opnieuw.");
     const id = drawingFrame.drawingId ?? crypto.randomUUID();
-    const key = drawingFrame.key ?? `drawings/${coachId}/${tag.id}/${id}.png`;
+    // Upload authorization is scoped to the signed-in user, not the owner of
+    // the match. This also lets authorized club staff draw on shared matches.
+    const existingKeyOwnedByUser = drawingFrame.key?.startsWith(`drawings/${currentUserId}/`) ? drawingFrame.key : undefined;
+    const key = existingKeyOwnedByUser ?? `drawings/${currentUserId}/${tag.id}/${id}.png`;
     const url = await uploadBlobToR2(blob, key, "image/png", () => undefined);
     let baseFrameUrl = drawingFrame.image;
     if (!drawingFrame.drawingId) {
       const baseBlob = await fetch(drawingFrame.image).then((response) => response.blob());
-      baseFrameUrl = await uploadBlobToR2(baseBlob, `drawings/${coachId}/${tag.id}/${id}-base.png`, "image/png", () => undefined);
+      baseFrameUrl = await uploadBlobToR2(baseBlob, `drawings/${currentUserId}/${tag.id}/${id}-base.png`, "image/png", () => undefined);
     }
     const savedDrawing = { id, key, url, video_id: drawingFrame.videoId ?? tag.video_id, video_time: drawingFrame.time, duration_seconds: durationSeconds, base_frame_url: baseFrameUrl, shapes, created_at: new Date().toISOString() };
     const drawings = drawingFrame.drawingId ? (tag.drawings ?? []).map((drawing) => drawing.id === id ? savedDrawing : drawing) : [...(tag.drawings ?? []), savedDrawing];
