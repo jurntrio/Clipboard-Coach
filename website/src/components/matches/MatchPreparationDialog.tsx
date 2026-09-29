@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useI18n } from "@/i18n/client";
 import type { Match, Player } from "@/types/database";
+import { uniqueTagNames } from "@/lib/tag-names";
 
 type Option = { id: string; option_type: "field" | "locker_room" | "visitor_locker_room" | "referee" | "meeting_place" | "non_selection_reason"; label: string };
 type Selection = { player_id: string; selected: boolean; jersey_number: number | null; non_selection_reason_id: string | null; note: string | null; individual_attention_point: string | null };
@@ -49,6 +50,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
   const [visitorLockerRoomOptionId, setVisitorLockerRoomOptionId] = useState("");
   const [refereeOptionId, setRefereeOptionId] = useState("");
   const [tagNames, setTagNames] = useState<string[]>([]);
+  const [customTagNames, setCustomTagNames] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
   const [meetingPlaceOptionId, setMeetingPlaceOptionId] = useState("");
   const [meetingPlaceCustom, setMeetingPlaceCustom] = useState("");
@@ -128,7 +130,8 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
       setLockerRoomOptionId(current.locker_room_option_id ?? "");
       setVisitorLockerRoomOptionId(current.visitor_locker_room_option_id ?? "");
       setRefereeOptionId(current.referee_option_id ?? availableOptions.find(option => option.option_type === "referee" && option.label === "Aangeduid door KBVB")?.id ?? "");
-      setTagNames(current.live_tag_names ?? []);
+      setTagNames(uniqueTagNames(current.live_tag_names ?? []));
+      setCustomTagNames(uniqueTagNames(current.custom_live_tag_names ?? []));
       setMeetingPlaceOptionId(current.meeting_place_option_id ?? defaultMeetingPlace?.id ?? "");
       setMeetingPlaceCustom(current.meeting_place_custom ?? "");
       setMeetingPlaceEnabled(!!current.meeting_place_option_id || !!current.meeting_place_custom || !!defaultMeetingPlace);
@@ -167,7 +170,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
         departureTimeEnabled: !isHomeMatch && departureTimeEnabled,
         departureTime: !isHomeMatch ? departureTime : "",
         fieldOptionId, lockerRoomOptionId, visitorLockerRoomOptionId, refereeOptionId,
-        meetingPlaceEnabled, meetingPlaceOptionId, meetingPlaceCustom, tagNames,
+        meetingPlaceEnabled, meetingPlaceOptionId, meetingPlaceCustom, tagNames: uniqueTagNames(tagNames), customTagNames: uniqueTagNames(customTagNames),
         matchFormat,
         periodCount: periodCount === "" ? null : Number(periodCount),
         periodMinutes: periodMinutes === "" ? null : Number(periodMinutes),
@@ -319,7 +322,7 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
           <h2 className="font-bold text-textBright">Tags en taglink</h2>
           <p className="mt-1 text-xs text-textMuted">Bepaal de tagknoppen voor deze wedstrijd en maak de externe link.</p>
           <div className="mt-3 flex flex-wrap gap-2">{tagNames.map(tag => <span key={tag} className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accentDim px-3 py-1.5 text-sm text-accent">{tag}<button type="button" onClick={() => setTagNames(current => current.filter(item => item !== tag))}>×</button></span>)}</div>
-          <div className="mt-3 flex gap-2"><input value={newTag} onChange={event => setNewTag(event.target.value)} placeholder="Nieuwe tag" className={inputClass} /><button type="button" onClick={() => { const tag = newTag.trim(); if (tag && !tagNames.includes(tag)) setTagNames(current => [...current, tag]); setNewTag(""); }} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent">Toevoegen</button></div>
+          <div className="mt-3 flex gap-2"><input value={newTag} onChange={event => setNewTag(event.target.value)} placeholder="Nieuwe tag" className={inputClass} /><button type="button" onClick={() => { setTagNames(current => uniqueTagNames([...current, newTag])); setCustomTagNames(current => uniqueTagNames([...current, newTag])); setNewTag(""); }} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent">Toevoegen</button></div>
           <button type="button" onClick={async () => { const response = await fetch(`/api/matches/${match.id}/tag-link`, { method: "POST" }); const body = await response.json(); if (!response.ok || !body.token) return setNotice(body.error || "Taglink kon niet worden gemaakt."); await navigator.clipboard.writeText(`${window.location.origin}/tag/${body.token}`); setNotice("Taglink gekopieerd."); }} className="mt-3 rounded-lg bg-accent px-4 py-2 font-bold text-page">Taglink genereren en kopiëren</button>
         </section>}
         {notice && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">{notice}</p>}

@@ -59,6 +59,8 @@ export const en: Record<MessageKey, string> = {
   "matchHub.addTag": "Add tag",
   "matchHub.newTagPlaceholder": "New tag",
   "matchHub.suggestions": "Suggestions",
+  "matchHub.existingTags": "Existing tags",
+  "matchHub.allExistingTagsAdded": "All existing tags have already been added.",
   "matchHub.manageTagLibrary": "Manage tag library",
   "matchHub.deleteClipTitle": "Delete clip",
   "matchHub.confirmDeleteClip": "Permanently delete clip \"{name}\"?",
@@ -544,7 +546,7 @@ export const en: Record<MessageKey, string> = {
   ,"match.playOrder": "They play automatically in this order."
   ,"match.addMore": "Add more"
   ,"match.sourceFile": "Choose file"
-  ,"match.sourceExternal": "External recording"
+  ,"match.sourceExternal": "360 number"
   ,"match.source360": "360 link"
   ,"match.360Link": "360 video link"
   ,"match.360LinkHelp": "Paste a secure video link. It is saved centrally with the match and is available to all authorized users."
@@ -566,7 +568,7 @@ export const en: Record<MessageKey, string> = {
   ,"match.cameraSwitch": "Switch camera"
   ,"match.camera": "Camera"
   ,"match.attachVideos": "Add videos"
-  ,"match.attachVideosHelp": "This match has no video yet. Add an external recording or a file."
+  ,"match.attachVideosHelp": "This match has no video yet. Add a 360 recording number, 360 link, Veo link or file."
   ,"match.manageSources": "Manage video sources"
   ,"match.sourceName": "Name"
   ,"match.sourceLink": "Video link"

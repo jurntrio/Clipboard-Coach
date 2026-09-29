@@ -57,6 +57,8 @@ export const nl = {
   "matchHub.addTag": "Tag toevoegen",
   "matchHub.newTagPlaceholder": "Nieuwe tag",
   "matchHub.suggestions": "Suggesties",
+  "matchHub.existingTags": "Bestaande tags",
+  "matchHub.allExistingTagsAdded": "Alle bestaande tags zijn al toegevoegd.",
   "matchHub.manageTagLibrary": "Tagbibliotheek beheren",
   "matchHub.deleteClipTitle": "Clip verwijderen",
   "matchHub.confirmDeleteClip": "Clip \"{name}\" definitief verwijderen?",
@@ -542,7 +544,7 @@ export const nl = {
   ,"match.playOrder": "Ze worden automatisch in deze volgorde afgespeeld."
   ,"match.addMore": "Meer toevoegen"
   ,"match.sourceFile": "Bestand kiezen"
-  ,"match.sourceExternal": "Externe opname"
+  ,"match.sourceExternal": "360-nummer"
   ,"match.source360": "360-link"
   ,"match.360Link": "Link naar 360-video"
   ,"match.360LinkHelp": "Plak een beveiligde videolink. De link wordt centraal bij de wedstrijd bewaard en is beschikbaar voor alle bevoegde gebruikers."
@@ -564,7 +566,7 @@ export const nl = {
   ,"match.cameraSwitch": "Camera wisselen"
   ,"match.camera": "Camera"
   ,"match.attachVideos": "Video's toevoegen"
-  ,"match.attachVideosHelp": "Deze wedstrijd heeft nog geen video. Voeg een externe opname of bestand toe."
+  ,"match.attachVideosHelp": "Deze wedstrijd heeft nog geen video. Voeg een 360-opnamenummer, 360-link, Veo-link of bestand toe."
   ,"match.manageSources": "Videobronnen beheren"
   ,"match.sourceName": "Naam"
   ,"match.sourceLink": "Videolink"

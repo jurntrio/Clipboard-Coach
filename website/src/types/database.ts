@@ -300,6 +300,7 @@ export type Match = {
   sponsor_caption: string | null;
   player_ids: string[];
   live_tag_names: string[];
+  custom_live_tag_names: string[];
   live_tag_offset_seconds: number;
   last_opened_at: string;
   created_at: string;

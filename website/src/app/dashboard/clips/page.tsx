@@ -15,6 +15,7 @@ import { useActiveClub } from "@/components/clubs/ActiveClubProvider";
 import { MatchPreparationDialog } from "@/components/matches/MatchPreparationDialog";
 import { TeamContextHeader } from "@/components/teams/TeamContextHeader";
 import { ClubLogoImage, type ClubLogoData } from "@/components/clubs/ClubLogoImage";
+import { normalizeTagName, uniqueTagNames } from "@/lib/tag-names";
 
 type HubMatch = Match & { match_videos: { video_id: string }[]; team_a_logo: ClubLogoData; team_b_logo: ClubLogoData };
 type HubClip = {
@@ -440,19 +441,35 @@ function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved 
   const [playerIds, setPlayerIds] = useState<string[]>(match?.player_ids ?? []);
   const [playersOpen, setPlayersOpen] = useState(false);
   const defaultTags = standardTags.filter((tag) => !["Start", "End"].includes(tag.name)).slice(0, 8).map((tag) => tag.name);
-  const [tagNames, setTagNames] = useState<string[]>(match?.live_tag_names?.length ? match.live_tag_names : defaultTags);
+  const [tagNames, setTagNames] = useState<string[]>(() => uniqueTagNames(match?.live_tag_names?.length ? match.live_tag_names : defaultTags));
+  const [customTagNames, setCustomTagNames] = useState<string[]>(() => uniqueTagNames([
+    ...(match?.custom_live_tag_names ?? []),
+    ...(match?.live_tag_names ?? []).filter((name) => !standardTags.some((tag) => normalizeTagName(tag.name) === normalizeTagName(name)))
+  ]));
   const [addingTag, setAddingTag] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [saving, setSaving] = useState(false); const [error, setError] = useState("");
   const teamPlayers = allPlayers.filter((player) => player.team_id === teamId);
   const canConfigureTags = status !== "finished" && (!date || date >= new Date().toISOString().slice(0, 10));
-  const suggestedTags = standardTags.filter((tag) => !["Start", "End"].includes(tag.name) && !tagNames.includes(tag.name));
+  const fixedTags = standardTags.filter((tag, index, items) => {
+    const key = normalizeTagName(tag.name);
+    return !["start", "end"].includes(key)
+      && items.findIndex((item) => normalizeTagName(item.name) === key) === index;
+  });
+  const tagOptions = uniqueTagNames([...fixedTags.map((tag) => tag.name), ...customTagNames]);
 
-  function commitNewTag() {
-    const trimmed = newTagName.trim();
-    if (trimmed && !tagNames.includes(trimmed)) setTagNames((current) => [...current, trimmed]);
+  function addTagName(name: string, rememberForMatch = false) {
+    setTagNames((current) => uniqueTagNames([...current, name]));
+    if (rememberForMatch && !fixedTags.some((tag) => normalizeTagName(tag.name) === normalizeTagName(name))) {
+      setCustomTagNames((current) => uniqueTagNames([...current, name]));
+    }
     setNewTagName("");
     setAddingTag(false);
+  }
+
+  function commitNewTag() {
+    if (newTagName.trim()) addTagName(newTagName, true);
+    else setAddingTag(false);
   }
 
   function handleTeamNameChange(value: string) {
@@ -468,7 +485,7 @@ function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved 
     if (!homeTeamName || !opponent.trim()) { setError(t("matchHub.required")); return; }
     setSaving(true); setError("");
     const matchedTeam = teams.find((team) => team.id === teamId);
-    const payload = { team_a_id: matchedTeam?.id ?? null, team_a_name: matchedTeam?.name ?? homeTeamName, team_b_id: null, team_b_name: opponent.trim(), match_date: date || null, start_time: time || null, status, score_a: scoreA === "" ? null : Number(scoreA), score_b: scoreB === "" ? null : Number(scoreB), player_ids: playerIds, live_tag_names: tagNames };
+    const payload = { team_a_id: matchedTeam?.id ?? null, team_a_name: matchedTeam?.name ?? homeTeamName, team_b_id: null, team_b_name: opponent.trim(), match_date: date || null, start_time: time || null, status, score_a: scoreA === "" ? null : Number(scoreA), score_b: scoreB === "" ? null : Number(scoreB), player_ids: playerIds, live_tag_names: uniqueTagNames(tagNames), custom_live_tag_names: uniqueTagNames(customTagNames) };
     const response = await fetch("/api/matches", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...payload, id: match?.id })
@@ -495,23 +512,28 @@ function MatchEditor({ match, teams, allPlayers, standardTags, onClose, onSaved 
             <button type="button" onClick={() => setTagNames((current) => current.filter((item) => item !== name))} aria-label={t("matchHub.removeTag", { name })} title={t("matchHub.removeTag", { name })} className="grid h-full w-8 place-items-center border-l border-accent/40 hover:bg-accent hover:text-page">×</button>
           </span>
         ))}
-        {addingTag ? (
+        <button type="button" onClick={() => setAddingTag(true)} aria-label={t("matchHub.addTag")} title={t("matchHub.addTag")} className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full border border-borderButton text-lg font-bold text-accent transition hover:border-accent">+</button>
+      </div>
+      {addingTag && <div
+        className="mt-3 rounded-xl border border-borderButton bg-cardDeep p-3"
+        onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) commitNewTag(); }}
+      >
+        <div className="flex gap-2">
           <input
             autoFocus
             value={newTagName}
             onChange={(event) => setNewTagName(event.target.value)}
             onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitNewTag(); } if (event.key === "Escape") { setNewTagName(""); setAddingTag(false); } }}
-            onBlur={commitNewTag}
             placeholder={t("matchHub.newTagPlaceholder")}
-            className="w-32 rounded-lg border border-accent bg-input px-3 py-2 text-sm text-textPrimary"
+            className="min-w-0 flex-1 rounded-lg border border-accent bg-input px-3 py-2 text-sm text-textPrimary"
           />
-        ) : (
-          <button type="button" onClick={() => setAddingTag(true)} aria-label={t("matchHub.addTag")} title={t("matchHub.addTag")} className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full border border-borderButton text-lg font-bold text-accent transition hover:border-accent">+</button>
-        )}
-      </div>
-      {!!suggestedTags.length && <div className="mt-3">
-        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-textMuted">{t("matchHub.suggestions")}</p>
-        <div className="flex flex-wrap gap-2">{suggestedTags.map((tag) => <button key={tag.id} type="button" onClick={() => setTagNames((current) => [...current, tag.name])} className="rounded-lg border border-borderButton bg-button px-3 py-2 text-sm text-textPrimary hover:bg-cardHover">{tag.name}</button>)}</div>
+          <button type="button" onClick={commitNewTag} className="rounded-lg bg-accent px-3 py-2 text-sm font-bold text-page">{t("common.add")}</button>
+          <button type="button" onClick={() => { setNewTagName(""); setAddingTag(false); }} aria-label={t("common.close")} className="px-2 text-xl text-textMuted hover:text-textPrimary">×</button>
+        </div>
+        <p className="mb-1.5 mt-3 text-xs font-semibold uppercase tracking-wide text-textMuted">{t("matchHub.existingTags")}</p>
+        {tagOptions.length
+          ? <div className="flex max-h-36 flex-wrap gap-2 overflow-y-auto">{tagOptions.map((name) => { const selected = tagNames.some((tagName) => normalizeTagName(tagName) === normalizeTagName(name)); return <button key={normalizeTagName(name)} type="button" disabled={selected} onClick={() => addTagName(name)} className="rounded-lg border border-borderButton bg-button px-3 py-2 text-sm text-textPrimary hover:bg-cardHover disabled:cursor-default disabled:border-accent/30 disabled:bg-accentDim disabled:text-accent">{selected ? "✓ " : ""}{name}</button>; })}</div>
+          : <p className="text-sm text-textMuted">{t("matchHub.allExistingTagsAdded")}</p>}
       </div>}
       <Link href="/dashboard/settings#quick-tags" target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-xs font-semibold text-accent hover:underline">{t("matchHub.manageTagLibrary")} ↗</Link>
     </section>}

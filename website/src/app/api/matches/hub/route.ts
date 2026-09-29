@@ -10,7 +10,7 @@ import { deleteObject } from "@/lib/r2/upload";
 
 const FINISHED_PAGE_SIZE = 20;
 const UPCOMING_PAGE_SIZE = 20;
-const MATCH_HUB_COLUMNS = "id, coach_id, team_a_id, team_a_name, team_b_name, team_a_belgian_club_id, team_b_belgian_club_id, match_date, start_time, status, score_a, score_b, player_ids, live_tag_names, club_team_id, external_source, is_home_match, meeting_time_enabled, meeting_time, field_option_id, locker_room_option_id, visitor_locker_room_option_id, referee_option_id, official_referee_name, official_assistant_referee_1_name, official_assistant_referee_2_name, meeting_place_option_id, meeting_place_custom, match_videos(video_id)";
+const MATCH_HUB_COLUMNS = "id, coach_id, team_a_id, team_a_name, team_b_name, team_a_belgian_club_id, team_b_belgian_club_id, match_date, start_time, status, score_a, score_b, player_ids, live_tag_names, custom_live_tag_names, club_team_id, external_source, is_home_match, meeting_time_enabled, meeting_time, field_option_id, locker_room_option_id, visitor_locker_room_option_id, referee_option_id, official_referee_name, official_assistant_referee_1_name, official_assistant_referee_2_name, meeting_place_option_id, meeting_place_custom, match_videos(video_id)";
 const TEAM_HUB_COLUMNS = "id, coach_id, club_team_id, name";
 const PLAYER_HUB_COLUMNS = "id, team_id, first_name, last_name, initials, jersey_number, role";
 

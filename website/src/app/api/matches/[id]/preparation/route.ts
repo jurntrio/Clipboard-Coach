@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { isMatchFormat } from "@/lib/match-defaults";
+import { uniqueTagNames } from "@/lib/tag-names";
 
 async function context(matchId: string) {
   const supabase = createClient();
@@ -127,7 +128,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
   const isHomeMatch = ctx.match.is_home_match !== false;
   const tags = Array.isArray(body?.tagNames)
-    ? body.tagNames.filter((value: unknown): value is string => typeof value === "string").map((value: string) => value.trim().slice(0, 60)).filter(Boolean).slice(0, 30)
+    ? uniqueTagNames(body.tagNames.filter((value: unknown): value is string => typeof value === "string").map((value: string) => value.slice(0, 60))).slice(0, 30)
+    : [];
+  const customTags = Array.isArray(body?.customTagNames)
+    ? uniqueTagNames(body.customTagNames.filter((value: unknown): value is string => typeof value === "string").map((value: string) => value.slice(0, 60))).slice(0, 30)
     : [];
   const update = {
     ...(canPlan ? {
@@ -147,7 +151,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       match_period_minutes: integer(body?.periodMinutes, 1, 120),
       match_minimum_players: integer(body?.minimumPlayers, 1, 30),
       transport_mode: !isHomeMatch && body?.transportMode === "club" ? "club" : "own",
-      ...(canTags ? { live_tag_names: tags } : {})
+      ...(canTags ? { live_tag_names: tags, custom_live_tag_names: customTags } : {})
     } : {}),
     ...(canSelect ? { player_ids: ctx.access.goalkeeperPlayerIds === null
       ? selectedRows.filter((row: any) => row.selected).map((row: any) => row.player_id)

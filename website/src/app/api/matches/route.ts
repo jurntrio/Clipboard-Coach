@@ -3,12 +3,13 @@ import { getClubContext } from "@/lib/auth/active-club";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { resolveBelgianClubByName, resolveBelgianClubForClub } from "@/lib/belgian-clubs/resolve-belgian-club-by-name";
+import { uniqueTagNames } from "@/lib/tag-names";
 
 type MatchInput = {
   id?: string; team_a_id?: string | null; team_a_name?: string; team_b_name?: string;
   match_date?: string | null; start_time?: string | null; status?: "scheduled" | "live" | "finished";
   recording_start_time?: string | null;
-  score_a?: number | null; score_b?: number | null; player_ids?: string[]; live_tag_names?: string[];
+  score_a?: number | null; score_b?: number | null; player_ids?: string[]; live_tag_names?: string[]; custom_live_tag_names?: string[];
   is_home_match?: boolean;
 };
 
@@ -62,6 +63,12 @@ export async function POST(request: Request) {
     resolveBelgianClubForClub(context.activeClubId),
     resolveBelgianClubByName(body.team_b_name)
   ]);
+  const liveTagNames = Array.isArray(body.live_tag_names)
+    ? uniqueTagNames(body.live_tag_names.filter((value): value is string => typeof value === "string").map((value) => value.slice(0, 60))).slice(0, 30)
+    : [];
+  const customLiveTagNames = Array.isArray(body.custom_live_tag_names)
+    ? uniqueTagNames(body.custom_live_tag_names.filter((value): value is string => typeof value === "string").map((value) => value.slice(0, 60))).slice(0, 30)
+    : [];
   const payload = {
     team_a_id: body.team_a_id ?? null, team_a_name: body.team_a_name.trim(), team_b_id: null,
     team_a_belgian_club_id: ownBelgianClubId,
@@ -69,7 +76,7 @@ export async function POST(request: Request) {
     match_date: body.match_date ?? null, start_time: body.start_time ?? null,
     recording_start_time: body.recording_start_time ?? null,
     status: body.status ?? "scheduled", score_a: body.score_a ?? null, score_b: body.score_b ?? null,
-    player_ids: body.player_ids ?? [], live_tag_names: body.live_tag_names ?? [], club_id: context.activeClubId,
+    player_ids: body.player_ids ?? [], live_tag_names: liveTagNames, custom_live_tag_names: customLiveTagNames, club_id: context.activeClubId,
     club_team_id: linkedClubTeamId, is_home_match: body.is_home_match !== false
   };
 
