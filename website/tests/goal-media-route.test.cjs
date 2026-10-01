@@ -40,7 +40,7 @@ function fixture({ authenticated = true, canEdit = true, teamAllowed = true, lin
       hasClubPermission: (_access, permission) => permission === "games.view" || permission === "video.view" || canEdit },
     "@/lib/goal-media": helpers
   });
-  return { writes, post: body => route.POST({ json: async () => ({ tagId: "tag", scoreAfter: "0-1", ...body }) }, { params: { id: "match" } }) };
+  return { writes, patch: body => route.PATCH({ json: async () => ({ tagId: "tag", scoreAfter: "0-1", ...body }) }, { params: { id: "match" } }), post: body => route.POST({ json: async () => ({ tagId: "tag", scoreAfter: "0-1", ...body }) }, { params: { id: "match" } }) };
 }
 
 test("video-first links an away goal without prematurely creating a clip", async () => {
@@ -78,3 +78,5 @@ test("a duplicate tag conflict is visible and never reports successful storage",
 test("report confirms an independent clip range without altering tag times", async () => {
  const f=fixture(); const response=await f.post({saveClip:true,startTime:9,endTime:30,scorerId:"player"}); assert.equal(response.status,200); assert.equal(f.writes[0].payload.p_start,9); assert.equal(f.writes[0].payload.p_end,30); assert.equal(f.writes[0].payload.p_goal.scorerPlayerId,"player");
 });
+
+test("editing explicitly carries the original link identity and keeps regular linking guarded", async () => { const f=fixture(); assert.equal((await f.patch({})).status,400); assert.equal(f.writes.length,0); assert.equal((await f.patch({mediaId:"media",previousGoalId:"goal-1"})).status,200); assert.equal(f.writes[0].payload.p_goal._relink_media_id,"media"); assert.equal(f.writes[0].payload.p_goal._previous_goal_id,"goal-1"); assert.equal(f.writes[0].payload.p_create_clip,false); });

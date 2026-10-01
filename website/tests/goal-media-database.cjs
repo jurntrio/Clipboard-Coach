@@ -74,5 +74,15 @@ test("goal/report/archive migration works transactionally in PostgreSQL", { skip
     await link(null,null,secondGoal);
     assert.equal((await db.query("select goal_events from match_dossiers")).rows[0].goal_events.length, 2);
     await assert.rejects(link(null,null,goal), /TAG_ALREADY_LINKED/);
+    await db.exec(fs.readFileSync(path.join(__dirname, "../supabase/migrations/0209_edit_goal_media.sql"), "utf8"));
+    const beforeEdit = await link(30,45,secondGoal);
+    const thirdGoal = { ...secondGoal, id: "goal-3", scoreAfter: "2-1", _relink_media_id: beforeEdit.mediaId, _previous_goal_id: secondGoal.id };
+    await link(null,null,thirdGoal);
+    const edited = (await db.query("select * from match_goal_media where id=$1", [beforeEdit.mediaId])).rows[0];
+    assert.equal(edited.goal_id, "goal-3");
+    assert.equal(edited.clip_id, beforeEdit.clipId);
+    assert.equal((await db.query("select name from clips where id=$1", [edited.clip_id])).rows[0].name, "Doelpunt 2-1");
+    await assert.rejects(link(null,null,thirdGoal), /STALE_GOAL_MEDIA/);
+    assert.equal((await db.query("select goal_events from match_dossiers")).rows[0].goal_events.some(g => '_relink_media_id' in g), false);
   } finally { await db.close(); }
 });

@@ -42,3 +42,12 @@ koppelen en verslag bewaren zijn alleen uitvoerbaar door de service-role en
 vergrendelen dezelfde wedstrijd om gelijktijdig bewaren te serialiseren.
 Een oud verslag dat een inmiddels gekoppeld doelpunt zou verwijderen wordt
 geweigerd met een melding om te vernieuwen.
+
+## Een verkeerde koppeling corrigeren
+
+Kies **Bewerken** naast het betreffende fragment, selecteer het juiste doelpunt
+of vul een nieuwe stand in, en kies **Koppeling opslaan**. Het bewaarde fragment
+blijft bestaan en verhuist mee naar het juiste doelpunt. De andere koppelingen
+en het oorspronkelijke doelpunt blijven behouden. Ook de cliptijden kunnen
+opnieuw bevestigd worden. Migratie `0209_edit_goal_media.sql` bewaakt dat een
+gelijktijdig gewijzigde koppeling niet wordt overschreven.

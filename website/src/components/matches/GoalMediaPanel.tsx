@@ -32,6 +32,7 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
   const [scorerId, setScorerId] = useState("");
   const [assistId, setAssistId] = useState("");
   const [canEdit, setCanEdit] = useState(false);
+  const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
   const [tagId, setTagId] = useState("");
   const [goalId, setGoalId] = useState(reportGoal?.id ?? "");
   const [score, setScore] = useState("");
@@ -44,8 +45,9 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
   const [expanded, setExpanded] = useState(!reportGoal);
   const selectedTag = tags.find(item => item.id === tagId);
   const selectedLink = media.find(item => item.tag_id === tagId);
-  const selectedStart = selectedTag?.start_time;
-  const selectedEnd = selectedTag?.end_time;
+  const editingMedia = media.find(item => item.id === editingMediaId);
+  const selectedStart = editingMedia?.start_time ?? selectedTag?.start_time;
+  const selectedEnd = editingMedia?.end_time ?? selectedTag?.end_time;
   const selectedEventType = selectedTag?.event_type;
 
   const load = useCallback(async () => {
@@ -92,8 +94,8 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
           if (saved === false) throw new Error("De tagtijden konden niet worden opgeslagen.");
         }
       }
-      const response = await fetch(`/api/matches/${matchId}/goal-media`, { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tagId, goalId: goalId || undefined, scoreAfter: score, team, minute: minute === "" ? null : Number(minute),
+      const response = await fetch(`/api/matches/${matchId}/goal-media`, { method: editingMediaId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId: editingMediaId, previousGoalId: editingMedia?.goal_id, tagId, goalId: goalId || undefined, scoreAfter: score, team, minute: minute === "" ? null : Number(minute),
           scorerId: scorerId || undefined, assistId: assistId || undefined, saveClip, startTime, endTime }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
@@ -128,7 +130,7 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
           if (!process.ok) throw new Error(result.error || "Clipverwerking kon niet starten.");
         }
       }
-      setNotice(saveClip ? "Fragment bevestigd. De clip blijft bewaard zodra ‘Clip bewaard’ verschijnt." : "Doelpunt gekoppeld. Bevestig hieronder de cliptijden om het fragment te bewaren.");
+      setNotice(saveClip ? "Fragment bevestigd. De clip blijft bewaard zodra ‘Clip bewaard’ verschijnt." : "Koppeling opgeslagen. Een reeds bewaarde clip blijft behouden.");
       await load();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Bewaren mislukt.";
@@ -147,17 +149,19 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
       return <div key={item.id} className="flex flex-wrap items-center gap-2 text-xs text-textSecondary"><strong>{goal?.scoreAfter || "Doelpunt"}</strong><span>{goalMediaState(item, tag)}</span>
         {ready ? <Link href={`/dashboard/intradesk/clips/${item.clip_id}`} className="font-bold text-accent">▶ Bekijk doelpunt</Link>
           : item.tag_id && <Link href={`/dashboard/matches/${matchId}?tag=${item.tag_id}#doelpuntbeelden`} className="font-bold text-accent">Open tag in videoviewer</Link>}
+        {canEdit && item.tag_id && <button type="button" disabled={busy} onClick={() => { setEditingMediaId(item.id); setTagId(item.tag_id!); setGoalId(item.goal_id); setExpanded(true); setNotice(""); }} className="font-bold text-accent underline">Bewerken</button>}
         {item.clips?.render_status === "failed" && <span className="text-red-400">{item.clips.render_error}</span>}
       </div>;
     })}{!displayedMedia.length && <p className="text-xs text-textMuted">Nog geen videotag gekoppeld.</p>}</div>
     {expanded && canEdit && <div className="mt-3 space-y-3 border-t border-border pt-3">
-      <label className="block text-xs text-textSecondary">Doelpunttag<select disabled={busy} value={tagId} onChange={event => { const id = event.target.value; setTagId(id); const tag = tags.find(item => item.id === id); const metadata = tag?.event_metadata as {scorer_id?: string; assist_id?: string} | null; setScorerId(metadata?.scorer_id ?? ""); setAssistId(metadata?.assist_id ?? ""); }} className={input}><option value="">Kies een tag</option>{tags.map(tag => <option key={tag.id} value={tag.id}>{tag.name} · {formatTime(tag.start_time)}</option>)}</select></label>
+      {editingMediaId && <div className="flex items-center justify-between text-xs"><strong>Koppeling bewerken</strong><button type="button" disabled={busy} onClick={() => { setEditingMediaId(null); setTagId(""); setNotice(""); }} className="text-accent">Annuleren</button></div>}
+      <label className="block text-xs text-textSecondary">Doelpunttag<select disabled={busy || !!editingMediaId} value={tagId} onChange={event => { const id = event.target.value; setEditingMediaId(null); setTagId(id); const tag = tags.find(item => item.id === id); const metadata = tag?.event_metadata as {scorer_id?: string; assist_id?: string} | null; setScorerId(metadata?.scorer_id ?? ""); setAssistId(metadata?.assist_id ?? ""); }} className={input}><option value="">Kies een tag</option>{tags.map(tag => <option key={tag.id} value={tag.id}>{tag.name} · {formatTime(tag.start_time)}</option>)}</select></label>
       {!reportGoal && <label className="block text-xs text-textSecondary">Doelpunt in het verslag<select disabled={busy} value={goalId} onChange={event => setGoalId(event.target.value)} className={input}><option value="">Nieuw doelpunt</option>{goals.filter(goal => goal.scoreAfter).map(goal => <option key={goal.id} value={goal.id}>{goal.scoreAfter}{goal.minute != null ? ` · ${goal.minute}'` : ""}</option>)}</select></label>}
       {!goalId && <div className="grid grid-cols-2 gap-2"><label className="text-xs text-textSecondary">Stand na doelpunt<input placeholder="1-0" value={score} onChange={event => setScore(event.target.value)} className={input} /></label><label className="text-xs text-textSecondary">Wedstrijdminuut<input type="number" min={0} max={120} value={minute} onChange={event => setMinute(event.target.value)} className={input} /></label><label className="text-xs text-textSecondary">Scorende ploeg<select value={team} onChange={event => setTeam(event.target.value as "home" | "away")} className={input}><option value="home">Thuisploeg</option><option value="away">Uitploeg</option></select></label></div>}
       {selectedTag && !goalId && <div className="grid grid-cols-2 gap-2"><label className="text-xs text-textSecondary">Doelpuntenmaker<select disabled={busy} value={scorerId} onChange={event => { setScorerId(event.target.value); if (assistId === event.target.value) setAssistId(""); }} className={input}><option value="">Niet ingevuld</option>{players.map(player => <option key={player.id} value={player.id}>{player.first_name} {player.last_name}</option>)}</select></label><label className="text-xs text-textSecondary">Assistgever<select disabled={busy} value={assistId} onChange={event => setAssistId(event.target.value)} className={input}><option value="">Geen assist</option>{players.filter(player => player.id !== scorerId).map(player => <option key={player.id} value={player.id}>{player.first_name} {player.last_name}</option>)}</select></label></div>}
       {selectedTag && isLocalVideoUrl(sourceUrls[selectedTag.video_id] ?? "") && !files[selectedTag.video_id] && <label className="block text-xs text-textSecondary">Oorspronkelijke lokale opname<input type="file" accept="video/*" disabled={busy} onChange={event => { const file = event.target.files?.[0]; if (file) setReportFiles(current => ({ ...current, [selectedTag.video_id]: file })); }} className={input} /></label>}
       {selectedTag && <div className="grid grid-cols-2 gap-2"><label className="text-xs text-textSecondary">Begin clip<input disabled={busy} value={start} onChange={event => setStart(event.target.value)} className={input} /></label><label className="text-xs text-textSecondary">Einde clip<input disabled={busy} value={end} onChange={event => setEnd(event.target.value)} className={input} /></label></div>}
-      <div className="flex flex-wrap gap-2"><button type="button" disabled={busy || !tagId} onClick={() => void save(false)} className="rounded-lg border border-borderButton px-3 py-2 text-xs font-bold text-textPrimary disabled:opacity-40">Tag koppelen</button><button type="button" disabled={busy || !tagId} onClick={() => void save(true)} className="rounded-lg bg-accent px-3 py-2 text-xs font-bold text-page disabled:opacity-40">{busy ? "Bezig…" : "Tijden bevestigen en clip bewaren"}</button></div>
+      <div className="flex flex-wrap gap-2"><button type="button" disabled={busy || !tagId} onClick={() => void save(false)} className="rounded-lg border border-borderButton px-3 py-2 text-xs font-bold text-textPrimary disabled:opacity-40">{editingMediaId ? "Koppeling opslaan" : "Tag koppelen"}</button><button type="button" disabled={busy || !tagId} onClick={() => void save(true)} className="rounded-lg bg-accent px-3 py-2 text-xs font-bold text-page disabled:opacity-40">{busy ? "Bezig…" : "Tijden bevestigen en clip bewaren"}</button></div>
       <p className="text-xs text-textMuted">De oorspronkelijke opname moet beschikbaar blijven tot ‘Clip bewaard’ verschijnt. Daarna opent het verslag het fragment uit onze eigen opslag.</p>
       {!onTimesSaved && <p className="text-xs text-textMuted">Bewaar eerst wijzigingen aan het verslag. Koppel daarna de tag aan het opgeslagen doelpunt.</p>}
 
