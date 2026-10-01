@@ -1,5 +1,7 @@
 "use client";
 
+import { GoalMediaPanel } from "./GoalMediaPanel";
+import { normalizeReportGoals } from "@/lib/goal-media";
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
@@ -55,12 +57,8 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
   canComplete?: boolean; scoutingEditable?: boolean; played: boolean; scoreA: number | null; scoreB: number | null; ownTeamSide: "home" | "away"; homeTeamName: string; awayTeamName: string; completed: boolean; matchPeriodCount?: number | null; matchPeriodMinutes?: number | null; showSelection?: boolean; showReport?: boolean; showScouting?: boolean; showClips?: boolean;
 }) {
   const router = useRouter();
-  const expectedGoals = Array.from({ length: (scoreA ?? 0) + (scoreB ?? 0) }, (_, index) => ({ id: `goal-${index + 1}` }));
   const savedGoals = initialDossier?.goal_events ?? [];
-  const normalizedGoals = expectedGoals.map((expected, index) => {
-    const saved = savedGoals[index]
-      ? { ...newGoal(expected.id), ...savedGoals[index], id: expected.id }
-      : newGoal(expected.id);
+  const normalizedGoals = normalizeReportGoals(savedGoals, (scoreA ?? 0) + (scoreB ?? 0)).map((saved, index) => {
     if (!saved.scoreAfter && scoreB === 0) return { ...saved, scoreAfter: `${index + 1}-0`, team: "home" as const };
     if (!saved.scoreAfter && scoreA === 0) return { ...saved, scoreAfter: `0-${index + 1}`, team: "away" as const };
     return saved;
@@ -249,6 +247,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
           </div>}
           <GoalEditor goals={draft.goal_events} players={reportPlayers} ownTeamSide={ownTeamSide} homeTeamName={homeTeamName}
             awayTeamName={awayTeamName} editable={editable} onChange={goal_events => setDraft(current => ({ ...current, goal_events }))} />
+          <GoalMediaPanel matchId={matchId} ownTeamIsHome={ownTeamSide === "home"} refreshKey={saving ? 1 : 0} />
         </div>
         {field("cards", "Kaarten", "Gele en rode kaarten…")}
         {field("chances", "Kansen", "Grote kansen en gemiste mogelijkheden…")}

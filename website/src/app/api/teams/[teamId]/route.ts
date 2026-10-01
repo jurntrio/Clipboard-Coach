@@ -52,7 +52,7 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
       const existing = uniqueMatches.get(key);
       if (!existing || (!existing.completed_at && !!match.completed_at) || `${match.updated_at}` > `${existing.updated_at}`) uniqueMatches.set(key, match);
     }
-    return NextResponse.json({ matches: [...uniqueMatches.values()] });
+    return NextResponse.json({ matches: [...uniqueMatches.values()], canViewVideo: !!access && hasClubPermission(access, "games.view") && hasClubPermission(access, "video.view") });
   }
 
   if (section === "training") {

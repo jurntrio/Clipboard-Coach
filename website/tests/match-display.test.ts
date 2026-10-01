@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getMatchDisplay } from "../src/lib/match-display.ts";
+import { getMatchDisplay, getMatchTitle } from "../src/lib/match-display.ts";
 
 test("shows own-team home matches as team A against team B", () => {
   assert.deepEqual(getMatchDisplay({
@@ -64,4 +64,12 @@ test("prefers official federation home and away names when available", () => {
     homeScore: 4,
     awayScore: 0
   });
+});
+
+test("viewer title uses official home-away order despite legacy home flag", () => {
+ assert.equal(getMatchTitle({ team_a_name: "KM Torhout", team_b_name: "Brakel", is_home_match: true, official_home_team_name: " Brakel ", official_away_team_name: "KM Torhout" }, "A", "B"), "Brakel – KM Torhout");
+});
+test("viewer title falls back to away order and missing team names", () => {
+ assert.equal(getMatchTitle({ team_a_name: "KM Torhout", team_b_name: "Brakel", is_home_match: false }, "A", "B"), "Brakel – KM Torhout");
+ assert.equal(getMatchTitle(null, "A", "B"), "A – B");
 });

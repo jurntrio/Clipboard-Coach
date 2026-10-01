@@ -95,19 +95,14 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     });
     return [{ id: typeof block?.id === "string" ? block.id.slice(0, 100) : `block-${blockIndex}`, startMinute, positions }];
   }) : [];
-  const { error } = await admin.from("match_dossiers").upsert({
-    match_id: match.id, ...payload, ...scouting,
-    ...(canEditDossier ? { goal_events: goalEvents, lineup_positions: lineupPositions, lineup_blocks: lineupBlocks, player_reviews: playerReviews.filter(review => allowedLineupPlayerIds.has(review.playerId)) } : {}),
-    updated_by: user.id, updated_at: new Date().toISOString()
-  }, { onConflict: "match_id" });
+  const { error } = await admin.rpc("save_match_dossier_with_goal_media", {
+    p_match_id: match.id, p_user_id: user.id, p_edit_report: canEditDossier,
+    p_home_score: homeScore, p_away_score: awayScore,
+    p_payload: { ...payload, ...scouting,
+      ...(canEditDossier ? { goal_events: goalEvents, lineup_positions: lineupPositions, lineup_blocks: lineupBlocks,
+        player_reviews: playerReviews.filter(review => allowedLineupPlayerIds.has(review.playerId)) } : {}) }
+  });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  if (canEditDossier) {
-    const { error: scoreError } = await admin.from("matches").update(match.is_home_match
-      ? { score_a: homeScore, score_b: awayScore }
-      : { score_a: awayScore, score_b: homeScore }
-    ).eq("id", match.id);
-    if (scoreError) return NextResponse.json({ error: scoreError.message }, { status: 400 });
-  }
   return NextResponse.json({ ok: true });
 }
 

@@ -82,7 +82,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     admin.from("match_guest_players").select("id, first_name, last_name, jersey_number").eq("match_id", match.id).order("created_at"),
     admin.from("match_dossiers").select("*").eq("match_id", match.id).maybeSingle(),
     videoIds.length
-      ? admin.from("clips").select("id, name, render_status, created_at, rendered_segments, videos(video_url), clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, color, start_time, end_time)), share_links(token, short_code)").in("video_id", videoIds).order("created_at", { ascending: false })
+      ? admin.from("clips").select("id, name, archived_goal, render_status, created_at, rendered_segments, videos(video_url), clip_segments(id, sequence_order, video_id, videos(video_url), tags(id, name, color, start_time, end_time)), share_links(token, short_code)").in("video_id", videoIds).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     match.completed_by
       ? admin.from("profiles").select("full_name, email").eq("id", match.completed_by).maybeSingle()
@@ -102,7 +102,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
     })),
     ...(guestPlayers ?? [])
   ];
-  const failedClips = (clips ?? []).filter((clip: any) => clip.render_status === "failed");
+  const failedClips = (clips ?? []).filter((clip: any) => clip.render_status === "failed" && !clip.archived_goal);
   await Promise.all(failedClips.map(async (clip: any) => {
     const keys = ((clip.rendered_segments ?? []) as Array<{ key?: string }>).map(segment => segment.key).filter((key): key is string => !!key);
     const removals = await Promise.allSettled(keys.map(key => deleteObject(key)));

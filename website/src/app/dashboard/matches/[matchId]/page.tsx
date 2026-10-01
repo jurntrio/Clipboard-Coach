@@ -1,5 +1,6 @@
 "use client";
 
+import { getMatchTitle } from "@/lib/match-display";
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -23,6 +24,8 @@ import { ActiveDrawingOverlay } from "@/components/video-player/ActiveDrawingOve
 import { useI18n } from "@/i18n/client";
 import { getTagEventKind } from "@/lib/tag-events";
 import { GoalTagDialog, type GoalTagDetails } from "@/components/tags/GoalTagDialog";
+import { GoalMediaPanel } from "@/components/matches/GoalMediaPanel";
+import type { ReportGoal } from "@/lib/goal-media";
 import { externalRecordingConfig } from "@/lib/external-recording";
 import { useFocusMode } from "@/hooks/useFocusMode";
 import { useMatchVideoSources, type MatchBlock } from "@/hooks/useMatchVideoSources";
@@ -115,11 +118,7 @@ function formatClock(totalSeconds: number) {
   return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function matchTitle(match: Pick<Match, "team_a_name" | "team_b_name" | "is_home_match"> | null, fallbackA: string, fallbackB: string) {
-  const teamA = match?.team_a_name || fallbackA;
-  const teamB = match?.team_b_name || fallbackB;
-  return match?.is_home_match === false ? `${teamB} - ${teamA}` : `${teamA} - ${teamB}`;
-}
+
 
 function liveTagElapsedSeconds(liveTag: LiveMatchTag, match: Match | null, timelineLeadSeconds = 0) {
   return match ? liveTagVideoSeconds(liveTag, match, timelineLeadSeconds) : null;
@@ -503,6 +502,8 @@ export default function MatchViewerPage() {
     router.push("/dashboard");
   }
 
+  const [reportGoals, setReportGoals] = useState<ReportGoal[]>([]);
+  const [focusGoalTag, setFocusGoalTag] = useState<string | null>(null);
   async function persistProfiledTag(video: Video, label: string, localTime: number, goal?: GoalTagDetails) {
     const selectedPlayers = match?.player_ids?.length ? match.player_ids : players.map((player) => player.id);
     const { data, error: tagError } = await supabase.rpc("create_profiled_tag", {
@@ -521,7 +522,15 @@ export default function MatchViewerPage() {
       return;
     }
     const created = (Array.isArray(data) ? data[0] : data) as Tag | null;
-    if (created) setTags((current) => [...current, created].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+    if (created) {
+      setTags((current) => [...current, created].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+      if (goal) {
+        const linked = await fetch(`/api/matches/${matchId}/goal-media`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId: created.id, goalId: goal.goalId, scoreAfter: goal.scoreAfter, minute: goal.minute, scorerId: goal.scorerId, assistId: goal.assistId }) });
+        const result = await linked.json();
+        if (!linked.ok) setError(result.error || "Tag gemaakt, maar doelpunt nog niet gekoppeld. Koppel het bij Doelpuntbeelden.");
+        setFocusGoalTag(created.id);
+      }
+    }
   }
 
   async function addTag(label: string) {
@@ -530,6 +539,8 @@ export default function MatchViewerPage() {
     const localTime = videoRef.current?.currentTime ?? Math.max(0, combinedTime - (offsets.map.get(currentVideo.id) ?? 0));
     const marker = isPeriodMarker(trimmedLabel);
     if (!marker && getTagEventKind(trimmedLabel) === "goal") {
+      const goalResponse = await fetch(`/api/matches/${matchId}/goal-media`, { cache: "no-store" });
+      if (goalResponse.ok) setReportGoals((await goalResponse.json()).goals ?? []);
       setPendingGoal({ video: currentVideo, label: trimmedLabel, localTime });
       return;
     }
@@ -724,6 +735,20 @@ export default function MatchViewerPage() {
     const { error: updateError } = await supabase.from("live_match_tags").update({ reviewed_at: reviewedAt }).eq("id", liveTag.id);
     if (updateError) setLiveTags((current) => current.map((item) => item.id === liveTag.id ? { ...item, reviewed_at: liveTag.reviewed_at } : item));
   }
+
+  const goalLinkSeek = useRef<(time: number) => void>(() => undefined);
+  const openedGoalLink = useRef("");
+  goalLinkSeek.current = seekTo;
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tag");
+    const key = `${matchId}:${requested}`;
+    if (openedGoalLink.current === key) return;
+    const tag = tags.find(tag => tag.id === requested);
+    if (!tag) return;
+    openedGoalLink.current = key;
+    setFocusGoalTag(tag.id);
+    goalLinkSeek.current((offsets.map.get(tag.video_id) ?? 0) + tag.start_time);
+  }, [matchId, tags, offsets.map]);
 
   function seekTo(time: number) {
     if (activePhaseTag) {
@@ -1029,12 +1054,19 @@ export default function MatchViewerPage() {
               })}
             </div>}
           </section>
-          {videos[0] && <ClipBuilder videoId={videos[0].id} videoIds={allVideos.map((video) => video.id)} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo={allVideos.some((video) => isLocalVideoUrl(video.video_url))} localVideoIds={allVideos.filter((video) => isLocalVideoUrl(video.video_url)).map((video) => video.id)} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={matchTitle(match, t("match.teamA"), t("match.teamB"))} onClipCreated={() => setSelectedTagIds([])} />}
+          <GoalMediaPanel matchId={matchId} ownTeamIsHome={match?.is_home_match !== false} tags={tags} files={files} localVideoIds={allVideos.filter(video => isLocalVideoUrl(video.video_url)).map(video => video.id)} focusTagId={focusGoalTag} onTimesSaved={async (tagId, start, end) => {
+            const response = await fetch("/api/matches/" + matchId + "/tags", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId, startTime: start, endTime: end }) });
+            const body = await response.json();
+            if (!response.ok) { setError(body.error); return false; }
+            setTags(current => current.map(tag => tag.id === body.tag.id ? body.tag : tag));
+            return true;
+          }} />
+          {videos[0] && <ClipBuilder videoId={videos[0].id} videoIds={allVideos.map((video) => video.id)} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo={allVideos.some((video) => isLocalVideoUrl(video.video_url))} localVideoIds={allVideos.filter((video) => isLocalVideoUrl(video.video_url)).map((video) => video.id)} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={getMatchTitle(match, t("match.teamA"), t("match.teamB"))} onClipCreated={() => setSelectedTagIds([])} />}
         </aside>
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}
       {pendingPhaseTag && <PhaseTagDialog onCancel={() => setPendingPhaseTag(null)} onConfirm={savePhaseTag} />}
-      {pendingGoal && <GoalTagDialog players={players} onCancel={() => setPendingGoal(null)} onConfirm={async (details) => { const pending = pendingGoal; setPendingGoal(null); await persistProfiledTag(pending.video, pending.label, pending.localTime, details); }} />}
+      {pendingGoal && <GoalTagDialog players={players} goals={reportGoals} onCancel={() => setPendingGoal(null)} onConfirm={async (details) => { const pending = pendingGoal; setPendingGoal(null); await persistProfiledTag(pending.video, pending.label, pending.localTime, details); }} />}
       <ConfirmDialog open={!!pendingTagDelete} title={t("tag.deleteTitle")} message={t("tag.deleteMessage", { name: pendingTagDelete?.name ?? t("tag.name") })} busy={deletingTag} onCancel={() => setPendingTagDelete(null)} onConfirm={() => void confirmTagDelete()} />
       <ConfirmDialog open={confirmDeleteMatch} title={t("match.deleteTitle")} message={t("match.deleteMessage")} busy={deletingMatch} onCancel={() => setConfirmDeleteMatch(false)} onConfirm={() => void deleteMatch()} />
     </div>

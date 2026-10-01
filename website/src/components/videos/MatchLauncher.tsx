@@ -1,5 +1,6 @@
 "use client";
 
+import { getMatchTitle } from "@/lib/match-display";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -20,11 +21,7 @@ function mergeVideos(current: Video[], incoming: Video[]): Video[] {
   return Array.from(map.values());
 }
 
-function matchTitle(match: Pick<Match, "team_a_name" | "team_b_name" | "is_home_match">, fallbackA: string, fallbackB: string) {
-  const teamA = match.team_a_name || fallbackA;
-  const teamB = match.team_b_name || fallbackB;
-  return match.is_home_match === false ? `${teamB} – ${teamA}` : `${teamA} – ${teamB}`;
-}
+
 
 type Mode = "recent" | "all" | "create";
 type SelectedVideo = { file: File; handle: FileSystemFileHandle | null; info: LocalVideoInfo };
@@ -178,7 +175,7 @@ export function MatchLauncher() {
     ...matches.filter(match => !!match.match_date && match.match_date <= today).map((match): RecentItem => ({
       kind: "match",
       id: match.id,
-      title: matchTitle(match, t("match.teamA"), t("match.teamB")),
+      title: getMatchTitle(match, t("match.teamA"), t("match.teamB")),
       date: match.match_date || t("match.noDate"),
       openedAt: `${match.match_date}T${match.start_time || "00:00:00"}`,
       count: match.match_videos.length,
@@ -189,7 +186,7 @@ export function MatchLauncher() {
   const searchItems: RecentItem[] = searchResults.map((match): RecentItem => ({
     kind: "match",
     id: match.id,
-    title: matchTitle(match, t("match.teamA"), t("match.teamB")),
+    title: getMatchTitle(match, t("match.teamA"), t("match.teamB")),
     date: match.match_date || t("match.noDate"),
     openedAt: `${match.match_date}T${match.start_time || "00:00:00"}`,
     count: match.match_videos.length,

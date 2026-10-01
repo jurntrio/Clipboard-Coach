@@ -101,12 +101,12 @@ export async function GET(request: Request) {
       ? admin.from("players").select(PLAYER_HUB_COLUMNS).in("team_id", teamIds).neq("role", "staff").order("last_name")
       : Promise.resolve({ data: [] }),
     canViewClips && videoIds.length
-      ? admin.from("clips").select(`id, coach_id, video_id, name, display_number, render_status, created_at, audience_type, audience_player_ids, rendered_segments, share_links(token, short_code${canSeeViewCounts ? ", view_count" : ""}), videos(title, video_url), clip_segments(id, sequence_order, video_id, render_status, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))`)
+      ? admin.from("clips").select(`id, coach_id, video_id, name, display_number, archived_goal, render_status, created_at, audience_type, audience_player_ids, rendered_segments, share_links(token, short_code${canSeeViewCounts ? ", view_count" : ""}), videos(title, video_url), clip_segments(id, sequence_order, video_id, render_status, videos(video_url), tags(id, name, color, start_time, end_time, player_ids))`)
           .in("video_id", videoIds).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] })
   ]);
 
-  const failedClips = (clips ?? []).filter((clip) => clip.render_status === "failed");
+  const failedClips = (clips ?? []).filter((clip) => clip.render_status === "failed" && !clip.archived_goal);
   await Promise.all(failedClips.map(async (clip) => {
     const keys = ((clip.rendered_segments ?? []) as Array<{ key?: string }>).map(segment => segment.key).filter((key): key is string => !!key);
     const removals = await Promise.allSettled(keys.map(key => deleteObject(key)));

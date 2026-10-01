@@ -21,3 +21,8 @@ export function getMatchDisplay(match: MatchDisplaySource) {
     awayScore: ownTeamIsHome ? match.score_b : match.score_a
   };
 }
+
+export function getMatchTitle(match: Pick<MatchDisplaySource, "team_a_name" | "team_b_name" | "is_home_match" | "official_home_team_name" | "official_away_team_name"> | null, fallbackA: string, fallbackB: string) {
+  const display = getMatchDisplay({ ...match, team_a_name: match?.team_a_name || fallbackA, team_b_name: match?.team_b_name || fallbackB, is_home_match: match?.is_home_match !== false, score_a: null, score_b: null });
+  return `${display.homeTeamName} – ${display.awayTeamName}`;
+}
