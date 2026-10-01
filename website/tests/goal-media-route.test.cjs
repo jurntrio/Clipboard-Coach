@@ -59,10 +59,10 @@ test("report-first reuses the goal ID, scorer and existing report notes", async 
   assert.equal(f.writes[0].payload.p_goal.description, goal.description);
   assert.equal(f.writes[0].payload.p_create_clip, true);
 });
-test("permission failures, foreign tags, stale ranges and missing goals never write", async () => {
+test("permission failures, foreign tags, invalid ranges and missing goals never write", async () => {
   for (const [options, body, status] of [
     [{ authenticated: false }, {}, 401], [{ canEdit: false }, {}, 403], [{ teamAllowed: false }, {}, 403],
-    [{ linkedVideo: false }, {}, 400], [{}, { saveClip: true, startTime: 9, endTime: 25 }, 400],
+    [{ linkedVideo: false }, {}, 400], [{}, { saveClip: true, startTime: -1, endTime: 25 }, 400],
     [{}, { saveClip: true, startTime: 10, endTime: 101 }, 400], [{}, { goalId: "missing" }, 400]
   ]) {
     const f = fixture(options); assert.equal((await f.post(body)).status, status); assert.equal(f.writes.length, 0);
@@ -73,4 +73,8 @@ test("a duplicate tag conflict is visible and never reports successful storage",
   const response = await f.post({});
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /al aan een ander doelpunt/);
+});
+
+test("report confirms an independent clip range without altering tag times", async () => {
+ const f=fixture(); const response=await f.post({saveClip:true,startTime:9,endTime:30,scorerId:"player"}); assert.equal(response.status,200); assert.equal(f.writes[0].payload.p_start,9); assert.equal(f.writes[0].payload.p_end,30); assert.equal(f.writes[0].payload.p_goal.scorerPlayerId,"player");
 });

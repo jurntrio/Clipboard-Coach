@@ -247,7 +247,7 @@ export function MatchDossierTabs({ matchId, players, reportPlayers = players, cl
           </div>}
           <GoalEditor goals={draft.goal_events} players={reportPlayers} ownTeamSide={ownTeamSide} homeTeamName={homeTeamName}
             awayTeamName={awayTeamName} editable={editable} onChange={goal_events => setDraft(current => ({ ...current, goal_events }))} />
-          <GoalMediaPanel matchId={matchId} ownTeamIsHome={ownTeamSide === "home"} refreshKey={saving ? 1 : 0} />
+          {showClips && <GoalMediaPanel matchId={matchId} ownTeamIsHome={ownTeamSide === "home"} refreshKey={saving ? 1 : 0} onGoalLinked={goal => { setDraft(current => ({ ...current, goal_events: current.goal_events.some(item => item.id === goal.id) ? current.goal_events.map(item => item.id === goal.id ? { ...item, scoreAfter: item.scoreAfter || goal.scoreAfter, team: item.scoreAfter ? item.team : goal.team, minute: item.minute ?? goal.minute, scorerType: item.scorerType || goal.scorerType, scorerPlayerId: item.scorerPlayerId || goal.scorerPlayerId, assistType: item.assistType === "none" ? goal.assistType : item.assistType, assistPlayerId: item.assistPlayerId || goal.assistPlayerId } : item) : normalizeReportGoals([...current.goal_events, goal], current.goal_events.length) })); router.refresh(); }} />}
         </div>
         {field("cards", "Kaarten", "Gele en rode kaarten…")}
         {field("chances", "Kansen", "Grote kansen en gemiste mogelijkheden…")}

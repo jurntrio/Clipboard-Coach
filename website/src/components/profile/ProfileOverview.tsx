@@ -25,6 +25,7 @@ export type ProfileActivity = {
   score: string | null;
   contextIds: string[];
   href: string;
+  videoHref?: string;
 };
 
 function formatDate(value: string | null) {
@@ -154,7 +155,7 @@ export function ProfileOverview({ name, email, clubName, contexts, activities }:
             : <div className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Geen komende wedstrijden of trainingen.</div>}
         </div>
         <div className="min-w-0"><h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-textSecondary">Recent afgerond</h3>
-          {recent.length ? <div className="space-y-2">{recent.map(item => <ActivityRow key={item.id} item={item} labels={contextNames} />)}</div>
+          {recent.length ? <div className="space-y-2">{recent.map(item => <ActivityRow key={item.id} item={item} labels={contextNames} completed />)}</div>
             : <div className="rounded-xl border border-dashed border-border p-5 text-sm text-textMuted">Nog geen afgeronde activiteiten.</div>}
         </div>
       </div>
@@ -163,14 +164,14 @@ export function ProfileOverview({ name, email, clubName, contexts, activities }:
   </main>;
 }
 
-function ActivityRow({ item, labels, compact = false }: { item: ProfileActivity; labels: Map<string, string>; compact?: boolean }) {
+function ActivityRow({ item, labels, compact = false, completed = false }: { item: ProfileActivity; labels: Map<string, string>; compact?: boolean; completed?: boolean }) {
   const subjects = item.contextIds.map(id => labels.get(id)).filter(Boolean).join(", ");
-  return <Link href={item.href} className="flex min-w-0 max-w-full items-center gap-3 overflow-hidden rounded-xl border border-borderSubtle bg-cardDeep p-3 transition hover:border-accent">
+  return <div className="flex items-center gap-2"><Link href={item.href} className="flex flex-1 min-w-0 max-w-full items-center gap-3 overflow-hidden rounded-xl border border-borderSubtle bg-cardDeep p-3 transition hover:border-accent">
     <Image src={item.kind === "match" ? "/branding/games.webp" : "/branding/training.webp"} alt="" width={40} height={40} className="h-10 w-10 shrink-0 object-contain" />
     <span className="min-w-0 flex-1">
       <strong className="block truncate text-sm text-textBright">{item.title}</strong>
       <span className="block text-xs text-textMuted">{formatDate(item.date)}{item.time ? ` · ${item.time}` : ""}{subjects ? ` · ${subjects}` : ""}</span>
     </span>
     {!compact && item.score && <strong className="text-sm text-accent">{item.score}</strong>}
-  </Link>;
+  </Link>{item.videoHref && completed && <Link href={item.videoHref} aria-label="Open videoviewer" title="Open videoviewer" className="shrink-0 rounded-lg border border-borderButton bg-button px-3 py-2 text-sm font-bold text-accent">▶<span className="sr-only"> Open videoviewer</span></Link>}</div>;
 }

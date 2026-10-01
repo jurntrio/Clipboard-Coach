@@ -22,17 +22,18 @@ async function authorize(matchId: string, write: boolean) {
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const auth = await authorize(params.id, false);
   if ("error" in auth) return auth.error;
-  const { data: links, error: linksError } = await auth.admin.from("match_videos").select("video_id").eq("match_id", params.id);
+  const { data: links, error: linksError } = await auth.admin.from("match_videos").select("video_id,videos(video_url)").eq("match_id", params.id);
   const ids = (links ?? []).map(link => link.video_id);
-  const [dossier, media, tags] = await Promise.all([
+  const [dossier, media, tags, players] = await Promise.all([
     auth.admin.from("match_dossiers").select("goal_events").eq("match_id", params.id).maybeSingle(),
     auth.admin.from("match_goal_media").select("*,clips(id,render_status,render_error,rendered_segments)").eq("match_id", params.id),
     ids.length ? auth.admin.from("tags").select("id,video_id,name,event_type,event_metadata,start_time,end_time,occurred_at_seconds")
-      .in("video_id", ids).or("event_type.in.(goal_for,goal_against),name.ilike.goal%") : Promise.resolve({ data: [], error: null })
+      .in("video_id", ids).or("event_type.in.(goal_for,goal_against),name.ilike.goal%") : Promise.resolve({ data: [], error: null }),
+    auth.match.team_a_id ? auth.admin.from("players").select("id,first_name,last_name").eq("team_id", auth.match.team_a_id).eq("role", "player").order("last_name") : Promise.resolve({ data: [], error: null })
   ]);
-  const error = linksError ?? dossier.error ?? media.error ?? tags.error;
+  const error = linksError ?? dossier.error ?? media.error ?? tags.error ?? players.error;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ goals: dossier.data?.goal_events ?? [], media: media.data ?? [], tags: tags.data ?? [],
+  return NextResponse.json({ goals: dossier.data?.goal_events ?? [], media: media.data ?? [], tags: tags.data ?? [], players: players.data ?? [], videos: links ?? [],
     canEdit: !auth.access.readOnly && (hasClubPermission(auth.access, "games.tag") || hasClubPermission(auth.access, "games.report.manage")) });
 }
 
@@ -66,7 +67,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
     const video = (Array.isArray(videoLink.videos) ? videoLink.videos[0] : videoLink.videos) as { duration: number | null; video_url: string } | null;
     const range = body.saveClip ? validateGoalRange(body.startTime, body.endTime, video?.duration) : null;
-    if (range && (tag.start_time !== range.start || tag.end_time !== range.end)) throw new Error("Sla eerst de aangepaste tagtijden op en bevestig daarna het fragment.");
     const { data, error } = await auth.admin.rpc("link_match_goal_media", {
       p_match_id: params.id, p_tag_id: tag.id, p_goal: goal, p_user_id: auth.user.id,
       p_create_clip: !!range, p_start: range?.start ?? null, p_end: range?.end ?? null

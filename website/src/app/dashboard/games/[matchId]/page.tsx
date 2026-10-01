@@ -13,7 +13,7 @@ import { hasScheduledEventEnded } from "@/lib/schedule-status";
 
 type GuardianPlayer = { player_id: string; team_id: string | null };
 type PlayerFacingReview = { playerId?: unknown; playerReport?: unknown };
-type ScoreGoal = { team?: "home" | "away"; scoreAfter?: string; minute?: number | null; scorerType?: string; scorerPlayerId?: string; scorerName?: string; assistType?: string; assistPlayerId?: string; assistName?: string };
+type ScoreGoal = { id?: string; team?: "home" | "away"; scoreAfter?: string; minute?: number | null; scorerType?: string; scorerPlayerId?: string; scorerName?: string; assistType?: string; assistPlayerId?: string; assistName?: string };
 
 function displayDate(value: string | null) {
   if (!value) return "Nog niet bepaald";
@@ -88,6 +88,13 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       ? admin.from("profiles").select("full_name, email").eq("id", match.completed_by).maybeSingle()
       : Promise.resolve({ data: null })
   ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: null }, { data: [] }, { data: null }];
+  const { data: goalMedia } = canViewVideo && canViewReport
+    ? await admin.from("match_goal_media").select("goal_id,clip_id,clips(render_status,rendered_segments)").eq("match_id", match.id)
+    : { data: [] };
+  const goalClipIds = Object.fromEntries((goalMedia ?? []).flatMap(item => {
+    const clip = Array.isArray(item.clips) ? item.clips[0] : item.clips;
+    return item.clip_id && clip?.render_status === "ready" && clip.rendered_segments?.length ? [[item.goal_id, item.clip_id]] : [];
+  }));
   const selectionNumberByPlayer = new Map((matchSelections ?? []).map(selection => [selection.player_id, selection.jersey_number]));
   const selectedPlayersWithMatchNumbers = (selectedPlayers ?? []).map(player => ({
     ...player, jersey_number: selectionNumberByPlayer.get(player.id) ?? player.jersey_number
@@ -147,7 +154,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
       <Link href="/dashboard" className="text-sm font-semibold text-accent hover:underline">← Terug naar dashboard</Link>
       <div className="flex flex-wrap gap-2">
         {canEditAnything && <Link href={editing ? `/dashboard/games/${match.id}` : `/dashboard/games/${match.id}?edit=1`} className="rounded-xl border border-borderButton bg-button px-4 py-2 text-sm font-semibold text-textPrimary">{editing ? "Bewerken sluiten" : played ? "Wedstrijdverslag opmaken" : "Wedstrijdvoorbereiding opmaken"}</Link>}
-        {canViewVideo && <Link href={`/dashboard/matches/${match.id}`} className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page">Open videoviewer</Link>}
+        {played && canViewVideo && <Link href={`/dashboard/matches/${match.id}`} className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-page">Open videoviewer</Link>}
       </div>
     </div>
 
@@ -164,7 +171,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
         <h2 className="text-xl font-black text-textBright sm:text-3xl">{awayTeamName}</h2>
       </div>
       <p className="mt-5 text-center text-sm text-textMuted">{displayDate(match.match_date)}{match.start_time ? ` · ${match.start_time.slice(0, 5)}` : ""}{match.official_series_name ? ` · ${match.official_series_name}` : ""}</p>
-      {canViewReport && dossier?.goal_events?.length > 0 && <ScoreTimeline goals={dossier.goal_events as ScoreGoal[]} players={reportPlayers} ownTeamSide={match.is_home_match ? "home" : "away"} />}
+      {canViewReport && dossier?.goal_events?.length > 0 && <ScoreTimeline clipIds={goalClipIds} goals={dossier.goal_events as ScoreGoal[]} players={reportPlayers} ownTeamSide={match.is_home_match ? "home" : "away"} />}
       {match.completed_at && <p className="mt-3 text-center text-xs font-semibold text-accent">
         Wedstrijd afgewerkt door {completedByProfile?.full_name?.trim() || completedByProfile?.email?.split("@")[0] || "onbekend"} · {new Date(match.completed_at).toLocaleString("nl-BE")}
       </p>}
@@ -243,7 +250,7 @@ export default async function GameOverviewPage({ params, searchParams }: { param
   </main>;
 }
 
-function ScoreTimeline({ goals, players, ownTeamSide }: { goals: ScoreGoal[]; players: Array<{ id: string; first_name: string; last_name: string }>; ownTeamSide: "home" | "away" }) {
+function ScoreTimeline({ goals, players, ownTeamSide, clipIds }: { clipIds: Record<string, string>; goals: ScoreGoal[]; players: Array<{ id: string; first_name: string; last_name: string }>; ownTeamSide: "home" | "away" }) {
   const playerName = (id?: string) => { const player = players.find(item => item.id === id); return player ? `${player.first_name} ${player.last_name}`.trim() : ""; };
   const person = (type?: string, playerId?: string, name?: string, assist = false) => type === "player" ? playerName(playerId) : type === "own_goal" ? (assist ? "Via tegenstander" : "Owngoal") : type === "custom" ? name?.trim() ?? "" : "";
   let previous = { home: 0, away: 0 };
@@ -259,7 +266,7 @@ function ScoreTimeline({ goals, players, ownTeamSide }: { goals: ScoreGoal[]; pl
   if (!rows.length) return null;
   const detail = (row: typeof rows[number]) => <span className="text-sm text-textPrimary"><strong>{row.goal.minute !== null && row.goal.minute !== undefined ? `${row.goal.minute}' · ` : ""}{row.scorer || "Doelpunt"}</strong>{row.assist && <span className="text-textMuted"> ({row.assist})</span>}</span>;
   const ball = (side: "home" | "away") => <FootballIcon className={side === ownTeamSide ? "text-green-600" : "text-red-600"} />;
-  return <section className="mx-auto mt-6 max-w-3xl border-t border-borderSubtle pt-5" aria-label="Scoreverloop"><h3 className="mb-3 text-center text-xs font-black uppercase tracking-[0.14em] text-textMuted">Scoreverloop</h3><div className="space-y-2">{rows.map(row => <div key={`${row.score}-${row.index}`} className="grid grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] items-center gap-2"><div className="flex min-w-0 items-center justify-end gap-2 text-right">{row.side === "home" && <>{detail(row)}{ball(row.side)}</>}</div><strong className="rounded-lg bg-cardDeep px-2 py-1 text-center text-sm text-textBright">{row.score}</strong><div className="flex min-w-0 items-center gap-2 text-left">{row.side === "away" && <>{ball(row.side)}{detail(row)}</>}</div></div>)}</div></section>;
+  return <section className="mx-auto mt-6 max-w-3xl border-t border-borderSubtle pt-5" aria-label="Scoreverloop"><h3 className="mb-3 text-center text-xs font-black uppercase tracking-[0.14em] text-textMuted">Scoreverloop</h3><div className="space-y-2">{rows.map(row => <div key={`${row.score}-${row.index}`} className="grid grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] items-center gap-2"><div className="flex min-w-0 items-center justify-end gap-2 text-right">{row.side === "home" && <>{detail(row)}{ball(row.side)}</>}</div>{row.goal.id && clipIds[row.goal.id] ? <Link href={`/dashboard/intradesk/clips/${clipIds[row.goal.id]}`} aria-label={`Bekijk doelpunt ${row.score}`} className="rounded-lg bg-accentDim px-2 py-1 text-center text-sm font-bold text-accent hover:underline">{row.score}<span className="block text-[10px]">▶ Bekijk</span></Link> : <strong className="rounded-lg bg-cardDeep px-2 py-1 text-center text-sm text-textBright">{row.score}</strong>}<div className="flex min-w-0 items-center gap-2 text-left">{row.side === "away" && <>{ball(row.side)}{detail(row)}</>}</div></div>)}</div></section>;
 }
 
 function FootballIcon({ className }: { className: string }) {

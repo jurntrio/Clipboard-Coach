@@ -10,7 +10,16 @@ Bij **Doelpuntbeelden** controleert de trainer begin/einde en kiest
 Lokale fragmenten worden in de browser gemaakt en naar R2 geüpload; 360/remote
 fragmenten worden door de bestaande worker gekopieerd en verwerkt naar R2.
 Alleen een voltooide clip met opgeslagen fragmenten krijgt **Clip bewaard**.
-Het verslag opent die zelfstandige clip via **Bekijk doelpunt**.
+Het verslag opent die zelfstandige clip via **Bekijk doelpunt**, ook rechtstreeks
+via de stand in **Scoreverloop**.
+
+Dezelfde bevestiging is beschikbaar bij **Doelpuntbeelden** in het wedstrijdverslag.
+Bewaar eerst de ingevulde doelpunten; kies daarna de tag, controleer begin/einde
+en bevestig de clip. Bij een lokale opname kan het bronbestand daar opnieuw
+worden gekozen. De bevestigde cliptijden kunnen afwijken van de oorspronkelijke
+tagtijden en worden afzonderlijk opgeslagen. Nieuwe doelpunten bieden een keuze
+voor doelpuntenmaker en assistgever; bestaande doelpunten bewerk je in het verslag.
+Het dashboard en de ploegwedstrijdlijst tonen de videolink bij afgelopen wedstrijden.
 
 Bevestigde tijden worden vastgelegd op het clipsegment. Een latere tagcorrectie
 verandert die snapshot niet: opnieuw bevestigen maakt een nieuwe bewaarde clip.

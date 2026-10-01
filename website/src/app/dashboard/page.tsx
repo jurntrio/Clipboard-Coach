@@ -4,7 +4,7 @@ import { getClubContext } from "@/lib/auth/active-club";
 import { ProfileOverview, type ProfileActivity, type ProfileContext } from "@/components/profile/ProfileOverview";
 import { TeamSelectionGate } from "@/components/teams/TeamSelectionGate";
 import { cookies } from "next/headers";
-import { canAccessTeam, getClubAccess } from "@/lib/auth/club-access";
+import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { ACTIVE_TEAM_COOKIE, readActiveTeamSelection } from "@/lib/auth/active-team";
 
 const LARGE_TEAM_LIST = 6;
@@ -171,6 +171,7 @@ export default async function DashboardHomePage() {
       : Promise.resolve({ data: [] })
   ]);
 
+  const videoAccess = clubId ? await getClubAccess(clubId, user) : null;
   const activities: ProfileActivity[] = (matches ?? []).flatMap(match => {
     const contextIds = contexts.filter(item =>
       (!!match.club_team_id && item.clubTeamIds.includes(match.club_team_id))
@@ -192,7 +193,8 @@ export default async function DashboardHomePage() {
       status: match.status,
       score: homeScore !== null && awayScore !== null ? `${homeScore}–${awayScore}` : null,
       contextIds,
-      href: `/dashboard/games/${match.id}`
+      href: `/dashboard/games/${match.id}`,
+      videoHref: videoAccess && hasClubPermission(videoAccess, "video.view") && hasClubPermission(videoAccess, "games.view") && canAccessTeam(videoAccess, match.club_team_id) ? `/dashboard/matches/${match.id}` : undefined
     }];
   });
   activities.push(...(trainingSessions ?? []).flatMap(session => {
