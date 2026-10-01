@@ -54,6 +54,8 @@ type RemoteSegmentRow = {
     duration?: number;
   }) | null;
   render_attempts: number;
+  source_start: number | null;
+  source_end: number | null;
   videos: { id: string; video_url: string } | null;
   tags: {
     name: string;
@@ -122,7 +124,7 @@ export async function processRemoteClip(clipId: string) {
 
     const { data: segmentRows, error: segmentsError } = await supabase
       .from("clip_segments")
-      .select("id, video_id, sequence_order, render_status, rendered_segment, render_attempts, videos(id, video_url), tags(name, color, start_time, end_time, video_id, drawings, videos(id, video_url))")
+      .select("id, video_id, sequence_order, render_status, rendered_segment, render_attempts, source_start, source_end, videos(id, video_url), tags(name, color, start_time, end_time, video_id, drawings, videos(id, video_url))")
       .eq("clip_id", clipId)
       .order("sequence_order");
     if (segmentsError) throw segmentsError;
@@ -163,7 +165,7 @@ export async function processRemoteClip(clipId: string) {
         render_started_at: new Date().toISOString()
       }).eq("id", segment.id);
       if (startError) throw startError;
-      const tag = segment.tags!;
+      const tag = { ...segment.tags!, start_time: segment.source_start ?? segment.tags!.start_time, end_time: segment.source_end ?? segment.tags!.end_time };
       const uploadedLocalKey = segment.rendered_segment?.key;
       const sourceUrl = segment.videos?.video_url ?? tag.videos?.video_url;
       if (!uploadedLocalKey && !sourceUrl) throw new Error(`Segment ${index} has no source video`);

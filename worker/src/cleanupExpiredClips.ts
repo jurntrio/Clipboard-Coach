@@ -17,6 +17,7 @@ export async function cleanupExpiredClips() {
     const { data, error } = await supabase
       .from("clips")
       .select("id, rendered_segments, rendered_clip")
+      .eq("archived_goal", false)
       .lt("created_at", cutoff)
       .order("created_at", { ascending: true })
       .limit(BATCH_SIZE);
