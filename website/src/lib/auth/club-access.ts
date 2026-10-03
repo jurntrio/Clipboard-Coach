@@ -13,35 +13,29 @@ const sponsorViewerDefaults = new Set<ClubPermissionKey>(defaultPermissionsForRo
 const scoutDefaults = new Set<ClubPermissionKey>([...readDefaults, "games.scouting.view", "games.scouting.manage"]);
 const coordinatorDefaults = new Set<ClubPermissionKey>(["teams.view", "teams.view_all", "teams.manage", "teams.manage_all", "teams.import", "games.view", "training.view", "training.manage", "intradesk.view", "injuries.view", "injuries.manage", "tests.view", "tests.manage"]);
 
-async function loadClubAccess(clubId: string, userId: string, userEmail: string | null) {
-  const admin = createAdminClient();
-  const { data: platformProfile } = isAdminEmail(userEmail)
-    ? { data: { account_role: "platform_admin" } }
-    : { data: await getAccountProfile(userId) };
+
+type PermissionRow = { permission_key: string; enabled: boolean };
+type AccessRole = {
+  id: string; role_type: string; club_team_id: string | null; team_scope: string;
+  valid_from: string; valid_until: string | null;
+  club_role_permission_overrides: PermissionRow[];
+};
+type AccessBundle = {
+  profile: { account_role: string | null } | null;
+  clubPerson: { id: string } | null;
+  roles: AccessRole[];
+  configuredDefaults: (PermissionRow & { function_role: string })[];
+  playerAssignments: { player_groups: { player_group_players: { player_id: string; valid_until: string | null }[] } | null }[];
+};
+
+function calculateClubAccess(bundle: AccessBundle, userEmail: string | null) {
+  const { profile: platformProfile, clubPerson, roles, configuredDefaults, playerAssignments } = bundle;
   if (isAdminEmail(userEmail) || platformProfile?.account_role === "platform_admin") return {
     exists: true, role: "platform_admin", functionRole: "platform_admin", teamScope: "all" as TeamScope,
     readOnly: false, permissions: new Set(CLUB_PERMISSION_OPTIONS.map(([key]) => key)), teamIds: null as Set<string> | null,
     goalkeeperPlayerIds: null as Set<string> | null
   };
-  const { data: account } = await admin.from("person_accounts").select("person_id")
-    .eq("profile_id", userId).eq("status", "active").is("revoked_at", null).maybeSingle();
-  const { data: clubPerson } = account
-    ? await admin.from("club_people").select("id").eq("club_id", clubId)
-      .eq("person_id", account.person_id).eq("status", "active").maybeSingle()
-    : { data: null };
-  if (!clubPerson) return { exists: false, role: "", functionRole: "", teamScope: "none" as TeamScope, readOnly: true, permissions: new Set<ClubPermissionKey>(), teamIds: new Set<string>(), goalkeeperPlayerIds: null as Set<string> | null };
-
-  const today = new Date().toISOString().slice(0, 10);
-  const [{ data: roles }, { data: trainer }, { data: configuredDefaults }] = await Promise.all([
-    admin.from("club_role_assignments")
-      .select("id, role_type, club_team_id, team_scope, valid_from, valid_until, club_role_permission_overrides(permission_key, enabled)")
-      .eq("club_person_id", clubPerson.id).eq("status", "active")
-      .lte("valid_from", today).or(`valid_until.is.null,valid_until.gte.${today}`),
-    admin.from("club_trainers").select("id").eq("club_id", clubId).eq("club_person_id", clubPerson.id).maybeSingle(),
-    admin.from("club_role_permission_defaults").select("function_role, permission_key, enabled").eq("club_id", clubId)
-  ]);
-  if (!roles?.length) return { exists: false, role: "", functionRole: "", teamScope: "none" as TeamScope, readOnly: true, permissions: new Set<ClubPermissionKey>(), teamIds: new Set<string>(), goalkeeperPlayerIds: null as Set<string> | null };
-
+  if (!clubPerson || !roles?.length) return { exists: false, role: "", functionRole: "", teamScope: "none" as TeamScope, readOnly: true, permissions: new Set<ClubPermissionKey>(), teamIds: new Set<string>(), goalkeeperPlayerIds: null as Set<string> | null };
   const rolePriority = ["club_admin", "club_admin_viewer", "technical_director", "head_youth_development", "youth_coordinator", "trainer", "video_analyst"];
   const baseRoles = roles.filter((item) => !item.club_team_id);
   const primary = [...(baseRoles.length ? baseRoles : roles)].sort((a, b) => {
@@ -98,9 +92,6 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
     ? "all" : baseRoles.some((item) => item.team_scope === "assigned") ? "assigned" : "none";
   let goalkeeperPlayerIds: Set<string> | null = null;
   if (roles.some((assignment) => assignment.role_type === "goalkeeper_coach")) {
-    const { data: playerAssignments } = trainer
-      ? await admin.from("player_group_staff").select("player_groups!inner(active, player_group_players(player_id, valid_until))").eq("trainer_id", trainer.id).eq("player_groups.active", true)
-      : { data: [] };
     goalkeeperPlayerIds = new Set((playerAssignments ?? []).flatMap((row) => {
       const group = row.player_groups as unknown as { player_group_players: { player_id: string; valid_until: string | null }[] } | null;
       return (group?.player_group_players ?? []).filter(member => !member.valid_until).map(member => member.player_id);
@@ -112,6 +103,54 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
     teamIds: teamScope === "all" ? null : teamIds,
     goalkeeperPlayerIds
   };
+}
+
+async function loadLegacyClubAccess(clubId: string, userId: string, userEmail: string | null) {
+  const admin = createAdminClient();
+  const { data: platformProfile } = isAdminEmail(userEmail)
+    ? { data: { account_role: "platform_admin" } }
+    : { data: await getAccountProfile(userId) };
+  if (isAdminEmail(userEmail) || platformProfile?.account_role === "platform_admin") return {
+    exists: true, role: "platform_admin", functionRole: "platform_admin", teamScope: "all" as TeamScope,
+    readOnly: false, permissions: new Set(CLUB_PERMISSION_OPTIONS.map(([key]) => key)), teamIds: null as Set<string> | null,
+    goalkeeperPlayerIds: null as Set<string> | null
+  };
+  const { data: account } = await admin.from("person_accounts").select("person_id")
+    .eq("profile_id", userId).eq("status", "active").is("revoked_at", null).maybeSingle();
+  const { data: clubPerson } = account
+    ? await admin.from("club_people").select("id").eq("club_id", clubId)
+      .eq("person_id", account.person_id).eq("status", "active").maybeSingle()
+    : { data: null };
+  if (!clubPerson) return { exists: false, role: "", functionRole: "", teamScope: "none" as TeamScope, readOnly: true, permissions: new Set<ClubPermissionKey>(), teamIds: new Set<string>(), goalkeeperPlayerIds: null as Set<string> | null };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ data: roles }, { data: trainer }, { data: configuredDefaults }] = await Promise.all([
+    admin.from("club_role_assignments")
+      .select("id, role_type, club_team_id, team_scope, valid_from, valid_until, club_role_permission_overrides(permission_key, enabled)")
+      .eq("club_person_id", clubPerson.id).eq("status", "active")
+      .lte("valid_from", today).or(`valid_until.is.null,valid_until.gte.${today}`),
+    admin.from("club_trainers").select("id").eq("club_id", clubId).eq("club_person_id", clubPerson.id).maybeSingle(),
+    admin.from("club_role_permission_defaults").select("function_role, permission_key, enabled").eq("club_id", clubId)
+  ]);
+  if (!roles?.length) return { exists: false, role: "", functionRole: "", teamScope: "none" as TeamScope, readOnly: true, permissions: new Set<ClubPermissionKey>(), teamIds: new Set<string>(), goalkeeperPlayerIds: null as Set<string> | null };
+
+  const { data: playerAssignments } = trainer && roles.some(assignment => assignment.role_type === "goalkeeper_coach")
+    ? await admin.from("player_group_staff").select("player_groups!inner(active, player_group_players(player_id, valid_until))").eq("trainer_id", trainer.id).eq("player_groups.active", true)
+    : { data: [] };
+  return calculateClubAccess({ profile: platformProfile, clubPerson, roles, configuredDefaults: configuredDefaults ?? [], playerAssignments: (playerAssignments ?? []) as unknown as AccessBundle["playerAssignments"] }, userEmail);
+}
+
+async function loadClubAccess(clubId: string, userId: string, userEmail: string | null) {
+  const { data, error } = await createAdminClient().rpc("club_access_bundle", { p_club_id: clubId, p_user_id: userId });
+  if (error) {
+    // Only an undeployed migration may use the legacy query path.
+    if (error.code === "42883" || error.code === "PGRST202") return loadLegacyClubAccess(clubId, userId, userEmail);
+    throw new Error("Club access bundle failed", { cause: error });
+  }
+  if (!data || typeof data !== "object" || !Array.isArray(data.roles) || !Array.isArray(data.configuredDefaults) || !Array.isArray(data.playerAssignments)) {
+    throw new Error("Invalid club access bundle");
+  }
+  return calculateClubAccess(data as AccessBundle, userEmail);
 }
 
 const getCachedClubAccess = cache(loadClubAccess);
