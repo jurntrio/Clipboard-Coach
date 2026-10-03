@@ -24,10 +24,13 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   const videoIds = (match.match_videos ?? [])
     .map((block: { videos: { id: string } | null }) => block.videos?.id)
     .filter((id: string | undefined): id is string => typeof id === "string");
-  const [{ data: tags }, { data: liveTags }, { data: club }] = await Promise.all([
+  const [{ data: tags }, { data: liveTags }, { data: club }, { data: players }, { data: standardTags }] = await Promise.all([
     videoIds.length ? admin.from("tags").select("*").in("video_id", videoIds) : Promise.resolve({ data: [] }),
     admin.from("live_match_tags").select("*").eq("match_id", match.id).order("occurred_at"),
-    admin.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", match.club_id).maybeSingle()
+    admin.from("clubs").select("external_recording_url_template, external_recording_camera_count").eq("id", match.club_id).maybeSingle(),
+    // Preserve the original user's RLS visibility for the roster and personal tags.
+    match.team_a_id ? supabase.from("players").select("*").eq("team_id", match.team_a_id).neq("role", "staff").order("last_name") : Promise.resolve({ data: [] }),
+    supabase.from("standard_tags").select("*").eq("coach_id", user.id).order("created_at")
   ]);
   const canManageSources = canManageMatchVideoSources({
     readOnly: access.readOnly,
@@ -38,5 +41,6 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     userId: user.id
   });
 
-  return NextResponse.json({ match, tags: tags ?? [], liveTags: liveTags ?? [], canManageSources, recordingConfig: club ?? null });
+  return NextResponse.json({ match, tags: tags ?? [], liveTags: liveTags ?? [], canManageSources, recordingConfig: club ?? null,
+    currentUserId: user.id, players: players ?? [], standardTags: standardTags ?? [] });
 }

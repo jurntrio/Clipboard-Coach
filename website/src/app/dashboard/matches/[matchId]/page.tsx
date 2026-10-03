@@ -216,6 +216,7 @@ export default function MatchViewerPage() {
   const [activePhaseTag, setActivePhaseTag] = useState<{ videoId: string; startTime: number } | null>(null);
   const [pendingPhaseTag, setPendingPhaseTag] = useState<{ videoId: string; startTime: number; endTime: number } | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [combinedTime, setCombinedTime] = useState(0);
   const [error, setError] = useState("");
@@ -441,16 +442,12 @@ export default function MatchViewerPage() {
     void loadStandardTags();
     void fetch("/api/admin/status").then((response) => response.json()).then((body) => setIsPlatformAdmin(body.isAdmin === true)).catch(() => undefined);
     setSupportsPersistentFileAccess(typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === "function");
-    void supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? ""));
   }, [matchId]);
 
   useEffect(() => {
     if (!match?.team_a_id) { setPlayers([]); return; }
-    void supabase.from("players").select("*").eq("team_id", match.team_a_id).neq("role", "staff").order("last_name").then(({ data }) => {
-      const teamPlayers = data ?? [];
-      setPlayers(match.player_ids?.length ? teamPlayers.filter((player) => match.player_ids.includes(player.id)) : teamPlayers);
-    });
-  }, [match?.team_a_id, match?.player_ids]);
+    setPlayers(match.player_ids?.length ? teamPlayers.filter((player) => match.player_ids.includes(player.id)) : teamPlayers);
+  }, [match?.team_a_id, match?.player_ids, teamPlayers]);
 
   useEffect(() => {
     if (!currentFile) { setPlaybackUrl(null); return; }
@@ -460,12 +457,14 @@ export default function MatchViewerPage() {
   }, [currentFile]);
 
   async function loadMatch() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { router.replace("/dashboard/clips"); return; }
     const response = await fetch(`/api/matches/${matchId}/viewer`, { cache: "no-store" });
-    const body = await response.json().catch(() => null) as { match?: MatchWithBlocks; tags?: Tag[]; liveTags?: LiveMatchTag[]; canManageSources?: boolean; recordingConfig?: { external_recording_url_template: string | null; external_recording_camera_count: number | null } | null; error?: string } | null;
+    if (response.status === 401) { router.replace("/dashboard/clips"); return; }
+    const body = await response.json().catch(() => null) as { currentUserId?: string; players?: Player[]; standardTags?: StandardTag[]; match?: MatchWithBlocks; tags?: Tag[]; liveTags?: LiveMatchTag[]; canManageSources?: boolean; recordingConfig?: { external_recording_url_template: string | null; external_recording_camera_count: number | null } | null; error?: string } | null;
     if (!response.ok || !body?.match) { setError(body?.error || t("match.notFound")); return; }
     const loaded = body.match;
+    setCurrentUserId(body.currentUserId ?? "");
+    setTeamPlayers(body.players ?? []);
+    setStandardTags(body.standardTags ?? []);
     setCanManageSources(body.canManageSources === true);
     setMatch(loaded);
     setRecordingConfig(externalRecordingConfig(body.recordingConfig));
@@ -483,10 +482,6 @@ export default function MatchViewerPage() {
   }
 
   async function loadStandardTags() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data } = await supabase.from("standard_tags").select("*").eq("coach_id", user.id).order("created_at");
-    setStandardTags(data ?? []);
     const response = await fetch(`/api/matches/${matchId}/live-tag-templates`, { cache: "no-store" });
     if (response.ok) {
       const body = await response.json() as { tags?: Array<{ name: string; live_start_offset_seconds: number; live_end_offset_seconds: number }> };
