@@ -1,6 +1,7 @@
 "use client";
 
 import { getMatchTitle } from "@/lib/match-display";
+import MatchViewerLoading from "./loading";
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -438,7 +439,7 @@ export default function MatchViewerPage() {
   ]);
 
   useEffect(() => {
-    void loadMatch();
+    void loadMatch().catch(() => setError(t("match.notFound")));
     void loadStandardTags();
     void fetch("/api/admin/status").then((response) => response.json()).then((body) => setIsPlatformAdmin(body.isAdmin === true)).catch(() => undefined);
     setSupportsPersistentFileAccess(typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === "function");
@@ -836,6 +837,8 @@ export default function MatchViewerPage() {
     setPlaybackRate(nextRate);
     if (videoRef.current) videoRef.current.playbackRate = nextRate;
   }
+
+  if (!match && !error) return <MatchViewerLoading />;
 
   return (
     <div

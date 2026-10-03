@@ -1,5 +1,7 @@
 "use client";
 
+import VideoViewerLoading from "./loading";
+
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
@@ -404,6 +406,8 @@ export default function VideoViewerPage() {
       }
     }
   }
+
+  if (!video && !localError) return <VideoViewerLoading />;
 
   return (
     <div className="flex flex-col h-screen">
