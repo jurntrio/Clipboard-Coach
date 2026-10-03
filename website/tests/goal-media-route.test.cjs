@@ -15,7 +15,7 @@ function load(file, deps) {
   return module.exports;
 }
 const helpers = load("../src/lib/goal-media.ts", {});
-function fixture({ authenticated = true, canEdit = true, teamAllowed = true, linkedVideo = true, existingGoal = null, failedRpc = false } = {}) {
+function fixture({ authenticated = true, canEdit = true, canView = true, readOnly = false, teamAllowed = true, linkedVideo = true, existingGoal = null, failedRpc = false } = {}) {
   const writes = [];
   const rows = {
     matches: { id: "match", club_id: "club", club_team_id: "team", team_a_id: "own-team", is_home_match: false },
@@ -36,8 +36,8 @@ function fixture({ authenticated = true, canEdit = true, teamAllowed = true, lin
     "next/server": { NextResponse: { json: (data, options) => new Response(JSON.stringify(data), { status: options?.status ?? 200 }) } },
     "@/lib/supabase/server": { createClient: () => ({ auth: { getUser: async () => ({ data: { user: authenticated ? { id: "user" } : null } }) } }) },
     "@/lib/supabase/admin": { createAdminClient: () => admin },
-    "@/lib/auth/club-access": { getClubAccess: async () => ({ readOnly: false }), canAccessTeam: () => teamAllowed,
-      hasClubPermission: (_access, permission) => permission === "games.view" || permission === "video.view" || canEdit },
+    "@/lib/auth/club-access": { getClubAccess: async () => ({ readOnly }), canAccessTeam: () => teamAllowed,
+      hasClubPermission: (_access, permission) => permission === "games.view" || permission === "video.view" ? canView : canEdit },
     "@/lib/goal-media": helpers
   });
   return { writes, patch: body => route.PATCH({ json: async () => ({ tagId: "tag", scoreAfter: "0-1", ...body }) }, { params: { id: "match" } }), post: body => route.POST({ json: async () => ({ tagId: "tag", scoreAfter: "0-1", ...body }) }, { params: { id: "match" } }) };
@@ -61,11 +61,20 @@ test("report-first reuses the goal ID, scorer and existing report notes", async 
 });
 test("permission failures, foreign tags, invalid ranges and missing goals never write", async () => {
   for (const [options, body, status] of [
-    [{ authenticated: false }, {}, 401], [{ canEdit: false }, {}, 403], [{ teamAllowed: false }, {}, 403],
+    [{ authenticated: false }, {}, 401], [{ canView: false }, {}, 403], [{ teamAllowed: false }, {}, 403],
     [{ linkedVideo: false }, {}, 400], [{}, { saveClip: true, startTime: -1, endTime: 25 }, 400],
     [{}, { saveClip: true, startTime: 10, endTime: 101 }, 400], [{}, { goalId: "missing" }, 400]
   ]) {
     const f = fixture(options); assert.equal((await f.post(body)).status, status); assert.equal(f.writes.length, 0);
+  }
+});
+test("viewer-only and read-only accounts can create goal links but cannot edit links or export clips", async () => {
+  for (const options of [{ canEdit: false }, { readOnly: true }]) {
+    const f = fixture(options);
+    assert.equal((await f.post({})).status, 200);
+    assert.equal((await f.post({ saveClip: true, startTime: 10, endTime: 25 })).status, 403);
+    assert.equal((await f.patch({ mediaId: "media", previousGoalId: "goal-1" })).status, 403);
+    assert.equal(f.writes.length, 1);
   }
 });
 test("a duplicate tag conflict is visible and never reports successful storage", async () => {

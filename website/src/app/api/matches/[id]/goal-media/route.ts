@@ -11,8 +11,7 @@ async function authorize(matchId: string, write: boolean) {
   const { data: match } = await admin.from("matches").select("id,club_id,club_team_id,team_a_id,is_home_match").eq("id", matchId).maybeSingle();
   if (!match?.club_id) return { error: NextResponse.json({ error: "Wedstrijd niet gevonden." }, { status: 404 }) };
   const access = await getClubAccess(match.club_id, user);
-  const allowed = write ? !access.readOnly && (hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.report.manage"))
-    : hasClubPermission(access, "video.view") && (hasClubPermission(access, "games.report.view") || hasClubPermission(access, "games.tag"));
+  const allowed = !write || !access.readOnly && (hasClubPermission(access, "games.tag") || hasClubPermission(access, "games.report.manage"));
   if (!allowed || !hasClubPermission(access, "games.view") || !hasClubPermission(access, "video.view") || !canAccessTeam(access, match.club_team_id)) {
     return { error: NextResponse.json({ error: "Geen toegang tot doelpuntbeelden." }, { status: 403 }) };
   }
@@ -40,10 +39,13 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 export async function POST(request: Request, context: { params: { id: string } }) { return save(request, context, false); }
 export async function PATCH(request: Request, context: { params: { id: string } }) { return save(request, context, true); }
 async function save(request: Request, { params }: { params: { id: string } }, editing: boolean) {
-  const auth = await authorize(params.id, true);
+  const auth = await authorize(params.id, editing);
   if ("error" in auth) return auth.error;
   try {
     const body = await request.json();
+    if (body.saveClip && (auth.access.readOnly || !(hasClubPermission(auth.access, "games.tag") || hasClubPermission(auth.access, "games.report.manage")))) {
+      return NextResponse.json({ error: "Geen recht om doelpuntclips te bewaren." }, { status: 403 });
+    }
     if (typeof body.tagId !== "string") throw new Error("Kies een doelpunttag.");
     if (editing && (typeof body.mediaId !== "string" || typeof body.previousGoalId !== "string")) throw new Error("Kies de koppeling die je wilt bewerken.");
     const { data: tag } = await auth.admin.from("tags").select("id,video_id,name,event_type,start_time,end_time").eq("id", body.tagId).maybeSingle();

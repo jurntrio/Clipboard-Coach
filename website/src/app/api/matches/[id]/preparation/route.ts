@@ -22,6 +22,23 @@ async function context(matchId: string) {
   return { admin, match, access };
 }
 
+// Tag changes must not save or reset the rest of the preparation form.
+export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+  const ctx = await context(params.id);
+  if ("response" in ctx) return ctx.response;
+  if (!hasClubPermission(ctx.access, "games.tag")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const body = await request.json().catch(() => null);
+  if (!Array.isArray(body?.tagNames) || !Array.isArray(body?.customTagNames)
+    || [...body.tagNames, ...body.customTagNames].some(value => typeof value !== "string" || value.length > 60)
+    || body.tagNames.length > 30 || body.customTagNames.length > 30) {
+    return NextResponse.json({ error: "Ongeldige tags (maximaal 30 tags van 60 tekens)." }, { status: 400 });
+  }
+  const update = { live_tag_names: uniqueTagNames(body.tagNames), custom_live_tag_names: uniqueTagNames(body.customTagNames) };
+  const { error } = await ctx.admin.from("matches").update(update).eq("id", params.id);
+  if (error) return NextResponse.json({ error: "Tags konden niet worden opgeslagen." }, { status: 500 });
+  return NextResponse.json(update);
+}
+
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const ctx = await context(params.id);
   if ("response" in ctx) return ctx.response;
@@ -35,7 +52,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     .eq("club_id", ctx.match.club_id)
     .neq("status", "merged");
   if (ctx.match.season_id) extraTeamsQuery.eq("season_id", ctx.match.season_id);
-  const [{ data: options }, { data: selections }, { data: team }, { data: clubTeam }, { data: guestPlayers }, { data: extraTeams }, { data: liveTagDefaults }] = await Promise.all([
+  const [{ data: options }, { data: selections }, { data: team }, { data: clubTeam }, { data: guestPlayers }, { data: extraTeams }, { data: liveTagDefaults }, { data: tagLink }] = await Promise.all([
     canPlan || canViewSelection ? ctx.admin.from("club_match_options").select("*").eq("club_id", ctx.match.club_id).eq("active", true).order("label") : Promise.resolve({ data: [] }),
     canViewSelection ? ctx.admin.from("match_player_selections").select("*").eq("match_id", params.id) : Promise.resolve({ data: [] }),
     canViewSelection && ctx.match.team_a_id
@@ -46,7 +63,8 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       : Promise.resolve({ data: null }),
     canViewSelection ? ctx.admin.from("match_guest_players").select("*").eq("match_id", params.id).order("created_at") : Promise.resolve({ data: [] }),
     canViewSelection ? extraTeamsQuery.order("name") : Promise.resolve({ data: [] }),
-    canTags || canCreateTagLink ? ctx.admin.from("club_live_tag_templates").select("name").eq("club_id", ctx.match.club_id).order("display_order").order("created_at") : Promise.resolve({ data: [] })
+    canTags || canCreateTagLink ? ctx.admin.from("club_live_tag_templates").select("name").eq("club_id", ctx.match.club_id).order("display_order").order("created_at") : Promise.resolve({ data: [] }),
+    canCreateTagLink ? ctx.admin.from("match_tag_links").select("token").eq("match_id", params.id).eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle() : Promise.resolve({ data: null })
   ]);
   const allowedPlayerIds = ctx.access.goalkeeperPlayerIds;
   const extraPlayers = ((extraTeams ?? []).flatMap(clubTeamRow => {
@@ -65,6 +83,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       match_period_minutes: ctx.match.match_period_minutes ?? clubTeam?.match_period_minutes ?? null,
       match_minimum_players: ctx.match.match_minimum_players ?? clubTeam?.match_minimum_players ?? null
     },
+    tagLinkToken: tagLink?.token ?? null,
     ageCategory: clubTeam?.age_category ?? null,
     options: options ?? [], selections: allowedPlayerIds === null ? selections ?? [] : (selections ?? []).filter((selection) => allowedPlayerIds.has(selection.player_id)),
     players: allowedPlayerIds === null ? team?.players ?? [] : (team?.players ?? []).filter((player) => allowedPlayerIds.has(player.id)),

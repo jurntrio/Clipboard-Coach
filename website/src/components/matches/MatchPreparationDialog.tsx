@@ -52,6 +52,9 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
   const [tagNames, setTagNames] = useState<string[]>([]);
   const [customTagNames, setCustomTagNames] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
+  const [tagsSaving, setTagsSaving] = useState(false);
+  const tagsSavingRef = useRef(false);
+  const [canEditTags, setCanEditTags] = useState(false);
   const [meetingPlaceOptionId, setMeetingPlaceOptionId] = useState("");
   const [meetingPlaceCustom, setMeetingPlaceCustom] = useState("");
   const [meetingPlaceEnabled, setMeetingPlaceEnabled] = useState(false);
@@ -61,6 +64,11 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
   const [canSelect, setCanSelect] = useState(false);
   const [canViewSelection, setCanViewSelection] = useState(false);
   const [canUseTags, setCanUseTags] = useState(false);
+  const [canCreateTagLink, setCanCreateTagLink] = useState(false);
+  const [tagLink, setTagLink] = useState("");
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkNotice, setLinkNotice] = useState("");
+  const linkBusyRef = useRef(false);
   const [matchFormat, setMatchFormat] = useState("");
   const [periodCount, setPeriodCount] = useState("");
   const [periodMinutes, setPeriodMinutes] = useState("");
@@ -90,6 +98,9 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
       setCanSelect(body.capabilities?.canSelect === true);
       setCanViewSelection(body.capabilities?.canViewSelection === true || body.capabilities?.canSelect === true);
       setCanUseTags(body.capabilities?.canTags === true || body.capabilities?.canCreateTagLink === true);
+      setCanEditTags(body.capabilities?.canTags === true);
+      setCanCreateTagLink(body.capabilities?.canCreateTagLink === true);
+      setTagLink(body.tagLinkToken ? `${window.location.origin}/tag/${body.tagLinkToken}` : "");
       const availableOptions = (body.options ?? []) as Option[];
       const defaultMeetingPlace = availableOptions.find(option =>
         option.option_type === "meeting_place" && option.label.trim().toLocaleLowerCase("nl") === "kleedkamer"
@@ -161,7 +172,55 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
     setExtraPlayerId("");
   }
 
+  async function copyTagLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkNotice("Taglink gekopieerd! Je kunt hem nu delen.");
+    } catch {
+      setLinkNotice("Kopiëren lukt hier niet. Selecteer de link hieronder en kopieer hem handmatig.");
+    }
+  }
+
+  async function generateTagLink() {
+    if (linkBusyRef.current) return;
+    linkBusyRef.current = true;
+    setLinkBusy(true); setLinkNotice("Taglink wordt aangemaakt…");
+    try {
+      const response = await fetch(`/api/matches/${match.id}/tag-link`, { method: "POST" });
+      const body = await response.json();
+      if (!response.ok || !body.token) throw new Error(body.error || "Taglink kon niet worden gemaakt.");
+      const url = `${window.location.origin}/tag/${body.token}`;
+      setTagLink(url);
+      await copyTagLink(url);
+    } catch (error) {
+      setLinkNotice(error instanceof Error ? error.message : "Taglink kon niet worden gemaakt.");
+    } finally {
+      linkBusyRef.current = false; setLinkBusy(false);
+    }
+  }
+
+  async function persistTags(nextTags: string[], nextCustomTags: string[]) {
+    if (tagsSavingRef.current || !canEditTags) return;
+    tagsSavingRef.current = true;
+    setTagsSaving(true); setNotice("");
+    try {
+      const response = await fetch(`/api/matches/${match.id}/preparation`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tagNames: nextTags, customTagNames: nextCustomTags })
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || t("matchPrep.saveFailed"));
+      setTagNames(body.live_tag_names); setCustomTagNames(body.custom_live_tag_names);
+      setNewTag(""); setNotice("Tags automatisch opgeslagen.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : t("matchPrep.saveFailed"));
+    } finally {
+      tagsSavingRef.current = false; setTagsSaving(false);
+    }
+  }
+
   async function save(closeAfter = true) {
+    if (tagsSavingRef.current) return false;
     setBusy(true); setNotice("");
     const response = await fetch(`/api/matches/${match.id}/preparation`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
@@ -321,12 +380,23 @@ export function MatchPreparationDialog({ match, onClose, onSaved, embedded = fal
         {canUseTags && !matchHasEnded && <section className="rounded-xl border border-border bg-card p-4">
           <h2 className="font-bold text-textBright">Tags en taglink</h2>
           <p className="mt-1 text-xs text-textMuted">Bepaal de tagknoppen voor deze wedstrijd en maak de externe link.</p>
-          <div className="mt-3 flex flex-wrap gap-2">{tagNames.map(tag => <span key={tag} className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accentDim px-3 py-1.5 text-sm text-accent">{tag}<button type="button" onClick={() => setTagNames(current => current.filter(item => item !== tag))}>×</button></span>)}</div>
-          <div className="mt-3 flex gap-2"><input value={newTag} onChange={event => setNewTag(event.target.value)} placeholder="Nieuwe tag" className={inputClass} /><button type="button" onClick={() => { setTagNames(current => uniqueTagNames([...current, newTag])); setCustomTagNames(current => uniqueTagNames([...current, newTag])); setNewTag(""); }} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent">Toevoegen</button></div>
-          <button type="button" onClick={async () => { const response = await fetch(`/api/matches/${match.id}/tag-link`, { method: "POST" }); const body = await response.json(); if (!response.ok || !body.token) return setNotice(body.error || "Taglink kon niet worden gemaakt."); await navigator.clipboard.writeText(`${window.location.origin}/tag/${body.token}`); setNotice("Taglink gekopieerd."); }} className="mt-3 rounded-lg bg-accent px-4 py-2 font-bold text-page">Taglink genereren en kopiëren</button>
+          <div className="mt-3 flex flex-wrap gap-2">{tagNames.map(tag => <span key={tag} className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accentDim px-3 py-1.5 text-sm text-accent">{tag}<button type="button" disabled={busy || tagsSaving || !canEditTags} aria-label={`Tag ${tag} verwijderen`} onClick={() => void persistTags(tagNames.filter(item => item !== tag), customTagNames.filter(item => item !== tag))}>×</button></span>)}</div>
+          <div className="mt-3 flex gap-2"><input disabled={busy || tagsSaving || !canEditTags} maxLength={60} value={newTag} onChange={event => setNewTag(event.target.value)} placeholder="Nieuwe tag" className={inputClass} /><button type="button" disabled={busy || tagsSaving || !canEditTags || !newTag.trim()} onClick={() => void persistTags(uniqueTagNames([...tagNames, newTag]), uniqueTagNames([...customTagNames, newTag]))} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent">Toevoegen</button></div>
+          {canCreateTagLink && <div className="mt-4 space-y-3">
+            {!tagLink && <button type="button" disabled={busy || tagsSaving || linkBusy} onClick={() => void generateTagLink()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:opacity-50">{linkBusy ? "Taglink wordt aangemaakt…" : "Taglink genereren en kopiëren"}</button>}
+            {tagLink && <div className="rounded-xl border border-accent/40 bg-accentDim p-3">
+              <p className="mb-2 text-sm font-semibold text-accent">Taglink klaar om te delen</p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input aria-label="Taglink" readOnly value={tagLink} onFocus={event => event.currentTarget.select()} className={`${inputClass} min-w-0 flex-1`} />
+                <button type="button" onClick={() => void copyTagLink(tagLink)} className="rounded-lg bg-accent px-4 py-2 font-bold text-page">Kopieer taglink</button>
+                <a href={tagLink} target="_blank" rel="noreferrer" className="rounded-lg border border-accent px-4 py-2 text-center font-semibold text-accent">Open tagpagina</a>
+              </div>
+            </div>}
+            {linkNotice && <p role="status" className="text-sm text-accent">{linkNotice}</p>}
+          </div>}
         </section>}
         {notice && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">{notice}</p>}
-        <div className="flex flex-wrap justify-end gap-2">{!embedded && <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-4 py-2 text-textPrimary">{t("common.cancel")}</button>}{canSelect && !matchPlayed && <button type="button" disabled={busy} onClick={() => void prepareSelectionSend()} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent disabled:cursor-not-allowed disabled:opacity-50">{communication?.latest ? "Huidige selectie opnieuw verwittigen" : "Verwittig huidige selectie"}</button>}{(canPlan || canSelect || canUseTags) && <button type="button" disabled={busy} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">{t("common.save")}</button>}</div>
+        <div className="flex flex-wrap justify-end gap-2">{!embedded && <button type="button" onClick={onClose} className="rounded-lg border border-borderButton px-4 py-2 text-textPrimary">{t("common.cancel")}</button>}{canSelect && !matchPlayed && <button type="button" disabled={busy || tagsSaving} onClick={() => void prepareSelectionSend()} className="rounded-lg border border-accent px-4 py-2 font-bold text-accent disabled:cursor-not-allowed disabled:opacity-50">{communication?.latest ? "Huidige selectie opnieuw verwittigen" : "Verwittig huidige selectie"}</button>}{(canPlan || canSelect || canUseTags) && <button type="button" disabled={busy || tagsSaving} onClick={() => void save()} className="rounded-lg bg-accent px-4 py-2 font-bold text-page disabled:cursor-not-allowed disabled:opacity-50">{t("common.save")}</button>}</div>
       </div>}
     </div>
     {sendOpen && communication && <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-3"><section role="dialog" aria-modal="true" aria-label="Selectie versturen" className="w-full max-w-xl rounded-2xl border border-border bg-cardAlt p-5 shadow-2xl">

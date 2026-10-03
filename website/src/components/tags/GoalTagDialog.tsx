@@ -22,24 +22,26 @@ export function GoalTagDialog({ players, goals = [], onCancel, onConfirm }: {
   const [eventType, setEventType] = useState<GoalTagDetails["eventType"] | null>(null);
   const [scorerId, setScorerId] = useState("");
   const [assistId, setAssistId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const cancel = () => { if (!busy) onCancel(); };
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onCancel(); };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape" && !busy) onCancel(); };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onCancel]);
+  }, [onCancel, busy]);
 
   const [goalId, setGoalId] = useState("");
   const [scoreAfter, setScoreAfter] = useState("");
   const [minute, setMinute] = useState("");
-  const [busy, setBusy] = useState(false);
   const canConfirm = eventType !== null && (!!goalId || /^\d{1,2}-\d{1,2}$/.test(scoreAfter));
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center bg-black/80 p-4" onClick={onCancel}>
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-black/80 p-4" onClick={cancel}>
       <section role="dialog" aria-modal="true" aria-labelledby="goal-dialog-title" onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl border border-borderButton bg-cardAlt p-6 shadow-2xl">
         <div className="mb-5 flex items-start justify-between">
           <div><p className="text-xs font-bold uppercase tracking-widest text-accent">Goal</p><h2 id="goal-dialog-title" className="mt-1 text-xl font-semibold text-textBright">Type doelpunt</h2></div>
-          <button type="button" onClick={onCancel} aria-label="Sluiten" className="text-2xl text-textMuted hover:text-textPrimary">&times;</button>
+          <button type="button" disabled={busy} onClick={cancel} aria-label="Sluiten" className="text-2xl text-textMuted hover:text-textPrimary">&times;</button>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {([["goal_for", "Goal voor"], ["goal_against", "Goal tegen"]] as const).map(([value, label]) => (
@@ -69,9 +71,10 @@ export function GoalTagDialog({ players, goals = [], onCancel, onConfirm }: {
             </label>
           </div>
         )}
+        {saveError && <p role="alert" className="mt-4 text-sm text-red-300">{saveError}</p>}
         <div className="mt-6 flex gap-3">
-          <button type="button" onClick={onCancel} className="flex-1 rounded-lg bg-button px-4 py-2.5 text-textPrimary">Annuleren</button>
-          <button type="button" disabled={!canConfirm || busy} onClick={async () => { if (!eventType) return; setBusy(true); try { await onConfirm({ eventType, scorerId: scorerId || null, assistId: assistId || null, goalId: goalId || undefined, scoreAfter, minute: minute === "" ? null : Number(minute) }); } finally { setBusy(false); } }} className="flex-1 rounded-lg bg-accent px-4 py-2.5 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-40">Goal opslaan</button>
+          <button type="button" disabled={busy} onClick={cancel} className="flex-1 rounded-lg bg-button px-4 py-2.5 text-textPrimary">Annuleren</button>
+          <button type="button" disabled={!canConfirm || busy} onClick={async () => { if (!eventType || busy) return; setBusy(true); setSaveError(""); try { await onConfirm({ eventType, scorerId: scorerId || null, assistId: assistId || null, goalId: goalId || undefined, scoreAfter, minute: minute === "" ? null : Number(minute) }); } catch (error) { setSaveError(error instanceof Error ? error.message : "Goal kon niet worden opgeslagen. Probeer opnieuw."); } finally { setBusy(false); } }} className="flex-1 rounded-lg bg-accent px-4 py-2.5 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Opslaan…" : "Goal opslaan"}</button>
         </div>
       </section>
     </div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { getMatchTitle } from "@/lib/match-display";
 import MatchViewerLoading from "./loading";
+
+import { getMatchTitle } from "@/lib/match-display";
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -502,28 +503,25 @@ export default function MatchViewerPage() {
   const [focusGoalTag, setFocusGoalTag] = useState<string | null>(null);
   async function persistProfiledTag(video: Video, label: string, localTime: number, goal?: GoalTagDetails) {
     const selectedPlayers = match?.player_ids?.length ? match.player_ids : players.map((player) => player.id);
-    const { data, error: tagError } = await supabase.rpc("create_profiled_tag", {
-      target_video_id: video.id,
-      target_match_id: matchId,
-      tag_name: label.trim(),
-      tag_moment: localTime,
-      tag_color: getTagColor(label),
-      selected_player_ids: selectedPlayers,
-      tag_event_type: goal?.eventType ?? null,
-      scorer_id: goal?.scorerId ?? null,
-      assist_id: goal?.assistId ?? null
+    const response = await fetch(`/api/matches/${matchId}/tags`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId: video.id, name: label.trim(), occurredAtSeconds: localTime,
+        playerIds: selectedPlayers, eventType: goal?.eventType, scorerId: goal?.scorerId, assistId: goal?.assistId })
     });
-    if (tagError) {
-      setError(tagError.message.includes("FREE_CLIP_LIMIT_REACHED") ? t("clip.freeLimit") : tagError.message.includes("CLIP_TOO_LONG") ? t("tag.tooLong") : tagError.message);
-      return;
-    }
-    const created = (Array.isArray(data) ? data[0] : data) as Tag | null;
+    const result = await response.json().catch(() => null) as { tag?: Tag; error?: string; warning?: string } | null;
+    if (!response.ok || !result?.tag) throw new Error(result?.error || "Goal kon niet worden opgeslagen. Probeer opnieuw.");
+    const created = result.tag;
     if (created) {
       setTags((current) => [...current, created].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
+      setError(result.warning ?? "");
       if (goal) {
-        const linked = await fetch(`/api/matches/${matchId}/goal-media`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId: created.id, goalId: goal.goalId, scoreAfter: goal.scoreAfter, minute: goal.minute, scorerId: goal.scorerId, assistId: goal.assistId }) });
-        const result = await linked.json();
-        if (!linked.ok) setError(result.error || "Tag gemaakt, maar doelpunt nog niet gekoppeld. Koppel het bij Doelpuntbeelden.");
+        try {
+          const linked = await fetch(`/api/matches/${matchId}/goal-media`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId: created.id, goalId: goal.goalId, scoreAfter: goal.scoreAfter, minute: goal.minute, scorerId: goal.scorerId, assistId: goal.assistId }) });
+          const linkResult = await linked.json();
+          if (!linked.ok) setError(linkResult.error || "Tag gemaakt, maar doelpunt nog niet gekoppeld. Koppel het bij Doelpuntbeelden.");
+        } catch {
+          setError("Goaltag opgeslagen, maar doelpunt nog niet gekoppeld. Koppel het bij Doelpuntbeelden.");
+        }
         setFocusGoalTag(created.id);
       }
     }
@@ -1064,7 +1062,7 @@ export default function MatchViewerPage() {
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}
       {pendingPhaseTag && <PhaseTagDialog onCancel={() => setPendingPhaseTag(null)} onConfirm={savePhaseTag} />}
-      {pendingGoal && <GoalTagDialog players={players} goals={reportGoals} onCancel={() => setPendingGoal(null)} onConfirm={async (details) => { const pending = pendingGoal; setPendingGoal(null); await persistProfiledTag(pending.video, pending.label, pending.localTime, details); }} />}
+      {pendingGoal && <GoalTagDialog players={players} goals={reportGoals} onCancel={() => setPendingGoal(null)} onConfirm={async (details) => { const pending = pendingGoal; await persistProfiledTag(pending.video, pending.label, pending.localTime, details); setPendingGoal(null); }} />}
       <ConfirmDialog open={!!pendingTagDelete} title={t("tag.deleteTitle")} message={t("tag.deleteMessage", { name: pendingTagDelete?.name ?? t("tag.name") })} busy={deletingTag} onCancel={() => setPendingTagDelete(null)} onConfirm={() => void confirmTagDelete()} />
       <ConfirmDialog open={confirmDeleteMatch} title={t("match.deleteTitle")} message={t("match.deleteMessage")} busy={deletingMatch} onCancel={() => setConfirmDeleteMatch(false)} onConfirm={() => void deleteMatch()} />
     </div>
