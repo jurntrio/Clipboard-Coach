@@ -1,0 +1,11 @@
+begin;
+select plan(7);
+select has_function('public', 'club_access_bundle', array['uuid', 'uuid'], 'access bundle exists');
+select ok(not has_function_privilege('anon', 'public.club_access_bundle(uuid,uuid)', 'execute'), 'anonymous cannot execute');
+select ok(not has_function_privilege('authenticated', 'public.club_access_bundle(uuid,uuid)', 'execute'), 'authenticated cannot execute');
+select ok(has_function_privilege('service_role', 'public.club_access_bundle(uuid,uuid)', 'execute'), 'service role can execute');
+select ok((select prosecdef from pg_proc where oid = 'public.club_access_bundle(uuid,uuid)'::regprocedure), 'security definer');
+select is((select proconfig::text from pg_proc where oid = 'public.club_access_bundle(uuid,uuid)'::regprocedure), '{search_path=pg_catalog}', 'fixed search path');
+select is(public.club_access_bundle('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000')->'roles', '[]'::jsonb, 'unknown account has no roles');
+select * from finish();
+rollback;

@@ -80,9 +80,11 @@ test('explicit expected permissions, configured denials, keeper scope and email 
   const denied = await fixture(base([])).get();
   assert.equal(denied.exists, false);
   assert.equal(denied.permissions.size, 0);
-  const admin = await fixture(base([])).get('admin@example.test');
+  const adminFixture = fixture(base([]));
+  const admin = await adminFixture.get('admin@example.test');
   assert.equal(admin.role, 'platform_admin');
   assert.equal(admin.teamIds, null);
+  assert.deepEqual(adminFixture.calls, []);
   const keeper = await fixture({ ...base([role('goalkeeper_coach')]), playerAssignments: [
     { player_groups: { player_group_players: [{ player_id: 'active', valid_until: null },
       { player_id: 'expired', valid_until: '2026-01-01' }] } }] }).get();

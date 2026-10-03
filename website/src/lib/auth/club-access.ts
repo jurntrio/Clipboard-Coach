@@ -141,6 +141,9 @@ async function loadLegacyClubAccess(clubId: string, userId: string, userEmail: s
 }
 
 async function loadClubAccess(clubId: string, userId: string, userEmail: string | null) {
+  // Preserve the emergency allowlist's existing database-independent path.
+  if (isAdminEmail(userEmail)) return calculateClubAccess({ profile: null, clubPerson: null,
+    roles: [], configuredDefaults: [], playerAssignments: [] }, userEmail);
   const { data, error } = await createAdminClient().rpc("club_access_bundle", { p_club_id: clubId, p_user_id: userId });
   if (error) {
     // Only an undeployed migration may use the legacy query path.
