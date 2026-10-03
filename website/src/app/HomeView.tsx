@@ -33,7 +33,7 @@ export function HomeView() {
     { icon: "/branding/video-viewer.webp", title: t("common.videoViewer"), body: t("home.videoBody") },
     { icon: "/branding/teams.webp", title: t("common.teams"), body: t("home.teamsBody") },
     { icon: "/branding/training.webp", title: t("home.trainingFeatureTitle"), body: t("home.trainingFeatureBody") },
-    { icon: "/branding/intradesk.png", title: t("home.intradeskFeatureTitle"), body: t("home.intradeskFeatureBody") }
+    { icon: "/branding/intradesk.webp", title: t("home.intradeskFeatureTitle"), body: t("home.intradeskFeatureBody") }
   ];
   const productStories = [
     {

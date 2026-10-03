@@ -19,7 +19,7 @@ export function SvsBrand({
   return (
     <span className={`svs-brand ${className}`} style={{ aspectRatio: dimensions }}>
       <Image
-        src={`/branding/svs-${format}-dark.png`}
+        src={`/branding/svs-${format}-dark.webp`}
         alt="Sport Visual Systems"
         width={width}
         height={height}
@@ -27,12 +27,14 @@ export function SvsBrand({
         unoptimized
         className="svs-brand-dark"
       />
+      {/* Dark is the default theme. The hidden light logo stays lazy, so the
+          browser only downloads it when the light theme actually shows it. */}
       <Image
-        src={`/branding/svs-${format}-light.png`}
+        src={`/branding/svs-${format}-light.webp`}
         alt="Sport Visual Systems"
         width={width}
         height={height}
-        priority={priority}
+        loading="lazy"
         unoptimized
         className="svs-brand-light"
       />

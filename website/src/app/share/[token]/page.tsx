@@ -177,7 +177,7 @@ export default async function SharePage({ params }: { params: { token: string } 
       <header className="border-b border-border bg-black/80 px-4 py-5">
         <div className="mx-auto flex max-w-6xl justify-center">
           <Image
-            src="/branding/svs-banner-dark.png"
+            src="/branding/svs-banner-dark.webp"
             alt="Sport Visual Systems"
             width={640}
             height={160}
@@ -225,7 +225,7 @@ export default async function SharePage({ params }: { params: { token: string } 
       <footer className="mt-auto border-t border-border bg-black px-4 py-8 text-center">
         <div className="mx-auto flex max-w-6xl flex-col items-center">
           <Image
-            src="/branding/svs-square-dark.png"
+            src="/branding/svs-square-dark.webp"
             alt="Sport Visual Systems"
             width={48}
             height={48}

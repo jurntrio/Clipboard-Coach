@@ -2,7 +2,7 @@
   "name": "Sport Visual Systems",
   "short_name": "SVS",
   "description": "Sportanalyse, teambeheer, videoreview en communicatie in één platform.",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
