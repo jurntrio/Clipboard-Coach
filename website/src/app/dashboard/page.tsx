@@ -2,6 +2,7 @@ import { pageTitle } from "@/lib/page-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getClubContext } from "@/lib/auth/active-club";
+import { getAccountProfile } from "@/lib/auth/profile";
 import { ProfileOverview, type ProfileActivity, type ProfileContext } from "@/components/profile/ProfileOverview";
 import { TeamSelectionGate } from "@/components/teams/TeamSelectionGate";
 import { cookies } from "next/headers";
@@ -25,10 +26,37 @@ export default async function DashboardHomePage() {
   const clubId = clubContext.activeClubId;
   const admin = createAdminClient();
   const supabase = createClient();
-  const { data: profile } = await admin.from("profiles").select("full_name, account_role").eq("id", user.id).maybeSingle();
-  const { data: registrationRequest } = await admin.from("club_registration_requests")
-    .select("request_kind, requested_function_role, requested_custom_role, player_first_name, player_last_name, status, clubs(name)")
-    .eq("profile_id", user.id).in("status", ["pending", "rejected"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  // Everything below only depends on the user and active club, so start it in
+  // one round instead of waiting for each query in turn. getAccountProfile and
+  // getClubAccess are request-cached and shared with the dashboard layout.
+  const [
+    profile,
+    { data: registrationRequest },
+    { data: trainer },
+    { data: guardianRowsRaw },
+    access,
+    { data: activeSeason },
+    { data: trainingPlans }
+  ] = await Promise.all([
+    getAccountProfile(user.id),
+    admin.from("club_registration_requests")
+      .select("request_kind, requested_function_role, requested_custom_role, player_first_name, player_last_name, status, clubs(name)")
+      .eq("profile_id", user.id).in("status", ["pending", "rejected"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    clubId
+      ? admin.from("club_trainers")
+          .select("id, display_name, club_trainer_teams(club_team_id, status, club_teams(name))")
+          .eq("club_id", clubId).eq("profile_id", user.id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.rpc("guardian_dashboard_players"),
+    clubId ? getClubAccess(clubId, user) : Promise.resolve(null),
+    clubId
+      ? admin.from("club_seasons").select("id").eq("club_id", clubId).eq("status", "ACTIVE").maybeSingle()
+      : Promise.resolve({ data: null }),
+    clubId
+      ? admin.from("trainer_trainings").select("id, title, age_category, created_at, publication_state")
+          .eq("club_id", clubId).eq("owner_id", user.id).order("created_at", { ascending: false }).limit(6)
+      : Promise.resolve({ data: [] })
+  ]);
 
   if (registrationRequest?.status === "pending") {
     const club = registrationRequest.clubs as unknown as { name: string } | null;
@@ -50,20 +78,16 @@ export default async function DashboardHomePage() {
     return <section className="mx-auto max-w-2xl rounded-2xl border border-border bg-card p-6 text-center sm:p-10"><h1 className="text-2xl font-bold text-textBright">Aanvraag niet goedgekeurd</h1><p className="mt-3 text-textSecondary">Neem contact op met de clubbeheerder als je denkt dat dit niet klopt.</p></section>;
   }
 
-  const [{ data: trainer }, { data: guardianRowsRaw }] = await Promise.all([
-    clubId
-      ? admin.from("club_trainers")
-          .select("id, display_name, club_trainer_teams(club_team_id, status, club_teams(name))")
-          .eq("club_id", clubId).eq("profile_id", user.id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    supabase.rpc("guardian_dashboard_players")
-  ]);
-
   const guardianRows = (guardianRowsRaw as GuardianRow[] | null) ?? [];
   const guardianTeamIds = guardianRows.map(row => row.team_id).filter((id): id is string => !!id);
-  const { data: guardianTeams } = guardianTeamIds.length
-    ? await admin.from("teams").select("id, club_team_id, club_teams(club_id)").in("id", guardianTeamIds)
-    : { data: [] };
+  const [{ data: guardianTeams }, { data: seasonTeamRows }] = await Promise.all([
+    guardianTeamIds.length
+      ? admin.from("teams").select("id, club_team_id, club_teams(club_id)").in("id", guardianTeamIds)
+      : Promise.resolve({ data: [] }),
+    clubId && activeSeason
+      ? admin.from("club_teams").select("id, name").eq("club_id", clubId).eq("season_id", activeSeason.id).neq("status", "merged").order("display_order").order("name")
+      : Promise.resolve({ data: [] })
+  ]);
   const validGuardianTeamIds = new Set((guardianTeams ?? []).filter(team =>
     !clubId || (team.club_teams as unknown as { club_id: string } | null)?.club_id === clubId
   ).map(team => team.id));
@@ -107,15 +131,8 @@ export default async function DashboardHomePage() {
   }
 
   let selectedClubTeamId: string | null = null;
-  if (clubId) {
-    const [access, { data: activeSeason }] = await Promise.all([
-      getClubAccess(clubId, user),
-      admin.from("club_seasons").select("id").eq("club_id", clubId).eq("status", "ACTIVE").maybeSingle()
-    ]);
-    const { data: accessibleRows } = activeSeason
-      ? await admin.from("club_teams").select("id, name").eq("club_id", clubId).eq("season_id", activeSeason.id).neq("status", "merged").order("display_order").order("name")
-      : { data: [] };
-    const accessibleTeams = (accessibleRows ?? []).filter(team => canAccessTeam(access, team.id));
+  if (clubId && access) {
+    const accessibleTeams = (seasonTeamRows ?? []).filter(team => canAccessTeam(access, team.id));
     // Only clubs at/above the large-list threshold force a single-team focus; smaller
     // clubs must keep showing every team, even if a team-scoped cookie is lingering
     // from switching teams on another page (e.g. /dashboard/training).
@@ -147,7 +164,7 @@ export default async function DashboardHomePage() {
   const today = new Date();
   const activityFrom = dateOnly(addDays(today, -30));
   const activityUntil = dateOnly(addDays(today, 120));
-  const [{ data: matches }, { data: trainingSessions }, { data: trainingPlans }] = await Promise.all([
+  const [{ data: matches }, { data: trainingSessions }] = await Promise.all([
     clubId && matchScope
       ? admin.from("matches").select("id, club_team_id, team_a_id, team_b_id, team_a_name, team_b_name, match_date, start_time, status, score_a, score_b, is_home_match, completed_at")
           .eq("club_id", clubId)
@@ -165,14 +182,10 @@ export default async function DashboardHomePage() {
           .lte("training_date", activityUntil)
           .order("training_date", { ascending: true })
           .limit(100)
-      : Promise.resolve({ data: [] }),
-    clubId
-      ? admin.from("trainer_trainings").select("id, title, age_category, created_at, publication_state")
-          .eq("club_id", clubId).eq("owner_id", user.id).order("created_at", { ascending: false }).limit(6)
       : Promise.resolve({ data: [] })
   ]);
 
-  const videoAccess = clubId ? await getClubAccess(clubId, user) : null;
+  const videoAccess = access;
   const activities: ProfileActivity[] = (matches ?? []).flatMap(match => {
     const contextIds = contexts.filter(item =>
       (!!match.club_team_id && item.clubTeamIds.includes(match.club_team_id))
