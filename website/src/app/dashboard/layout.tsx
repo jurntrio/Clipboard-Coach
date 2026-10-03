@@ -3,6 +3,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 import { getClubContext } from "@/lib/auth/active-club";
+import { getAccountProfile } from "@/lib/auth/profile";
 import { ActiveClubProvider } from "@/components/clubs/ActiveClubProvider";
 import { ActiveClubBar } from "@/components/clubs/ActiveClubBar";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -19,12 +20,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const admin = createAdminClient();
 
   const clubId = clubContext.activeClubId;
-  const [access, modules, { data: profile }, { data: guardianRows }, { data: activeClub }] = await Promise.all([
+  const [access, modules, profile, { data: guardianRows }, { data: activeClub }] = await Promise.all([
     clubId ? getClubAccess(clubId, user) : Promise.resolve(null),
     clubId
       ? getClubModuleConfiguration(clubId)
       : Promise.resolve({ configured: false, enabled: new Set() }),
-    admin.from("profiles").select("account_role, trainer_onboarding_completed_at").eq("id", user.id).maybeSingle(),
+    getAccountProfile(user.id),
     supabase.rpc("guardian_dashboard_players"),
     clubId ? admin.from("clubs").select("is_personal").eq("id", clubId).maybeSingle() : Promise.resolve({ data: null })
   ]);

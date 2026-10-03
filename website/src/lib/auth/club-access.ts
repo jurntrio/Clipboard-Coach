@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { isAdminEmail } from "@/lib/auth/admin";
+import { getAccountProfile } from "@/lib/auth/profile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CLUB_PERMISSION_OPTIONS, defaultPermissionsForRole, type ClubPermissionKey, type TeamScope } from "@/lib/club-access-options";
 
@@ -16,7 +17,7 @@ async function loadClubAccess(clubId: string, userId: string, userEmail: string 
   const admin = createAdminClient();
   const { data: platformProfile } = isAdminEmail(userEmail)
     ? { data: { account_role: "platform_admin" } }
-    : await admin.from("profiles").select("account_role").eq("id", userId).maybeSingle();
+    : { data: await getAccountProfile(userId) };
   if (isAdminEmail(userEmail) || platformProfile?.account_role === "platform_admin") return {
     exists: true, role: "platform_admin", functionRole: "platform_admin", teamScope: "all" as TeamScope,
     readOnly: false, permissions: new Set(CLUB_PERMISSION_OPTIONS.map(([key]) => key)), teamIds: null as Set<string> | null,

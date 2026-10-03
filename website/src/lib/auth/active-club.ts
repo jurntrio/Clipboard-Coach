@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { isAdminEmail } from "@/lib/auth/admin";
+import { getAccountProfile } from "@/lib/auth/profile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -98,10 +99,19 @@ const loadPendingClubs = unstable_cache(async (userId: string): Promise<PendingC
 
 async function loadClubContext() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = !error ? data?.claims : null;
+  // The emergency email allowlist needs the current Auth email, not a stale JWT.
+  const usesEmailAllowlist = !!process.env.ADMIN_EMAILS?.split(",").some(email => email.trim());
+  const user = claims?.sub
+    ? usesEmailAllowlist
+      ? (await supabase.auth.getUser()).data.user
+      : { id: claims.sub, email: typeof claims.email === "string" ? claims.email : undefined,
+          user_metadata: claims.user_metadata ?? {}, app_metadata: claims.app_metadata ?? {} }
+    : null;
   if (!user) return { user: null, clubs: [] as AvailableClub[], activeClubId: null, isPlatformAdmin: false, pendingClubs: [] as PendingClub[] };
 
-  const { data: profile } = await createAdminClient().from("profiles").select("account_role").eq("id", user.id).maybeSingle();
+  const profile = await getAccountProfile(user.id);
   const platformAdmin = isAdminEmail(user.email) || profile?.account_role === "platform_admin";
   const clubs = await loadAvailableClubs(user.id, platformAdmin);
 
