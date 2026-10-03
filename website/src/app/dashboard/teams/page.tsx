@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getClubContext } from "@/lib/auth/active-club";
@@ -40,3 +41,5 @@ export default async function TeamsPage({ searchParams }: { searchParams?: { tab
   const { data: fallback } = await admin.from("teams").select("id").in("club_team_id", accessibleIds).limit(1).maybeSingle();
   redirect(fallback?.id ? `/dashboard/teams/${fallback.id}${tab}` : "/dashboard");
 }
+
+export const generateMetadata = pageTitle("page.teams");

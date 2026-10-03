@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { requireAdminOrViewer } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -126,3 +127,5 @@ export default async function AdminClubsPage() {
   }));
   return <div className="mx-auto max-w-7xl p-8"><SectionHeader title="Clubs" subtitle="Beheer modules, rollen en het gebruik per club." artworkSrc="/branding/admin.webp" backHref="/dashboard/admin" /><ClubAdminManager clubs={rows} profiles={profiles ?? []} readOnly={!isFullAdmin} /></div>;
 }
+
+export const generateMetadata = pageTitle("page.adminClubs");

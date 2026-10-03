@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { formatBytes } from "@/lib/utils";
@@ -73,3 +74,5 @@ export default async function AdminVideosPage() {
     </div>
   );
 }
+
+export const generateMetadata = pageTitle("page.adminVideos");

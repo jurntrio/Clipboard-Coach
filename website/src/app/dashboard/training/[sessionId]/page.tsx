@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -68,3 +69,5 @@ export default async function TrainingDetailPage({ params }: { params: { session
 function Info({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border border-borderSubtle bg-cardDeep p-4"><p className="text-xs font-bold uppercase tracking-wide text-textMuted">{label}</p><p className="mt-1 text-sm font-semibold text-textPrimary">{value}</p></div>;
 }
+
+export const generateMetadata = pageTitle("page.training");

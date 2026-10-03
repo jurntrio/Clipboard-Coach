@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { getClubContext } from "@/lib/auth/active-club";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -65,3 +66,5 @@ function inferTrainingPlacement(training: LibraryTraining, teams: Array<{ id: st
 }
 
 function normalizeKey(value: string) { return value.toLocaleLowerCase("nl-BE").replace(/[^a-z0-9]/g, ""); }
+
+export const generateMetadata = pageTitle("page.intradesk");

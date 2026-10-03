@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -280,3 +281,5 @@ function FootballIcon({ className }: { className: string }) {
 function Info({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border border-borderSubtle bg-cardDeep p-3"><dt className="text-xs text-textMuted">{label}</dt><dd className="mt-1 font-semibold text-textPrimary">{value}</dd></div>;
 }
+
+export const generateMetadata = pageTitle("page.match");

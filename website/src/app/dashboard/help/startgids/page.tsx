@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { TrainerOnboarding } from "@/components/onboarding/TrainerOnboarding";
 import { getClubContext } from "@/lib/auth/active-club";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,3 +14,5 @@ export default async function TrainerStartGuidePage() {
   const canImport = !!context.user && club?.is_personal === true && club.created_by === context.user.id;
   return <TrainerOnboarding teamId={team?.id ?? ""} teamName={team?.name ?? club?.name ?? "je ploeg"} replay canImport={canImport && !!team?.id} />;
 }
+
+export const generateMetadata = pageTitle("page.startGuide");

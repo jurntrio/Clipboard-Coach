@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -45,3 +46,5 @@ export default async function SharedStaffPage({ params }: { params: { profileId:
     </section>
   </main>;
 }
+
+export const generateMetadata = pageTitle("page.staff");

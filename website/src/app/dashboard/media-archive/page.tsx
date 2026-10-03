@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { notFound } from "next/navigation";
 import { MediaArchive, type MediaCategory, type MediaItem, type MediaMatch } from "@/components/intradesk/MediaArchive";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -77,3 +78,5 @@ export default async function MediaArchivePage() {
 function normalizeSeasonName(name: string) { const match = name.match(/(20\d{2})\D+(20\d{2})/); return match ? `${match[1]}–${match[2]}` : name.replace(/-/g, "–"); }
 function normalizeKey(value: string) { return value.toLocaleLowerCase("nl-BE").replace(/[^a-z0-9]/g, ""); }
 function opponentFromVideo(video: ArchiveClip["videos"], teamName: string) { if (!video) return ""; const own = normalizeKey(teamName); if (normalizeKey(video.home_team ?? "") === own) return video.away_team ?? ""; if (normalizeKey(video.away_team ?? "") === own) return video.home_team ?? ""; return video.away_team || video.home_team || ""; }
+
+export const generateMetadata = pageTitle("page.mediaArchive");

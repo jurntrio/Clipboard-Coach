@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ClipProfilesTable } from "@/components/settings/ClipProfilesTable";
@@ -15,3 +16,5 @@ export default function ClipProfilesPage() {
     </div>
   );
 }
+
+export const generateMetadata = pageTitle("page.clipProfiles");

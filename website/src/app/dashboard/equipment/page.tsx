@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { UnderConstructionPage } from "@/components/ui/UnderConstructionPage";
 import { redirect } from "next/navigation";
 import { getClubContext } from "@/lib/auth/active-club";
@@ -10,3 +11,5 @@ export default async function EquipmentPage() {
   if (!["club_admin", "club_admin_viewer", "platform_admin"].includes(access.role) && access.functionRole !== "equipment_manager") redirect("/dashboard");
   return <UnderConstructionPage title="Materiaal" description="Het beheer van materiaal en uitrusting wordt momenteel voorbereid." icon="/branding/cbcs_black_icons/materiaal.png" />;
 }
+
+export const generateMetadata = pageTitle("page.equipment");

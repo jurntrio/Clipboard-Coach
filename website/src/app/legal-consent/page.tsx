@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { redirect } from "next/navigation";
 import { LegalConsentForm } from "@/components/legal/LegalConsentForm";
 import { createClient } from "@/lib/supabase/server";
@@ -21,3 +22,5 @@ export default async function LegalConsentPage() {
   if (acceptance) redirect("/dashboard");
   return <LegalConsentForm />;
 }
+
+export const generateMetadata = pageTitle("page.legalConsent");

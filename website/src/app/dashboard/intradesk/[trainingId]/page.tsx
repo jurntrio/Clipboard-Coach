@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -74,3 +75,5 @@ function Fact({ label, value, wide = false }: { label: string; value: string; wi
     <p className="mt-1 text-sm text-textPrimary">{value}</p>
   </div>;
 }
+
+export const generateMetadata = pageTitle("page.training");

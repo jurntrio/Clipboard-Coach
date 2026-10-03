@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { LegalPage, LegalSection } from "@/components/legal/LegalPage";
 import { getServerI18n } from "@/i18n/server";
 
@@ -11,3 +12,5 @@ export default function ChildrenAndImagesPage() {
     <LegalSection title={t("childrenPolicy.objectionTitle")}><p>{t("childrenPolicy.objectionBody")}</p></LegalSection>
   </LegalPage>;
 }
+
+export const generateMetadata = pageTitle("page.childrenAndImages");

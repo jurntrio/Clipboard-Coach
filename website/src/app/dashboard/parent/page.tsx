@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { ParentHome } from "@/components/parent/ParentHome";
 
 // Bereikbaar via de "Ouderweergave"-kaart op /dashboard voor een account dat zowel ouder is
@@ -7,3 +8,5 @@ import { ParentHome } from "@/components/parent/ParentHome";
 export default function ParentDashboardPage() {
   return <ParentHome showBackLink />;
 }
+
+export const generateMetadata = pageTitle("page.parent");

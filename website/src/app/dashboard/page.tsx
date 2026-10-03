@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getClubContext } from "@/lib/auth/active-club";
@@ -245,3 +246,5 @@ function addDays(value: Date, days: number) {
 function dateOnly(value: Date) {
   return value.toISOString().slice(0, 10);
 }
+
+export const generateMetadata = pageTitle("page.dashboard");

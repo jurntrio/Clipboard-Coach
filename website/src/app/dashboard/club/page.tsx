@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { redirect } from "next/navigation";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -18,3 +19,5 @@ export default async function ClubPage() {
 
   return <div className="mx-auto max-w-7xl p-8"><ClubDashboard /></div>;
 }
+
+export const generateMetadata = pageTitle("page.club");

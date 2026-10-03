@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClubContext } from "@/lib/auth/active-club";
@@ -52,3 +53,5 @@ export default async function IntradeskClipPage({ params }: { params: { clipId: 
     <IntradeskClipViewer videoUrl={clip.videos?.video_url ?? ""} segments={segments} />
   </main>;
 }
+
+export const generateMetadata = pageTitle("page.clip");

@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TrainingBuilder } from "@/components/training/TrainingBuilder";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -125,3 +126,5 @@ export default async function NewTrainingPage({ searchParams }: { searchParams?:
       clubOptions={clubOptions} initialTraining={initialTraining} editingTrainingId={editingTrainingId} sessionId={searchParams?.sessionId} />
   </div>;
 }
+
+export const generateMetadata = pageTitle("page.newTraining");

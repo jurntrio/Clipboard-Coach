@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { formatBytes } from "@/lib/utils";
@@ -315,3 +316,5 @@ function StatTile({ label, value, warn }: { label: string; value: string | numbe
     </div>
   );
 }
+
+export const generateMetadata = pageTitle("page.admin");

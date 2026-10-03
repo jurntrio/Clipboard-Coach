@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { requireAdminOrViewer } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -79,3 +80,5 @@ export default async function ClubMatchingAdminPage() {
     </div>
   );
 }
+
+export const generateMetadata = pageTitle("page.adminClubMatching");

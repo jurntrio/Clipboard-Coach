@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { redirect } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { requireClubFeature } from "@/lib/auth/club-module";
@@ -17,3 +18,5 @@ export default async function ClubApprovalsPage() {
     <ClubApprovals />
   </div>;
 }
+
+export const generateMetadata = pageTitle("page.clubApprovals");

@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -127,3 +128,5 @@ function SummaryTile({ label, value }: { label: string; value: string | number }
     </div>
   );
 }
+
+export const generateMetadata = pageTitle("page.adminCoach");

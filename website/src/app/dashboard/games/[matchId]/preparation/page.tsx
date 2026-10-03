@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -22,3 +23,5 @@ export default async function PreparationPage({ params }: { params: { matchId: s
     <MatchPreparationPage match={match} />
   </main>;
 }
+
+export const generateMetadata = pageTitle("page.matchPreparation");

@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { MediaWorkspace } from "@/components/media/MediaWorkspace";
 
@@ -7,3 +8,5 @@ export default function MediaPage() {
     <MediaWorkspace />
   </main>;
 }
+
+export const generateMetadata = pageTitle("page.media");

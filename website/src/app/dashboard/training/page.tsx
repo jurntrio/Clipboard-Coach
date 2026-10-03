@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -101,3 +102,5 @@ export default async function TrainingPage() {
     <TrainingOverview sessions={summaries as any} optionNames={optionNames} canManage={canManage} />
   </div>;
 }
+
+export const generateMetadata = pageTitle("page.trainings");

@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useActiveClub } from "./ActiveClubProvider";
 import { MenuIcon } from "@/components/ui/MenuIcon";
 import { SvsBrand } from "@/components/branding/SvsBrand";
+import { useI18n } from "@/i18n/client";
 
 export type DashboardNavItem = { href: string; label: string; icon: string; primary: boolean };
 
@@ -21,6 +22,7 @@ function teamTabForHref(href: string) {
 export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavItem[] }) {
   const { clubs, activeClub, activeClubId, isPlatformAdmin, changing, selectClub } = useActiveClub();
   const pathname = usePathname();
+  const { t } = useI18n();
   const [unreadMailboxCount, setUnreadMailboxCount] = useState(0);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [unresolvedClubNameCount, setUnresolvedClubNameCount] = useState(0);
@@ -224,7 +226,7 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
         )}
         </div>
         <div className="flex w-full min-w-0 max-w-full items-center justify-center gap-1 justify-self-stretch sm:gap-2">
-          <nav ref={navigationRef} aria-label="Hoofdnavigatie" className="flex w-full min-w-0 max-w-full items-center justify-center gap-1 py-1 sm:gap-2">
+          <nav ref={navigationRef} aria-label={t("nav.mainLabel")} className="flex w-full min-w-0 max-w-full items-center justify-center gap-1 py-1 sm:gap-2">
             <Link ref={homeButtonRef} href="/dashboard" title="Home" aria-label="Home" className={`${actionClass} ${pathname === "/dashboard" ? activeClass : ""}`}>
               <MenuIcon src="/branding/cbcs_black_icons/home.png" />
             </Link>
@@ -236,9 +238,9 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
                 <MenuIcon src={candidate.item.icon} />
                 {candidate.item.href === "/dashboard/club" && pendingOfficialImportCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-card bg-red-500 px-1 text-[10px] font-black leading-none text-white">{pendingOfficialImportCount > 99 ? "99+" : pendingOfficialImportCount}</span>}
               </Link>
-            ) : candidate.kind === "settings" ? <Link key="settings" href="/dashboard/settings" title="Instellingen" aria-label="Instellingen" className={`${actionClass} ${pathname.startsWith("/dashboard/settings") ? activeClass : ""}`}><MenuIcon src="/branding/cbcs_black_icons/instellingen.png" /></Link>
-              : candidate.kind === "help" ? <Link key="help" href="/dashboard/help" title="Help" aria-label="Help" className={`${actionClass} ${pathname.startsWith("/dashboard/help") ? activeClass : ""}`}><MenuIcon src="/branding/cbcs_black_icons/help.png" /></Link>
-                : <button key="signout" type="button" title="Afmelden" aria-label="Afmelden" onClick={() => void signOut()} className={actionClass}><MenuIcon src="/branding/cbcs_black_icons/afmelden.png" /></button>)}
+            ) : candidate.kind === "settings" ? <Link key="settings" href="/dashboard/settings" title={t("nav.settings")} aria-label={t("nav.settings")} className={`${actionClass} ${pathname.startsWith("/dashboard/settings") ? activeClass : ""}`}><MenuIcon src="/branding/cbcs_black_icons/instellingen.png" /></Link>
+              : candidate.kind === "help" ? <Link key="help" href="/dashboard/help" title={t("nav.help")} aria-label={t("nav.help")} className={`${actionClass} ${pathname.startsWith("/dashboard/help") ? activeClass : ""}`}><MenuIcon src="/branding/cbcs_black_icons/help.png" /></Link>
+                : <button key="signout" type="button" title={t("nav.signOut")} aria-label={t("nav.signOut")} onClick={() => void signOut()} className={actionClass}><MenuIcon src="/branding/cbcs_black_icons/afmelden.png" /></button>)}
             <button ref={actionsButtonRef} type="button" title="Berichten en meldingen" aria-label={actionCount ? `${actionCount} openstaande acties` : "Geen openstaande acties"} aria-expanded={actionsOpen} onClick={toggleActions} className={`${actionClass} relative`}>
               <MenuIcon src="/branding/cbcs_black_icons/berichten.png" />
               {actionCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-card bg-red-500 px-1 text-[10px] font-black leading-none text-white">{actionCount > 99 ? "99+" : actionCount}</span>}
@@ -277,12 +279,12 @@ export function ActiveClubBar({ navigation = [] }: { navigation?: DashboardNavIt
             </div>
             , document.body)}
             {!!hiddenCandidates.length && <div ref={moreMenuRef} className="relative">
-              <button ref={moreButtonRef} type="button" title="Meer" aria-label="Meer navigatie" aria-expanded={moreOpen} onClick={() => setMoreOpen(current => !current)} className={`${actionClass} text-lg font-black leading-none ${moreActive ? activeClass : ""}`}>...</button>
+              <button ref={moreButtonRef} type="button" title={t("nav.more")} aria-label={t("nav.moreLabel")} aria-expanded={moreOpen} onClick={() => setMoreOpen(current => !current)} className={`${actionClass} text-lg font-black leading-none ${moreActive ? activeClass : ""}`}>...</button>
               {moreOpen && <div className="absolute right-0 top-full z-50 mt-2 max-h-[min(70vh,32rem)] w-64 overflow-y-auto rounded-xl border border-border bg-cardAlt py-1 shadow-2xl">
                 {hiddenCandidates.map(candidate => candidate.kind === "navigation" ? <Link key={candidate.item.href} href={candidate.item.href} onClick={(event) => handleNavigation(event, candidate.item.href)} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-textPrimary hover:bg-cardHover"><MenuIcon src={candidate.item.icon} compact /><span className="min-w-0 flex-1 truncate">{candidate.item.label}</span>{candidate.item.href === "/dashboard/club" && pendingOfficialImportCount > 0 && <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-black text-white">{pendingOfficialImportCount > 99 ? "99+" : pendingOfficialImportCount}</span>}</Link>
-                  : candidate.kind === "settings" ? <Link key="settings" href="/dashboard/settings" className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/cbcs_black_icons/instellingen.png" compact /><span>Instellingen</span></Link>
-                    : candidate.kind === "help" ? <Link key="help" href="/dashboard/help" className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/cbcs_black_icons/help.png" compact /><span>Help</span></Link>
-                      : <button key="signout" type="button" onClick={() => void signOut()} className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/cbcs_black_icons/afmelden.png" compact /><span>Afmelden</span></button>)}
+                  : candidate.kind === "settings" ? <Link key="settings" href="/dashboard/settings" className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/cbcs_black_icons/instellingen.png" compact /><span>{t("nav.settings")}</span></Link>
+                    : candidate.kind === "help" ? <Link key="help" href="/dashboard/help" className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/cbcs_black_icons/help.png" compact /><span>{t("nav.help")}</span></Link>
+                      : <button key="signout" type="button" onClick={() => void signOut()} className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-textPrimary hover:bg-cardHover"><MenuIcon src="/branding/cbcs_black_icons/afmelden.png" compact /><span>{t("nav.signOut")}</span></button>)}
               </div>}
             </div>}
           </nav>

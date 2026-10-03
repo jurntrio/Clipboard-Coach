@@ -1,3 +1,4 @@
+import { pageTitle } from "@/lib/page-metadata";
 import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TrainingStatistics, type TrainingStatistic } from "@/components/training/TrainingStatistics";
@@ -40,3 +41,5 @@ export default async function TrainingStatisticsPage() {
   });
   return <main className="mx-auto max-w-6xl p-4 sm:p-8"><SectionHeader title="Trainingsstatistieken" artworkSrc="/branding/training.webp" showHome={false} /><nav className="mb-5 flex flex-wrap gap-2 rounded-xl border border-border bg-card p-2"><Link href="/dashboard/training" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Overzicht</Link><Link href="/dashboard/training/new" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Losse training maken</Link><span className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-page">Statistieken</span><Link href="/dashboard/intradesk" className="rounded-lg px-4 py-2 text-sm font-bold text-textPrimary hover:bg-cardDeep">Open Intradesk</Link></nav><TeamContextHeader teams={teams.map(team => ({ id: team.id, name: team.name }))} activeTeamId={activeTeamId} /><TrainingStatistics rows={rows} /></main>;
 }
+
+export const generateMetadata = pageTitle("page.trainingStatistics");
