@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 
 export type MediaSeason = { id: string; name: string };
 export type MediaTeam = { id: string; seasonId: string; name: string };
@@ -18,6 +19,7 @@ type Selection = { type: "root" } | { type: "season"; id: string } | { type: "te
 export function MediaArchive({ seasons, teams, matches, initialCategories, items, canManage }: {
   seasons: MediaSeason[]; teams: MediaTeam[]; matches: MediaMatch[]; initialCategories: MediaCategory[]; items: MediaItem[]; canManage: boolean;
 }) {
+  const askConfirm = useConfirm();
   const [selection, setSelection] = useState<Selection>({ type: "root" });
   const [expandedSeasons, setExpandedSeasons] = useState(() => new Set(seasons.filter(item => /2026\D+2027/.test(item.name)).map(item => item.id)));
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(() => new Set());
@@ -89,7 +91,7 @@ export function MediaArchive({ seasons, teams, matches, initialCategories, items
 
   async function toggleCategory(category: MediaCategory) {
     const action = category.active ? "deactivate" : "activate";
-    if (category.active && !window.confirm(`Categorie “${category.name}” deactiveren? Bestaande clips behouden hun koppeling.`)) return;
+    if (category.active && !(await askConfirm({ message: `Categorie “${category.name}” deactiveren? Bestaande clips behouden hun koppeling.` }))) return;
     const body = await mutateCategory({ action, id: category.id });
     if (body) setNotice(category.active ? "Categorie gedeactiveerd." : "Categorie geactiveerd.");
   }

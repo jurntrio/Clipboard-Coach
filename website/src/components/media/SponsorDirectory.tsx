@@ -1,11 +1,13 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 
 type Sponsor = { id: string; company_name: string; logo_url: string | null; website_url: string | null; active: boolean };
 type Scope={id:string;name:string;active:boolean}; type Season={id:string;name:string;status:string};
 
 export function SponsorDirectory() {
+  const askConfirm = useConfirm();
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [companyName, setCompanyName] = useState("");
@@ -38,7 +40,7 @@ export function SponsorDirectory() {
     finally { setBusy(false); }
   }
   async function uploadAsset(file:File,sponsorId:string,kind:string){if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>8*1024*1024)throw new Error("Gebruik een PNG, JPEG of WebP van maximaal 8 MB.");const ext=file.name.split(".").pop()?.replace(/[^a-z0-9]/gi,"")||"png",key=`clubs/${clubId}/sponsors/${sponsorId}-${kind}-${crypto.randomUUID()}.${ext}`;const prep=await fetch("/api/videos/upload-url",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key,contentType:file.type})}),p=await prep.json();if(!prep.ok)throw new Error(p.error);const put=await fetch(p.uploadUrl,{method:"PUT",headers:{"Content-Type":file.type},body:file});if(!put.ok)throw new Error("Upload mislukt.");return p.publicUrl;}
-  async function remove(sponsor:Sponsor){if(!confirm(`Sponsor ${sponsor.company_name} verwijderen? Gekoppelde sponsors worden veilig gearchiveerd.`))return;const r=await fetch(`/api/club/sponsors/${sponsor.id}`,{method:"DELETE"}),x=await r.json();if(!r.ok)return setError(x.error);await load();}
+  async function remove(sponsor:Sponsor){if(!(await askConfirm({ message: `Sponsor ${sponsor.company_name} verwijderen? Gekoppelde sponsors worden veilig gearchiveerd.` })))return;const r=await fetch(`/api/club/sponsors/${sponsor.id}`,{method:"DELETE"}),x=await r.json();if(!r.ok)return setError(x.error);await load();}
 
   async function toggle(sponsor: Sponsor) {
     setBusy(true); setError("");

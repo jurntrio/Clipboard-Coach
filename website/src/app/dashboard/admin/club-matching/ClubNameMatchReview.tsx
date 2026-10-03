@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { changeClubNameMatch, confirmClubNameMatch } from "./actions";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 
 type UnresolvedRow = { name: string; count: number; variants: string[] };
 type Club = { id: string; stamnummer: number; naam: string };
@@ -65,6 +66,7 @@ function ClubPicker({
 }
 
 export function ClubNameMatchReview({ rows, clubs, existingMappings, readOnly }: { rows: UnresolvedRow[]; clubs: Club[]; existingMappings: ExistingMapping[]; readOnly?: boolean }) {
+  const askConfirm = useConfirm();
   const router = useRouter();
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [busyName, setBusyName] = useState<string | null>(null);
@@ -88,7 +90,7 @@ export function ClubNameMatchReview({ rows, clubs, existingMappings, readOnly }:
   }
 
   async function changeMapping(name: string, belgianClubId: string | null) {
-    if (!belgianClubId && !window.confirm(`Koppeling voor “${name}” verwijderen? De betrokken wedstrijden krijgen tijdelijk geen clublogo.`)) return;
+    if (!belgianClubId && !(await askConfirm({ message: `Koppeling voor “${name}” verwijderen? De betrokken wedstrijden krijgen tijdelijk geen clublogo.` }))) return;
     setError(""); setBusyName(name);
     try {
       const result = await changeClubNameMatch(name, belgianClubId);

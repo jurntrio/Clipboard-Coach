@@ -1055,6 +1055,8 @@ export const nl = {
   ,"notFound.title": "Deze pagina bestaat niet (meer)"
   ,"notFound.body": "De link is misschien verlopen, verplaatst of verkeerd getypt."
   ,"notFound.dashboard": "Naar dashboard"
+  ,"confirm.title": "Ben je zeker?"
+  ,"confirm.ok": "Bevestigen"
 } as const;
 
 export type MessageKey = keyof typeof nl;

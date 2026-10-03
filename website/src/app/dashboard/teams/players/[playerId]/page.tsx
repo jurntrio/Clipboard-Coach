@@ -19,6 +19,7 @@ import { PlayerInjuries } from "@/components/teams/PlayerInjuries";
 import { PlayerTests } from "@/components/teams/PlayerTests";
 import { formatMasKmh, formatTestDuration } from "@/lib/vameval";
 import { hasScheduledEventEnded } from "@/lib/schedule-status";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 
 type PlayerWithTeam = Player & { teams: { name: string; club_team_id: string | null } | null };
 type Guardian = { id: string; profile_id: string; access_scope: string; valid_from: string; valid_until: string | null; revoked_at: string | null; created_at: string; profiles: { email: string; full_name: string | null } | null };
@@ -65,6 +66,7 @@ type PlayerClip = {
 };
 
 export default function PlayerClipsPage() {
+  const askConfirm = useConfirm();
   const { t, locale } = useI18n();
   const { playerId } = useParams<{ playerId: string }>();
   const [player, setPlayer] = useState<PlayerWithTeam | null>(null);
@@ -589,7 +591,7 @@ export default function PlayerClipsPage() {
                   </span>
                   <div className="flex gap-2">
                     {expired && <button type="button" disabled={guardiansBusy === invite.id} onClick={() => void resendInvite(invite)} className="rounded-lg border border-borderButton px-3 py-1.5 text-xs font-semibold text-accent disabled:cursor-not-allowed disabled:opacity-40">Opnieuw uitnodigen</button>}
-                    {!invite.used_at && <button type="button" disabled={guardiansBusy === invite.id} onClick={() => { if (window.confirm("Deze uitnodiging definitief verwijderen?")) void cancelInvite(invite.id); }} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-40">
+                    {!invite.used_at && <button type="button" disabled={guardiansBusy === invite.id} onClick={async () => { if (await askConfirm({ message: "Deze uitnodiging definitief verwijderen?" })) void cancelInvite(invite.id); }} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-40">
                       Definitief verwijderen
                     </button>}
                   </div>

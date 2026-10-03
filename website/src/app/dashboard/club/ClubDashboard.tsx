@@ -16,6 +16,7 @@ import { PlayerGroupsManager } from "./PlayerGroupsManager";
 import { SeasonManager } from "./SeasonManager";
 import { ClubLiveTagsManager } from "@/components/clubs/ClubLiveTagsManager";
 import { TrainingManagement } from "./TrainingManagement";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 
 type Club = { id: string; name: string; rbfa_registration_number: string | null; clip_advertising_enabled: boolean; clip_view_count_roles?: string[]; logo_url?: string | null; general_sponsor_url?: string | null; use_general_sponsor?: boolean; is_personal?: boolean };
 type Team = {
@@ -56,6 +57,7 @@ const roleLabels: Record<Membership["role"], string> = { club_admin: "Club Admin
 const roleBadgeClass: Record<Membership["role"], string> = { club_admin: "bg-blue-500/15 text-blue-300", club_admin_viewer: "bg-blue-500/10 text-blue-200", analyst: "bg-cyan-500/15 text-cyan-300", trainer: "bg-accent/15 text-accent" };
 
 export function ClubDashboard() {
+  const askConfirm = useConfirm();
   const { activeClubId } = useActiveClub();
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
@@ -147,7 +149,7 @@ export function ClubDashboard() {
   }
 
   async function removeTrainer(trainer: Trainer) {
-    if (!window.confirm(`${trainer.display_name} uit ${club?.name ?? "de club"} verwijderen? Het loginaccount zelf blijft bestaan.`)) return;
+    if (!(await askConfirm({ message: `${trainer.display_name} uit ${club?.name ?? "de club"} verwijderen? Het loginaccount zelf blijft bestaan.` }))) return;
     setSaving(`remove-trainer:${trainer.id}`);
     setError("");
     const response = await fetch("/api/club/trainers", {

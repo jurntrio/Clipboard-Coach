@@ -1057,4 +1057,6 @@ export const en: Record<MessageKey, string> = {
   ,"notFound.title": "This page doesn't exist (anymore)"
   ,"notFound.body": "The link may have expired, moved or been mistyped."
   ,"notFound.dashboard": "Go to dashboard"
+  ,"confirm.title": "Are you sure?"
+  ,"confirm.ok": "Confirm"
 };

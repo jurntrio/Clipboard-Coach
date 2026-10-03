@@ -12,6 +12,7 @@ import { getClubModuleConfiguration } from "@/lib/auth/club-module";
 import type { ClubModuleKey } from "@/lib/club-modules";
 import { TrainerOnboarding } from "@/components/onboarding/TrainerOnboarding";
 import { getServerI18n } from "@/i18n/server";
+import { ConfirmProvider } from "@/components/ui/ConfirmProvider";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const clubContext = await getClubContext();
@@ -67,7 +68,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <div className="flex min-h-screen flex-col bg-page">
         {onboardingTeam && <TrainerOnboarding teamId={onboardingTeam.id} teamName={onboardingTeam.name} />}
         <ActiveClubBar navigation={navigation} />
-        <main className="flex-1">{showPendingNotice ? <PendingClubAccessNotice pendingClubs={clubContext.pendingClubs} /> : children}</main>
+        <main className="flex-1"><ConfirmProvider>{showPendingNotice ? <PendingClubAccessNotice pendingClubs={clubContext.pendingClubs} /> : children}</ConfirmProvider></main>
         <footer className="mt-auto border-t border-border px-5 py-6"><LegalLinks /></footer>
       </div>
     </ActiveClubProvider>

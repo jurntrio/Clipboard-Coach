@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CLUB_FUNCTION_ROLES } from "@/lib/club-access-options";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 
 type Team = { id: string; name: string };
 type Account = {
@@ -47,6 +48,7 @@ const roleLabels: Record<string, string> = Object.fromEntries([...CLUB_FUNCTION_
 export function ClubPeopleManager({ clubId, teams, readOnly }: {
   clubId: string; teams: Team[]; readOnly: boolean;
 }) {
+  const askConfirm = useConfirm();
   const [people, setPeople] = useState<Person[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [players, setPlayers] = useState<PlayerOption[]>([]);
@@ -116,7 +118,7 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
   }
 
   async function revokeInvitation(person: Person, invitation: Invitation) {
-    if (!window.confirm(`Uitnodiging${invitation.intended_email ? ` voor ${invitation.intended_email}` : ""} intrekken? De bestaande link werkt daarna niet meer.`)) return;
+    if (!(await askConfirm({ message: `Uitnodiging${invitation.intended_email ? ` voor ${invitation.intended_email}` : ""} intrekken? De bestaande link werkt daarna niet meer.` }))) return;
     const result = await request("/api/club/person-invitations", "DELETE", {
       clubId, clubPersonId: person.id, invitationId: invitation.id
     }, `invite:${person.id}`);
@@ -124,7 +126,7 @@ export function ClubPeopleManager({ clubId, teams, readOnly }: {
   }
 
   async function revoke(account: Account) {
-    if (!window.confirm(`Account ${account.profiles?.email ?? ""} ontkoppelen?`)) return;
+    if (!(await askConfirm({ message: `Account ${account.profiles?.email ?? ""} ontkoppelen?` }))) return;
     await request("/api/club/person-accounts", "DELETE", {
       clubId, personAccountId: account.id, reason: "Ontkoppeld via clubbeheer"
     }, `account:${account.id}`);
@@ -251,6 +253,7 @@ function RoleEditor({ person, roles, teams, readOnly, busy, onRequest, clubId }:
   onRequest: (path: string, method: string, body: Record<string, unknown>, key: string) => Promise<unknown>;
   clubId: string;
 }) {
+  const askConfirm = useConfirm();
   const [roleType, setRoleType] = useState("trainer");
   const [teamId, setTeamId] = useState("");
   const groupedRoles = Array.from(roles.reduce((groups, role) => {
@@ -268,8 +271,8 @@ function RoleEditor({ person, roles, teams, readOnly, busy, onRequest, clubId }:
       return <div key={roleTypeValue} className="rounded-lg border border-border bg-card p-3 text-sm">
         <div className="flex items-center gap-2">
           <strong className="min-w-0 flex-1 text-textPrimary">{roleLabels[roleTypeValue] ?? roleTypeValue}</strong>
-          {!readOnly && baseRole && teamRoles.length === 0 && <button disabled={!!busy} onClick={() => {
-            if (window.confirm(`Functie ${roleLabels[roleTypeValue] ?? roleTypeValue} beëindigen?`)) void onRequest("/api/club/person-roles", "DELETE", {
+          {!readOnly && baseRole && teamRoles.length === 0 && <button disabled={!!busy} onClick={async () => {
+            if (await askConfirm({ message: `Functie ${roleLabels[roleTypeValue] ?? roleTypeValue} beëindigen?` })) void onRequest("/api/club/person-roles", "DELETE", {
               clubId, roleAssignmentId: baseRole.id
             }, `role:${baseRole.id}`);
           }} className={secondaryButton}>Functie beëindigen</button>}
