@@ -59,7 +59,7 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
       const ready = (body.media as GoalMedia[]).filter(item => item.clips?.render_status === "ready").map(item => item.clip_id).sort().join(",");
       if (readyClips.current !== null && ready !== readyClips.current) router.refresh();
       readyClips.current = ready;
-      setGoals(body.goals); setMedia(body.media); setTags(body.tags); setCanEdit(body.canEdit); setPlayers(body.players ?? []);
+      setGoals(body.goals); setMedia(body.media); setTags([...body.tags].sort((a: GoalTag, b: GoalTag) => a.start_time - b.start_time)); setCanEdit(body.canEdit); setPlayers(body.players ?? []);
       setSourceUrls(Object.fromEntries((body.videos ?? []).map((link: {video_id: string; videos: {video_url: string} | Array<{video_url: string}> | null}) => [link.video_id, (Array.isArray(link.videos) ? link.videos[0] : link.videos)?.video_url ?? ""])));
     } catch { setNotice("Doelpuntbeelden konden niet worden geladen. Controleer je verbinding."); }
   }, [matchId, router]);
