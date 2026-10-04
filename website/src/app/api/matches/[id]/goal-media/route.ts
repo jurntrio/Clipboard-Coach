@@ -43,7 +43,7 @@ async function save(request: Request, { params }: { params: { id: string } }, ed
   if ("error" in auth) return auth.error;
   try {
     const body = await request.json();
-    if (body.saveClip && (auth.access.readOnly || !(hasClubPermission(auth.access, "games.tag") || hasClubPermission(auth.access, "games.report.manage")))) {
+    if ((body.saveClip || body.editGoal || body.updateTagTimes) && (auth.access.readOnly || !(hasClubPermission(auth.access, "games.tag") || hasClubPermission(auth.access, "games.report.manage")))) {
       return NextResponse.json({ error: "Geen recht om doelpuntclips te bewaren." }, { status: 403 });
     }
     if (typeof body.tagId !== "string") throw new Error("Kies een doelpunttag.");
@@ -58,13 +58,14 @@ async function save(request: Request, { params }: { params: { id: string } }, ed
     if (body.goalId && !existing) throw new Error("Doelpunt niet gevonden. Vernieuw de lijst.");
     if (existing) makeReportGoal({ scoreAfter: existing.scoreAfter, team: existing.team, minute: existing.minute });
     const ownSide = auth.match.is_home_match === false ? "away" : "home";
-    const side = tag.event_type === "goal_for" ? ownSide : tag.event_type === "goal_against" ? (ownSide === "home" ? "away" : "home") : body.team;
-    const goal = existing ? { ...existing,
+    const side = ["home", "away"].includes(body.team) ? body.team : tag.event_type === "goal_for" ? ownSide : tag.event_type === "goal_against" ? (ownSide === "home" ? "away" : "home") : body.team;
+    const goal = existing && body.editGoal ? { ...existing, ...makeReportGoal({ scoreAfter: body.scoreAfter, team: side, minute: body.minute, scorerId: body.scorerId, assistId: body.assistId }), id: existing.id, description: existing.description, _edit_goal: true } : existing ? { ...existing,
       ...(!existing.scorerType && body.scorerId ? { scorerType: "player", scorerPlayerId: body.scorerId } : {}),
       ...(existing.assistType === "none" && body.assistId ? { assistType: "player", assistPlayerId: body.assistId } : {})
     } : makeReportGoal({ scoreAfter: body.scoreAfter, team: side, minute: body.minute, scorerId: body.scorerId, assistId: body.assistId });
-    if (existing && existing.team !== side && tag.event_type) throw new Error("De scorende ploeg van deze tag en dit doelpunt verschillen.");
+    if (existing && !body.editGoal && existing.team !== side && tag.event_type) throw new Error("De scorende ploeg van deze tag en dit doelpunt verschillen.");
     if (editing) Object.assign(goal, { _relink_media_id: body.mediaId, _previous_goal_id: body.previousGoalId });
+    if (body.updateTagTimes) Object.assign(goal, { _update_tag_times: true });
     const playerIds = [body.scorerId, body.assistId].filter((id): id is string => typeof id === "string" && !!id);
     if (playerIds.length) {
       if (body.scorerId && body.scorerId === body.assistId) throw new Error("De doelpuntenmaker kan niet ook de assistgever zijn.");
@@ -72,13 +73,14 @@ async function save(request: Request, { params }: { params: { id: string } }, ed
       if (playerIds.some(id => !(players ?? []).some(player => player.id === id))) throw new Error("Speler hoort niet bij deze ploeg.");
     }
     const video = (Array.isArray(videoLink.videos) ? videoLink.videos[0] : videoLink.videos) as { duration: number | null; video_url: string } | null;
-    const range = body.saveClip ? validateGoalRange(body.startTime, body.endTime, video?.duration) : null;
+    const range = body.saveClip || body.updateTagTimes ? validateGoalRange(body.startTime, body.endTime, video?.duration) : null;
     const { data, error } = await auth.admin.rpc("link_match_goal_media", {
       p_match_id: params.id, p_tag_id: tag.id, p_goal: goal, p_user_id: auth.user.id,
-      p_create_clip: !!range, p_start: range?.start ?? null, p_end: range?.end ?? null
+      p_create_clip: !!body.saveClip, p_start: range?.start ?? null, p_end: range?.end ?? null
     });
     if (error) throw new Error(error.message.includes("TAG_ALREADY_LINKED") ? "Deze tag is al aan een ander doelpunt gekoppeld." : error.message.includes("STALE_GOAL_MEDIA") ? "Deze koppeling is intussen gewijzigd. Vernieuw de lijst." : error.message);
-    return NextResponse.json({ ...data, videoId: tag.video_id });
+    const { data: updatedTag } = await auth.admin.from("tags").select("*").eq("id", tag.id).maybeSingle();
+    return NextResponse.json({ ...data, tag: updatedTag, videoId: tag.video_id });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Doelpunt kon niet worden gekoppeld." }, { status: 400 });
   }

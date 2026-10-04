@@ -63,10 +63,15 @@ test("unauthenticated, unauthorized and foreign video requests cannot insert", a
   }
 });
 test("goal type and scorer/assist validation reject invalid goals before writing", async () => {
-  for (const body of [{ name: "Goal" }, { name: "Goal", eventType: "bad" }, { eventType: "goal_for" },
+  for (const body of [{ name: "Goal", eventType: "bad" }, { eventType: "goal_for" },
     { name: "Goal", eventType: "goal_for", scorerId: "foreign" }, { name: "Goal", eventType: "goal_for", scorerId: "player", assistId: "player" }]) {
     const f = fixture(); assert.equal((await f.post(body)).status, 400); assert.equal(f.writes.length, 0);
   }
+});
+test("a plain Goal stores a tag without a side, scorer or statistics", async () => {
+  const f = fixture(); assert.equal((await f.post({ name: "Goal" })).status,201);
+  assert.equal(f.writes.length,1);
+  assert.equal(f.writes[0].payload.event_type,null);
 });
 test("goal statistics keep the requesting viewer as actor and failed statistics undo the tag", async () => {
   const body = { name: "Goal", eventType: "goal_for", scorerId: "player" };

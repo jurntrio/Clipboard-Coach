@@ -4,7 +4,10 @@ Een doelpunttag wordt gekoppeld aan de stabiele doelpunt-ID in `match_dossiers.g
 De stand is altijd thuis–uit. Eerst het verslag invullen of eerst de video taggen
 gebruikt dezelfde koppeling; meerdere tags/camerahoeken kunnen bij één doelpunt horen.
 
-In Video Viewer vraagt Goal om een bestaand doelpunt of de stand na een nieuw doelpunt.
+In Video Viewer opent Goal een pop-up met de doelpuntgegevens en tagtijden.
+**Tag opslaan zonder details** maakt alleen een videotag, zonder stand, scorende
+ploeg, doelpuntenmaker of nieuwe statistieken. Die gegevens kunnen later worden aangevuld.
+Een gekoppelde tag toont de stand in de naam, bijvoorbeeld **Goal Uit 0-1**.
 Bij **Doelpuntbeelden** controleert de trainer begin/einde en kiest
 **Tijden bevestigen en clip bewaren**. Een tag of koppeling alleen bewaart geen beelden.
 Lokale fragmenten worden in de browser gemaakt en naar R2 geüpload; 360/remote
@@ -18,7 +21,8 @@ Bewaar eerst de ingevulde doelpunten; kies daarna de tag, controleer begin/einde
 en bevestig de clip. Bij een lokale opname kan het bronbestand daar opnieuw
 worden gekozen. De bevestigde cliptijden kunnen afwijken van de oorspronkelijke
 tagtijden en worden afzonderlijk opgeslagen. Nieuwe doelpunten bieden een keuze
-voor doelpuntenmaker en assistgever; bestaande doelpunten bewerk je in het verslag.
+voor doelpuntenmaker en assistgever. **Bewerken** opent een pop-up waarin ook
+bestaande doelpuntgegevens en de gekozen videotag kunnen worden gewijzigd.
 Het dashboard en de ploegwedstrijdlijst tonen de videolink bij afgelopen wedstrijden.
 
 Bevestigde tijden worden vastgelegd op het clipsegment. Een latere tagcorrectie
@@ -45,9 +49,12 @@ geweigerd met een melding om te vernieuwen.
 
 ## Een verkeerde koppeling corrigeren
 
-Kies **Bewerken** naast het betreffende fragment, selecteer het juiste doelpunt
-of vul een nieuwe stand in, en kies **Koppeling opslaan**. Het bewaarde fragment
-blijft bestaan en verhuist mee naar het juiste doelpunt. De andere koppelingen
-en het oorspronkelijke doelpunt blijven behouden. Ook de cliptijden kunnen
-opnieuw bevestigd worden. Migratie `0209_edit_goal_media.sql` bewaakt dat een
-gelijktijdig gewijzigde koppeling niet wordt overschreven.
+Kies **Bewerken** naast het fragment of de goaltag. In de pop-up kun je de
+doelpunttag, gekoppeld doelpunt, stand (thuis–uit), scorende ploeg, minuut,
+doelpuntenmaker, assist en tijden wijzigen. **Wijzigingen opslaan** bewaart de
+correctie; **Tijden bevestigen en clip bewaren** bewaart daarnaast het fragment.
+Bij een andere videotag blijft de vorige clip in het archief, maar wordt deze
+losgemaakt van de koppeling. Bevestig de nieuwe tag om het juiste fragment te bewaren.
+Migratie `0211_goal_popup_editing.sql` werkt verslag, tagnamen en gekoppelde
+spelersstatistieken transactioneel bij en vult bestaande gekoppelde tagnamen aan
+met hun opgeslagen stand. Voer deze migratie uit vóór het publiceren van de website.

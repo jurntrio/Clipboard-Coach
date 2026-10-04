@@ -3,18 +3,24 @@
 import { useEffect, useState } from "react";
 import type { Player } from "@/types/database";
 import { getPlayerDisplayName } from "@/lib/utils";
+import { formatTime } from "@/lib/utils";
+import { parseClockTime } from "@/lib/clock-time";
 
 export type GoalTagDetails = {
-  eventType: "goal_for" | "goal_against";
+  eventType: "goal_for" | "goal_against" | null;
   scorerId: string | null;
   assistId: string | null;
   goalId?: string;
   scoreAfter?: string;
   minute?: number | null;
+  startTime?: number;
+  endTime?: number;
 };
 
-export function GoalTagDialog({ players, goals = [], onCancel, onConfirm }: {
+export function GoalTagDialog({ players, goals = [], initialStart, initialEnd, onCancel, onConfirm }: {
   players: Player[];
+  initialStart?: number;
+  initialEnd?: number;
   goals?: Array<{ id: string; scoreAfter: string; team: string }>;
   onCancel: () => void;
   onConfirm: (details: GoalTagDetails) => void | Promise<void>;
@@ -24,6 +30,13 @@ export function GoalTagDialog({ players, goals = [], onCancel, onConfirm }: {
   const [assistId, setAssistId] = useState("");
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [start, setStart] = useState(formatTime(initialStart ?? 0));
+  const [end, setEnd] = useState(formatTime(initialEnd ?? 13));
+  async function confirm(details: GoalTagDetails) {
+    const startTime = parseClockTime(start); const endTime = parseClockTime(end);
+    if (startTime == null || endTime == null || endTime <= startTime || endTime - startTime > 180) throw new Error("Kies geldige tagtijden van maximaal 180 seconden.");
+    await onConfirm({ ...details, startTime, endTime });
+  }
   const cancel = () => { if (!busy) onCancel(); };
 
   useEffect(() => {
@@ -38,7 +51,7 @@ export function GoalTagDialog({ players, goals = [], onCancel, onConfirm }: {
   const canConfirm = eventType !== null && (!!goalId || /^\d{1,2}-\d{1,2}$/.test(scoreAfter));
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-black/80 p-4" onClick={cancel}>
-      <section role="dialog" aria-modal="true" aria-labelledby="goal-dialog-title" onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl border border-borderButton bg-cardAlt p-6 shadow-2xl">
+      <section role="dialog" aria-modal="true" aria-labelledby="goal-dialog-title" onClick={(event) => event.stopPropagation()} className="max-h-[90dvh] overflow-y-auto w-full max-w-lg rounded-2xl border border-borderButton bg-cardAlt p-6 shadow-2xl">
         <div className="mb-5 flex items-start justify-between">
           <div><p className="text-xs font-bold uppercase tracking-widest text-accent">Goal</p><h2 id="goal-dialog-title" className="mt-1 text-xl font-semibold text-textBright">Type doelpunt</h2></div>
           <button type="button" disabled={busy} onClick={cancel} aria-label="Sluiten" className="text-2xl text-textMuted hover:text-textPrimary">&times;</button>
@@ -53,7 +66,8 @@ export function GoalTagDialog({ players, goals = [], onCancel, onConfirm }: {
         <div className="mt-4 space-y-3">
           <label className="block text-sm text-textSecondary">Welk doelpunt?<select value={goalId} onChange={event => setGoalId(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary"><option value="">Nieuw doelpunt in het verslag</option>{goals.filter(goal => goal.scoreAfter).map(goal => <option key={goal.id} value={goal.id}>{goal.scoreAfter}</option>)}</select></label>
           {!goalId && <div className="grid grid-cols-2 gap-3"><label className="text-sm text-textSecondary">Stand na doelpunt (thuis–uit)<input placeholder="1-0" value={scoreAfter} onChange={event => setScoreAfter(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" /></label><label className="text-sm text-textSecondary">Wedstrijdminuut<input type="number" min={0} max={120} value={minute} onChange={event => setMinute(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" /></label></div>}
-          <p className="text-xs text-textMuted">Controleer daarna de cliptijden bij Doelpuntbeelden en bevestig om de clip blijvend te bewaren.</p>
+          <div className="grid grid-cols-2 gap-3"><label className="text-sm text-textSecondary">Begin tag<input disabled={busy} value={start} onChange={event => setStart(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" /></label><label className="text-sm text-textSecondary">Einde tag<input disabled={busy} value={end} onChange={event => setEnd(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-textPrimary" /></label></div>
+          <p className="text-xs text-textMuted">Stand en spelers zijn optioneel via ‘Tag opslaan zonder details’. Je kunt alles later aanvullen via Bewerken.</p>
         </div>
         {eventType === "goal_for" && (
           <div className="mt-5 space-y-4 border-t border-border pt-5">
@@ -73,8 +87,9 @@ export function GoalTagDialog({ players, goals = [], onCancel, onConfirm }: {
         )}
         {saveError && <p role="alert" className="mt-4 text-sm text-red-300">{saveError}</p>}
         <div className="mt-6 flex gap-3">
+          <button type="button" disabled={busy} onClick={async () => { setBusy(true); setSaveError(""); try { await confirm({ eventType: null, scorerId: null, assistId: null }); } catch (error) { setSaveError(error instanceof Error ? error.message : "Tag kon niet worden opgeslagen."); } finally { setBusy(false); } }} className="flex-1 rounded-lg border border-borderButton px-3 py-2 text-sm text-textPrimary">Tag opslaan zonder details</button>
           <button type="button" disabled={busy} onClick={cancel} className="flex-1 rounded-lg bg-button px-4 py-2.5 text-textPrimary">Annuleren</button>
-          <button type="button" disabled={!canConfirm || busy} onClick={async () => { if (!eventType || busy) return; setBusy(true); setSaveError(""); try { await onConfirm({ eventType, scorerId: scorerId || null, assistId: assistId || null, goalId: goalId || undefined, scoreAfter, minute: minute === "" ? null : Number(minute) }); } catch (error) { setSaveError(error instanceof Error ? error.message : "Goal kon niet worden opgeslagen. Probeer opnieuw."); } finally { setBusy(false); } }} className="flex-1 rounded-lg bg-accent px-4 py-2.5 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Opslaan…" : "Goal opslaan"}</button>
+          <button type="button" disabled={!canConfirm || busy} onClick={async () => { if (!eventType || busy) return; setBusy(true); setSaveError(""); try { await confirm({ eventType, scorerId: scorerId || null, assistId: assistId || null, goalId: goalId || undefined, scoreAfter, minute: minute === "" ? null : Number(minute) }); } catch (error) { setSaveError(error instanceof Error ? error.message : "Goal kon niet worden opgeslagen. Probeer opnieuw."); } finally { setBusy(false); } }} className="flex-1 rounded-lg bg-accent px-4 py-2.5 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Opslaan…" : "Goal opslaan"}</button>
         </div>
       </section>
     </div>

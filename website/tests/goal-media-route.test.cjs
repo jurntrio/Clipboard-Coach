@@ -89,3 +89,16 @@ test("report confirms an independent clip range without altering tag times", asy
 });
 
 test("editing explicitly carries the original link identity and keeps regular linking guarded", async () => { const f=fixture(); assert.equal((await f.patch({})).status,400); assert.equal(f.writes.length,0); assert.equal((await f.patch({mediaId:"media",previousGoalId:"goal-1"})).status,200); assert.equal(f.writes[0].payload.p_goal._relink_media_id,"media"); assert.equal(f.writes[0].payload.p_goal._previous_goal_id,"goal-1"); assert.equal(f.writes[0].payload.p_create_clip,false); });
+test("editing updates score, side and minute, clears players and preserves report notes", async () => {
+  const goal = helpers.makeReportGoal({scoreAfter:"0-1",team:"away",scorerId:"player"}); goal.description="Bestaande toelichting";
+  const f=fixture({existingGoal:goal});
+  assert.equal((await f.patch({mediaId:"media",previousGoalId:goal.id,goalId:goal.id,editGoal:true,scoreAfter:"1-1",team:"home",minute:42,scorerId:null,assistId:null})).status,200);
+  const saved=f.writes[0].payload.p_goal;
+  assert.equal(saved.id,goal.id); assert.equal(saved.scoreAfter,"1-1"); assert.equal(saved.team,"home"); assert.equal(saved.minute,42); assert.equal(saved.scorerPlayerId,""); assert.equal(saved.description,goal.description);
+});
+test("view-only users cannot change a report goal or tag times through linking", async () => {
+  const f=fixture({canEdit:false});
+  assert.equal((await f.post({editGoal:true})).status,403);
+  assert.equal((await f.post({updateTagTimes:true,startTime:10,endTime:20})).status,403);
+  assert.equal(f.writes.length,0);
+});

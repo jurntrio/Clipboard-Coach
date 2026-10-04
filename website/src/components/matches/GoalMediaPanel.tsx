@@ -15,9 +15,10 @@ import { isLocalVideoUrl } from "@/lib/local-video-store";
 import type { Tag } from "@/types/database";
 
 type GoalTag = Pick<Tag, "id" | "video_id" | "name" | "start_time" | "end_time" | "event_type" | "event_metadata">;
-export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files = {}, localVideoIds = [], onTimesSaved, focusTagId, reportGoal, onGoalLinked, refreshKey = 0 }: {
+export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files = {}, localVideoIds = [], onTimesSaved, onTagSaved, focusTagId, reportGoal, onGoalLinked, refreshKey = 0 }: {
   matchId: string; ownTeamIsHome: boolean; tags?: Tag[]; files?: Record<string, File>; localVideoIds?: string[];
   onTimesSaved?: (tagId: string, start: number, end: number) => Promise<boolean | void>;
+  onTagSaved?: (tag: Tag) => void;
   focusTagId?: string | null; reportGoal?: ReportGoal; refreshKey?: number; onGoalLinked?: (goal: ReportGoal) => void;
 }) {
   const { t } = useI18n();
@@ -42,12 +43,12 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
   const [end, setEnd] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  const [expanded, setExpanded] = useState(!reportGoal);
+  const [expanded, setExpanded] = useState(false);
   const selectedTag = tags.find(item => item.id === tagId);
   const selectedLink = media.find(item => item.tag_id === tagId);
   const editingMedia = media.find(item => item.id === editingMediaId);
-  const selectedStart = editingMedia?.start_time ?? selectedTag?.start_time;
-  const selectedEnd = editingMedia?.end_time ?? selectedTag?.end_time;
+  const selectedStart = editingMedia?.tag_id === tagId ? editingMedia.start_time ?? selectedTag?.start_time : selectedTag?.start_time;
+  const selectedEnd = editingMedia?.tag_id === tagId ? editingMedia.end_time ?? selectedTag?.end_time : selectedTag?.end_time;
   const selectedEventType = selectedTag?.event_type;
 
   const load = useCallback(async () => {
@@ -67,8 +68,8 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
     const interval = window.setInterval(() => void load(), 10000);
     return () => window.clearInterval(interval);
   }, [load]);
-  useEffect(() => { if (focusTagId) { setTagId(focusTagId); setExpanded(true); document.getElementById("doelpuntbeelden")?.scrollIntoView({ block: "nearest", behavior: "smooth" }); } }, [focusTagId]);
-  useEffect(() => { setGoalId(reportGoal?.id ?? selectedLink?.goal_id ?? ""); }, [tagId, reportGoal?.id, selectedLink?.goal_id]);
+  useEffect(() => { if (focusTagId) { const id = focusTagId.split(":")[0]; const link = media.find(item => item.tag_id === id); setTagId(id); setEditingMediaId(link?.id ?? null); setGoalId(link?.goal_id ?? ""); setExpanded(true); } }, [focusTagId]);
+  useEffect(() => { if (!editingMediaId) setGoalId(reportGoal?.id ?? selectedLink?.goal_id ?? ""); }, [tagId, reportGoal?.id, selectedLink?.goal_id, editingMediaId]);
   useEffect(() => {
     if (selectedStart == null || selectedEnd == null) return;
     setStart(formatTime(selectedStart)); setEnd(formatTime(selectedEnd));
@@ -77,6 +78,26 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
     const ownSide = ownTeamIsHome ? "home" : "away";
     setTeam(selectedEventType === "goal_against" ? (ownSide === "home" ? "away" : "home") : ownSide);
   }, [tagId, selectedEventType, ownTeamIsHome]);
+  useEffect(() => {
+    const goal = goals.find(item => item.id === goalId);
+    if (goal) { setScore(goal.scoreAfter); setMinute(goal.minute == null ? "" : String(goal.minute)); setTeam(goal.team); setScorerId(goal.scorerPlayerId ?? ""); setAssistId(goal.assistPlayerId ?? ""); }
+    else { const metadata = selectedTag?.event_metadata as { scorer_id?: string; assist_id?: string } | null; setScorerId(metadata?.scorer_id ?? ""); setAssistId(metadata?.assist_id ?? ""); setScore(""); setMinute(""); }
+  }, [goalId, tagId, expanded]);
+  useEffect(() => {
+    if (!expanded) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const dialog = document.getElementById("goal-media-dialog-" + (reportGoal?.id ?? matchId));
+    const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), input:not(:disabled)') ?? []);
+    focusable()[0]?.focus();
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) setExpanded(false);
+      if (event.key === "Tab") { const nodes = focusable(); const first = nodes[0]; const last = nodes[nodes.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } }
+    };
+    window.addEventListener("keydown", handler);
+    return () => { document.body.style.overflow = oldOverflow; window.removeEventListener("keydown", handler); previous?.focus(); };
+  }, [expanded, busy, matchId, reportGoal?.id]);
   const displayedMedia = reportGoal ? media.filter(item => item.goal_id === reportGoal.id) : media;
 
   async function save(saveClip: boolean) {
@@ -86,6 +107,11 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
     try {
       if (reportGoal && !goals.some(goal => goal.id === reportGoal.id && goal.scoreAfter === reportGoal.scoreAfter)) throw new Error("Bewaar eerst het wedstrijdverslag, zodat het doelpunt kan worden gekoppeld.");
       const startTime = parseClockTime(start); const endTime = parseClockTime(end);
+      validateGoalRange(startTime, endTime);
+      if (!score && !goalId && !editingMediaId && !saveClip) {
+        const response = await fetch(`/api/matches/${matchId}/tags`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId, startTime, endTime }) });
+        const body = await response.json(); if (!response.ok) throw new Error(body.error); onTagSaved?.(body.tag); setNotice("Tag opgeslagen zonder doelpunt in het verslag."); return;
+      }
       if (saveClip) {
         validateGoalRange(startTime, endTime);
         if ((localVideoIds.includes(selectedTag.video_id) || isLocalVideoUrl(sourceUrls[selectedTag.video_id] ?? "")) && !files[selectedTag.video_id] && !reportFiles[selectedTag.video_id]) throw new Error("Koppel eerst het oorspronkelijke lokale videobestand opnieuw.");
@@ -95,12 +121,17 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
         }
       }
       const response = await fetch(`/api/matches/${matchId}/goal-media`, { method: editingMediaId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mediaId: editingMediaId, previousGoalId: editingMedia?.goal_id, tagId, goalId: goalId || undefined, scoreAfter: score, team, minute: minute === "" ? null : Number(minute),
-          scorerId: scorerId || undefined, assistId: assistId || undefined, saveClip, startTime, endTime }) });
+        body: JSON.stringify({ mediaId: editingMediaId, previousGoalId: editingMedia?.goal_id, tagId, goalId: goalId || undefined, editGoal: !!goalId, scoreAfter: score, team, minute: minute === "" ? null : Number(minute),
+          scorerId: scorerId || null, assistId: assistId || null, updateTagTimes: !!onTimesSaved, saveClip, startTime, endTime }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       clipId = body.clipId;
       if (body.goal) onGoalLinked?.(body.goal);
+      if (body.tag) onTagSaved?.(body.tag);
+      if (editingMedia?.tag_id && editingMedia.tag_id !== tagId) {
+        const refreshed = await fetch(`/api/matches/${matchId}/goal-media`, { cache: "no-store" });
+        if (refreshed.ok) { const data = await refreshed.json(); const oldTag = data.tags.find((tag: Tag) => tag.id === editingMedia.tag_id); if (oldTag) onTagSaved?.(oldTag); }
+      }
       if (saveClip && clipId) {
         const supabase = createClient();
         const { data: clip, error: clipError } = await supabase.from("clips").select("render_status,coach_id").eq("id", clipId).single();
@@ -132,6 +163,7 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
       }
       setNotice(saveClip ? "Fragment bevestigd. De clip blijft bewaard zodra ‘Clip bewaard’ verschijnt." : "Koppeling opgeslagen. Een reeds bewaarde clip blijft behouden.");
       await load();
+      router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Bewaren mislukt.";
       if (clipId) await createClient().from("clips").update({ render_status: "failed", render_error: message }).eq("id", clipId).neq("render_status", "ready");
@@ -153,20 +185,22 @@ export function GoalMediaPanel({ matchId, ownTeamIsHome, tags: viewerTags, files
         {item.clips?.render_status === "failed" && <span className="text-red-400">{item.clips.render_error}</span>}
       </div>;
     })}{!displayedMedia.length && <p className="text-xs text-textMuted">Nog geen videotag gekoppeld.</p>}</div>
-    {expanded && canEdit && <div className="mt-3 space-y-3 border-t border-border pt-3">
+    {expanded && canEdit && <div className="fixed inset-0 z-[75] grid place-items-center bg-black/80 p-4" onClick={() => { if (!busy) setExpanded(false); }}><div id={"goal-media-dialog-" + (reportGoal?.id ?? matchId)} role="dialog" aria-modal="true" aria-label={editingMediaId ? "Doelpunt bewerken" : "Doelpuntgegevens"} onClick={event => event.stopPropagation()} className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-borderButton bg-cardAlt p-5 shadow-2xl space-y-3">
+      <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-textBright">{editingMediaId ? "Doelpunt bewerken" : "Doelpuntgegevens"}</h2><button type="button" disabled={busy} onClick={() => setExpanded(false)} aria-label="Pop-up sluiten" className="text-2xl text-textMuted">×</button></div>
       {editingMediaId && <div className="flex items-center justify-between text-xs"><strong>Koppeling bewerken</strong><button type="button" disabled={busy} onClick={() => { setEditingMediaId(null); setTagId(""); setNotice(""); }} className="text-accent">Annuleren</button></div>}
-      <label className="block text-xs text-textSecondary">Doelpunttag<select disabled={busy || !!editingMediaId} value={tagId} onChange={event => { const id = event.target.value; setEditingMediaId(null); setTagId(id); const tag = tags.find(item => item.id === id); const metadata = tag?.event_metadata as {scorer_id?: string; assist_id?: string} | null; setScorerId(metadata?.scorer_id ?? ""); setAssistId(metadata?.assist_id ?? ""); }} className={input}><option value="">Kies een tag</option>{tags.map(tag => <option key={tag.id} value={tag.id}>{tag.name} · {formatTime(tag.start_time)}</option>)}</select></label>
+      <label className="block text-xs text-textSecondary">Doelpunttag<select disabled={busy} value={tagId} onChange={event => { const id = event.target.value; setTagId(id); const tag = tags.find(item => item.id === id); const metadata = tag?.event_metadata as {scorer_id?: string; assist_id?: string} | null; setScorerId(metadata?.scorer_id ?? ""); setAssistId(metadata?.assist_id ?? ""); }} className={input}><option value="">Kies een tag</option>{tags.map(tag => <option key={tag.id} value={tag.id}>{tag.name} · {formatTime(tag.start_time)}</option>)}</select></label>
       {!reportGoal && <label className="block text-xs text-textSecondary">Doelpunt in het verslag<select disabled={busy} value={goalId} onChange={event => setGoalId(event.target.value)} className={input}><option value="">Nieuw doelpunt</option>{goals.filter(goal => goal.scoreAfter).map(goal => <option key={goal.id} value={goal.id}>{goal.scoreAfter}{goal.minute != null ? ` · ${goal.minute}'` : ""}</option>)}</select></label>}
-      {!goalId && <div className="grid grid-cols-2 gap-2"><label className="text-xs text-textSecondary">Stand na doelpunt<input placeholder="1-0" value={score} onChange={event => setScore(event.target.value)} className={input} /></label><label className="text-xs text-textSecondary">Wedstrijdminuut<input type="number" min={0} max={120} value={minute} onChange={event => setMinute(event.target.value)} className={input} /></label><label className="text-xs text-textSecondary">Scorende ploeg<select value={team} onChange={event => setTeam(event.target.value as "home" | "away")} className={input}><option value="home">Thuisploeg</option><option value="away">Uitploeg</option></select></label></div>}
-      {selectedTag && !goalId && <div className="grid grid-cols-2 gap-2"><label className="text-xs text-textSecondary">Doelpuntenmaker<select disabled={busy} value={scorerId} onChange={event => { setScorerId(event.target.value); if (assistId === event.target.value) setAssistId(""); }} className={input}><option value="">Niet ingevuld</option>{players.map(player => <option key={player.id} value={player.id}>{player.first_name} {player.last_name}</option>)}</select></label><label className="text-xs text-textSecondary">Assistgever<select disabled={busy} value={assistId} onChange={event => setAssistId(event.target.value)} className={input}><option value="">Geen assist</option>{players.filter(player => player.id !== scorerId).map(player => <option key={player.id} value={player.id}>{player.first_name} {player.last_name}</option>)}</select></label></div>}
+      {<div className="grid grid-cols-2 gap-2"><label className="text-xs text-textSecondary">Stand na doelpunt<input placeholder="1-0" value={score} onChange={event => setScore(event.target.value)} className={input} /></label><label className="text-xs text-textSecondary">Wedstrijdminuut<input type="number" min={0} max={120} value={minute} onChange={event => setMinute(event.target.value)} className={input} /></label><label className="text-xs text-textSecondary">Scorende ploeg<select value={team} onChange={event => setTeam(event.target.value as "home" | "away")} className={input}><option value="home">Thuisploeg</option><option value="away">Uitploeg</option></select></label></div>}
+      {selectedTag && <div className="grid grid-cols-2 gap-2"><label className="text-xs text-textSecondary">Doelpuntenmaker<select disabled={busy} value={scorerId} onChange={event => { setScorerId(event.target.value); if (assistId === event.target.value) setAssistId(""); }} className={input}><option value="">Niet ingevuld</option>{players.map(player => <option key={player.id} value={player.id}>{player.first_name} {player.last_name}</option>)}</select></label><label className="text-xs text-textSecondary">Assistgever<select disabled={busy} value={assistId} onChange={event => setAssistId(event.target.value)} className={input}><option value="">Geen assist</option>{players.filter(player => player.id !== scorerId).map(player => <option key={player.id} value={player.id}>{player.first_name} {player.last_name}</option>)}</select></label></div>}
       {selectedTag && isLocalVideoUrl(sourceUrls[selectedTag.video_id] ?? "") && !files[selectedTag.video_id] && <label className="block text-xs text-textSecondary">Oorspronkelijke lokale opname<input type="file" accept="video/*" disabled={busy} onChange={event => { const file = event.target.files?.[0]; if (file) setReportFiles(current => ({ ...current, [selectedTag.video_id]: file })); }} className={input} /></label>}
       {selectedTag && <div className="grid grid-cols-2 gap-2"><label className="text-xs text-textSecondary">Begin clip<input disabled={busy} value={start} onChange={event => setStart(event.target.value)} className={input} /></label><label className="text-xs text-textSecondary">Einde clip<input disabled={busy} value={end} onChange={event => setEnd(event.target.value)} className={input} /></label></div>}
-      <div className="flex flex-wrap gap-2"><button type="button" disabled={busy || !tagId} onClick={() => void save(false)} className="rounded-lg border border-borderButton px-3 py-2 text-xs font-bold text-textPrimary disabled:opacity-40">{editingMediaId ? "Koppeling opslaan" : "Tag koppelen"}</button><button type="button" disabled={busy || !tagId} onClick={() => void save(true)} className="rounded-lg bg-accent px-3 py-2 text-xs font-bold text-page disabled:opacity-40">{busy ? "Bezig…" : "Tijden bevestigen en clip bewaren"}</button></div>
+      <div className="flex flex-wrap gap-2"><button type="button" disabled={busy || !tagId} onClick={() => void save(false)} className="rounded-lg border border-borderButton px-3 py-2 text-xs font-bold text-textPrimary disabled:opacity-40">{editingMediaId || goalId ? "Wijzigingen opslaan" : score ? "Tag koppelen" : "Tag opslaan zonder details"}</button><button type="button" disabled={busy || !tagId} onClick={() => void save(true)} className="rounded-lg bg-accent px-3 py-2 text-xs font-bold text-page disabled:opacity-40">{busy ? "Bezig…" : "Tijden bevestigen en clip bewaren"}</button></div>
       <p className="text-xs text-textMuted">De oorspronkelijke opname moet beschikbaar blijven tot ‘Clip bewaard’ verschijnt. Daarna opent het verslag het fragment uit onze eigen opslag.</p>
       {!onTimesSaved && <p className="text-xs text-textMuted">Bewaar eerst wijzigingen aan het verslag. Koppel daarna de tag aan het opgeslagen doelpunt.</p>}
 
-    </div>}
-    {notice && <p role="status" className="mt-2 text-xs text-textSecondary">{notice}</p>}
+      {notice && <p role="status" className="text-xs text-textSecondary">{notice}</p>}
+    </div></div>}
+    {!expanded && notice && <p role="status" className="mt-2 text-xs text-textSecondary">{notice}</p>}
   </section>;
 }
 const input = "mt-1 block w-full rounded-lg border border-border bg-input px-2 py-2 text-sm text-textPrimary";

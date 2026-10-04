@@ -14,7 +14,7 @@ export type TagListMeta = {
   onCalibrate?: () => void;
 };
 
-function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdate, onRename, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
+function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdate, onRename, onEdit, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
   tag: Tag;
   meta?: TagListMeta;
   selected: boolean;
@@ -23,6 +23,7 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
   onDelete: (tagId: string) => void;
   onUpdate?: (tagId: string, startTime: number, endTime: number) => boolean | void | Promise<boolean | void>;
   onRename?: (tagId: string, name: string) => boolean | void | Promise<boolean | void>;
+  onEdit?: (tag: Tag) => void;
   onDraw?: (tag: Tag) => void;
   currentTime?: number;
   onDrawingDurationChange?: (tag: Tag, drawingId: string, durationSeconds: number) => void | Promise<void>;
@@ -83,7 +84,7 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
         <span className={`h-2.5 w-2.5 flex-shrink-0 ${marker ? "rotate-45 rounded-sm" : "rounded-full"}`} style={{ backgroundColor: tag.color }} />
         {editingName ? <input autoFocus disabled={savingName} value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} onBlur={() => void saveName()} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape" && !savingName) { setNameDraft(tag.name); setEditingName(false); } }} className="min-w-0 flex-1 rounded border border-accent bg-input px-2 py-0.5 text-xs text-textPrimary outline-none disabled:cursor-not-allowed disabled:opacity-60" /> : <button onClick={() => onSeek(tag.start_time)} className="min-w-0 flex-1 truncate text-left text-xs font-semibold text-textPrimary">{tag.name}</button>}
         {meta?.onCalibrate && <button type="button" onClick={meta.onCalibrate} title={t("liveTags.calibrate")} aria-label={t("liveTags.calibrate")} className="px-1 text-xs text-textMuted hover:text-accent">🎯</button>}
-        {!marker && onRename && <button type="button" onClick={() => setEditingName(true)} className="px-1 text-xs text-textMuted hover:text-accent">{t("common.edit")}</button>}
+        {!marker && onRename && <button type="button" onClick={() => { if (onEdit && /^goal(?:\s|$)/i.test(tag.name)) onEdit(tag); else setEditingName(true); }} className="px-1 text-xs text-textMuted hover:text-accent">{t("common.edit")}</button>}
         <button onClick={() => onDelete(tag.id)} className="px-1 text-sm text-textMuted hover:text-red-400" aria-label={t("tag.deleteNamed", { name: tag.name })}>&times;</button>
       </div>
       <div
@@ -112,7 +113,7 @@ function TagRow({ tag, meta, selected, onToggleSelect, onSeek, onDelete, onUpdat
   );
 }
 
-export function TagList({ tags, tagMetaById, selectedTagIds, onToggleSelect, onToggleAll, onSeek, onDelete, onUpdate, onRename, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
+export function TagList({ tags, tagMetaById, selectedTagIds, onToggleSelect, onToggleAll, onSeek, onDelete, onUpdate, onRename, onEdit, onDraw, currentTime, onDrawingDurationChange, onOpenDrawing }: {
   tags: Tag[];
   tagMetaById?: Record<string, TagListMeta>;
   selectedTagIds: string[];
@@ -122,6 +123,7 @@ export function TagList({ tags, tagMetaById, selectedTagIds, onToggleSelect, onT
   onDelete: (tagId: string) => void;
   onUpdate?: (tagId: string, startTime: number, endTime: number) => boolean | void | Promise<boolean | void>;
   onRename?: (tagId: string, name: string) => boolean | void | Promise<boolean | void>;
+  onEdit?: (tag: Tag) => void;
   onDraw?: (tag: Tag) => void;
   currentTime?: number;
   onDrawingDurationChange?: (tag: Tag, drawingId: string, durationSeconds: number) => void | Promise<void>;
@@ -147,7 +149,7 @@ export function TagList({ tags, tagMetaById, selectedTagIds, onToggleSelect, onT
           <span className="ml-auto text-[11px] font-normal text-textMuted">{selectedCount}/{selectableTagIds.length}</span>
         </label>
       )}
-      {sortedTags.map((tag) => <TagRow key={tag.id} tag={tag} meta={tagMetaById?.[tag.id]} selected={selectedTagIds.includes(tag.id)} onToggleSelect={onToggleSelect} onSeek={onSeek} onDelete={onDelete} onUpdate={onUpdate} onRename={onRename} onDraw={onDraw} currentTime={currentTime} onDrawingDurationChange={onDrawingDurationChange} onOpenDrawing={onOpenDrawing} />)}
+      {sortedTags.map((tag) => <TagRow key={tag.id} tag={tag} meta={tagMetaById?.[tag.id]} selected={selectedTagIds.includes(tag.id)} onToggleSelect={onToggleSelect} onSeek={onSeek} onDelete={onDelete} onUpdate={onUpdate} onRename={onRename} onEdit={onEdit} onDraw={onDraw} currentTime={currentTime} onDrawingDurationChange={onDrawingDurationChange} onOpenDrawing={onOpenDrawing} />)}
     </div>
   );
 }

@@ -506,7 +506,7 @@ export default function MatchViewerPage() {
     const response = await fetch(`/api/matches/${matchId}/tags`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ videoId: video.id, name: label.trim(), occurredAtSeconds: localTime,
-        playerIds: selectedPlayers, eventType: goal?.eventType, scorerId: goal?.scorerId, assistId: goal?.assistId })
+        startTime: goal?.startTime, endTime: goal?.endTime, playerIds: selectedPlayers, eventType: goal?.eventType, scorerId: goal?.scorerId, assistId: goal?.assistId })
     });
     const result = await response.json().catch(() => null) as { tag?: Tag; error?: string; warning?: string } | null;
     if (!response.ok || !result?.tag) throw new Error(result?.error || "Goal kon niet worden opgeslagen. Probeer opnieuw.");
@@ -514,15 +514,16 @@ export default function MatchViewerPage() {
     if (created) {
       setTags((current) => [...current, created].sort((a, b) => (offsets.map.get(a.video_id) ?? 0) + a.start_time - ((offsets.map.get(b.video_id) ?? 0) + b.start_time)));
       setError(result.warning ?? "");
-      if (goal) {
+      if (goal?.eventType && (goal.goalId || goal.scoreAfter)) {
         try {
           const linked = await fetch(`/api/matches/${matchId}/goal-media`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId: created.id, goalId: goal.goalId, scoreAfter: goal.scoreAfter, minute: goal.minute, scorerId: goal.scorerId, assistId: goal.assistId }) });
           const linkResult = await linked.json();
+          if (linked.ok && linkResult.tag) setTags(current => current.map(tag => tag.id === created.id ? linkResult.tag : tag));
           if (!linked.ok) setError(linkResult.error || "Tag gemaakt, maar doelpunt nog niet gekoppeld. Koppel het bij Doelpuntbeelden.");
         } catch {
           setError("Goaltag opgeslagen, maar doelpunt nog niet gekoppeld. Koppel het bij Doelpuntbeelden.");
         }
-        setFocusGoalTag(created.id);
+
       }
     }
   }
@@ -1030,7 +1031,7 @@ export default function MatchViewerPage() {
                 </div>
               </div>
             )}
-            <TagList tags={rightColumnTags} tagMetaById={liveTagMetaById} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onToggleAll={toggleAllRightColumnTags} onSeek={seekTo} onDelete={deleteDisplayedTag} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={combinedTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
+            <TagList tags={rightColumnTags} tagMetaById={liveTagMetaById} selectedTagIds={selectedTagIds} onToggleSelect={(id) => setSelectedTagIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onToggleAll={toggleAllRightColumnTags} onSeek={seekTo} onDelete={deleteDisplayedTag} onUpdate={updateTag} onRename={renameTag} onEdit={tag => setFocusGoalTag(tag.id + ":" + Date.now())} onDraw={drawOnCurrentFrame} currentTime={combinedTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
             {!!visibleLiveTags.some((liveTag) => !liveTag.tag_id) && <div className="mt-1 space-y-1">
               {visibleLiveTags.filter((liveTag) => !liveTag.tag_id).map((liveTag) => {
                 const elapsed = liveTagElapsedSeconds(liveTag, match, timelineLeadSeconds);
@@ -1050,7 +1051,7 @@ export default function MatchViewerPage() {
               })}
             </div>}
           </section>
-          <GoalMediaPanel matchId={matchId} ownTeamIsHome={match?.is_home_match !== false} tags={tags} files={files} localVideoIds={allVideos.filter(video => isLocalVideoUrl(video.video_url)).map(video => video.id)} focusTagId={focusGoalTag} onTimesSaved={async (tagId, start, end) => {
+          <GoalMediaPanel matchId={matchId} ownTeamIsHome={match?.is_home_match !== false} tags={tags} files={files} localVideoIds={allVideos.filter(video => isLocalVideoUrl(video.video_url)).map(video => video.id)} focusTagId={focusGoalTag} onTagSaved={tag => { setTags(current => current.map(item => item.id === tag.id ? tag : item)); setLiveTags(current => current.map(item => item.tag_id === tag.id ? { ...item, tag_name: tag.name } : item)); }} onTimesSaved={async (tagId, start, end) => {
             const response = await fetch("/api/matches/" + matchId + "/tags", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tagId, startTime: start, endTime: end }) });
             const body = await response.json();
             if (!response.ok) { setError(body.error); return false; }
@@ -1062,7 +1063,7 @@ export default function MatchViewerPage() {
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}
       {pendingPhaseTag && <PhaseTagDialog onCancel={() => setPendingPhaseTag(null)} onConfirm={savePhaseTag} />}
-      {pendingGoal && <GoalTagDialog players={players} goals={reportGoals} onCancel={() => setPendingGoal(null)} onConfirm={async (details) => { const pending = pendingGoal; await persistProfiledTag(pending.video, pending.label, pending.localTime, details); setPendingGoal(null); }} />}
+      {pendingGoal && <GoalTagDialog players={players} goals={reportGoals} initialStart={Math.max(0, pendingGoal.localTime + (standardTags.find(tag => tag.name === pendingGoal.label)?.start_offset_seconds ?? -10))} initialEnd={Math.min(pendingGoal.video.duration ?? Infinity, pendingGoal.localTime + (standardTags.find(tag => tag.name === pendingGoal.label)?.end_offset_seconds ?? 3))} onCancel={() => setPendingGoal(null)} onConfirm={async (details) => { const pending = pendingGoal; await persistProfiledTag(pending.video, pending.label, pending.localTime, details); setPendingGoal(null); }} />}
       <ConfirmDialog open={!!pendingTagDelete} title={t("tag.deleteTitle")} message={t("tag.deleteMessage", { name: pendingTagDelete?.name ?? t("tag.name") })} busy={deletingTag} onCancel={() => setPendingTagDelete(null)} onConfirm={() => void confirmTagDelete()} />
       <ConfirmDialog open={confirmDeleteMatch} title={t("match.deleteTitle")} message={t("match.deleteMessage")} busy={deletingMatch} onCancel={() => setConfirmDeleteMatch(false)} onConfirm={() => void deleteMatch()} />
     </div>

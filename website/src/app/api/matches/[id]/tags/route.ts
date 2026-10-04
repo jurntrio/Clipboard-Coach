@@ -38,7 +38,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .eq("match_id", auth.match.id).eq("video_id", body.videoId).maybeSingle();
   if (!matchVideo) return NextResponse.json({ error: "Videobron niet gevonden." }, { status: 404 });
   const isGoal = /^goal(?:\s|$)/i.test(name);
-  if (isGoal && !["goal_for", "goal_against"].includes(body.eventType ?? "")) {
+  if (isGoal && body.eventType != null && !["goal_for", "goal_against"].includes(body.eventType)) {
     return NextResponse.json({ error: "Kies goal voor of goal tegen." }, { status: 400 });
   }
   if (!isGoal && (body.eventType || body.scorerId || body.assistId)) {
@@ -79,7 +79,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     end_time: endTime,
     color: getTagColor(name),
     player_ids: body.playerIds?.length ? body.playerIds : video?.active_player_ids ?? [],
-    event_type: isGoal ? body.eventType : null,
+    event_type: isGoal ? body.eventType ?? null : null,
     event_metadata: {
       created_by: auth.user.id,
       ...(isGoal && body.scorerId ? { scorer_id: body.scorerId } : {}),
