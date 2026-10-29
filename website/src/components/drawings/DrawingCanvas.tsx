@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 type Point2D = { x: number; y: number };
 
 type Box2D = {
@@ -417,6 +417,7 @@ export default function DrawingCanvas({
   onCancel,
   onDownload,
   showSave = true,
+  footerContent,
   labels = defaultLabels
 }: {
   imageUrl: string;
@@ -425,6 +426,7 @@ export default function DrawingCanvas({
   onCancel: () => void;
   onDownload?: (dataUrl: string) => void;
   showSave?: boolean;
+  footerContent?: ReactNode;
   labels?: DrawingCanvasLabels;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -994,6 +996,8 @@ export default function DrawingCanvas({
         ) : null}
       </div>
 
+      <div className={footerContent ? "drawingFooter" : undefined}>
+        {footerContent}
       <div className="modalActions">
         <button type="button" onClick={onCancel}>
           {labels.cancel}
@@ -1006,6 +1010,7 @@ export default function DrawingCanvas({
         {showSave ? <button type="button" onClick={handleSave}>
           {labels.save}
         </button> : null}
+      </div>
       </div>
     </div>
   );
