@@ -2,7 +2,7 @@ import { parseClipIntro, type ClipIntro } from "./clip-intro";
 
 export type ClipImage = { key: string; url: string; duration: number };
 export type ClipImages = { opening: ClipIntro | null; tags: Record<string, ClipImage> };
-export type ClipImageManifest = { version: 1; segments: Record<string, Array<{ key: string; duration: number }>> };
+export type ClipImageManifest = { excludeDrawings?: string[]; version: 1; segments: Record<string, Array<{ key: string; duration: number }>> };
 export const emptyClipImages = (): ClipImages => ({ opening: null, tags: {} });
 
 export function parseClipImages(value: unknown): ClipImages {
@@ -19,12 +19,20 @@ export function parseClipImages(value: unknown): ClipImages {
   return { opening: opening?.enabled ? opening : null, tags };
 }
 
-export function makeClipImageManifest(images: ClipImages, segments: Array<{ id: string; tag_id: string; sequence_order: number }>, openingKey?: string): ClipImageManifest {
+export function parseExcludedDrawingTagIds(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 200 || value.some(id => typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id))) throw new Error("Ongeldige keuze voor tekeningen.");
+  return [...new Set(value as string[])];
+}
+
+export function makeClipImageManifest(images: ClipImages, segments: Array<{ id: string; tag_id: string; sequence_order: number }>, openingKey?: string, excludedDrawingTagIds: string[] = []): ClipImageManifest {
   const ordered = [...segments].sort((a, b) => a.sequence_order - b.sequence_order);
   const selected = new Set(ordered.map(item => item.tag_id));
   if (Object.keys(images.tags).some(id => !selected.has(id))) throw new Error("Een fragmentbeeld hoort niet bij deze clip.");
   if (images.opening && !openingKey) throw new Error("Het openingsbeeld ontbreekt.");
+  if (excludedDrawingTagIds.some(id => !selected.has(id))) throw new Error("Een tekeningkeuze hoort niet bij deze clip.");
   const result: ClipImageManifest = { version: 1, segments: {} };
+  if (excludedDrawingTagIds.length) result.excludeDrawings = ordered.filter(segment => excludedDrawingTagIds.includes(segment.tag_id)).map(segment => segment.id);
   const seen = new Set<string>();
   for (const [index, segment] of ordered.entries()) {
     const before: Array<{ key: string; duration: number }> = [];

@@ -666,6 +666,7 @@ export const en: Record<MessageKey, string> = {
   ,"clip.view": "View"
   ,"clip.rename": "Rename"
   ,"clip.renameFailed": "The clip name could not be changed."
+  ,"clip.includeDrawing": "Include drawing"
   ,"clip.segmentOrder": "Clip moment order"
   ,"clip.segmentOrderHelp": "Use the arrows to choose the order of the moments in the combined clip."
   ,"clip.moveUp": "Move {name} up"

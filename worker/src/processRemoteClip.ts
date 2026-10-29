@@ -132,7 +132,7 @@ export async function processRemoteClip(clipId: string) {
     if (!segments.length) throw new Error("Clip has no segments");
     const imageData = await readJsonObject(`clip-intros/renders/${clipId}.json`);
     const imagePlan = imageData ? parseImageManifest(imageData) : null;
-    if (imagePlan && Object.keys(imagePlan.segments).some(id => !segments.some(segment => segment.id === id))) throw new Error("Intro image refers to a different clip segment");
+    if (imagePlan && [...Object.keys(imagePlan.segments), ...(imagePlan.excludeDrawings ?? [])].some(id => !segments.some(segment => segment.id === id))) throw new Error("Intro image refers to a different clip segment");
 
     async function rangeSource(sourceUrl: string) {
       const cached = rangeProxiesByUrl.get(sourceUrl);
@@ -178,7 +178,7 @@ export async function processRemoteClip(clipId: string) {
       await fsp.mkdir(segmentWorkDir, { recursive: true });
 
       const drawingInputs: ClipDrawingInput[] = [];
-      for (const [drawingIndex, drawing] of (tag.drawings ?? []).entries()) {
+      for (const [drawingIndex, drawing] of (imagePlan?.excludeDrawings?.includes(segment.id) ? [] : tag.drawings ?? []).entries()) {
         const drawingVideoId = drawing.video_id ?? tag.video_id;
         const segmentVideoId = segment.video_id ?? segment.videos?.id ?? tag.video_id;
         if (drawingVideoId !== segmentVideoId || !drawing.key || drawing.video_time < tag.start_time || drawing.video_time > tag.end_time) continue;

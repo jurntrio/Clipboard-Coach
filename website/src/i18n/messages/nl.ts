@@ -664,6 +664,7 @@ export const nl = {
   ,"clip.view": "Bekijken"
   ,"clip.rename": "Naam wijzigen"
   ,"clip.renameFailed": "De clipnaam kon niet worden aangepast."
+  ,"clip.includeDrawing": "Tekening meenemen"
   ,"clip.segmentOrder": "Volgorde van de clipmomenten"
   ,"clip.segmentOrderHelp": "Gebruik de pijlen om te bepalen in welke volgorde de momenten in de samengestelde clip komen."
   ,"clip.moveUp": "{name} omhoog zetten"

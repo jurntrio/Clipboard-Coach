@@ -68,6 +68,7 @@ export function ClipBuilder({
   const [newTeamPlayerName, setNewTeamPlayerName] = useState("");
   const [addingPerson, setAddingPerson] = useState(false);
   const [clipAllowance, setClipAllowance] = useState<{ plan: "free" | "pro"; used: number; exempt: boolean } | null>(null);
+  const [excludedDrawingTagIds, setExcludedDrawingTagIds] = useState<string[]>([]);
   const [cameraSelectionByTag, setCameraSelectionByTag] = useState<Record<string, string[]>>({});
   const supabase = createClient();
   const { t } = useI18n();
@@ -236,7 +237,7 @@ export function ClipBuilder({
                 source_start: tag.start_time,
                 source_end: tag.end_time,
                 drawing_time_base: "clip",
-                drawings: (tag.drawings ?? [])
+                drawings: (excludedDrawingTagIds.includes(tag.id) ? [] : tag.drawings ?? [])
                   .filter((drawing) =>
                     (drawing.video_id ?? tag.video_id) === sourceVideoId
                     && drawing.video_time >= tag.start_time
@@ -277,7 +278,7 @@ export function ClipBuilder({
             render_error: null
           }).eq("id", clip.id);
           if (updateError) throw updateError;
-          const processResponse = await fetch(`/api/clips/${clip.id}/process`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ images: chosenImages }) });
+          const processResponse = await fetch(`/api/clips/${clip.id}/process`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ images: chosenImages, excludedDrawingTagIds: excludedDrawingTagIds.filter(id => clipTagIds.includes(id)) }) });
           if (!processResponse.ok) {
             const body = await processResponse.json().catch(() => null) as { error?: string } | null;
             throw new Error(body?.error || t("clip.conversionFailed"));
@@ -288,6 +289,7 @@ export function ClipBuilder({
           setAudiencePlayerIds([]);
           setAudienceType("full_team");
           setCameraSelectionByTag({});
+          setExcludedDrawingTagIds([]);
           setClipImages(emptyClipImages());
           onClipCreated();
           setOpen(false);
@@ -374,7 +376,7 @@ export function ClipBuilder({
       <h3 className="font-semibold text-textBright">{t("clip.make")}</h3>
       <p className="mb-3 mt-1 text-xs text-textMuted">{t("clip.selected", { count: clipTagIds.length })}</p>
       {clipAllowance && !clipAllowance.exempt && <p className={`mb-3 text-xs ${clipLimitReached ? "text-red-300" : "text-textMuted"}`}>{clipAllowance.plan === "pro" ? t("clip.proPlan", { count: clipAllowance.used }) : t("clip.freeUsed", { used: clipAllowance.used, limit: freeClipLimit })}</p>}
-      <button type="button" onClick={() => { setErrorMessage(""); setOpen(true); void loadAvailableTeams(); }} disabled={clipTagIds.length === 0 || (localVideo && !canUseLocalSources) || clipLimitReached} className="w-full rounded-lg bg-accent py-2 font-semibold text-page hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{t("clip.create")}</button>
+      <button type="button" onClick={() => { setErrorMessage(""); setExcludedDrawingTagIds([]); setOpen(true); void loadAvailableTeams(); }} disabled={clipTagIds.length === 0 || (localVideo && !canUseLocalSources) || clipLimitReached} className="w-full rounded-lg bg-accent py-2 font-semibold text-page hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{t("clip.create")}</button>
       {localVideo && !canUseLocalSources && <p className="mt-2 text-xs text-textMuted">{t("clip.reconnectAll")}</p>}
       {clipLimitReached && <p className="mt-2 text-xs text-red-300">{t("clip.freeLimit")}</p>}
 
@@ -406,11 +408,17 @@ export function ClipBuilder({
                         <strong className="block truncate text-xs text-textPrimary">{tag.name}</strong>
                         <small className="text-[10px] text-textMuted">{formatTime(tag.start_time)}–{formatTime(tag.end_time)}</small>
                       </span>
-                      <div className="flex flex-wrap gap-1.5 max-md:col-span-3 max-md:pl-7">
+                      <div className="flex flex-wrap items-center gap-1.5 max-md:col-span-3 max-md:pl-7">
                         {siblings.length > 1 && siblings.map((camera) => {
                           const checked = selected.includes(camera.id);
                           return <button key={camera.id} type="button" disabled={saving} onClick={() => toggleTagCamera(tag, camera.id)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${checked ? "border-accent bg-accentDim text-textBright" : "border-borderButton bg-button text-textSecondary hover:bg-cardHover"}`}>{camera.label}</button>;
                         })}
+                        {(tag.drawings ?? []).some(drawing => selected.includes(drawing.video_id ?? tag.video_id) && drawing.video_time >= tag.start_time && drawing.video_time <= tag.end_time) && (
+                          <label className="ml-2 flex cursor-pointer items-center gap-2 rounded-lg border border-borderButton bg-button px-3 py-1.5 text-xs text-textPrimary">
+                            <input type="checkbox" checked={!excludedDrawingTagIds.includes(tag.id)} disabled={saving} onChange={event => setExcludedDrawingTagIds(current => event.target.checked ? current.filter(id => id !== tag.id) : [...current, tag.id])} />
+                            {t("clip.includeDrawing")}
+                          </label>
+                        )}
                       </div>
                       <span className="flex gap-2 max-md:col-start-3 max-md:row-start-1">
                         <button type="button" disabled={index === 0 || saving} onClick={() => moveClipTag(tag.id, -1)} aria-label={t("clip.moveUp", { name: tag.name })} title={t("clip.moveUp", { name: tag.name })} className="grid h-8 w-8 place-items-center rounded border border-borderButton bg-button text-sm text-textPrimary disabled:cursor-not-allowed disabled:opacity-25">↑</button>
