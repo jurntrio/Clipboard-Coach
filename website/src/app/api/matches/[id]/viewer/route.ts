@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessTeam, getClubAccess, hasClubPermission } from "@/lib/auth/club-access";
 import { canManageMatchVideoSources } from "@/lib/auth/match-video-sources";
+import { normalizeRecordingCameraBlocks } from "@/lib/recording-camera-blocks";
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -41,6 +42,6 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     userId: user.id
   });
 
-  return NextResponse.json({ match, tags: tags ?? [], liveTags: liveTags ?? [], canManageSources, recordingConfig: club ?? null,
+  return NextResponse.json({ match: { ...match, match_videos: normalizeRecordingCameraBlocks(match.match_videos ?? []) }, tags: tags ?? [], liveTags: liveTags ?? [], canManageSources, recordingConfig: club ?? null,
     currentUserId: user.id, players: players ?? [], standardTags: standardTags ?? [] });
 }

@@ -4,10 +4,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
+const cameraModule = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/lib/recording-camera-blocks.ts'), 'utf8'),
+  { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: cameraModule, exports: cameraModule.exports });
 
-function fixture({ authenticated = true, allowed = true, teamAllowed = true, matchExists = true } = {}) {
+function fixture({ authenticated = true, allowed = true, teamAllowed = true, matchExists = true, cameraBlocks = [] } = {}) {
   const calls = [];
-  const match = matchExists ? { id: 'match', club_id: 'club', club_team_id: 'club-team', team_a_id: 'team', match_videos: [] } : null;
+  const match = matchExists ? { id: 'match', club_id: 'club', club_team_id: 'club-team', team_a_id: 'team', match_videos: cameraBlocks } : null;
   function client(scope) {
     return { auth: { getUser: async () => ({ data: { user: authenticated ? { id: 'user' } : null } }) },
       from(table) {
@@ -25,6 +28,7 @@ function fixture({ authenticated = true, allowed = true, teamAllowed = true, mat
       } };
   }
   const deps = {
+    '@/lib/recording-camera-blocks': cameraModule.exports,
     'next/server': { NextResponse: { json: (body, options) => new Response(JSON.stringify(body), options) } },
     '@/lib/supabase/server': { createClient: () => client('user') },
     '@/lib/supabase/admin': { createAdminClient: () => client('admin') },
@@ -50,6 +54,19 @@ test('viewer returns identity, RLS-visible roster and personal tags with unchang
     filters: [['eq', 'team_id', 'team'], ['neq', 'role', 'staff'], ['order', 'last_name']] });
   assert.deepEqual(f.calls.find(c => c.table === 'standard_tags'), { scope: 'user', table: 'standard_tags',
     filters: [['eq', 'coach_id', 'user'], ['order', 'created_at']] });
+});
+
+test('viewer returns all six stored cameras as one selectable camera group', async () => {
+  const cameraBlocks = Array.from({ length: 6 }, (_, index) => ({ id: `block-${index}`, sequence_order: index,
+    is_primary: index === 2, videos: { id: `camera-${index}`, camera_number: index + 1,
+      video_key: `recordings360/club/match/recording/C${index + 1}.mp4` } }));
+  const response = await fixture({ cameraBlocks }).get();
+  const body = await response.json();
+  assert.equal(body.match.match_videos.length, 6);
+  assert.ok(body.match.match_videos.every(block => block.sequence_order === 0));
+  assert.equal(body.match.match_videos.filter(block => block.is_primary).length, 1);
+  assert.equal(body.match.match_videos.find(block => block.is_primary).id, 'block-2');
+  assert.equal(cameraBlocks[5].sequence_order, 5);
 });
 test('401, 403 and 404 never fetch or expose roster or personal tags', async () => {
   for (const [options, status] of [[{ authenticated: false }, 401], [{ allowed: false }, 403],
