@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import type { ClipAudienceType, Player, Tag, Team } from "@/types/database";
 import { formatTime, getPlayerDisplayName } from "@/lib/utils";
@@ -42,7 +43,6 @@ export function ClipBuilder({
   matchLabel?: string;
   onClipCreated: () => void;
 }) {
-  const canUseLocalSources = localSourcesReady ?? !!localFile;
   const localSourceIds = new Set(localVideoIds ?? (localVideo ? [videoId] : []));
   const clipTagIds = selectedTagIds.filter((id) => {
     const tag = tags.find((item) => item.id === id);
@@ -70,6 +70,14 @@ export function ClipBuilder({
   const [clipAllowance, setClipAllowance] = useState<{ plan: "free" | "pro"; used: number; exempt: boolean } | null>(null);
   const [excludedDrawingTagIds, setExcludedDrawingTagIds] = useState<string[]>([]);
   const [cameraSelectionByTag, setCameraSelectionByTag] = useState<Record<string, string[]>>({});
+  const requiredLocalSourceIds = clipTagIds.flatMap((id) => {
+    const tag = tags.find((item) => item.id === id)!;
+    return cameraSelectionByTag[id] ?? [tag.video_id];
+  }).filter((id) => localSourceIds.has(id));
+  const canUseLocalSources = requiredLocalSourceIds.every((id) =>
+    !!(localFilesByVideoId?.[id] ?? (id === videoId ? localFile : null))
+    || (localFilesByVideoId === undefined && localSourcesReady === true)
+  );
   const supabase = createClient();
   const { t } = useI18n();
   const freeClipLimit = 20;
@@ -380,7 +388,7 @@ export function ClipBuilder({
       {localVideo && !canUseLocalSources && <p className="mt-2 text-xs text-textMuted">{t("clip.reconnectAll")}</p>}
       {clipLimitReached && <p className="mt-2 text-xs text-red-300">{t("clip.freeLimit")}</p>}
 
-      {open && (
+      {open && createPortal((
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" onClick={() => { if (!saving) setOpen(false); }}>
           <div className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-xl border border-borderButton bg-cardAlt p-5 shadow-2xl" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("clip.create")}>
             <div className="mb-4 flex items-start justify-between gap-4">
@@ -460,7 +468,7 @@ export function ClipBuilder({
             <div className="mt-5 flex gap-3"><button type="button" disabled={saving} onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">{t("common.cancel")}</button><button type="button" onClick={() => void handleCreateClip()} disabled={saving || clipLimitReached || !imagesReady} className="flex-1 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? (localFile ? t("clip.making") : t("clip.creating")) : t("clip.create")}</button></div>
           </div>
         </div>
-      )}
+      ), document.fullscreenElement ?? document.querySelector(".match-viewer-shell") ?? document.body)}
     </div>
   );
 }

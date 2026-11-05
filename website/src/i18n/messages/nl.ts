@@ -711,7 +711,7 @@ export const nl = {
   ,"clip.proPlan": "Pro-abonnement · Onbeperkte clips ({count} gemaakt)"
   ,"clip.freeLimit": "Je hebt alle 20 clips van een gratis account gebruikt. Upgrade naar Pro om meer clips te maken."
   ,"tag.tooLong": "Deze clip mag maximaal 3 minuten duren, tekeningen inbegrepen."
-  ,"clip.reconnectAll": "Koppel alle bronvideo’s van deze wedstrijd opnieuw om clips te kunnen maken."
+  ,"clip.reconnectAll": "Koppel de bronvideo’s van de geselecteerde tags opnieuw om deze clip te maken."
   ,"clip.reconnectOriginal": "Koppel de oorspronkelijke wedstrijdvideo opnieuw voordat je clips maakt."
   ,"clip.selectPerson": "Selecteer minstens één persoon of kies het volledige team."
   ,"clip.selectFullTeam": "Selecteer een team voordat je het volledige team kiest."
