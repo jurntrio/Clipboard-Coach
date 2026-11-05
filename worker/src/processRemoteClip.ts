@@ -110,7 +110,7 @@ type ClipRow = {
  * Only the MP4 index and bytes around the requested tag are transferred. A full local download
  * remains available as a per-camera fallback.
  */
-export async function processRemoteClip(clipId: string) {
+export async function processRemoteClip(clipId: string, sourceUrls: Record<string, string> = {}) {
   let workDir: string | null = null;
   let activeSegmentId: string | null = null;
   const rangeProxiesByUrl = new Map<string, RemoteRangeProxy>();
@@ -167,7 +167,8 @@ export async function processRemoteClip(clipId: string) {
       if (startError) throw startError;
       const tag = { ...segment.tags!, start_time: segment.source_start ?? segment.tags!.start_time, end_time: segment.source_end ?? segment.tags!.end_time };
       const uploadedLocalKey = segment.rendered_segment?.key;
-      const sourceUrl = segment.videos?.video_url ?? tag.videos?.video_url;
+      const sourceVideo = segment.videos ?? tag.videos;
+      const sourceUrl = sourceVideo ? sourceUrls[sourceVideo.id] ?? sourceVideo.video_url : undefined;
       if (!uploadedLocalKey && !sourceUrl) throw new Error(`Segment ${index} has no source video`);
       if (!uploadedLocalKey && sourceUrl && !/^https?:\/\//i.test(sourceUrl)) {
         throw new Error(`Segment ${index} has a local-only video source and was not uploaded by the browser`);

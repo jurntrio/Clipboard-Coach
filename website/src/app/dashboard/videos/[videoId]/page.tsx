@@ -2,6 +2,8 @@
 
 import VideoViewerLoading from "./loading";
 
+import { ViewerClips } from "@/components/clips/ViewerClips";
+
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
@@ -46,6 +48,7 @@ export default function VideoViewerPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [standardTags, setStandardTags] = useState<StandardTag[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [clipsRevision, setClipsRevision] = useState(0);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [activePhaseTag, setActivePhaseTag] = useState<{ startTime: number } | null>(null);
   const [pendingPhaseTags, setPendingPhaseTags] = useState<{ id: string; startTime: number; endTime: number }[]>([]);
@@ -490,7 +493,8 @@ export default function VideoViewerPage() {
           <h3 className="mb-2 font-semibold text-textBright">{t("video.taggedClips")}</h3>
           <TagList tags={tags.filter((tag) => !isPeriodMarker(tag.name))} selectedTagIds={selectedTagIds} onToggleSelect={toggleTagSelected} onSeek={seekTo} onDelete={deleteTag} onUpdate={updateTag} onRename={renameTag} onDraw={drawOnCurrentFrame} currentTime={currentTime} onDrawingDurationChange={changeDrawingDuration} onOpenDrawing={openSavedDrawing} />
         </section>
-        <ClipBuilder
+        <ViewerClips localFile={localFile} videoId={videoId} revision={clipsRevision} onOpen={() => videoRef.current?.pause()} />
+          <ClipBuilder
           videoId={videoId}
           teamId={video?.team_id ?? null}
           selectedTagIds={selectedTagIds}
@@ -499,7 +503,7 @@ export default function VideoViewerPage() {
           localVideo={isLocalVideoUrl(video?.video_url)}
           localFile={localFile}
           matchLabel={video?.home_team && video?.away_team ? `${video.home_team} - ${video.away_team}` : video?.title || t("video.match")}
-          onClipCreated={() => setSelectedTagIds([])}
+          onClipsChanged={() => setClipsRevision(value => value + 1)} onClipCreated={() => setSelectedTagIds([])}
         />
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}

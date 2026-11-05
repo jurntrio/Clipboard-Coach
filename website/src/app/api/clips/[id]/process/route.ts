@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { clipRecordingSources } from "@/lib/clip-recording-sources";
 import { emptyClipImages, makeClipImageManifest, parseClipImages, parseExcludedDrawingTagIds } from "@/lib/clip-images";
 import { clipImageSource, creationImageKey, readImageObject, renderOpeningCard, writeImageObject } from "@/lib/clip-images-server";
 
@@ -15,7 +16,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const workerSecret = process.env.WORKER_SHARED_SECRET;
   if (!workerUrl || !workerSecret) return NextResponse.json({ error: "Video worker is not configured" }, { status: 503 });
 
+  let sourceUrls: Record<string, string>;
   try {
+    sourceUrls = await clipRecordingSources(clip.id, user);
+    if (Object.keys(sourceUrls).length) {
+      const health = await fetch(`${workerUrl}/health`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+      if (!health.ok || (await health.json()).clipRecordingSources !== 1) {
+        return NextResponse.json({ error: "De videoverwerker wordt bijgewerkt voor opgeslagen cameraopnamen. Probeer straks opnieuw." }, { status: 503 });
+      }
+    }
     const text = await request.text();
     if (text.length > 100_000) return NextResponse.json({ error: "Te veel clipbeelden." }, { status: 413 });
     let body: { images?: unknown; excludedDrawingTagIds?: unknown } = {};
@@ -56,7 +65,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const response = await fetch(`${workerUrl}/process-clip`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${workerSecret}` },
-    body: JSON.stringify({ clipId: clip.id, mode })
+    body: JSON.stringify({ clipId: clip.id, mode, sourceUrls })
   });
   if (!response.ok) return NextResponse.json({ error: "Video worker rejected the clip" }, { status: 502 });
   return NextResponse.json({ triggered: true });

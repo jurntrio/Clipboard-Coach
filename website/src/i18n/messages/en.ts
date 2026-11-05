@@ -1,6 +1,16 @@
 import type { MessageKey } from "./nl";
 
 export const en: Record<MessageKey, string> = {
+  "viewer.clipReconnect": "Reconnect the original local video files in the viewer first.",
+  "viewer.clipsTitle": "Clips ({count})",
+  "viewer.clipsLoading": "Loading clips…",
+  "viewer.clipsFailed": "Clips could not be loaded.",
+  "viewer.clipsRetry": "Try again",
+  "viewer.clipsEmpty": "No clips created yet.",
+  "viewer.clipCreator": "Created by {name}",
+  "viewer.unknownCreator": "Unknown creator",
+  "viewer.clipFailed": "Processing failed",
+  "viewer.clipReady": "Ready",
   "common.backHome": "Back to home",
   "common.close": "Close",
   "common.cancel": "Cancel",

@@ -11,7 +11,7 @@ import { syncRbfaZipMatches } from "./syncRbfaZipMatches";
 const app = express();
 app.use(express.json({ limit: "32kb" }));
 
-app.get("/health", (_req, res) => res.json({ ok: true, clipImageIntros: 1, clipDrawingSelection: 1, release: process.env.RAILWAY_GIT_COMMIT_SHA ?? null }));
+app.get("/health", (_req, res) => res.json({ ok: true, clipImageIntros: 1, clipDrawingSelection: 1, clipRecordingSources: 1, release: process.env.RAILWAY_GIT_COMMIT_SHA ?? null }));
 
 app.post("/process", async (req, res) => {
   const auth = req.header("authorization");
@@ -32,11 +32,15 @@ app.post("/process", async (req, res) => {
 app.post("/process-clip", async (req, res) => {
   const auth = req.header("authorization");
   if (auth !== `Bearer ${env.workerSharedSecret}`) return res.status(401).json({ error: "Unauthorized" });
-  const { clipId, mode } = req.body ?? {};
+  const { clipId, mode, sourceUrls = {} } = req.body ?? {};
   if (typeof clipId !== "string") return res.status(400).json({ error: "clipId is required" });
+  if (!sourceUrls || typeof sourceUrls !== "object" || Array.isArray(sourceUrls)
+    || Object.entries(sourceUrls).some(([id, url]) => !/^[0-9a-f-]{36}$/i.test(id) || typeof url !== "string" || !/^https:\/\//i.test(url))) {
+    return res.status(400).json({ error: "Invalid clip sources" });
+  }
 
   try {
-    const started = await startLockedJob("clip", clipId, () => mode === "remote" ? processRemoteClip(clipId) : processClip(clipId));
+    const started = await startLockedJob("clip", clipId, () => mode === "remote" ? processRemoteClip(clipId, sourceUrls) : processClip(clipId));
     return res.status(202).json({ accepted: started, alreadyProcessing: !started });
   } catch (error) {
     console.error(`[worker] could not acquire clip lock ${clipId}:`, error);

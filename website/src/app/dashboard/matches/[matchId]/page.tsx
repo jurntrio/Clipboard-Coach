@@ -3,6 +3,8 @@
 import MatchViewerLoading from "./loading";
 
 import { getMatchTitle } from "@/lib/match-display";
+import { ViewerClips } from "@/components/clips/ViewerClips";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -219,6 +221,7 @@ export default function MatchViewerPage() {
   const [pendingPhaseTag, setPendingPhaseTag] = useState<{ videoId: string; startTime: number; endTime: number } | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
+  const [clipsRevision, setClipsRevision] = useState(0);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [combinedTime, setCombinedTime] = useState(0);
   const [error, setError] = useState("");
@@ -1058,7 +1061,8 @@ export default function MatchViewerPage() {
             setTags(current => current.map(tag => tag.id === body.tag.id ? body.tag : tag));
             return true;
           }} />
-          {videos[0] && <ClipBuilder videoId={videos[0].id} videoIds={allVideos.map((video) => video.id)} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo={allVideos.some((video) => isLocalVideoUrl(video.video_url))} localVideoIds={allVideos.filter((video) => isLocalVideoUrl(video.video_url)).map((video) => video.id)} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={getMatchTitle(match, t("match.teamA"), t("match.teamB"))} onClipCreated={() => setSelectedTagIds([])} />}
+          <ViewerClips localFiles={files} matchId={matchId} revision={clipsRevision} onOpen={() => videoRef.current?.pause()} />
+          {videos[0] && <ClipBuilder videoId={videos[0].id} videoIds={allVideos.map((video) => video.id)} teamId={match?.team_a_id ?? null} selectedTagIds={selectedTagIds} tags={tags} players={players} localVideo={allVideos.some((video) => isLocalVideoUrl(video.video_url))} localVideoIds={allVideos.filter((video) => isLocalVideoUrl(video.video_url)).map((video) => video.id)} localFile={files[videos[0].id] ?? null} localFilesByVideoId={files} localSourcesReady={localFilesReady} siblingCamerasByVideoId={siblingCamerasByVideoId} matchLabel={getMatchTitle(match, t("match.teamA"), t("match.teamB"))} onClipsChanged={() => setClipsRevision(value => value + 1)} onClipCreated={() => setSelectedTagIds([])} />}
         </aside>
       </div>
       {drawingFrame && <FrameDrawingDialog frame={drawingFrame.image} time={drawingFrame.time} initialShapes={drawingFrame.initialShapes} initialDurationSeconds={drawingFrame.durationSeconds} onClose={() => setDrawingFrame(null)} onSave={drawingFrame.tagId ? saveDrawing : undefined} />}

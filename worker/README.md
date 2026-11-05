@@ -47,6 +47,14 @@ Existing ready segments are reused on retries. `/health` advertises
 
 ## Clip retention
 
+Saved private R2 camera recordings use `/api/recordings360/video/<jobId>` in the
+video table. The website checks the clip maker's match and team access and sends
+temporary signed playback URLs in `sourceUrls`, keyed by selected video ID, to
+`/process-clip`. The worker uses those URLs for byte-range extraction; it never
+treats authenticated app routes as local uploads. Deploy worker support first
+(`clipRecordingSources: 1` in `/health`), then the website. No new worker secrets
+are required. The original private recording and its database URL stay unchanged.
+
 Shared clips are retained for 365 days. The worker runs a cleanup on startup
 and every 24 hours: it deletes each expired clip's rendered R2 objects first,
 then deletes the clip row. Database cascades remove its segments and share

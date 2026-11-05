@@ -30,9 +30,9 @@ test("drawing selection rejects malformed values and accepts an absent legacy se
   for (const value of [null, "all", [42], ["not-an-id"], Array(401).fill(ids[0])]) assert.throws(() => plan.parseImageManifest({version: 1, segments: {}, excludeDrawings: value}));
 });
 
-async function render(excluded, local = false) {
-  const downloaded = [], rendered = [], writes = [];
-  const rows = segments.slice(0, 2).map((segment, index) => ({...segment, video_id: "camera", render_status: "pending", render_attempts: 0, rendered_segment: local ? {key: "uploaded.mp4", play_start: 0, duration: 10} : null, tags: {video_id: "camera", name: "Tag", color: "red", start_time: 10, end_time: 20, drawings: [{key: "drawing.png", video_time: 15, duration_seconds: 5}], videos: {id: "camera", video_url: "https://video.test/source.mp4"}}}));
+async function render(excluded, local = false, savedRecording = false) {
+  const downloaded = [], rendered = [], writes = [], remoteUrls = [];
+  const rows = segments.slice(0, 2).map((segment, index) => ({...segment, video_id: "camera", render_status: "pending", render_attempts: 0, rendered_segment: local ? {key: "uploaded.mp4", play_start: 0, duration: 10} : null, tags: {video_id: "camera", name: "Tag", color: "red", start_time: 10, end_time: 20, drawings: [{key: "drawing.png", video_time: 15, duration_seconds: 5}], videos: {id: "camera", video_url: savedRecording ? "/api/recordings360/video/86b28450-32fd-4635-8f36-9fc3cadabd0a" : "https://video.test/source.mp4"}}}));
   const manifest = excluded ? {version: 1, segments: {}, excludeDrawings: [rows[0].id]} : null;
   const fakeFs = {mkdtemp: async () => "fake-work", mkdir: async () => {}, copyFile: async () => {}, stat: async () => ({size: 100}), rm: async () => {}};
   const supabase = {from(table) {
@@ -46,11 +46,11 @@ async function render(excluded, local = false) {
     "./r2": {readJsonObject: async () => manifest, downloadToFile: async key => {downloaded.push(key);}, uploadFile: async () => "https://clip.test/result.mp4", deleteObject: async () => {}},
     "./clipImagePlan": plan,
     "./clipImagePipeline": {prependClipImages: async () => {}},
-    "./remoteRangeProxy": {createRemoteRangeProxy: async () => ({inputUrl: "http://local/source", stats: {requestCount: 0, transferredBytes: 0}, close: async () => {}})},
+    "./remoteRangeProxy": {createRemoteRangeProxy: async url => { remoteUrls.push(url); return ({inputUrl: "http://local/source", stats: {requestCount: 0, transferredBytes: 0}, close: async () => {}}); }},
     "./hlsPipeline": {buildMobileMp4WithDrawings: async (input, output, drawings) => {rendered.push(drawings);}, concatenateMp4Files: async () => {}, probeDurationSeconds: async () => 10}
   });
-  await worker.processRemoteClip("clip");
-  return {downloaded, rendered, writes, rows};
+  await worker.processRemoteClip("clip", savedRecording ? {camera: "https://storage.test/signed-recording"} : {});
+  return {downloaded, rendered, writes, rows, remoteUrls};
 }
 for (const local of [false, true]) test("actual clip renderer honors per-segment exclusion for " + (local ? "browser uploaded" : "remote") + " video", async () => {
   const result = await render(true, local);
@@ -74,6 +74,7 @@ async function submitSelection(excluded, options = {}) {
   const route = load("../src/app/api/clips/[id]/process/route.ts", {
     "next/server": {NextResponse: {json: (data, init) => new Response(JSON.stringify(data), {status: init?.status ?? 200})}},
     "@/lib/supabase/server": {createClient: () => client},
+    "@/lib/clip-recording-sources": {clipRecordingSources: async () => ({})},
     "@/lib/clip-images": images,
     "@/lib/clip-images-server": {clipImageSource: async () => {throw new Error("Drawing exclusion must not need intro-image permission");}, writeImageObject: async (key, json) => manifests.push(JSON.parse(json))}
   }, async (url, init) => {calls.push(url); return new Response(JSON.stringify(url.endsWith("/health") ? {clipImageIntros: 1, clipDrawingSelection: options.oldWorker ? undefined : 1} : {accepted: true}));});
@@ -93,4 +94,10 @@ test("process endpoint rejects missing access, unknown tags, a started job and a
     assert.equal(result.manifests.length, 0);
     assert.ok(!result.calls.some(url => url.endsWith("/process-clip")));
   }
+});
+
+test("saved R2 recordings render through their signed source instead of the local-only path", async () => {
+  const result = await render(false, false, true);
+  assert.deepEqual(result.remoteUrls, ["https://storage.test/signed-recording"]);
+  assert.equal(result.writes.at(-1).render_status, "ready");
 });

@@ -26,6 +26,7 @@ export function ClipBuilder({
   localSourcesReady,
   siblingCamerasByVideoId,
   matchLabel,
+  onClipsChanged,
   onClipCreated
 }: {
   videoId: string;
@@ -41,6 +42,7 @@ export function ClipBuilder({
   localSourcesReady?: boolean;
   siblingCamerasByVideoId?: Record<string, { id: string; camera_number: number | null; label: string }[]>;
   matchLabel?: string;
+  onClipsChanged?: () => void;
   onClipCreated: () => void;
 }) {
   const localSourceIds = new Set(localVideoIds ?? (localVideo ? [videoId] : []));
@@ -118,15 +120,13 @@ export function ClipBuilder({
   }, []);
 
   async function handleCreateClip() {
+    if (saving) return;
+    if (clipLimitReached) { setErrorMessage(t("clip.freeLimit")); return; }
     if (!imagesReady) return;
     let chosenImages;
     try { chosenImages = parseClipImages({ ...clipImages, tags: Object.fromEntries(Object.entries(clipImages.tags).filter(([id]) => clipTagIds.includes(id))) }); }
     catch (error) { setErrorMessage(error instanceof Error ? error.message : "Controleer de clipbeelden."); return; }
     if (clipTagIds.length === 0) return;
-    if (clipLimitReached) {
-      setErrorMessage(t("clip.freeLimit"));
-      return;
-    }
     if (localVideo && !canUseLocalSources) {
       setErrorMessage(t("clip.reconnectOriginal"));
       return;
@@ -144,74 +144,76 @@ export function ClipBuilder({
     setStatus(localFile ? t("clip.preparing") : t("clip.saving"));
     setErrorMessage("");
 
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
+    let createdClipId: string | null = null;
+    try {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-      setErrorMessage(t("errors.sessionExpired"));
-      setSaving(false);
-      return;
-    }
-
-    const orderedTags = orderedClipTagIds
-      .map((id) => tags.find((tag) => tag.id === id))
-      .filter((tag): tag is Tag => !!tag && !isPeriodMarker(tag.name));
-    const expandedSegments = orderedTags.flatMap((tag) => {
-      const siblings = siblingCamerasByVideoId?.[tag.video_id] ?? [];
-      if (siblings.length < 2) return [{ tag, videoId: tag.video_id }];
-      const chosen = new Set(selectedCamerasForTag(tag));
-      return siblings.filter((camera) => chosen.has(camera.id)).map((camera) => ({ tag, videoId: camera.id }));
-    }).filter((segment, index, allSegments) =>
-      allSegments.findIndex((candidate) => candidate.tag.id === segment.tag.id && candidate.videoId === segment.videoId) === index
-    );
-    if (localSourceIds.size > 0) {
-      const missingLocalSegments = expandedSegments.filter(({ videoId: sourceVideoId }) => localSourceIds.has(sourceVideoId) &&
-        !(localFilesByVideoId?.[sourceVideoId] ?? (sourceVideoId === videoId ? localFile : null))
-      );
-      if (missingLocalSegments.length > 0) {
-        setErrorMessage(t("clip.reconnectAll"));
+      if (!user) {
+        setErrorMessage(t("errors.sessionExpired"));
         setSaving(false);
         return;
       }
-    }
-    let resolvedClipName = clipName.trim();
-    if (!resolvedClipName && orderedTags.length === 1) {
-      resolvedClipName = orderedTags[0].name;
-    } else if (!resolvedClipName) {
-      const { count } = await supabase.from("clips").select("id", { count: "exact", head: true }).eq("video_id", videoId);
-      const sequence = String((count ?? 0) + 1).padStart(2, "0");
-      resolvedClipName = `Clip ${sequence} ${matchLabel?.trim() || t("clip.match")}`;
-    }
-    const { data: clip, error } = await supabase
-      .from("clips")
-      .insert({
-        coach_id: user.id,
-        video_id: videoId,
-        team_id: selectedTeamId || null,
-        name: resolvedClipName,
-        audience_type: audienceType,
-        audience_player_ids: audienceType === "specific_players" ? audiencePlayerIds : [],
-        render_status: "rendering"
-      })
-      .select()
-      .single();
 
-    if (!error && clip) {
-      setClipAllowance((current) => current ? { ...current, used: current.used + 1 } : current);
-      // Order segments by the tag's position in the timeline, not selection order.
-      const segments = expandedSegments.map(({ tag, videoId }, index) => ({
-        clip_id: clip.id,
-        tag_id: tag.id,
-        video_id: videoId,
-        sequence_order: index
-      }));
+      const orderedTags = orderedClipTagIds
+        .map((id) => tags.find((tag) => tag.id === id))
+        .filter((tag): tag is Tag => !!tag && !isPeriodMarker(tag.name));
+      const expandedSegments = orderedTags.flatMap((tag) => {
+        const siblings = siblingCamerasByVideoId?.[tag.video_id] ?? [];
+        if (siblings.length < 2) return [{ tag, videoId: tag.video_id }];
+        const chosen = new Set(selectedCamerasForTag(tag));
+        return siblings.filter((camera) => chosen.has(camera.id)).map((camera) => ({ tag, videoId: camera.id }));
+      }).filter((segment, index, allSegments) =>
+        allSegments.findIndex((candidate) => candidate.tag.id === segment.tag.id && candidate.videoId === segment.videoId) === index
+      );
+      if (localSourceIds.size > 0) {
+        const missingLocalSegments = expandedSegments.filter(({ videoId: sourceVideoId }) => localSourceIds.has(sourceVideoId) &&
+          !(localFilesByVideoId?.[sourceVideoId] ?? (sourceVideoId === videoId ? localFile : null))
+        );
+        if (missingLocalSegments.length > 0) {
+          setErrorMessage(t("clip.reconnectAll"));
+          setSaving(false);
+          return;
+        }
+      }
+      let resolvedClipName = clipName.trim();
+      if (!resolvedClipName && orderedTags.length === 1) {
+        resolvedClipName = orderedTags[0].name;
+      } else if (!resolvedClipName) {
+        const { count } = await supabase.from("clips").select("id", { count: "exact", head: true }).eq("video_id", videoId);
+        const sequence = String((count ?? 0) + 1).padStart(2, "0");
+        resolvedClipName = `Clip ${sequence} ${matchLabel?.trim() || t("clip.match")}`;
+      }
+      const { data: clip, error } = await supabase
+        .from("clips")
+        .insert({
+          coach_id: user.id,
+          video_id: videoId,
+          team_id: selectedTeamId || null,
+          name: resolvedClipName,
+          audience_type: audienceType,
+          audience_player_ids: audienceType === "specific_players" ? audiencePlayerIds : [],
+          render_status: "rendering"
+        })
+        .select()
+        .single();
 
-      const { data: createdSegments, error: segmentError } = await supabase.from("clip_segments").insert(segments).select("id, sequence_order");
-      if (segmentError) {
-        setErrorMessage(segmentError.message);
-      } else {
-        try {
+      if (!error && clip) {
+        setClipAllowance(current => current ? { ...current, used: current.used + 1 } : current);
+        createdClipId = clip.id;
+        // Order segments by the tag's position in the timeline, not selection order.
+        const segments = expandedSegments.map(({ tag, videoId }, index) => ({
+          clip_id: clip.id,
+          tag_id: tag.id,
+          video_id: videoId,
+          sequence_order: index
+        }));
+
+        const { data: createdSegments, error: segmentError } = await supabase.from("clip_segments").insert(segments).select("id, sequence_order");
+        if (segmentError) {
+          throw new Error(segmentError.message);
+        } else {
           const renderedSegments = [];
           for (let index = 0; index < expandedSegments.length; index += 1) {
             const { tag, videoId: sourceVideoId } = expandedSegments[index];
@@ -301,21 +303,25 @@ export function ClipBuilder({
           setClipImages(emptyClipImages());
           onClipCreated();
           setOpen(false);
-        } catch (renderError) {
-          const message = renderError instanceof Error ? renderError.message : t("clip.creationFailed");
-          const cleanupResponse = await fetch(`/api/clips/${clip.id}`, { method: "DELETE" });
-          if (!cleanupResponse.ok) await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", clip.id);
-          setErrorMessage(message);
-          setStatus("");
         }
+      } else if (error) {
+        setErrorMessage(error.message.includes("FREE_CLIP_LIMIT_REACHED") ? t("clip.freeLimit") : error.message);
       }
-    } else if (error) {
-      setErrorMessage(error.message.includes("FREE_CLIP_LIMIT_REACHED")
-        ? t("clip.freeLimit")
-        : error.message);
-    }
 
-    setSaving(false);
+    } catch (creationError) {
+      const message = creationError instanceof Error ? creationError.message : t("clip.creationFailed");
+      setErrorMessage(message);
+      setStatus("");
+      if (createdClipId) {
+        // Keep the saved clip and uploaded segments visible when processing fails.
+        try {
+          await supabase.from("clips").update({ render_status: "failed", render_error: message }).eq("id", createdClipId);
+        } catch { /* The original error remains visible even when the connection is lost. */ }
+      }
+    } finally {
+      setSaving(false);
+      if (createdClipId) onClipsChanged?.();
+    }
   }
 
   function toggleRecipient(playerId: string) {
@@ -461,10 +467,10 @@ export function ClipBuilder({
 
             </div>
 
-            {saving && localVideo && (
+            {saving && (
               <div className="mt-4" role="status" aria-live="polite"><div className="mb-1 flex justify-between text-xs text-textSecondary"><span>{status}</span><span>{Math.round(progress * 100)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-button"><div className="h-full bg-accent transition-[width]" style={{ width: `${progress * 100}%` }} /></div><p className="mt-2 text-xs text-textMuted">{t("clip.keepOpen")}</p></div>
             )}
-            {errorMessage && <p className="mt-3 text-sm text-red-300">{errorMessage}</p>}
+            {errorMessage && <p role="alert" className="mt-3 text-sm text-red-300">{errorMessage}</p>}
             <div className="mt-5 flex gap-3"><button type="button" disabled={saving} onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-button px-4 py-2 text-textPrimary disabled:cursor-not-allowed disabled:opacity-50">{t("common.cancel")}</button><button type="button" onClick={() => void handleCreateClip()} disabled={saving || clipLimitReached || !imagesReady} className="flex-1 rounded-lg bg-accent px-4 py-2 font-semibold text-page disabled:cursor-not-allowed disabled:opacity-50">{saving ? (localFile ? t("clip.making") : t("clip.creating")) : t("clip.create")}</button></div>
           </div>
         </div>
